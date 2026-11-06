@@ -1,0 +1,30 @@
+import SwiftUI
+import OpenUISwiftUI
+
+enum ProgressComponent {
+    static var component: OpenUIComponent {
+        OpenUIComponent(name: "Progress", description: "Native progress indicator. Omitted value is indeterminate; supplied finite value/max gives progress, clamped to 0...max. max defaults to 1 and must be positive. label is optional. Only use measured progress; do not fabricate completion.", params: [Parameter.number("value", minimum: 0), Parameter.number("max", minimum: 0.000001), OpenUIParameter.string("label", required: false)]) { ProgressComponentView(context: $0) }
+    }
+}
+enum ProgressReading {
+    static func fraction(value: Double?, maximum: Double?) -> Double? {
+        guard let value, value.isFinite else { return nil }
+        let maximum = maximum ?? 1
+        guard maximum.isFinite, maximum > 0 else { return nil }
+        return min(1, max(0, value / maximum))
+    }
+}
+private struct ProgressComponentView: View {
+    let context: OpenUIComponentContext
+    @Environment(\.intelligentUITheme) private var theme
+    var body: some View {
+        Group {
+            if let fraction = ProgressReading.fraction(value: context.number("value"), maximum: context.number("max")) {
+                ProgressView(value: fraction) { if let label = context.string("label") { Text(label).font(theme.secondaryFont) } }
+                    .progressViewStyle(.linear)
+                    .accessibilityValue("\(Int(fraction * 100))%")
+            } else if let label = context.string("label") { ProgressView(label).font(theme.secondaryFont) }
+            else { ProgressView().accessibilityLabel("正在处理") }
+        }.tint(theme.actionAccent)
+    }
+}

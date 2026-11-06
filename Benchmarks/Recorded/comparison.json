@@ -1,0 +1,3 @@
+{
+  "program": "root = Col([heading, comparison])\nheading = Title(\"价格比较\", \"lg\")\ncomparison = Table([\"项目\", \"价格\", \"来源\"], [[\"A\", \"100\", Link(\"查看来源\", \"/a\")], [\"B\", \"120\", Link(\"查看来源\", \"/b\")]])"
+}

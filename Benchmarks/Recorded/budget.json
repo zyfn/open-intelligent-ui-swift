@@ -1,0 +1,3 @@
+{
+  "program": "root = Col([heading, totalInput, result], 4, \"stretch\")\n$total = 100\nheading = Title(\"三人预算分摊\", \"lg\")\ntotalInput = Input($total, \"预算总额\", \"number\", \"输入总额\")\nshares = @Allocate(@Default($total, 0), [1, 1, 1], 2)\nresult = Card([Text(\"每人分摊\", \"sm\", \"muted\"), Title(@Join(shares, \" / \"), \"lg\"), Caption(\"按两位小数分摊；余数按顺序分配，合计等于总额四舍五入至两位小数后的结果。\")])"
+}

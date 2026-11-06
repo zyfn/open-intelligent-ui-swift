@@ -1,0 +1,68 @@
+import SwiftUI
+import OpenUILang
+import OpenUISwiftUI
+
+enum ColumnComponent {
+    static var component: OpenUIComponent {
+        OpenUIComponent(name: "Col", description: "Vertical editorial flow following pinned upstream: root blocks use 24 points, nested flow 12, heading-to-text 8 and caption-to-heading 4. Prose-to-image uses 12 points; a figure-to-caption uses 8. Explicit gap overrides this in 4-point theme units. align defaults to start.", params: [
+            OpenUIParameter.slot("children", required: true),
+            Parameter.number("gap", minimum: 0, maximum: 24),
+            OpenUIParameter.string("align", required: false, values: ["start", "center", "end", "stretch"])
+        ]) { ColumnView(context: $0) }
+    }
+}
+
+private struct ColumnView: View {
+    let context: OpenUIComponentContext
+    @EnvironmentObject private var state: OpenUIState
+    @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.intelligentUIEditorial) private var editorial
+    @Environment(\.intelligentUIReadingAnchors) private var readingAnchors
+    @Environment(\.intelligentUIReadingDepth) private var readingDepth
+    @Environment(\.intelligentUIMapContent) private var inMap
+    private var hasReadingTargets: Bool { readingAnchors && readingDepth == 0 && !inMap }
+    private var alignment: HorizontalAlignment {
+        switch context.string("align") {
+        case "center": return .center
+        case "end": return .trailing
+        default: return .leading
+        }
+    }
+    var body: some View {
+        let children = context.children()
+        return VStack(alignment: alignment, spacing: 0) {
+            ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+                context.render(child.value)
+                    .environment(\.intelligentUIEditorial, childContext)
+                    .environment(\.intelligentUIReadingDepth, readingDepth + 1)
+                    .frame(maxWidth: context.string("align") == "stretch" ? .infinity : nil, alignment: .leading)
+                    .intelligentUIReadingTarget(hasReadingTargets ? ReadingAnchor(state: state, child: child.id) : nil)
+                    .padding(.top, index == 0 ? 0 : inMap ? theme.spacingUnit : context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
+                        ?? EditorialSpacing.between(children[index - 1].value, child.value, opening: index == 1, theme: theme, nested: editorial.flowDepth > 0 || editorial.cardDepth > 0))
+            }
+        }.intelligentUILayoutTrace("column", "count=\(children.count)")
+    }
+    private var childContext: EditorialContext {
+        var value = editorial
+        if context.number("gap") == nil { value.flowDepth += 1 }
+        value.openingCardTitle = false; value.cardSubtitle = false
+        return value
+    }
+}
+
+enum EditorialSpacing {
+    static func between(_ previous: Value, _ next: Value, opening: Bool = false, theme: IntelligentUITheme, nested: Bool = false) -> CGFloat {
+        func kind(_ value: Value) -> String {
+            if case .element(let element) = value { return element.typeName }
+            return "Text"
+        }
+        let before = kind(previous), after = kind(next)
+        if ["Text", "Markdown"].contains(before) && ["Image", "SearchImage"].contains(after) { return theme.spacingUnit * 3 }
+        if after == "Caption" && ["Image", "SearchImage", "Chart", "Table", "Svg"].contains(before) { return theme.innerSpacing }
+        if before == "Caption" && after == "Title" { return theme.spacingUnit }
+        let badgeRow = after == "Row" && ValueReading.array(ValueReading.field(next, "children")).contains { kind($0) == "Badge" }
+        if before == "Title" && (["Text", "Caption"].contains(after) || badgeRow) { return theme.innerSpacing }
+        if before == "Title" || nested || (before == "Text" && after == "Text") { return theme.spacingUnit * 3 }
+        return theme.spacingUnit * 6
+    }
+}

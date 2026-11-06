@@ -1,0 +1,70 @@
+import SwiftUI
+import OpenUILang
+import OpenUISwiftUI
+
+enum CitationComponent {
+    static var component: OpenUIComponent {
+        let source = Parameter.objectSchema([("title", Parameter.stringSchema), ("url", Parameter.stringSchema)], required: ["title", "url"])
+        return OpenUIComponent(name: "Citation", description: "Compact optional source references. sources contain caller-supplied title/url, duplicate URLs use the first. A single source opens its original URL; several sources open an accessible source list popover. Never invent references or append them to product cards by default.", params: [ParamDef(name: "sources", required: true, schema: Parameter.arraySchema(source, maximum: 30))]) { CitationView(context: $0) }
+    }
+}
+
+struct CitationSource: Identifiable {
+    let title: String
+    let url: String
+    var id: String { url }
+    var domain: String {
+        guard let host = URL(string: url)?.host else { return title }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+    static func decode(_ value: Value?) -> [Self] {
+        var seen = Set<String>()
+        return ValueReading.array(value).compactMap { source in
+            let title = ValueReading.string(ValueReading.field(source, "title")), url = ValueReading.string(ValueReading.field(source, "url"))
+            guard !title.isEmpty, !url.isEmpty, seen.insert(url).inserted else { return nil }
+            return Self(title: title, url: url)
+        }
+    }
+}
+private struct CitationView: View {
+    let context: OpenUIComponentContext
+    @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.intelligentUIInlineContent) private var inline
+    @State private var presented = false
+    private var sources: [CitationSource] { CitationSource.decode(context.value("sources")) }
+    var body: some View {
+        if let first = sources.first {
+            Group {
+                if sources.count == 1 {
+                    OpenUIActionSurface(context: context, action: OpenUIActions.openURL(first.url), useNativeStyle: true) { label(first) }
+                        .disabled(!SourceURL.isActionable(first.url))
+                } else {
+                    Button { presented = true } label: { label(first) }.disabled(!context.canInteract)
+                        .popover(isPresented: $presented) { details }
+                }
+            }.buttonStyle(.plain).accessibilityLabel(sources.count == 1 ? "查看来源：" + first.title : "查看 \(sources.count) 个来源")
+                .onChange(of: sources.map(\.id)) { _ in presented = false }
+        }
+    }
+    private func label(_ source: CitationSource) -> some View {
+        HStack(spacing: theme.spacingUnit) {
+            Image(systemName: "globe").accessibilityHidden(true)
+            Text(source.domain).lineLimit(1)
+            if sources.count > 1 { Text("+\(sources.count - 1)").monospacedDigit() }
+        }.font(theme.captionFont).foregroundStyle(theme.secondaryText)
+            .padding(.horizontal, theme.innerSpacing).padding(.vertical, theme.spacingUnit)
+            .background(theme.surface, in: Capsule()).frame(minHeight: inline ? nil : theme.minimumControlHeight, alignment: .leading)
+    }
+    @ViewBuilder private var details: some View {
+        let content = VStack(alignment: .leading, spacing: theme.innerSpacing) {
+            HStack { Text("来源").font(theme.titleFont); Spacer(); Button("完成") { presented = false }.accessibilityLabel("关闭来源") }
+            ForEach(sources) { source in
+                OpenUIActionSurface(context: context, action: OpenUIActions.openURL(source.url), useNativeStyle: true) {
+                    VStack(alignment: .leading, spacing: theme.spacingUnit) { Text(source.title).font(theme.bodyFont); Text(source.domain).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
+                        .frame(maxWidth: .infinity, minHeight: theme.minimumControlHeight, alignment: .leading)
+                }.buttonStyle(.plain).disabled(!SourceURL.isActionable(source.url))
+            }
+        }.padding(theme.groupSpacing).frame(minWidth: 240, idealWidth: 300, maxWidth: 360).tint(theme.actionAccent)
+        if #available(iOS 16.4, macOS 13.3, *) { content.presentationCompactAdaptation(.popover) } else { content }
+    }
+}
