@@ -10,7 +10,7 @@ let package = Package(
         .executable(name: "ContractExport", targets: ["ContractExport"])
     ],
     dependencies: [
-        .package(url: "https://github.com/zyfn/openui.git", revision: "a92f2307c46a32924635f2e60cd9a284709a915b"),
+        .package(url: "https://github.com/zyfn/openui.git", revision: "335f99b90e62306d399343c98ad67f363f13c771"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", exact: "2.4.1")
     ],
     targets: [

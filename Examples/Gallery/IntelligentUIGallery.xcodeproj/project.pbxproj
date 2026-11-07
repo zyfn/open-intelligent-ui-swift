@@ -63,7 +63,7 @@
   A80000000000000000000004 = {isa = XCBuildConfiguration; name = Release; buildSettings = {PRODUCT_BUNDLE_IDENTIFIER = dev.swiftintelligentui.gallery.ios; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Intelligent UI"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; TARGETED_DEVICE_FAMILY = "1,2"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 0.1.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; }; };
   A90000000000000000000001 = {isa = XCLocalSwiftPackageReference; relativePath = ../..; };
   A90000000000000000000002 = {isa = XCSwiftPackageProductDependency; package = A90000000000000000000001; productName = SwiftIntelligentUI; };
-  A90000000000000000000003 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/zyfn/openui.git"; requirement = {kind = revision; revision = a92f2307c46a32924635f2e60cd9a284709a915b; }; };
+  A90000000000000000000003 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/zyfn/openui.git"; requirement = {kind = revision; revision = 335f99b90e62306d399343c98ad67f363f13c771; }; };
   A90000000000000000000004 = {isa = XCSwiftPackageProductDependency; package = A90000000000000000000003; productName = OpenUILang; };
   A90000000000000000000005 = {isa = XCSwiftPackageProductDependency; package = A90000000000000000000003; productName = OpenUISwiftUI; };
  };

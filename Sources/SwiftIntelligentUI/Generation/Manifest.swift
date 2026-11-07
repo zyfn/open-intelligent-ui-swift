@@ -19,13 +19,13 @@ public struct IntelligentUIManifest: Codable, Sendable {
 extension IntelligentUILibrary {
     public var manifest: IntelligentUIManifest {
         let web: Set<String> = ["HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "Math"]
-        return IntelligentUIManifest(version: "0.1.0-preview.25", profile: components.library.id ?? "swift-intelligent-ui.v0.1",
-            upstreamCommit: "16ef26475999e3a021a50b1607a03717c0721255", runtimeCommit: "a92f2307c46a32924635f2e60cd9a284709a915b",
+        return IntelligentUIManifest(version: "0.1.0-preview.26-rc9", profile: components.library.id ?? "swift-intelligent-ui.v0.1",
+            upstreamCommit: "16ef26475999e3a021a50b1607a03717c0721255", runtimeCommit: "335f99b90e62306d399343c98ad67f363f13c771",
             components: specification.components.map { .init(name: $0.name, rendering: web.contains($0.name) ? "local-webkit-or-embedded-media" : $0.name == "Map" ? "mapkit" : "swiftui", contract: $0.description) },
             functions: specification.functions.map(\.name), actions: specification.actions.map(\.name),
             requirements: [
                 "iOS 16+ / macOS 13+; system text, controls and dynamic appearance.",
-                "makeState enables source-ordered ready-prefix publication; pending predecessors hold later siblings, while explicit null, inactive branches and resolved empty collections remain empty.",
+                "OpenUI Swift is pinned to the remote rc.9 revision; the former orderedRendering option is not enabled in this runtime.",
                 "SearchImage is registered only with an explicit caller service.",
                 "Content and citations present caller-supplied facts; this library does not retrieve or invent them.",
                 "TransportCard displays supplied local clock/date/zone and fare text; no inferred elapsed duration, through-ticket or total price.",

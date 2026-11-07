@@ -1,5 +1,5 @@
 {
-  "originHash" : "5f1643b262fb8038d819255827e5e6b1cf000155313ffcfe75f17c83f1f2b634",
+  "originHash" : "0ee9a92c770dfc89f9d3cb6a2801b85a115b91bdaa221ddb980defce1ae248ad",
   "pins" : [
     {
       "identity" : "networkimage",
@@ -15,7 +15,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/zyfn/openui.git",
       "state" : {
-        "revision" : "a92f2307c46a32924635f2e60cd9a284709a915b"
+        "revision" : "335f99b90e62306d399343c98ad67f363f13c771"
       }
     },
     {

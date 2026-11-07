@@ -55,8 +55,6 @@ public struct IntelligentUILibrary {
 
     /// Convenience factory for SDK state; ownership remains with the caller.
     @MainActor public func makeState() -> OpenUIState {
-        var schema = readerComponents.library.toSchema()
-        schema.orderedRendering = true
-        return OpenUIState(schema: schema, functions: readerComponents.library.customFunctions())
+        OpenUIState(schema: readerComponents.library.toSchema(), functions: readerComponents.library.customFunctions())
     }
 }
