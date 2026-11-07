@@ -19,10 +19,8 @@ final class LibraryTests: XCTestCase {
         XCTAssertFalse(library.systemPrompt.contains("SearchImage("))
         XCTAssertTrue(library.systemPrompt.contains("Image(src: string, alt: string)"))
         XCTAssertFalse(library.systemPrompt.contains("aspectRatio?:"))
-        XCTAssertFalse(library.systemPrompt.contains("This creates a progressive top-down reveal"))
-        XCTAssertFalse(library.systemPrompt.contains("Data values — leaf content last"))
-        XCTAssertFalse(library.systemPrompt.contains("does not guarantee visual top-down ordering"))
-        XCTAssertTrue(library.systemPrompt.contains("source-ordered ready prefix"))
+        XCTAssertFalse(library.systemPrompt.contains("source-ordered ready prefix"))
+        XCTAssertTrue(library.systemPrompt.contains("Do not depend on a particular intermediate rendering order"))
         XCTAssertTrue(try XCTUnwrap(library.components.library.components.first { $0.name == "Image" }).params.contains { $0.name == "aspectRatio" })
     }
 
