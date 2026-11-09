@@ -15,9 +15,7 @@ private struct TitleView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.intelligentUIEditorial) private var editorial
-    @Environment(\.intelligentUIMapContent) private var inMap
     private var font: Font {
-        if inMap { return theme.mapCardTitleFont }
         if editorial.openingCardTitle && [nil, "sm", "md"].contains(context.string("size")) { return theme.secondaryFont.weight(.medium) }
         if editorial.compactContent && ["lg", "xl", "2xl", "3xl"].contains(context.string("size") ?? "md") { return theme.bodyLargeFont.weight(theme.headingWeight) }
         switch context.string("size") {
@@ -33,7 +31,7 @@ private struct TitleView: View {
         Text(InlineTypography.attributed(context.string("text") ?? "", font: font, emphasis: theme.headingWeight))
             .font(font)
             .foregroundStyle(theme.textColor(context.string("color")))
-            .lineLimit(inMap ? 2 : nil)
+            .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .environment(\.openURL, OpenURLAction { url in

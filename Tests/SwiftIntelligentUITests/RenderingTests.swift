@@ -131,13 +131,16 @@ final class RenderingTests: XCTestCase {
         XCTAssertEqual(PropValue.string(text, "text"), "已选")
     }
 
-    @MainActor func testIncompleteActionCannotDispatch() async throws {
+    @MainActor func testIncompleteActionIsVisibleButCannotDispatch() async throws {
         let library = try IntelligentUILibrary()
         let state = library.makeState()
         var received: [ActionEvent] = []
         state.onAction = { received.append($0) }
         state.push("root = Col([Button(\"打开\", @OpenUrl(\"https://example.com")
-        XCTAssertTrue(PropValue.children(try XCTUnwrap(state.root)).isEmpty)
+        let incomplete = try XCTUnwrap(PropValue.children(try XCTUnwrap(state.root)).first)
+        let preview = OpenUIComponentContext(element: incomplete, registry: library.components.registry, state: state)
+        XCTAssertFalse(preview.canInteract)
+        if let action = preview.action() { _ = await preview.perform(action) }
         XCTAssertTrue(received.isEmpty)
         state.push("\"))])\n")
         state.complete()

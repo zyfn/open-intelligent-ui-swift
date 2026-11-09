@@ -3,17 +3,22 @@ import Charts
 import OpenUILang
 import OpenUISwiftUI
 
+private enum ChartMetrics {
+    static let axisFont: Font = .caption
+    static let legendFont: Font = .footnote
+    static let labelColor: Color = .primary
+}
+
 enum ChartComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Chart", description: "Native chart with tap/drag/hover popover inspection, accessible data points and expandable data details. No persistent value-selection button. Optional selected binds the selected x/category label; without a binding selection stays local. x is a category (numeric for scatter); up to 8 numeric series inferred from the first row. Defaults: format number, currency USD, stacked false, height 240 points. Invalid values are omitted. Pie/donut use the first series and nonnegative values. Data details preserve exact accessible values.", params: [
+        OpenUIComponent(name: "Chart", description: "Native chart with tap/drag/hover popover inspection, accessible data points and expandable data details. Selection stays local to the chart. x is a category (numeric for scatter); up to 8 numeric series inferred from the first row. Defaults: format number, currency USD, stacked false, height 240 points. Invalid values are omitted. Pie/donut use the first series and nonnegative values. Data details preserve exact accessible values.", params: [
             OpenUIParameter.string("type", values: ["bar", "line", "area", "pie", "donut", "scatter"]),
             Parameter.array("data", items: .object([.init(key: "type", value: .string("object")), .init(key: "additionalProperties", value: .object([.init(key: "type", value: .array([.string("string"), .string("number")]))]))])),
             OpenUIParameter.string("x", required: false),
             Parameter.array("series", items: .object([.init(key: "type", value: .string("string"))]), required: false),
             OpenUIParameter.string("format", required: false, values: ["number", "currency", "percent"]),
             OpenUIParameter.string("currency", required: false), OpenUIParameter.flag("stacked"),
-            Parameter.number("height", minimum: 140, maximum: 480),
-            OpenUIParameter.selection("selected", required: false)
+            Parameter.number("height", minimum: 140, maximum: 480)
         ]) { ChartView(context: $0) }
     }
 }
@@ -83,10 +88,7 @@ private struct ChartView: View {
     @EnvironmentObject private var state: OpenUIState
     @State private var inspectedLabel: String?
     @State private var inspectionPresented = false
-    private var selectedLabel: String? {
-        if let binding = context.binding("selected") { return ValueReading.string(binding.wrappedValue) }
-        return inspectedLabel ?? context.string("selected")
-    }
+    private var selectedLabel: String? { inspectedLabel }
     private var kind: String { context.string("type") ?? "bar" }
     private var data: ChartData { ChartData(rows: context.value("data"), x: context.string("x"), series: context.value("series"), scatter: kind == "scatter") }
     private func formatted(_ value: Double) -> String { ChartData.formatted(value, kind: context.string("format"), currency: context.string("currency")) }
@@ -115,8 +117,7 @@ private struct ChartView: View {
         guard context.canInteract else { return }
         inspectionPresented = !label.isEmpty
         guard selectedLabel != label else { return }
-        if let binding = context.binding("selected") { binding.wrappedValue = .string(OpenUIString(label)) }
-        else { inspectedLabel = label }
+        inspectedLabel = label
     }
     private func inspectedPoints(_ data: ChartData) -> [ChartData.Point] {
         data.points.filter { $0.label == selectedLabel && (!(kind == "pie" || kind == "donut") || $0.series == data.series.first) }
@@ -193,13 +194,13 @@ private struct ChartView: View {
         .chartForegroundStyleScale(domain: data.series, range: theme.chartColors.isEmpty ? [.blue] : theme.chartColors)
         .chartLegend(.hidden)
         .chartXAxis { AxisMarks { _ in
-            AxisValueLabel().font(theme.chartAxisFont).foregroundStyle(theme.chartLabelColor)
+            AxisValueLabel().font(ChartMetrics.axisFont).foregroundStyle(ChartMetrics.labelColor)
         } }
         .chartYAxis { AxisMarks(position: .leading) { value in
             AxisGridLine().foregroundStyle(theme.separator)
             AxisValueLabel { if let number = value.as(Double.self) {
                 Text(ChartData.axisLabel(number, kind: context.string("format"), currency: context.string("currency")))
-                    .font(theme.chartAxisFont).foregroundStyle(theme.chartLabelColor)
+                    .font(ChartMetrics.axisFont).foregroundStyle(ChartMetrics.labelColor)
             } }
         } }
     }
@@ -211,7 +212,7 @@ private struct ChartView: View {
                     Text(series)
                 }
             }
-        }.font(theme.chartLegendFont).foregroundStyle(theme.chartLabelColor)
+        }.font(ChartMetrics.legendFont).foregroundStyle(ChartMetrics.labelColor)
     }
     private func inspect(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy, data: ChartData) {
         let frame = geometry[proxy.plotAreaFrame]
@@ -272,7 +273,7 @@ private struct NativePie: View {
               .accessibilityLabel(points.map { "\($0.label)：\($0.value)" }.joined(separator: "，"))
               WrappingRowLayout(gap: 12, alignment: "center", justification: "start", wraps: true) {
                   ForEach(Array(points.prefix(8).enumerated()), id: \.element.id) { index, point in
-                      HStack(spacing: theme.spacingUnit) { Circle().fill(colors[index % colors.count]).frame(width: 8, height: 8); Text(point.label).font(theme.chartLegendFont).foregroundStyle(theme.chartLabelColor) }
+                      HStack(spacing: theme.spacingUnit) { Circle().fill(colors[index % colors.count]).frame(width: 8, height: 8); Text(point.label).font(ChartMetrics.legendFont).foregroundStyle(ChartMetrics.labelColor) }
                   }
               }
             }

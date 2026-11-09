@@ -19,7 +19,6 @@ private struct RowView: View {
     @Environment(\.layoutDirection) private var direction
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.intelligentUIEditorial) private var editorial
-    @Environment(\.intelligentUIMapContent) private var inMap
     private func isBlock(_ child: OpenUIRenderChild) -> Bool {
         guard case .element(let element) = child.value else { return false }
         return ["Box", "Col", "Card", "ImageText", "ProductCard", "TransportCard", "List", "Table", "Chart", "Form"].contains(element.typeName)
@@ -31,8 +30,8 @@ private struct RowView: View {
     }
     @ViewBuilder var body: some View {
         let children = context.children()
-        if children.count == 2, children.filter({ EditorialNode.media($0.value) }).count == 1, let mediaIndex = children.firstIndex(where: { EditorialNode.media($0.value) }), !typeSize.isAccessibilitySize || inMap {
-            EditorialRowLayout(preferredImageWidth: inMap ? theme.mapThumbnailWidth : theme.editorialImageWidth, ratio: inMap ? 1 : EditorialNode.imageRatio(children[mediaIndex].value) ?? theme.editorialImageAspectRatio, gap: inMap ? theme.controlHorizontalPadding : theme.groupSpacing, rightToLeft: (direction == .rightToLeft) != (mediaIndex == 1)) {
+        if children.count == 2, children.filter({ EditorialNode.media($0.value) }).count == 1, let mediaIndex = children.firstIndex(where: { EditorialNode.media($0.value) }), !typeSize.isAccessibilitySize {
+            EditorialRowLayout(preferredImageWidth: EditorialMetrics.imageWidth, ratio: EditorialNode.imageRatio(children[mediaIndex].value) ?? EditorialMetrics.imageAspectRatio, gap: theme.groupSpacing, rightToLeft: (direction == .rightToLeft) != (mediaIndex == 1)) {
                 context.render(children[mediaIndex].value).environment(\.intelligentUIEditorial, mediaContext(true))
                 context.render(children[1 - mediaIndex].value).environment(\.intelligentUIEditorial, mediaContext(false))
             }
@@ -46,7 +45,7 @@ private struct RowView: View {
         } else { row }
     }
     private func mediaContext(_ media: Bool) -> EditorialContext {
-        var value = editorial; value.mediaRatio = media ? (inMap ? 1 : theme.editorialImageAspectRatio) : nil
+        var value = editorial; value.mediaRatio = media ? EditorialMetrics.imageAspectRatio : nil
         return value
     }
     private var row: some View {

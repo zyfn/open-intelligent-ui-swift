@@ -19,7 +19,7 @@ public struct IntelligentUIManifest: Codable, Sendable {
 extension IntelligentUILibrary {
     public var manifest: IntelligentUIManifest {
         let web: Set<String> = ["HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "Math"]
-        return IntelligentUIManifest(version: "0.1.0-preview.26-rc9", profile: components.library.id ?? "swift-intelligent-ui.v0.1",
+        return IntelligentUIManifest(version: "0.1.0-preview.28-design-system", profile: components.library.id ?? "swift-intelligent-ui.v0.1",
             upstreamCommit: "16ef26475999e3a021a50b1607a03717c0721255", runtimeCommit: "335f99b90e62306d399343c98ad67f363f13c771",
             components: specification.components.map { .init(name: $0.name, rendering: web.contains($0.name) ? "local-webkit-or-embedded-media" : $0.name == "Map" ? "mapkit" : "swiftui", contract: $0.description) },
             functions: specification.functions.map(\.name), actions: specification.actions.map(\.name),

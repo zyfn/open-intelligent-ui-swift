@@ -16,6 +16,8 @@ struct TransportData {
         let mode: Mode
         let from: String
         let to: String
+        let fromCity: String?
+        let toCity: String?
         let departureTime: String?
         let arrivalTime: String?
         let departureDate: String?
@@ -54,7 +56,6 @@ struct TransportData {
     let priceNote: String?
     let badge: String?
     let bookingURL: String?
-    let actionLabel: String?
     let separateTickets: Bool
 
     init?(_ value: Value?) {
@@ -72,7 +73,7 @@ struct TransportData {
             if let explicit, explicit != explicit.rounded() || abs(explicit) > 366 { return nil }
             let calendarOffset = Self.dayOffset(from: departureDate, to: arrivalDate)
             if let explicit, let calendarOffset, Int(explicit) != calendarOffset { return nil }
-            legs.append(Leg(id: legID, mode: mode, from: from, to: to, departureTime: departureTime, arrivalTime: arrivalTime,
+            legs.append(Leg(id: legID, mode: mode, from: from, to: to, fromCity: Self.text(leg, "fromCity"), toCity: Self.text(leg, "toCity"), departureTime: departureTime, arrivalTime: arrivalTime,
                             departureDate: departureDate, arrivalDate: arrivalDate, departureZone: Self.text(leg, "departureZone"), arrivalZone: Self.text(leg, "arrivalZone"),
                             fromCode: Self.text(leg, "fromCode"), toCode: Self.text(leg, "toCode"), fromTerminal: Self.text(leg, "fromTerminal"), toTerminal: Self.text(leg, "toTerminal"),
                             carrier: Self.text(leg, "carrier"), serviceNumber: Self.text(leg, "serviceNumber"), durationText: Self.text(leg, "durationText"), bookingURL: Self.text(leg, "bookingURL"), arrivalDayOffset: explicit.map(Int.init) ?? calendarOffset))
@@ -84,7 +85,7 @@ struct TransportData {
         }
         self.id = id; self.legs = legs; self.connections = connections
         durationText = Self.text(value, "durationText"); price = PricePresentation(value); priceNote = Self.text(value, "priceNote")
-        badge = Self.text(value, "badge"); bookingURL = Self.text(value, "bookingURL"); actionLabel = Self.text(value, "actionLabel")
+        badge = Self.text(value, "badge"); bookingURL = Self.text(value, "bookingURL")
         separateTickets = ValueReading.field(value, "separateTickets") == .boolean(true)
     }
     var hasCompleteConnections: Bool { legs.count > 1 && connections.count == legs.count - 1 }

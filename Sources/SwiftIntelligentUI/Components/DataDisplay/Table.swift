@@ -2,6 +2,13 @@ import SwiftUI
 import OpenUILang
 import OpenUISwiftUI
 
+private enum TableMetrics {
+    static let minimumColumnWidth: CGFloat = 80
+    static let maximumColumnWidth: CGFloat = 180
+    static let cellHorizontalPadding: CGFloat = 12
+    static let cellVerticalPadding: CGFloat = 10
+}
+
 enum TableComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Table", description: "Native table with SDK default column sizing: descriptions take flexible remaining width, numeric/money columns stay content-sized and right aligned. Few readable columns fill the viewport; wide tables scroll. Header surface/semibold labels, consistent cell padding, vertically centered multiline rows and subtle separators preserve row relationships. Numeric digits are monospaced. Accessibility sizes use labeled vertical records. Missing cells show an em dash. No manual per-table sizing or Markdown conversion is needed.", params: [
@@ -139,7 +146,7 @@ private struct TableView: View {
                                 cell(row, column)
                             }
                         }
-                    }.padding(.vertical, theme.tableCellVerticalPadding)
+                    }.padding(.vertical, TableMetrics.cellVerticalPadding)
                     separator
                 }
             }
@@ -147,11 +154,11 @@ private struct TableView: View {
             VStack(alignment: .leading, spacing: theme.innerSpacing) {
                 ScrollView(.horizontal) {
                     NativeTableLayout(numeric: data.columns.map(\.numeric), viewport: viewportWidth,
-                                      minimum: theme.tableMinimumColumnWidth, maximum: theme.tableMaximumColumnWidth) {
+                                      minimum: TableMetrics.minimumColumnWidth, maximum: TableMetrics.maximumColumnWidth) {
                         ForEach(data.columns) { column in
                             Text(column.title).font(theme.secondaryFont.weight(.semibold)).foregroundStyle(theme.primaryText)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
-                                .padding(.horizontal, theme.tableCellHorizontalPadding).padding(.vertical, theme.tableCellVerticalPadding)
+                                .padding(.horizontal, TableMetrics.cellHorizontalPadding).padding(.vertical, TableMetrics.cellVerticalPadding)
                                 .background(theme.surface)
                         }
                         separator
@@ -159,7 +166,7 @@ private struct TableView: View {
                             ForEach(data.columns) { column in
                                 VStack(alignment: column.numeric ? .trailing : .leading, spacing: 0) { cell(row, column) }
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .trailing : .leading)
-                                    .padding(.horizontal, theme.tableCellHorizontalPadding).padding(.vertical, theme.tableCellVerticalPadding)
+                                    .padding(.horizontal, TableMetrics.cellHorizontalPadding).padding(.vertical, TableMetrics.cellVerticalPadding)
                             }
                             separator
                         }
@@ -168,7 +175,7 @@ private struct TableView: View {
                 }
                 .scrollIndicators(.visible, axes: .horizontal)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.separator.opacity(0.35)))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.fieldBorder))
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
                 if viewportWidth > 0 && contentWidth > viewportWidth + 1 {
                     Label("左右滑动查看其余列", systemImage: "arrow.left.and.right")

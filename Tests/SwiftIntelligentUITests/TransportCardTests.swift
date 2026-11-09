@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 import OpenUILang
 import OpenUISwiftUI
 @testable import SwiftIntelligentUI
@@ -14,15 +15,30 @@ final class TransportCardTests: XCTestCase {
         return (library, state, TransportData(context.value("journey")))
     }
     @MainActor func testDirectJourneyKeepsExactFieldsAndUnknownsAbsent() throws {
-        let (_, _, result) = try decode(#"{id:"f",legs:[{mode:"flight",from:"出发地",to:"目的地",departureTime:"07:25",arrivalTime:"09:25",fromTerminal:"T1",toTerminal:"T3",carrier:"演示航司",serviceNumber:"DEMO1"}],priceText:"¥580 起",bookingURL:"/book?journey=f"}"#)
+        let (_, _, result) = try decode(#"{id:"f",legs:[{mode:"flight",from:"出发地机场",to:"目的地机场",fromCity:"出发市",toCity:"目的市",departureTime:"07:25",arrivalTime:"09:25",fromTerminal:"T1",toTerminal:"T3",carrier:"演示航司",serviceNumber:"DEMO1"}],priceText:"¥580 起",bookingURL:"/book?journey=f"}"#)
         let journey = try XCTUnwrap(result)
         XCTAssertEqual(journey.legs.count, 1)
+        XCTAssertEqual(journey.legs.first?.fromCity, "出发市")
+        XCTAssertEqual(journey.legs.first?.toCity, "目的市")
         XCTAssertEqual(journey.priceText, "¥580 起")
         XCTAssertEqual(journey.bookingURL, "/book?journey=f")
         XCTAssertEqual(journey.legs.first?.toTerminal, "T3")
         XCTAssertNil(journey.durationText, "Do not infer elapsed duration from local clocks")
         XCTAssertNil(journey.legs.first?.arrivalDayOffset)
     }
+    @MainActor func testMissingDurationCarrierAndPriceKeepsCardHeight() throws {
+        #if os(macOS)
+        func height(_ body: String) throws -> CGFloat {
+            let (library, state, _) = try decode(body)
+            let renderer = ImageRenderer(content: IntelligentUIView(state: state, library: library).frame(width: 360))
+            return try XCTUnwrap(renderer.nsImage).size.height
+        }
+        let full = #"{id:"full",legs:[{mode:"train",from:"A站",to:"B站",fromCity:"A市",toCity:"B市",departureDate:"2026-11-12",departureTime:"09:00",arrivalTime:"11:00",durationText:"2小时",carrier:"国铁",serviceNumber:"G1"}],durationText:"2小时",price:60,currency:"CNY",bookingURL:"/book"}"#
+        let minimal = #"{id:"minimal",legs:[{mode:"train",from:"A站",to:"B站",fromCity:"A市",toCity:"B市",departureDate:"2026-11-12",departureTime:"09:00",arrivalTime:"11:00"}]}"#
+        XCTAssertEqual(try height(full), try height(minimal), accuracy: 0.5)
+        #endif
+    }
+
     @MainActor func testTransferAndSeparateTicketsRetainEachLeg() throws {
         let (_, _, result) = try decode(#"{id:"m",legs:[{id:"a",mode:"train",from:"A站",to:"B站",departureTime:"21:00",arrivalTime:"22:00",departureDate:"2026-11-12",arrivalDate:"2026-11-12",bookingURL:"/book/train"},{id:"b",mode:"flight",from:"B机场",to:"C机场",departureTime:"08:00",arrivalTime:"11:00",departureDate:"2026-11-13",arrivalDate:"2026-11-13",departureZone:"UTC+8",arrivalZone:"UTC+8",bookingURL:"/book/flight"}],connections:[{afterLeg:0,changeStation:true,durationText:"10小时",notice:"自行换站"}],separateTickets:true}"#)
         let journey = try XCTUnwrap(result)
@@ -69,7 +85,10 @@ final class TransportCardTests: XCTestCase {
         XCTAssertEqual(journeys.map { $0.legs.count }, [1, 1])
         XCTAssertEqual(journeys.map(\.routeLabel), ["直达", "直达"])
         XCTAssertTrue(journeys.allSatisfy { $0.price.text == nil && $0.connections.isEmpty })
-        XCTAssertTrue(PropValue.string(try XCTUnwrap(children.first), "text")?.contains("106") == true)
+        XCTAssertTrue(journeys[0].priceNote?.contains("106") == true)
+        XCTAssertEqual(journeys[0].primaryBookingURL, "https://example.com/source?journeyType=round&opaque=keep%3D%3D")
+        XCTAssertNil(journeys[1].priceNote)
+        XCTAssertNil(journeys[1].primaryBookingURL)
     }
     func testCalendarDayLabelsDoNotComputeFlightDuration() {
         XCTAssertEqual(TransportData.dayOffset(from: "2026-12-31", to: "2027-01-01"), 1)

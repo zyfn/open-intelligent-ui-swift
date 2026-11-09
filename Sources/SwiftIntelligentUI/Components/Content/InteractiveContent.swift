@@ -21,7 +21,7 @@ private struct FlashcardView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 168)
             .background(revealed ? theme.surface : theme.canvas, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.separator.opacity(0.4)))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.fieldBorder))
             .rotation3DEffect(.degrees(reduceMotion || !revealed ? 0 : 180), axis: (x: 0, y: 1, z: 0))
         }.buttonStyle(.plain).disabled(!context.canInteract)
             .accessibilityValue(revealed ? "背面" : "正面").accessibilityHint("轻点翻面")

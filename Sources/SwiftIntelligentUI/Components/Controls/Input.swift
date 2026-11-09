@@ -10,7 +10,7 @@ enum InputComponent {
         return OpenUIComponent(name: "Input", description: "Text or number input. type defaults to text. Bind value to a $variable; literals are read-only. Numeric drafts stay visible while editing, finite values update the binding, empty input writes null, invalid drafts preserve the previous value until blur. Numbers use dot decimals and allow comma grouping.", params: [
             value, OpenUIParameter.string("label", required: false),
             OpenUIParameter.string("type", required: false, values: ["text", "number"]),
-            OpenUIParameter.string("placeholder", required: false), OpenUIParameter.string("error", required: false)
+            OpenUIParameter.string("placeholder", required: false)
         ]) { InputView(context: $0) }
     }
 }
@@ -66,10 +66,8 @@ private struct InputView: View {
                 #if os(iOS)
                 .keyboardType(context.string("type") == "number" ? .numbersAndPunctuation : .default)
                 #endif
-                .modifier(FieldSurface(focused: focused, invalid: !(context.string("error") ?? "").isEmpty))
+                .modifier(FieldSurface(focused: focused))
                 .accessibilityLabel(label.isEmpty ? context.string("placeholder") ?? "输入" : label)
-                .accessibilityHint(context.string("error") ?? "")
-            FieldError(message: context.string("error"))
         }
         .foregroundStyle(theme.primaryText)
         .disabled(!context.canInteract || context.binding("value") == nil)

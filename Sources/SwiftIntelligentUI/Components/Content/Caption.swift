@@ -12,11 +12,10 @@ enum CaptionComponent {
 private struct CaptionView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
-    @Environment(\.intelligentUIMapContent) private var inMap
     var body: some View {
-        Text(InlineTypography.attributed(context.string("text") ?? "", font: inMap ? theme.mapCardSecondaryFont : theme.captionFont, emphasis: theme.emphasisWeight)).font(inMap ? theme.mapCardSecondaryFont : theme.captionFont)
+        Text(InlineTypography.attributed(context.string("text") ?? "", font: theme.captionFont, emphasis: theme.emphasisWeight)).font(theme.captionFont)
             .foregroundStyle(theme.textColor(context.string("color") ?? "muted"))
-            .lineLimit(inMap ? 1 : nil)
+            .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
             .environment(\.openURL, OpenURLAction { url in
                 guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return .discarded }

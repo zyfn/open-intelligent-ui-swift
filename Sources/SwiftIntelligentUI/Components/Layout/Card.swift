@@ -17,7 +17,6 @@ private struct CardView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.intelligentUIContentBackground) private var contentBackground
-    @Environment(\.intelligentUIMapContent) private var inMap
     @Environment(\.intelligentUIEditorial) private var editorial
     private var radius: CGFloat { editorial.cardDepth > 0 ? theme.nestedContentCardRadius : theme.contentCardRadius }
     private var defaultPadding: Double {
@@ -33,14 +32,9 @@ private struct CardView: View {
         return ["ProductCard", "TransportCard"].contains(child.typeName)
     }
     @ViewBuilder var body: some View {
-        if ownsSurface || (inMap && context.children().count == 1 && context.children().first.map { EditorialNode.kind($0.value) == "ImageText" } == true) {
-            VStack(alignment: .leading, spacing: inMap ? 0 : theme.innerSpacing) { context.slot() }
+        if ownsSurface {
+            VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }
                 .frame(maxWidth: .infinity, alignment: .leading)
-        } else if inMap {
-            VStack(alignment: .leading, spacing: theme.spacingUnit) { context.slot() }
-                .padding(theme.mapCardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(theme.canvas, in: RoundedRectangle(cornerRadius: theme.cornerRadius))
         } else { surface }
     }
     private var surface: some View {

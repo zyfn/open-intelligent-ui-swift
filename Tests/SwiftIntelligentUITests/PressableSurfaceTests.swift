@@ -13,7 +13,7 @@ final class PressableSurfaceTests: XCTestCase {
         """#)
         XCTAssertTrue(state.errors.isEmpty)
         var theme = IntelligentUITheme()
-        theme.info = Color(red: 1, green: 0, blue: 0)
+        theme.chartColors[0] = Color(red: 1, green: 0, blue: 0)
         let renderer = ImageRenderer(content: IntelligentUIView(state: state, library: library).intelligentUITheme(theme).frame(width: 320))
         let image = try XCTUnwrap(renderer.cgImage)
         let width = image.width, height = image.height

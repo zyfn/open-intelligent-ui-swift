@@ -10,10 +10,8 @@ enum SpacerComponent {
 }
 enum FormComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Form", description: "Groups fields and scopes actions. Optional status is idle/submitting/success/error and message is host-provided feedback. Submitting disables fields and actions; no success is inferred. Bind fields explicitly and supply field errors through their error parameter.", params: [
-            OpenUIParameter.slot("children", required: true),
-            OpenUIParameter.string("status", required: false, values: ["idle", "submitting", "success", "error"]),
-            OpenUIParameter.string("message", required: false)
+        OpenUIComponent(name: "Form", description: "Groups fields and scopes their values for actions. Bind fields explicitly; feedback is composed with ordinary components.", params: [
+            OpenUIParameter.slot("children", required: true)
         ]) { FormGroup(context: $0) }
     }
 }
@@ -25,15 +23,8 @@ private struct FormGroup: View {
         VStack(alignment: .leading, spacing: theme.spacingUnit * 6) {
             let children = context.children()
             ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
-                context.render(child.value).disabled(context.string("status") == "submitting")
+                context.render(child.value)
                     .padding(.top, index > 0 && index == children.count - 1 && actionRow(child.value) ? theme.groupSpacing : 0)
-            }
-            if context.string("status") == "submitting" { ProgressView(context.string("message") ?? "正在提交").font(theme.secondaryFont) }
-            else if let message = context.string("message"), !message.isEmpty {
-                Label(message, systemImage: context.string("status") == "error" ? "exclamationmark.circle" : context.string("status") == "success" ? "checkmark.circle" : "info.circle")
-                    .font(theme.secondaryFont)
-                    .foregroundStyle(context.string("status") == "error" ? theme.danger : theme.primaryText)
-                    .accessibilityAddTraits(.updatesFrequently)
             }
         }.openUIForm(context.element.statementId ?? identity)
     }

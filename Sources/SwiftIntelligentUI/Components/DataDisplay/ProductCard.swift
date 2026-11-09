@@ -2,6 +2,12 @@ import SwiftUI
 import OpenUILang
 import OpenUISwiftUI
 
+private enum ProductCardMetrics {
+    static let mediaAspectRatio: CGFloat = 1.5
+    static let thumbnailWidth: CGFloat = 160
+    static let compactThumbnailWidth: CGFloat = 76
+}
+
 enum ProductCardComponent {
     static let optionalFields = ["specification", "merchant", "condition", "availability", "observedAt", "purchaseURL", "sourceURL", "actionLabel", "currency", "priceNote"]
     private static let string: JSONValue = .object([.init(key: "type", value: .string("string"))])
@@ -17,7 +23,7 @@ enum ProductCardComponent {
             ("id", string), ("title", string),
             ("images", .object([.init(key: "type", value: .string("array")), .init(key: "items", value: image)]))
         ] + [("price", PricePresentation.schema), ("priceText", PricePresentation.legacySchema), ("tags", Parameter.arraySchema(string))] + optionalFields.map { ($0, string) }, required: ["id", "title", "images"])
-        return OpenUIComponent(name: "ProductCard", description: "Universal consumer card for goods and bookable services/accommodation. price is the supplied nonnegative number or currency/amount string, e.g. 360 with currency CNY or ¥360; no 查询报价 prefix. Optional currency is a source ISO code, priceNote preserves units/conditions. priceText is legacy reader compatibility only, never new output. tags are short source-backed strings. No automatic 商品详情 bar: full specification and important condition/availability text remain visible, with caller-composed details only if needed. Price and primary action share a row with readable narrow/AX fallback. actionLabel defaults to 去购买; 去预订/查看房型 navigate the exact purchaseURL without submitting an order. Layout vertical uses3:2 media, horizontal/compact square thumbnails; Map has the same compact64pt summary with price/action. Loading shimmer/quiet retry and source metadata behavior are shared. No fabricated price, stock or conditions.", params: [
+        return OpenUIComponent(name: "ProductCard", description: "Universal consumer card for goods and bookable services/accommodation. price is the supplied nonnegative number or currency/amount string, e.g. 360 with currency CNY or ¥360; no 查询报价 prefix. Optional currency is a source ISO code, priceNote preserves units/conditions. priceText is legacy reader compatibility only, never new output. tags are short source-backed strings. No automatic 商品详情 bar: full specification and important condition/availability text remain visible, with caller-composed details only if needed. Price and primary action share a row with readable narrow/AX fallback. actionLabel defaults to 去购买; 去预订/查看房型 navigate the exact purchaseURL without submitting an order. Layout vertical uses3:2 media, horizontal/compact square thumbnails. Loading shimmer/quiet retry and source metadata behavior are shared. No fabricated price, stock or conditions.", params: [
             ParamDef(name: "product", required: true, schema: product),
             OpenUIParameter.string("layout", required: false, values: ["vertical", "horizontal", "compact"]),
             OpenUIParameter.string("imageFit", required: false, values: ["cover", "contain"])
@@ -97,7 +103,6 @@ private struct ProductCardView: View {
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var direction
-    @Environment(\.intelligentUIMapContent) private var inMap
     @State private var selectedImageURL: String?
     private var photoIndex: Int { product.images.firstIndex { $0.url == selectedImageURL } ?? 0 }
     private var photo: ProductCardData.Photo? { product.images.indices.contains(photoIndex) ? product.images[photoIndex] : nil }
@@ -107,44 +112,21 @@ private struct ProductCardView: View {
     }
 
     @ViewBuilder var body: some View {
-        if inMap { mapSummary }
-        else { surface }
-    }
-    private var mapSummary: some View {
-        HStack(alignment: .top, spacing: theme.controlHorizontalPadding) {
-            picture(radius: theme.controlRadius, thumbnail: true)
-                .frame(width: theme.mapThumbnailWidth, height: theme.mapThumbnailWidth)
-            VStack(alignment: .leading, spacing: theme.spacingUnit) {
-                Text(product.title).font(theme.mapCardTitleFont).foregroundStyle(theme.primaryText)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: theme.innerSpacing) {
-                    VStack(alignment: .leading, spacing: theme.spacingUnit) {
-                        Text(product.price.text ?? PricePresentation.missingLabel)
-                            .font(theme.mapCardSecondaryFont.weight(.semibold)).foregroundStyle(theme.primaryText)
-                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                        if let note = product.price.note { Text(note).font(theme.captionFont).foregroundStyle(theme.secondaryText).lineLimit(1) }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    purchaseAction(compact: true)
-                }
-            }.frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(theme.mapCardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.canvas, in: RoundedRectangle(cornerRadius: theme.cornerRadius))
+        surface
     }
     private var surface: some View {
         Group {
             if context.string("layout") == "compact" && !typeSize.isAccessibilitySize {
                 HStack(alignment: .top, spacing: theme.innerSpacing) {
-                    picture(radius: theme.controlRadius, thumbnail: true).frame(width: theme.productCompactThumbnailWidth).fixedSize(horizontal: false, vertical: true)
+                    picture(radius: theme.controlRadius, thumbnail: true).frame(width: ProductCardMetrics.compactThumbnailWidth).fixedSize(horizontal: false, vertical: true)
                     information
                 }.padding(theme.controlHorizontalPadding)
             } else if context.string("layout") == "horizontal" && !typeSize.isAccessibilitySize {
                 ViewThatFits(in: .horizontal) {
-                    EditorialRowLayout(preferredImageWidth: theme.productThumbnailWidth, ratio: 1, gap: theme.groupSpacing, rightToLeft: direction == .rightToLeft, idealWidth: max(1, theme.minimumImageTextRowWidth - 2 * theme.controlHorizontalPadding)) {
+                    EditorialRowLayout(preferredImageWidth: ProductCardMetrics.thumbnailWidth, ratio: 1, gap: theme.groupSpacing, rightToLeft: direction == .rightToLeft, idealWidth: max(1, EditorialMetrics.minimumRowWidth - 2 * theme.controlHorizontalPadding)) {
                         picture(radius: theme.controlRadius, thumbnail: true)
                         information
-                    }.padding(theme.controlHorizontalPadding).frame(minWidth: theme.minimumImageTextRowWidth)
+                    }.padding(theme.controlHorizontalPadding).frame(minWidth: EditorialMetrics.minimumRowWidth)
                     vertical
                 }
             } else { vertical }
@@ -154,7 +136,7 @@ private struct ProductCardView: View {
         .intelligentUILayoutTrace("product-frame", "layout=\(traceLayout) ax=\(typeSize.isAccessibilitySize)")
         .background(theme.canvas)
         .clipShape(RoundedRectangle(cornerRadius: theme.cornerRadius))
-        .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius).strokeBorder(theme.separator.opacity(0.35)))
+        .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius).strokeBorder(theme.fieldBorder))
     }
 
     private var vertical: some View {
@@ -169,7 +151,7 @@ private struct ProductCardView: View {
     private func picture(radius: CGFloat, thumbnail: Bool = false) -> some View {
         let contain = !thumbnail && context.string("imageFit") == "contain"
         return SourceImage(source: photo?.url, alt: photo?.alt ?? product.title,
-                    ratio: thumbnail ? 1 : theme.productMediaAspectRatio, radius: radius, fit: contain ? .fit : .fill,
+                    ratio: thumbnail ? 1 : ProductCardMetrics.mediaAspectRatio, radius: radius, fit: contain ? .fit : .fill,
                     fillsContainBackground: contain)
     }
     private var imageControls: some View {

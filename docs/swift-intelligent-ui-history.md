@@ -725,3 +725,19 @@ SDK独立设备使用完整原文短验通过：上海392→筛掉杭州→恢�
 流式复验使用标题、前导Text、Map(hotels)、尾部Text，hotels数组故意只写一半。中间帧已经显示尾部说明和“暂无有效地点坐标”，与原版rc.9缺少有序就绪前缀一致，因此本次不判定整体验收通过。图表分段切换未通过自动化点击，轮播拖动、完整VoiceOver、真实模型生成与客户端集成不在本次通过范围。Gallery的`--fixture`启动参数未选中请求页面，固定页面改用`--program`检查，不能将该参数记为正常。
 
 证据保存在`outputs/validation/rc9-gallery/review.json`及同目录截图；当前设计文档不因此增加版本流水。
+
+## 38. 官方组件契约收敛（2026-11-08）
+
+按用户确认的清单，以thesysdev/open-intelligent-ui固定提交16ef2647为基线，删除官方组件上的私有追加参数：Map.content/expandable/visibleIds/routeIds、MapMarker.id/badge、Carousel.selected/itemIds、Chart.selected、Image.preview、Input/TextArea/Select.error、Form.status/message、ListItem.id。HtmlView.title官方原有，未删除。同步移除Map内容投影、图内Carousel、Map环境对通用组件的隐式换肤及不再使用的FieldError实现；不做历史参数兼容层。ProductCard、TransportCard等独立业务组件此次未删除。
+
+原生图片预览继续由SDK内部提供，官方Map.selected继续保存marker label，Carousel仅保留children/itemWidth/gap。Prompt与示例改为地图和图外卡片普通组合，Form反馈使用普通Text与显式状态，不再宣称私有选择/筛选协议。manifest与Tools/package.py工作版本为0.1.0-preview.27-official-contract；导出60组件、59函数，签名检查无被删除参数。
+
+验证结果：macOS和iOS Simulator Gallery构建通过，25个Gallery固定程序解析求值通过；114项SDK测试仍有rc.9原有的3项流式失败，本次参数改动没有新增遗留失败。QA模拟器实际确认官方Map及label选择（点击胡雪岩旧居）、空表单错误与输入后成功、无preview参数的原图预览。证据位于outputs/validation/official-contract与outputs/validation/official-gallery；主设计文档保留完整设计说明，历史仅在此追加。
+
+## 39. DesignSystem与token收敛（2026-11-08）
+
+继续清理主题层：删除carouselItemWidth/carouselPeekWidth/actionLabelMinimumWidth/optionCardRadius/markdownLineSpacing等未使用或不再需要的参数，公共IntelligentUITheme由约90项收敛为57项语义token。表格尺寸、商品图片与缩略图、地图高度、交通卡宽度、计时器字体、图表字体分别归TableMetrics、ProductCardMetrics、MapMetrics、TransportCardMetrics、TimerMetrics、ChartMetrics；共享图文尺寸归EditorialMetrics，不全部暴露为全局主题。
+
+圆角不再通过spacingUnit派生，独立使用radiusSM/MD/LG/XL；chart1...chart6只读取chartColors，不再与info/success/warning等状态色混用。状态背景仍按业务状态语义处理，图表序列色与状态色分开。测试补充圆角不随间距改变及图表色独立性的检查；PressableSurfaceTests改为显式定制chartColors，以验证实色表面来自图表色板而非info浅色背景。
+
+manifest与Tools/package.py工作版本为0.1.0-preview.28-design-system。116项SDK测试仍有rc.9原有的3项流式失败，本次清理没有新增遗留失败；25个Gallery固定程序继续通过。iOS Simulator构建通过，实屏抽查商品与Map布局正常，证据位于outputs/validation/design-system。主设计文档只更新当前分层与规格归属，版本过程仅记录于此。

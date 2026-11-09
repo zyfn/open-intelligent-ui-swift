@@ -17,6 +17,7 @@ struct RichMarkdown: View {
     var compact = false
     var isTitle = false
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     var body: some View {
         Markdown(text)
             .markdownTheme(Theme.basic
@@ -59,7 +60,7 @@ struct RichMarkdown: View {
                     .markdownTableBorderStyle(.init(.horizontalBorders, color: theme.separator, width: 0.5))
                     .markdownMargin(top: theme.innerSpacing, bottom: theme.groupSpacing)
             })
-            .font(isTitle ? theme.titleFont : theme.bodyFont)
+            .font(isTitle ? theme.titleFont : theme.bodyFont(for: colorScheme))
             .foregroundStyle(theme.primaryText)
             .tint(theme.accent)
             .environment(\.openURL, OpenURLAction { url in

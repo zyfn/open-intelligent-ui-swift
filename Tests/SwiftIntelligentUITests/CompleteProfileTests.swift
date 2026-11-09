@@ -17,7 +17,7 @@ final class CompleteProfileTests: XCTestCase {
     @MainActor func testReadingDataAndDrawingContracts() throws {
         let library = try IntelligentUILibrary()
         let programs = [
-            #"root = Col([Markdown("**原生**阅读"), Quote("引用", "出处"), Badge("完成","success","check"), List([ListItem("第一项","说明"),"第二项"],"number",true), Code("let x = 1","swift"), Math("E=mc^2"),Image("https://example.com/photo.jpg","示例",1,"md","cover",true)])"#,
+            #"root = Col([Markdown("**原生**阅读"), Quote("引用", "出处"), Badge("完成","success","check"), List([ListItem("第一项","说明"),"第二项"],"number",true), Code("let x = 1","swift"), Math("E=mc^2"),Image("https://example.com/photo.jpg","示例",1,"md","cover")])"#,
             #"root = Col([Table(["名称","价格"],[["A",12],["B",24]]),Chart("bar",[{name:"A",value:12},{name:"B",value:24}],"name",["value"])])"#,
             #"root = Col([Svg([Circle(20,20,10,"info"),Ellipse(50,20,10,5),Rect(0,50,20,10),Line(0,0,10,10),Path("M0 0 L10 10"),Polyline("0,0 10,5"),Polygon("0,0 10,0 5,10"),G([SvgText("字",20,60)],"translate(1 2)")],"0 0 100 100"),HtmlView("<p>内容</p>"),YouTube("invalid")])"#,
             #"""

@@ -48,12 +48,13 @@ final class UpstreamParityTests: XCTestCase {
         XCTAssertEqual(ImageAlbumItem.collect([group, product]).map(\.source), [url, "local-key"])
     }
 
-    @MainActor func testLateDependencyHoldsLaterSiblingsUntilReady() throws {
+    @MainActor func testLateDependencyPublishesReadySiblingsWithoutReservingMissingSlot() throws {
         let state = try IntelligentUILibrary().makeState()
         state.push("root=Col([early,later])\nlater=Text(\"后面的块\")\n")
         let root = try XCTUnwrap(state.root)
         let partial = OpenUIRenderChild.children(of: PropValue.value(root, "children") ?? .null)
-        XCTAssertTrue(partial.isEmpty)
+        XCTAssertEqual(partial.count, 1)
+        XCTAssertEqual(ValueReading.string(ValueReading.field(partial.first?.value, "text")), "后面的块")
         state.push("early=Text(\"前面的块\")\n"); state.complete()
         XCTAssertTrue(state.errors.isEmpty)
         let finished = OpenUIRenderChild.children(of: PropValue.value(try XCTUnwrap(state.root), "children") ?? .null)
@@ -73,14 +74,14 @@ final class UpstreamParityTests: XCTestCase {
         XCTAssertNil(result.rootExpression)
     }
 
-    @MainActor func testCompletionDoesNotMakeAnUnresolvedActiveSectionValid() throws {
+    @MainActor func testCompletionDoesNotMakeUnresolvedSourceValid() throws {
         let library = try IntelligentUILibrary(), state = library.makeState()
         let incomplete = "root=Col([Title(\"开头\"),missing,Text(\"结尾\")])"
         state.setSource(incomplete)
-        XCTAssertTrue(library.validationIssues(in: state, source: incomplete).contains { $0.contains("unresolved active content") })
+        XCTAssertTrue(library.validationIssues(in: state, source: incomplete).contains { $0.contains("unresolved source") })
         let inactive = "root=Col([Title(\"开头\"),false?missing:null,Text(\"结尾\")])"
         state.setSource(inactive)
-        XCTAssertEqual(library.validationIssues(in: state, source: inactive), [])
+        XCTAssertTrue(library.validationIssues(in: state, source: inactive).contains { $0.contains("unresolved source") })
     }
 
     @MainActor func testReadingAnchorSurvivesLateInsertionWithoutCrossingMessagesOrReplacements() throws {
@@ -103,7 +104,7 @@ final class UpstreamParityTests: XCTestCase {
         XCTAssertEqual(ReadingPosition.displacement(of: anchor, from: before, to: [:]), 0)
     }
 
-    @MainActor func testPrimitiveMapCardKeepsASquareCompactThumbnail() throws {
+    @MainActor func testEditorialRowsRenderLeadingAndTrailingMedia() throws {
         #if os(macOS)
         let library = try IntelligentUILibrary(excludingComponents: ["ImageText", "YouTube", "Timer"])
         for leading in [true, false] {
@@ -112,10 +113,9 @@ final class UpstreamParityTests: XCTestCase {
             let copy = #"Col([Title("一个较长但真实提供的地点名称"),Caption("地址与类别来自同一实体")])"#
             state.setSource("root=Card([Row([" + (leading ? picture + "," + copy : copy + "," + picture) + "])])")
             let renderer = ImageRenderer(content: IntelligentUIView(state: state, library: library)
-                .environment(\.intelligentUIMapContent, true)
                 .intelligentUIImages(["local-photo": Image(systemName: "photo")]).frame(width: 320))
             let size = try XCTUnwrap(renderer.nsImage).size
-            XCTAssertEqual(size.height, 88, accuracy: 1)
+            XCTAssertGreaterThan(size.height, 40)
         }
         #endif
     }

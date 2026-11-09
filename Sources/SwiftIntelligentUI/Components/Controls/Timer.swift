@@ -2,6 +2,10 @@ import SwiftUI
 import OpenUILang
 import OpenUISwiftUI
 
+private enum TimerMetrics {
+    static let font: Font = .system(.largeTitle, design: .rounded)
+}
+
 enum TimerComponent {
     static var component: OpenUIComponent {
         var seconds = Parameter.number("seconds", minimum: 0); seconds.required = true; seconds.isBindable = true
@@ -19,7 +23,7 @@ private struct TimerView: View {
         VStack(alignment: .leading, spacing: theme.groupSpacing) {
             if let label = context.string("label") { Text(label).font(theme.titleFont) }
             Text(String(format: "%02d:%02d:%02d", Int(seconds) / 3600, (Int(seconds) / 60) % 60, Int(seconds) % 60))
-                .font(theme.timerFont).monospacedDigit().accessibilityLabel("剩余 \(Int(seconds)) 秒")
+                .font(TimerMetrics.font).monospacedDigit().accessibilityLabel("剩余 \(Int(seconds)) 秒")
             HStack {
                 Button {
                     if initial == nil { initial = seconds }

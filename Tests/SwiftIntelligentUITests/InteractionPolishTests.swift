@@ -5,17 +5,6 @@ import OpenUISwiftUI
 @testable import SwiftIntelligentUI
 
 final class InteractionPolishTests: XCTestCase {
-    func testCarouselWaitsForRestoredLogicalIDsAndTheirActualLayout() {
-        let width: CGFloat = 288
-        let filtered = ["sh1": CarouselItemFrame(index: 0, frame: CGRect(x: 0, y: 0, width: width, height: 88))]
-        XCTAssertTrue(CarouselSelection.layoutReady(ids: ["sh1"], width: width, frames: filtered))
-        XCTAssertFalse(CarouselSelection.layoutReady(ids: ["hz1", "sh1"], width: width, frames: filtered))
-        let restored = ["hz1": CarouselItemFrame(index: 0, frame: CGRect(x: 0, y: 0, width: width, height: 88)),
-                        "sh1": CarouselItemFrame(index: 1, frame: CGRect(x: 300, y: 0, width: width, height: 88))]
-        XCTAssertTrue(CarouselSelection.layoutReady(ids: ["hz1", "sh1"], width: width, frames: restored))
-        XCTAssertFalse(CarouselSelection.layoutReady(ids: ["sh1", "hz1"], width: width, frames: restored))
-        XCTAssertFalse(CarouselSelection.layoutReady(ids: ["hz1", "sh1"], width: 350, frames: restored))
-    }
     @MainActor func testUndeclaredProductFieldsAreReportedInsteadOfDropped() throws {
         let library = try IntelligentUILibrary()
         let state = library.makeState()
@@ -33,7 +22,7 @@ final class InteractionPolishTests: XCTestCase {
     func testCarouselFitsNarrowAndAccessibilityWidths() {
         XCTAssertEqual(CarouselMetrics.width(preferred: 288, available: 320, accessibility: false), 272)
         XCTAssertEqual(CarouselMetrics.width(preferred: 288, available: 240, accessibility: false), 204)
-        XCTAssertEqual(CarouselMetrics.width(preferred: 288, available: 100, accessibility: false), 100)
+        XCTAssertEqual(CarouselMetrics.width(preferred: 288, available: 100, accessibility: false), 85)
         XCTAssertEqual(CarouselMetrics.width(preferred: 288, available: 360, accessibility: true), 360)
     }
 
@@ -84,25 +73,22 @@ final class InteractionPolishTests: XCTestCase {
         XCTAssertEqual(ChartInspection.sector(at: .init(x: 10, y: 50), size: .init(width: 100, height: 100), points: points, donut: false), "B")
     }
 
-    @MainActor func testFormFeedbackAndChartSelectionBindings() throws {
+    @MainActor func testFormFeedbackUsesOrdinaryTextAndChartHasNoPrivateBinding() throws {
         let library = try IntelligentUILibrary()
         let state = library.makeState()
         state.setSource(#"""
-        root = Col([Form([Input($name,"名称","text","",$error)],$status,"请检查输入"),Chart("line",[{x:"A",v:1},{x:"B",v:2}],"x",["v"],"number",null,false,240,$selected)])
+        root = Col([Form([Input($name,"名称","text","")]),$error == "" ? null : Text($error,"sm","danger"),Chart("line",[{x:"A",v:1},{x:"B",v:2}],"x",["v"],"number",null,false,240)])
         $name = ""
         $error = "必填"
-        $status = "error"
-        $selected = "A"
         """#)
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         let children = PropValue.children(try XCTUnwrap(state.root))
-        let form = try XCTUnwrap(children.first)
-        XCTAssertEqual(PropValue.string(form, "status"), "error")
-        XCTAssertEqual(PropValue.string(try XCTUnwrap(PropValue.children(form).first), "error"), "必填")
+        XCTAssertNil(PropValue.value(try XCTUnwrap(children.first), "status"))
+        XCTAssertEqual(PropValue.string(children[1], "text"), "必填")
         let chart = try XCTUnwrap(children.last)
         let context = OpenUIComponentContext(element: chart, registry: library.components.registry, state: state)
-        try XCTUnwrap(context.binding("selected")).wrappedValue = .string("B")
-        XCTAssertEqual(state.stateValue("$selected"), .string("B"))
+        XCTAssertNil(context.binding("selected"))
+        XCTAssertNil(PropValue.value(chart, "selected"))
     }
 
     @MainActor func testLongStreamPreservesFirstChildIdentity() throws {

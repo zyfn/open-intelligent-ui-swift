@@ -8,33 +8,9 @@ extension IntelligentUILibrary {
         var issues = sourceIssues(in: source) + state.errors.map { String(describing: $0) }
         guard let root = state.root else { return issues + ["program: missing evaluated root"] }
         if state.isComplete && !root.isSourceComplete {
-            issues.append("program: unfinished or unresolved active content remains after stream completion")
+            issues.append("program: unfinished or unresolved source remains after stream completion")
         }
         issues += validationIssues(in: root)
-        func inspect(_ value: Value, depth: Int) {
-            guard depth < 64 else { return }
-            switch value {
-            case .element(let element):
-                if element.typeName == "Map" {
-                    let context = OpenUIComponentContext(element: element, registry: components.registry, state: state)
-                    let known = Set(MapPoint.decode(context.value("markers")).map(\.id))
-                    if context.value("visibleIds") != nil {
-                        let value = context.binding("visibleIds")?.wrappedValue ?? context.value("visibleIds")
-                        if case .array(let values) = value {
-                            let ids = values.map { ValueReading.string($0) }
-                            if Set(ids).count != ids.count || !Set(ids).isSubset(of: known) { issues.append("Map.visibleIds: use unique supplied marker ids") }
-                        } else if let value, value != .null && value != .undefined { issues.append("Map.visibleIds: use null for unfiltered or an id array") }
-                    }
-                    if let value = context.value("routeIds"), case .array(let values) = value,
-                       !Set(values.map { ValueReading.string($0) }).isSubset(of: known) { issues.append("Map.routeIds: route stops must reference supplied marker ids") }
-                }
-                for (_, child) in element.props { inspect(child, depth: depth + 1) }
-            case .array(let values): for child in values { inspect(child, depth: depth + 1) }
-            case .object(let values): for field in values.fields { inspect(field.value, depth: depth + 1) }
-            default: break
-            }
-        }
-        inspect(.element(root), depth: 0)
         return issues
     }
 
@@ -116,21 +92,12 @@ extension IntelligentUILibrary {
             guard depth < 64 else { return }
             switch value {
             case .element(let element):
-                if element.typeName == "List" {
-                    let items = element.props.last { $0.0 == "items" }?.1 ?? .null
-                    var ids = Set<OpenUIString>()
-                    for child in OpenUIRenderChild.children(of: items) {
-                        if case .element(let item) = child.value,
-                           case .string(let id) = item.props.last(where: { $0.0 == "id" })?.1 {
-                            if id.displayString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                issues.append(path + ".List.items: empty logical id")
-                            } else if !ids.insert(id).inserted {
-                                issues.append(path + ".List.items: duplicate logical id " + id.displayString)
-                            }
-                        }
-                    }
+                if element.typeName == "Map" {
+                    let markers = element.props.first { $0.0 == "markers" }?.1
+                    if MapPoint.decode(markers).isEmpty { issues.append(path + ".Map.markers: at least one valid supplied place marker is required") }
+                    let duplicates = MapPoint.duplicateLabels(markers)
+                    if !duplicates.isEmpty { issues.append(path + ".Map.markers: duplicate labels cannot be selected independently: " + duplicates.joined(separator: ", ")) }
                 }
-                if element.typeName == "Map", MapPoint.decode(element.props.first { $0.0 == "markers" }?.1).isEmpty { issues.append(path + ".Map.markers: at least one valid supplied place marker is required") }
                 if ["ProductCard", "TransportCard"].contains(element.typeName) {
                     let key = element.typeName == "ProductCard" ? "product" : "journey"
                     if let price = ValueReading.field(element.props.first { $0.0 == key }?.1, "price"), !PricePresentation.valid(price) {

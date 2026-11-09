@@ -19,8 +19,7 @@ private struct ColumnView: View {
     @Environment(\.intelligentUIEditorial) private var editorial
     @Environment(\.intelligentUIReadingAnchors) private var readingAnchors
     @Environment(\.intelligentUIReadingDepth) private var readingDepth
-    @Environment(\.intelligentUIMapContent) private var inMap
-    private var hasReadingTargets: Bool { readingAnchors && readingDepth == 0 && !inMap }
+    private var hasReadingTargets: Bool { readingAnchors && readingDepth == 0 }
     private var alignment: HorizontalAlignment {
         switch context.string("align") {
         case "center": return .center
@@ -37,7 +36,7 @@ private struct ColumnView: View {
                     .environment(\.intelligentUIReadingDepth, readingDepth + 1)
                     .frame(maxWidth: context.string("align") == "stretch" ? .infinity : nil, alignment: .leading)
                     .intelligentUIReadingTarget(hasReadingTargets ? ReadingAnchor(state: state, child: child.id) : nil)
-                    .padding(.top, index == 0 ? 0 : inMap ? theme.spacingUnit : context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
+                    .padding(.top, index == 0 ? 0 : context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
                         ?? EditorialSpacing.between(children[index - 1].value, child.value, opening: index == 1, theme: theme, nested: editorial.flowDepth > 0 || editorial.cardDepth > 0))
             }
         }.intelligentUILayoutTrace("column", "count=\(children.count)")
@@ -47,22 +46,5 @@ private struct ColumnView: View {
         if context.number("gap") == nil { value.flowDepth += 1 }
         value.openingCardTitle = false; value.cardSubtitle = false
         return value
-    }
-}
-
-enum EditorialSpacing {
-    static func between(_ previous: Value, _ next: Value, opening: Bool = false, theme: IntelligentUITheme, nested: Bool = false) -> CGFloat {
-        func kind(_ value: Value) -> String {
-            if case .element(let element) = value { return element.typeName }
-            return "Text"
-        }
-        let before = kind(previous), after = kind(next)
-        if ["Text", "Markdown"].contains(before) && ["Image", "SearchImage"].contains(after) { return theme.spacingUnit * 3 }
-        if after == "Caption" && ["Image", "SearchImage", "Chart", "Table", "Svg"].contains(before) { return theme.innerSpacing }
-        if before == "Caption" && after == "Title" { return theme.spacingUnit }
-        let badgeRow = after == "Row" && ValueReading.array(ValueReading.field(next, "children")).contains { kind($0) == "Badge" }
-        if before == "Title" && (["Text", "Caption"].contains(after) || badgeRow) { return theme.innerSpacing }
-        if before == "Title" || nested || (before == "Text" && after == "Text") { return theme.spacingUnit * 3 }
-        return theme.spacingUnit * 6
     }
 }

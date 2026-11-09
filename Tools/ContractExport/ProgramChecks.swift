@@ -54,7 +54,9 @@ import SwiftIntelligentUI
                 let layout = node.props.first { $0.0 == "layout" }?.1
                 return layout == nil || layout == .null || layout == .string("vertical")
             }
-            checks["preservesPrices"] = products.map { field($0, "priceText") } == [.string("¥9,999"), .string("¥299")]
+            checks["preservesPrices"] = products.count == 2
+                && pricePreserved(in: products[0], amount: 9999, rawAmount: "9999", display: "¥9,999")
+                && pricePreserved(in: products[1], amount: 299, rawAmount: "299", display: "¥299")
             checks["preservesPurchaseURLs"] = products.map { field($0, "purchaseURL") } == [.string("/products/nikon-demo?item=camera"), .string("/products/sony-demo?item=headphones")]
             let imageURLs = products.map { product -> Value? in
                 guard case .array(let photos) = field(product, "images"), let first = photos.first else { return nil }
@@ -77,6 +79,12 @@ import SwiftIntelligentUI
         default: break
         }
         return checks
+    }
+    private static func pricePreserved(in product: Value, amount: Double, rawAmount: String, display: String) -> Bool {
+        let price = field(product, "price"), currency = field(product, "currency")
+        if price == .string(display) { return true }
+        if price == .number(amount) || price == .string(rawAmount) { return currency == .string("CNY") }
+        return field(product, "priceText") == .string(display)
     }
     private static func field(_ value: Value, _ key: String) -> Value? {
         if case .object(let object) = value { return object.fields.first { $0.key == OpenUIString(key) }?.value }

@@ -15,7 +15,7 @@ final class LibraryTests: XCTestCase {
         XCTAssertEqual(exported.components.map(\.signature), library.specification.components.map(\.signature))
         XCTAssertTrue(library.systemPrompt.contains("Checkbox"))
         XCTAssertFalse(library.systemPrompt.contains("priceText?:"))
-        XCTAssertTrue(library.systemPrompt.contains("visibleIds?: $binding<string[] | null>"))
+        XCTAssertFalse(library.systemPrompt.contains("visibleIds"))
         XCTAssertFalse(library.systemPrompt.contains("SearchImage("))
         XCTAssertTrue(library.systemPrompt.contains("Image(src: string, alt: string)"))
         XCTAssertFalse(library.systemPrompt.contains("aspectRatio?:"))

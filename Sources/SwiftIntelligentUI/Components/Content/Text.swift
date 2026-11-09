@@ -18,9 +18,8 @@ private struct TextView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.intelligentUIEditorial) private var editorial
-    @Environment(\.intelligentUIMapContent) private var inMap
+    @Environment(\.colorScheme) private var colorScheme
     private var font: Font {
-        if inMap { return theme.mapCardSecondaryFont }
         if editorial.cardSubtitle { return theme.captionFont }
         if editorial.compactContent && (context.string("size") == nil || context.string("size") == "md") { return theme.secondaryFont }
         switch context.string("size") {
@@ -34,7 +33,9 @@ private struct TextView: View {
         switch context.string("weight") {
         case "medium": return .medium
         case "semibold": return .semibold
-        default: return .regular
+        default:
+            let defaultBody = context.string("weight") == nil && [nil, "md"].contains(context.string("size")) && !editorial.compactContent && !editorial.cardSubtitle
+            return defaultBody ? theme.defaultBodyWeight(for: colorScheme) : .regular
         }
     }
     @ViewBuilder var body: some View {
@@ -46,11 +47,11 @@ private struct TextView: View {
     private func styled(_ text: String) -> some View {
         Text(InlineTypography.attributed(text, font: context.flag("tabularNums") == true ? font.monospacedDigit() : font, emphasis: theme.emphasisWeight))
             .font((context.flag("tabularNums") == true ? font.monospacedDigit() : font).weight(weight))
-            .foregroundStyle((inMap || editorial.cardSubtitle) && context.string("color") == nil ? theme.secondaryText : theme.textColor(context.string("color")))
+            .foregroundStyle(editorial.cardSubtitle && context.string("color") == nil ? theme.secondaryText : theme.textColor(context.string("color")))
             .italic(context.flag("italic") ?? false)
             .strikethrough(context.flag("lineThrough") ?? false)
             .lineSpacing(["xs", "sm"].contains(context.string("size") ?? "md") ? theme.bodyLineSpacing / 2 : theme.bodyLineSpacing)
-            .lineLimit(inMap ? 1 : TextLineLimit.resolve(context.number("maxLines")))
+            .lineLimit(TextLineLimit.resolve(context.number("maxLines")))
             .fixedSize(horizontal: false, vertical: true)
             .environment(\.openURL, OpenURLAction { url in
                 guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return .discarded }

@@ -8,8 +8,7 @@ enum ImageComponent {
             OpenUIParameter.string("src"), OpenUIParameter.string("alt"),
             Parameter.number("aspectRatio", minimum: 0.2, maximum: 5),
             Parameter.radius(),
-            OpenUIParameter.string("fit", required: false, values: ["cover", "contain"]),
-            OpenUIParameter.flag("preview")
+            OpenUIParameter.string("fit", required: false, values: ["cover", "contain"])
         ]) { context in
             SourceImageComponentView(context: context)
         }
@@ -32,7 +31,7 @@ private struct SourceImageComponentView: View {
                     ratio: ratio,
                     radius: theme.radius(named: context.string("radius"), points: context.number("radius"), fallback: theme.cornerRadius),
                     fit: context.string("fit") == "contain" ? .fit : .fill,
-                    allowsPreview: (context.flag("preview") ?? true) && !interactive)
+                    allowsPreview: !interactive)
       }
     }
 }

@@ -34,7 +34,7 @@ final class ComponentSelectionTests: XCTestCase {
         }
     }
 
-    @MainActor func testExistingMessagesAndMapFallbackRemainReadableWithSelectedContracts() throws {
+    @MainActor func testExistingMessagesRemainReadableWithSelectedContracts() throws {
         let selected = try IntelligentUILibrary(excludingComponents: excluded)
         let source = #"""
         root=Col([ImageText({title:"旧消息",subtitle:"原内容"}),Timer($seconds),YouTube("invalid"),Map([MapMarker("地点",30,120)])])
@@ -52,14 +52,6 @@ final class ComponentSelectionTests: XCTestCase {
         let renderer = ImageRenderer(content: IntelligentUIView(state: state, library: selected).frame(width: 320))
         XCTAssertNotNil(renderer.nsImage)
         #endif
-        let point = MapPoint(id: "place", label: "地点", latitude: 30, longitude: 120, category: "类别", icon: "landmark", badge: "")
-        for card in MapFallback.cards(points: [point]) {
-            if case .element(let element) = card.value {
-                let summary = try XCTUnwrap(PropValue.children(element).first)
-                XCTAssertNotNil(selected.readerComponents.registry[summary.typeName])
-                XCTAssertEqual(selected.validationIssues(in: element), [])
-            } else { XCTFail("Expected map card") }
-        }
     }
 
     @MainActor func testSelectionRejectsUnknownNamesAndRootAndKeepsOptionalSearchIndependent() throws {

@@ -19,19 +19,22 @@ final class MapCameraGeometryTests: XCTestCase {
             }
         }
     }
-    func testCenterSelectionUsesUncoveredAreaWithoutChangingZoom() throws {
-        let size = CGSize(width: 320, height: 400)
-        let visible = try XCTUnwrap(MapCameraGeometry.visibleArea(size: size, top: 84, bottom: 148))
-        let original = MKMapRect(x: 100, y: 200, width: 20000, height: 25000)
-        let point = MKMapPoint(x: 300000, y: 400000)
-        let centered = try XCTUnwrap(MapCameraGeometry.centered(original, point: point, size: size, visible: visible))
-        XCTAssertEqual(centered.width, original.width)
-        XCTAssertEqual(centered.height, original.height)
-        XCTAssertEqual((point.x - centered.origin.x) / centered.width * size.width, visible.midX, accuracy: 0.001)
-        XCTAssertEqual((point.y - centered.origin.y) / centered.height * size.height, visible.midY, accuracy: 0.001)
-    }
     func testZeroOrOccludedViewportWaitsForLayout() {
         XCTAssertNil(MapCameraGeometry.visibleArea(size: .zero, top: 84, bottom: 148))
         XCTAssertNil(MapCameraGeometry.visibleArea(size: CGSize(width: 104, height: 100), top: 84, bottom: 148))
+    }
+    func testFocusUsesUniformScaleAndCentersSelectionInVisibleArea() throws {
+        let size = CGSize(width: 402, height: 780)
+        let visible = try XCTUnwrap(MapCameraGeometry.visibleArea(size: size, top: 96, bottom: 180))
+        let point = MKMapPoint(CLLocationCoordinate2D(latitude: 30.251243, longitude: 120.143778))
+        let content = MKMapRect(x: point.x - 500, y: point.y - 500, width: 1000, height: 1000)
+        let overview = try XCTUnwrap(MapCameraGeometry.fit(content, size: size, visible: visible))
+        let focused = try XCTUnwrap(MapCameraGeometry.focus(point, overview: overview, size: size, visible: visible))
+        XCTAssertEqual(focused.width, overview.width / 2, accuracy: 0.001)
+        XCTAssertEqual(focused.height, overview.height / 2, accuracy: 0.001)
+        let screen = CGPoint(x: (point.x - focused.origin.x) / focused.width * size.width,
+                             y: (point.y - focused.origin.y) / focused.height * size.height)
+        XCTAssertEqual(screen.x, visible.midX, accuracy: 0.001)
+        XCTAssertEqual(screen.y, visible.midY, accuracy: 0.001)
     }
 }

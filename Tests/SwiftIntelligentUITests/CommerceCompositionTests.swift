@@ -7,8 +7,7 @@ final class CommerceCompositionTests: XCTestCase {
     // Exact complete reproduction from the independent host. This macOS render
     // smoke check does not replace the host's iOS viewport/scroll regression.
     private let source = #"""
-root = Col([Title("商品图像与横滑", "xl"), Text("全部为演示商品与演示金额，不能购买。"), Carousel([ProductCard(a), ProductCard(b, "vertical", "contain")], 288, 3, $selected, ["a","b"]), Caption("大卡 3:2 · 无数字分页"), ProductCard(a, "horizontal"), ProductCard(b, "compact"), ProductCard({id:"missing",title:"缺失图片和价格的演示对象",images:[]}), Text("当前对象：" + $selected)])
-$selected = "a"
+root = Col([Title("商品图像与横滑", "xl"), Text("全部为演示商品与演示金额，不能购买。"), Carousel([ProductCard(a), ProductCard(b, "vertical", "contain")], 288, 3), Caption("大卡 3:2 · 无数字分页"), ProductCard(a, "horizontal"), ProductCard(b, "compact"), ProductCard({id:"missing",title:"缺失图片和价格的演示对象",images:[]})])
 a = {id:"a",title:"演示相机 · 长名称测试与规格描述",images:[{url:"test-landscape",alt:"相机测试照片"},{url:"test-square",alt:"相机测试第二张"}],specification:"用于验证图像与价格就近关联",priceText:"¥2,000（测试）",merchant:"演示商店",purchaseURL:"/products/a?variant=alpha%2Fbeta&x=1"}
 b = {id:"b",title:"演示耳机",images:[{url:"test-portrait",alt:"耳机测试照片"}],specification:"完整轮廓测试",priceText:"¥300（测试）",condition:"演示状态",purchaseURL:"https://example.org/products/b?x=1&y=2"}
 """#

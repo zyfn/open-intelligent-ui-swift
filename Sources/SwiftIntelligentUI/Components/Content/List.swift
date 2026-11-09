@@ -4,9 +4,9 @@ import OpenUISwiftUI
 
 enum ListItemComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "ListItem", description: "List item with title, description, optional custom marker and child content. Optional id is a stable logical key: provide it for switched, filtered or reordered stateful items; unique within the List and independent of title/position. Without id or a runtime statement id, identity remains positional. Keys prevent state crossing between different items; persistence after unmount requires an explicit binding.", params: [
+        OpenUIComponent(name: "ListItem", description: "List item with title, description, optional custom marker and child content. Runtime statement identity preserves content; persistence after unmount requires an explicit binding.", params: [
             OpenUIParameter.string("title"), OpenUIParameter.string("description", required: false),
-            OpenUIParameter.string("marker", required: false), OpenUIParameter.slot("children"), OpenUIParameter.string("id", required: false)
+            OpenUIParameter.string("marker", required: false), OpenUIParameter.slot("children")
         ]) { ListItemView(context: $0) }
     }
 }

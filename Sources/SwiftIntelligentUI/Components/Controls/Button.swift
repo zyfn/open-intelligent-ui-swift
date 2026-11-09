@@ -61,7 +61,7 @@ struct UpstreamButtonStyle: ButtonStyle {
             .padding(.vertical, size == "sm" ? 6 : size == "lg" ? 10 : 8)
             .frame(minHeight: size == "sm" ? 32 : size == "lg" ? 44 : 36)
             .background(variant == "solid" ? tint : variant == "soft" ? theme.surface : variant == "outline" ? theme.canvas : .clear, in: Capsule())
-            .overlay(Capsule().strokeBorder(variant == "outline" ? theme.separator.opacity(0.4) : .clear))
+            .overlay(Capsule().strokeBorder(variant == "outline" ? theme.fieldBorder : .clear))
             .overlay(Capsule().fill(theme.primaryText.opacity(configuration.isPressed ? 0.08 : 0)))
             .opacity(enabled ? 1 : 0.4)
     }
@@ -75,6 +75,6 @@ private struct NativeOutlineStyle: ButtonStyle {
         configuration.label.padding(.horizontal, theme.controlHorizontalPadding).padding(.vertical, theme.controlVerticalPadding)
             .foregroundStyle(enabled ? tint : theme.secondaryText)
             .background(configuration.isPressed ? tint.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: theme.controlRadius))
-            .overlay(RoundedRectangle(cornerRadius: theme.controlRadius).strokeBorder(theme.separator))
+            .overlay(RoundedRectangle(cornerRadius: theme.controlRadius).strokeBorder(theme.fieldBorder))
     }
 }

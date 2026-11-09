@@ -15,7 +15,7 @@ struct PrimaryLinkButton: View {
             HStack(spacing: theme.spacingUnit) {
                 Text(label)
                 if let symbol { Image(systemName: symbol).accessibilityHidden(true) }
-            }.font(compact ? theme.mapCardSecondaryFont : theme.labelFont).foregroundStyle(theme.actionForeground)
+            }.font(compact ? theme.compactActionFont : theme.labelFont).foregroundStyle(theme.actionForeground)
         }
         .buttonStyle(.borderedProminent).controlSize(compact ? .small : .regular).tint(theme.actionAccent)
         .frame(minHeight: theme.minimumControlHeight).contentShape(Rectangle()).accessibilityLabel(label)
@@ -43,7 +43,7 @@ private struct IconButtonView: View {
                 .foregroundStyle(context.string("variant") == "solid" ? theme.actionForeground : theme.actionAccent)
                 .frame(width: 34, height: 34)
                 .background(context.string("variant") == "solid" ? theme.primaryText : context.string("variant") == "ghost" ? .clear : theme.canvas, in: Circle())
-                .overlay(Circle().strokeBorder(context.string("variant") == "ghost" ? .clear : theme.separator.opacity(0.4)))
+                .overlay(Circle().strokeBorder(context.string("variant") == "ghost" ? .clear : theme.fieldBorder))
                 .accessibilityLabel(context.string("label") ?? context.string("icon") ?? "操作")
         }
     }
@@ -59,22 +59,21 @@ enum PressableComponent {
 private struct PressableView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
-    @Environment(\.intelligentUIMapContent) private var inMap
     private var rowContent: Bool { context.children().contains { EditorialNode.kind($0.value) == "Row" } }
     var body: some View {
         OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true) {
             VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }
                 .environment(\.intelligentUIInteractiveContent, true)
-                .padding(inMap ? 0 : CGFloat(min(24, max(0, context.number("padding") ?? 3))) * theme.spacingUnit)
+                .padding(CGFloat(min(24, max(0, context.number("padding") ?? 3))) * theme.spacingUnit)
                 .contentShape(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"))))
-                .background(inMap ? .clear : context.string("background").map { theme.backgroundColor($0) } ?? .clear,
+                .background(context.string("background").map { theme.backgroundColor($0) } ?? .clear,
                             in: RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"))))
                 .overlay(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius")))
-                    .fill(!inMap && !rowContent && context.flag("selected") == true ? theme.primaryText.opacity(0.06) : .clear))
+                    .fill(!rowContent && context.flag("selected") == true ? theme.primaryText.opacity(0.06) : .clear))
                 .overlay(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius")))
-                    .strokeBorder(!inMap && !rowContent && context.flag("selected") == true ? theme.primaryText.opacity(0.2) : .clear))
+                    .strokeBorder(!rowContent && context.flag("selected") == true ? theme.primaryText.opacity(0.2) : .clear))
                 .overlay(alignment: .topTrailing) {
-                    if !inMap && !rowContent && context.flag("selected") == true {
+                    if !rowContent && context.flag("selected") == true {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(theme.primaryText).padding(8).accessibilityHidden(true)
                     }
                 }

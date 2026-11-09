@@ -28,9 +28,13 @@ struct InlineParagraph: View {
     @Environment(\.intelligentUIImageAlbum) private var album
     @Environment(\.intelligentUIInteractiveContent) private var interactive
     @Environment(\.intelligentUIScrolling) private var scrolling
-    @Environment(\.intelligentUIMapContent) private var inMap
     @Environment(\.intelligentUIContentBackground) private var background
     @Environment(\.layoutDirection) private var direction
+    private var size: String { editorial.cardSubtitle ? "xs" : context.string("size") ?? (editorial.compactContent ? "sm" : "md") }
+    private var weight: String {
+        if let weight = context.string("weight") { return weight }
+        return size == "md" && theme.defaultBodyWeight(for: colorScheme) == .medium ? "medium" : "normal"
+    }
     var body: some View {
         InlineParagraphBridge(parts: context.children("text").map { child in
             if case .string(let text) = child.value { return .text(text.displayString) }
@@ -40,11 +44,11 @@ struct InlineParagraph: View {
                 .environment(\.intelligentUIEditorial, editorial)
                 .environment(\.intelligentUIImages, images).environment(\.intelligentUIImageAlbum, album)
                 .environment(\.intelligentUIInteractiveContent, interactive).environment(\.intelligentUIScrolling, scrolling)
-                .environment(\.intelligentUIMapContent, inMap).environment(\.intelligentUIContentBackground, background)
+                .environment(\.intelligentUIContentBackground, background)
                 .environment(\.layoutDirection, direction)
                 .environment(\.intelligentUIInlineContent, true)))
-        }, size: editorial.cardSubtitle ? "xs" : context.string("size") ?? (editorial.compactContent ? "sm" : "md"),
-        color: editorial.cardSubtitle && context.string("color") == nil ? theme.secondaryText : theme.textColor(context.string("color")), weight: context.string("weight") ?? "normal",
+        }, size: size,
+        color: editorial.cardSubtitle && context.string("color") == nil ? theme.secondaryText : theme.textColor(context.string("color")), weight: weight,
         lineSpacing: theme.bodyLineSpacing, maxLines: TextLineLimit.resolve(context.number("maxLines")),
         open: { url in
             guard context.canInteract, SourceURL.isActionable(url) else { return }

@@ -52,8 +52,7 @@ enum SelectComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Select", description: "Menu selection bound to a string. Options are strings or value/label objects. Unknown selection shows placeholder; no implicit selection. Duplicate values use the first option. Empty lists and literal values are read-only.", params: [
             OpenUIParameter.selection("value"), ChoiceOption.parameter(),
-            OpenUIParameter.string("label", required: false), OpenUIParameter.string("placeholder", required: false),
-            OpenUIParameter.string("error", required: false)
+            OpenUIParameter.string("label", required: false), OpenUIParameter.string("placeholder", required: false)
         ]) { SelectView(context: $0) }
     }
 }
@@ -86,12 +85,10 @@ private struct SelectView: View {
                 Text(options.first { $0.id == selection.wrappedValue }?.label ?? context.string("placeholder") ?? "请选择")
                 Spacer(minLength: theme.innerSpacing)
                 Image(systemName: "chevron.down").font(theme.captionFont).accessibilityHidden(true)
-            }.foregroundStyle(theme.primaryText).modifier(FieldSurface(invalid: !(context.string("error") ?? "").isEmpty))
+            }.foregroundStyle(theme.primaryText).modifier(FieldSurface())
         }
         .menuStyle(.borderlessButton).font(theme.bodyFont).tint(theme.actionAccent)
         .disabled(!context.canInteract || context.binding("value") == nil || options.isEmpty)
-        .accessibilityHint(context.string("error") ?? "")
-        FieldError(message: context.string("error"))
         }
     }
 }

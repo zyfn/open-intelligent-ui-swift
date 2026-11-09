@@ -48,7 +48,7 @@ private struct BoxView: View {
         .frame(width: context.number("width").map { CGFloat(min(10_000, max(0, $0))) },
                height: context.number("height").map { CGFloat(min(10_000, max(0, $0))) }, alignment: Alignment(horizontal: horizontal, vertical: justify == "end" ? .bottom : justify == "center" ? .center : .top))
         .background(context.string("background").map { theme.backgroundColor($0) } ?? .clear)
-        .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(context.flag("border") == true ? theme.separator : .clear))
+        .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(context.flag("border") == true ? theme.fieldBorder : .clear))
         .environment(\.intelligentUIContentBackground, context.string("background").map { theme.backgroundColor($0) } ?? contentBackground ?? theme.canvas)
     }
     private func flowContext(_ row: Bool) -> EditorialContext {

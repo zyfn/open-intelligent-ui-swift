@@ -190,17 +190,16 @@ private enum GalleryFixture: String, CaseIterable, Identifiable {
 
         case .mapProducts: return ShowcasePrograms.placesMap
         case .images: return """
-        root = Col([Title("图片呈现", "lg"), Caption("宽图 · 16:9"), Image("https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg","相机宽图",1.7778,"md","cover",true), Title("横滑画廊", "lg"), Carousel([Image("https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg","相机正面",1,"md","cover",true),Image("https://upload.wikimedia.org/wikipedia/commons/4/49/Nikon_DSLR_camera_D850_lateral_rear_view.jpg","相机背面",1,"md","cover",true),Image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Sony_WH-CH500-40869.jpg/500px-Sony_WH-CH500-40869.jpg","耳机",1,"md","cover",true)],240), Caption("比例、裁切、圆角和大图查看由同一个 Image 组件控制。")])
+        root = Col([Title("图片呈现", "lg"), Caption("宽图 · 16:9"), Image("https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg","相机宽图",1.7778,"md","cover"), Title("横滑画廊", "lg"), Carousel([Image("https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg","相机正面",1,"md","cover"),Image("https://upload.wikimedia.org/wikipedia/commons/4/49/Nikon_DSLR_camera_D850_lateral_rear_view.jpg","相机背面",1,"md","cover"),Image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Sony_WH-CH500-40869.jpg/500px-Sony_WH-CH500-40869.jpg","耳机",1,"md","cover")],240), Caption("比例、裁切、圆角和大图查看由同一个 Image 组件控制。")])
         """
         case .imageStates: return """
         root = Col([Title("图片状态", "lg"), SearchImage("加载状态", 1), SearchImage("失败状态", 1)])
         """
         case .formFeedback: return """
-        root = Col([Title("基本信息", "lg"), Text("填写名称，备注可选。","sm","muted"), Form([Input($name,"名称","text","请输入名称",$error), TextArea($note,"备注","添加备注",3), Row([Button("提交",Action([@Set($error,$name == "" ? "请输入名称" : ""),@Set($status,$name == "" ? "error" : "success"),@Set($message,$name == "" ? "" : "演示提交完成")]),"solid"), Button("重置",Action([@Set($name,""),@Set($error,""),@Set($status,"idle"),@Set($message,"")]),"ghost")],3,"center","start",true)],$status,$message)])
+        root = Col([Title("基本信息", "lg"), Text("填写名称，备注可选。","sm","muted"), Form([Input($name,"名称","text","请输入名称"), $error == "" ? null : Text($error,"sm","danger"), TextArea($note,"备注","添加备注",3), Row([Button("提交",Action([@Set($error,$name == "" ? "请输入名称" : ""),@Set($message,$name == "" ? "" : "演示提交完成")]),"solid"), Button("重置",Action([@Set($name,""),@Set($error,""),@Set($message,"")]),"ghost")],3,"center","start",true)]), $message == "" ? null : Text($message,"sm","success")])
         $name = ""
         $note = ""
         $error = ""
-        $status = "idle"
         $message = ""
         """
         case .streaming:
@@ -341,11 +340,6 @@ private struct GalleryView: View {
                         Picker("外观", selection: $appearance) { ForEach(["自动", "浅色", "深色"], id: \.self) { Text($0) } }
                         Toggle("大字号", isOn: $large)
                         Toggle("显示操作记录", isOn: $showEvents)
-                        if fixture == .formFeedback {
-                            Divider()
-                            Button("预览提交中") { model.state?.setState("$status", value: .string("submitting")) }
-                            Button("恢复编辑") { model.state?.setState("$status", value: .string("idle")) }
-                        }
                     } label: { Label("显示选项", systemImage: "slider.horizontal.3") }
                 }
             }

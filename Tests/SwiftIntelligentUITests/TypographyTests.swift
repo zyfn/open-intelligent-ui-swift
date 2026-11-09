@@ -17,6 +17,30 @@ final class TypographyTests: XCTestCase {
         XCTAssertNil(value.runs.first?.font)
     }
 
+    func testRadiusDoesNotDependOnSpacingUnit() {
+        var theme = IntelligentUITheme()
+        theme.spacingUnit = 8
+        XCTAssertEqual(theme.radius(named: "sm"), theme.radiusSM)
+        XCTAssertEqual(theme.radius(named: "md"), theme.radiusMD)
+        XCTAssertEqual(theme.radius(named: "lg"), theme.radiusLG)
+        XCTAssertEqual(theme.radius(named: "xl"), theme.radiusXL)
+    }
+
+    func testDarkModeOnlyStrengthensTheDefaultBodyWeight() {
+        let theme = IntelligentUITheme()
+        XCTAssertEqual(theme.defaultBodyWeight(for: .light), .regular)
+        XCTAssertEqual(theme.defaultBodyWeight(for: .dark), .medium)
+    }
+
+    func testChartColorsAreIndependentFromStatusColors() {
+        let theme = IntelligentUITheme()
+        for index in 0..<6 {
+            XCTAssertEqual(theme.textColor("chart\(index + 1)"), theme.chartColors[index])
+        }
+        XCTAssertNotEqual(theme.textColor("chart2"), theme.success)
+        XCTAssertEqual(theme.textColor("success"), theme.success)
+    }
+
     @MainActor func testNativeEmphasisAndTabularMediumUseTheRequestedWeights() throws {
         #if os(macOS)
         let view = InlineNativeView(frame: .zero)
