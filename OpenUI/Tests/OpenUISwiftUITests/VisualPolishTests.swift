@@ -222,7 +222,7 @@ final class VisualPolishTests: XCTestCase {
       for width: CGFloat in [180, 320] {
         func dimensions(_ cached: Image?, sourceReady: Bool = true) -> CGSize {
           NSHostingView(rootView: NativeRemoteImage(src: nil, alt: "Object", layout: .aspect(16 / 9), cachedImage: cached)
-            .environment(\.openUIMediaSourceReady, sourceReady).dynamicTypeSize(size)
+            .environment(\.openUIMediaSourceReady, sourceReady: sourceReady).dynamicTypeSize(size)
             .frame(width: width)).fittingSize
         }
         let empty = dimensions(nil)
@@ -235,7 +235,13 @@ final class VisualPolishTests: XCTestCase {
   }
 
   @MainActor private func artworkRoot<Content: View>(_ view: Content, width: CGFloat) -> AnyView {
-    AnyView(view.environment(\.accessibilityReduceMotion, true).frame(width: width).background(Color.white))
+    // accessibilityReduceMotion is read-only on supported Apple SDKs. These
+    // snapshots assert the final artwork, not the operating system preference.
+    var presentation = OpenUIPresentation()
+    presentation.motion.mediaRevealDuration = 0
+    return AnyView(view.openUIPresentation(presentation)
+      .transaction { $0.animation = nil; $0.disablesAnimations = true }
+      .frame(width: width).background(Color.white))
   }
 
   @MainActor private func artworkHost<Content: View>(_ view: Content, size: CGSize = CGSize(width: 72, height: 72)) -> (NSHostingView<AnyView>, NSWindow) {
