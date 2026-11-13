@@ -77,7 +77,13 @@ for (const [name, data] of [
   ['Lucide-LICENSE.txt', readFileSync(resolve(lucide,'LICENSE'),'utf8')],
 ]) {
   if (process.argv.includes('--check')) {
-    if (readFileSync(resolve(target,name),'utf8') !== data) throw Error('Generated resource differs: '+name);
+    const expected = readFileSync(resolve(target,name),'utf8');
+    if (expected !== data) {
+      let offset = 0;
+      while (offset < Math.min(expected.length,data.length) && expected[offset] === data[offset]) offset++;
+      const preview = value => JSON.stringify(value.slice(Math.max(0,offset-50),offset+100));
+      throw Error(`Generated resource differs: ${name}; offset=${offset}; expected=${preview(expected)}; actual=${preview(data)}`);
+    }
   } else writeFileSync(resolve(target,name), data);
 }
 console.log(`Lucide ${version}: ${Object.keys(icons).length} names, ${Object.keys(fallbacks).length} category fallbacks`);
