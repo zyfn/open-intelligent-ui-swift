@@ -1,3 +1,4 @@
+import { upstreamFile, lock } from "../../upstream.mjs";
 import { build } from "esbuild";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -10,6 +11,9 @@ const packageInfo = JSON.parse(readFileSync(resolve(here, "node_modules/refracto
 if (packageInfo.version !== "5.0.0") throw new Error("Review upstream syntax-highlighter version");
 const result = await build({
   absWorkingDir: here,
+  // The original monorepo inherited strict mode and emit settings from here.
+  // Resolve the immutable build configuration instead of changing resource bytes.
+  tsconfigRaw: upstreamFile(lock.core.revision, "tsconfig.json"),
   entryPoints: ["entry.js"],
   bundle: true,
   write: false,
