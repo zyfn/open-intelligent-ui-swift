@@ -1,4 +1,4 @@
-import { upstreamFile } from "../../upstream.mjs";
+import { upstreamFile, lock } from "../../upstream.mjs";
 import { build } from "esbuild";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -16,6 +16,8 @@ const upstream = {
 };
 const result = await build({
   absWorkingDir: here, entryPoints: ["entry.js"], bundle: true, write: false,
+  // Retain the original inherited strict-mode/compiler contract after relocation.
+  tsconfigRaw: upstreamFile(lock.core.revision, "tsconfig.json"),
   format: "iife", globalName: "NativeRichText", platform: "neutral",
   target: ["safari15"], minify: true, legalComments: "eof", metafile: true,
   plugins: [{ name: "upstream-text", setup(builder) {
