@@ -6,7 +6,10 @@ enum SDKStrings {
     private static let languages = ["en", "zh-Hans", "ar"]
     private static let bundles: [String: Bundle] = Dictionary(uniqueKeysWithValues:
         languages.compactMap { language in
-            guard let url = Bundle.module.url(forResource: language, withExtension: "lproj"),
+            // SwiftPM lowercases localization directory names; Xcode resources
+            // can retain the source casing. Resolve either packaged form.
+            guard let url = Bundle.module.url(forResource: language, withExtension: "lproj")
+                    ?? Bundle.module.url(forResource: language.lowercased(), withExtension: "lproj"),
                   let bundle = Bundle(url: url) else { return nil }
             return (language, bundle)
         })
