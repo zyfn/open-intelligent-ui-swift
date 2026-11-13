@@ -2,7 +2,7 @@ name: Native SDK and lang compatibility
 
 on:
   push:
-    branches: [codex/intelligentui-design-revamp]
+    branches: [codex/sdk-baseline]
   pull_request:
     branches: [codex/sdk-baseline]
   workflow_dispatch:
@@ -16,7 +16,10 @@ concurrency:
 
 jobs:
   native-sdk:
-    runs-on: macos-latest
+    # Pin the supported image and toolchain for repeatable compatibility checks.
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
