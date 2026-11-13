@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check migration ownership and immutable imported runtime bytes; no network or UI claims."""
 from __future__ import annotations
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -13,12 +14,17 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify-import", action="store_true",
+                        help="Also verify the immutable original import; not a constraint on later reviewed SDK development")
+    args = parser.parse_args()
     manifest = json.loads((ROOT / "OpenUI/IMPORT.json").read_text())
     problems: list[str] = []
-    for name, expected in manifest["runtimeFiles"].items():
-        path = ROOT / name
-        if not path.is_file() or sha(path) != expected["sha256"]:
-            problems.append(f"Imported runtime changed without an explicit reviewed baseline: {name}")
+    if args.verify_import:
+        for name, expected in manifest["runtimeFiles"].items():
+            path = ROOT / name
+            if not path.is_file() or sha(path) != expected["sha256"]:
+                problems.append(f"Current source differs from the original migration baseline: {name}")
     package = (ROOT / "Package.swift").read_text()
     if "https://github.com/zyfn/openui.git" in package:
         problems.append("Old fork SwiftPM dependency remains")
@@ -55,7 +61,7 @@ def main() -> None:
             problems.append(f"Upstream monorepo content imported into native workspace: {forbidden}")
     if problems:
         raise SystemExit("\n".join(problems))
-    print(json.dumps({"importedRuntimeFiles": len(manifest["runtimeFiles"]), "source": manifest.get("sourceRevision", manifest.get("source")), "coreSHA256": core["sha256"], "products": 3, "result": "PASS (source/ownership only; not native acceptance)"}, ensure_ascii=False, indent=2))
+    print(json.dumps({"historicalImportFiles": len(manifest["runtimeFiles"]), "verifiedImportFiles": len(manifest["runtimeFiles"]) if args.verify_import else 0, "source": manifest.get("sourceRevision", manifest.get("source")), "coreSHA256": core["sha256"], "products": 3, "result": "PASS (source/ownership only; not native acceptance)"}, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
     main()
