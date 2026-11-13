@@ -1,0 +1,65 @@
+--- a/packages/lang-core/src/signature.ts
++++ b/packages/lang-core/src/signature.ts
+@@ -223,14 +223,23 @@
+ }
+ 
+ export function buildSignature(componentName: string, fields: FieldInfo[]): string {
+-  const params = fields.map((f) => {
++  // Arguments are positional: a slot can only be left out when every slot after
++  // it is also left out, so a param reads as omittable only inside the trailing
++  // run of optional params. Marking an earlier param optional would invite
++  // callers to skip it and shift every later argument into the wrong slot.
++  const omittable = fields.map((f) => f.isOptional);
++  for (let i = omittable.length - 2; i >= 0; i--) {
++    omittable[i] = omittable[i] && omittable[i + 1];
++  }
++  const params = fields.map((f, i) => {
++    const optional = omittable[i];
+     if (f.typeAnnotation) {
+-      return f.isOptional ? `${f.name}?: ${f.typeAnnotation}` : `${f.name}: ${f.typeAnnotation}`;
++      return optional ? `${f.name}?: ${f.typeAnnotation}` : `${f.name}: ${f.typeAnnotation}`;
+     }
+     if (f.isArray) {
+-      return f.isOptional ? `[${f.name}]?` : `[${f.name}]`;
+-    }
+-    return f.isOptional ? `${f.name}?` : f.name;
++      return optional ? `[${f.name}]?` : `[${f.name}]`;
++    }
++    return optional ? `${f.name}?` : f.name;
+   });
+   return `${componentName}(${params.join(", ")})`;
+ }
+--- a/packages/lang-core/src/__tests__/library.test.ts
++++ b/packages/lang-core/src/__tests__/library.test.ts
+@@ -296,3 +296,31 @@
+     expect(mock.functions).toBeUndefined();
+   });
+ });
++
++// ─── Positional signatures ──────────────────────────────────────────────────
++
++describe("positional signatures", () => {
++  it("a defaulted param before a required one is not printed optional", () => {
++    const Line = defineComponent({
++      name: "Line",
++      props: z.object({
++        variant: z.enum(["text", "number"]).default("text"),
++        value: z.string(),
++        subtext: z.string().optional(),
++      }),
++      description: "A line",
++      component: Dummy,
++    });
++
++    const lib = createLibrary({ components: [Line], root: "Line" });
++
++    // Skipping `variant` positionally would shift `value` into its slot, so the
++    // signature must not offer `variant?`; the trailing optional keeps its `?`.
++    expect(lib.prompt()).toContain(
++      'Line(variant: "text" | "number", value: string, subtext?: string)',
++    );
++    expect(lib.toSpec().components?.Line?.signature).toBe(
++      'Line(variant: "text" | "number", value: string, subtext?: string)',
++    );
++  });
++});

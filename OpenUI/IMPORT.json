@@ -1,0 +1,539 @@
+{
+  "format": 1,
+  "sourceRepository": "zyfn/openui",
+  "sourceRevision": "f3dfa1d0b479c131b6d4268e81961186f22ff09c",
+  "sourceTree": "3e2704beeb571bb99f7de41abe4484340a3ce03d",
+  "targetBaseRepository": "zyfn/open-intelligent-ui-swift",
+  "targetBaseBranch": "codex/intelligentui-design-revamp",
+  "targetBaseRevision": "a9099441a8b912a76bae7d4bd7eab0e50859749d",
+  "imports": {
+    "packages/swift-lang/Sources": "OpenUI/Sources",
+    "packages/swift-ui/Sources/OpenUISwiftUI": "OpenUI/Sources/OpenUISwiftUI",
+    "packages/swift-lang/Tests/OpenUILangTests": "OpenUI/Tests/OpenUILangTests",
+    "packages/swift-ui/Tests/OpenUISwiftUITests": "OpenUI/Tests/OpenUISwiftUITests",
+    "packages/swift-lang/scripts": "OpenUI/Tools/Core",
+    "packages/swift-ui/scripts": "OpenUI/Tools/Presentation",
+    "packages/swift-lang/validation": "OpenUI/Validation",
+    "spec/fixtures": "OpenUI/Fixtures/Language",
+    "examples/agent-cases": "OpenUI/Examples/AgentCases",
+    "examples/app-frameworks/swiftui-macos": "OpenUI/Examples/macOS",
+    "spec/*.md": "OpenUI/Documentation/Language/"
+  },
+  "registryURLCorrections": [
+    "OpenUI/Tools/Presentation/code-highlighting/package-lock.json",
+    "OpenUI/Tools/Presentation/icons/package-lock.json",
+    "OpenUI/Tools/Presentation/rich-text/package-lock.json"
+  ],
+  "runtimeFiles": {
+    "OpenUI/Sources/COpenUIRegExp/Bridge.c": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/Bridge.c",
+      "sha256": "4920cff386c049713049d773defb7a00ea2ab091f38f852a35b8c1cdc6d28065"
+    },
+    "OpenUI/Sources/COpenUIRegExp/Prefix.h": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/Prefix.h",
+      "sha256": "c1c999a027adb4feeaa305cf4838aa4abd8c263ee97905066f7b4fc5af67801c"
+    },
+    "OpenUI/Sources/COpenUIRegExp/README.md": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/README.md",
+      "sha256": "6ffc5578a40fee4d7d59b6beb82e3433081b0bd1c3b510ce0bdbd3b821bd784b"
+    },
+    "OpenUI/Sources/COpenUIRegExp/RegExpEngine.c": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/RegExpEngine.c",
+      "sha256": "ef2f91816dc78b949750e3af86d31b4c9f95ad420635bd6a5df0073371cc5930"
+    },
+    "OpenUI/Sources/COpenUIRegExp/UnicodeEngine.c": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/UnicodeEngine.c",
+      "sha256": "524336f73ace6a3f45606f03ed6812c60440308aefe674bf257b193fde5b7f8e"
+    },
+    "OpenUI/Sources/COpenUIRegExp/VENDOR.json": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/VENDOR.json",
+      "sha256": "82f6ff20b02b2bbefb46c1963a05b5fd585f62ecdcf5980936688d5d589e4a8d"
+    },
+    "OpenUI/Sources/COpenUIRegExp/include/OpenUIRegExp.h": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/include/OpenUIRegExp.h",
+      "sha256": "f859d89135cbab18ad8877b5cf65204c096807c45109e9ae45f7a6dc1a3bd954"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/LICENSE": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/LICENSE",
+      "sha256": "96f73f9d2a16c21a36b418f06073be26e7d6d5e7c1bc99756b21a4f2c74ef171"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/cutils.h": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/cutils.h",
+      "sha256": "dffec8bea17f08108da5a91c1178804754698bbbb6202dc100268e78e8c5b770"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/libregexp-opcode.h": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/libregexp-opcode.h",
+      "sha256": "2a98d646089f3a72f25480116297c5fdb5b28fd9f815447273951f4ade4a115e"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/libregexp.c": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/libregexp.c",
+      "sha256": "af13e996abb1767fe0cdfda123c45b811d53688d403a2ac47142e97bf79f1fae"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/libregexp.h": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/libregexp.h",
+      "sha256": "53ff95a038f7001b752c455d195d998e2955f0ae4ed62a002c13eca798db3ceb"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/libunicode-table.h": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/libunicode-table.h",
+      "sha256": "5840a921ac11664b505ee37b1219f518fff2a04972fe848b4bdf1e85c5a0bd83"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/libunicode.c": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/libunicode.c",
+      "sha256": "d755606498ff707dc3a93826713c749f77b9222d8a6b066621d72a308460bf2d"
+    },
+    "OpenUI/Sources/COpenUIRegExp/vendor/libunicode.h": {
+      "sourcePath": "packages/swift-lang/Sources/COpenUIRegExp/vendor/libunicode.h",
+      "sha256": "ad13f66aaea3fab1616e84b9c048f2a315e1bdbab628b966617a7a3e55bcba2b"
+    },
+    "OpenUI/Sources/OpenUILang/API.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/API.swift",
+      "sha256": "864f667cd7aad2eac92a8df687f09940f7a25716f3f08c3512c6e0e66e25d062"
+    },
+    "OpenUI/Sources/OpenUILang/Actions.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Actions.swift",
+      "sha256": "8e660709d7d3fe560f5719146d95ec78a0692d881a176541c5b00ae7cd23118b"
+    },
+    "OpenUI/Sources/OpenUILang/Builtins.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Builtins.swift",
+      "sha256": "77c18b698d240637e1d1a5b7831e3e7cd661eafb50743b4f1638a7da38aec60a"
+    },
+    "OpenUI/Sources/OpenUILang/Evaluator.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Evaluator.swift",
+      "sha256": "05389a044348d5ec93e402dee109b1c36c5ff08ba91a7f27b1fd0857f9e78bd7"
+    },
+    "OpenUI/Sources/OpenUILang/Forms.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Forms.swift",
+      "sha256": "af7d61e935e01f117d8cee9a92a43a9c215a1045dca079a43c404701b34b0651"
+    },
+    "OpenUI/Sources/OpenUILang/JSSemantics.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/JSSemantics.swift",
+      "sha256": "017180a69b04249089fea70e9ea558489756a4e493c27527db3d3161a170d5e3"
+    },
+    "OpenUI/Sources/OpenUILang/Lexer.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Lexer.swift",
+      "sha256": "30dfa7fbcaac57994054e35fe77c4065f1d882f0c65372158899bd37eabed303"
+    },
+    "OpenUI/Sources/OpenUILang/Library.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Library.swift",
+      "sha256": "3665fe441ebba63c245642c2685a485b95ac94b7dbde2a7429936cc64937dffe"
+    },
+    "OpenUI/Sources/OpenUILang/LibraryBridge.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/LibraryBridge.swift",
+      "sha256": "57a1105bb40e5893b1b7c12a725f7e231541dd9c7b0d2b4e12794b1f22b5d548"
+    },
+    "OpenUI/Sources/OpenUILang/MCP.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/MCP.swift",
+      "sha256": "456c1852c6c5034ef7b089741d6a1b6e74e924effbfa58518ba83e9c6281b8e5"
+    },
+    "OpenUI/Sources/OpenUILang/Materialize.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Materialize.swift",
+      "sha256": "5aaf8932f161b49c742a659fb502fbe9368c8ba6117edcb8b62f0e19040565f3"
+    },
+    "OpenUI/Sources/OpenUILang/Merge.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Merge.swift",
+      "sha256": "628a6d08d366bd42d5c1479e32880d72d7616c6190c0894e0c20c63f64fcb85f"
+    },
+    "OpenUI/Sources/OpenUILang/Message.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Message.swift",
+      "sha256": "e0dfc294439c6411ea3511d5999be4d169b1e75e9814a9297de638d310df7d97"
+    },
+    "OpenUI/Sources/OpenUILang/NativeSourceReadiness.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/NativeSourceReadiness.swift",
+      "sha256": "e97c7a2663a1ad83672359325712a55eae58784422b757905dae3a08ba5e7c47"
+    },
+    "OpenUI/Sources/OpenUILang/OpenUIString.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/OpenUIString.swift",
+      "sha256": "cd65172ffa20d67f7b34a0e26f34e60c4625a0e095134e6bb55657d15efba0e1"
+    },
+    "OpenUI/Sources/OpenUILang/Parser.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Parser.swift",
+      "sha256": "5f15ed888510a2c15f7eb1f1053cb4b6b58a60ab783bb75cce1732d679485561"
+    },
+    "OpenUI/Sources/OpenUILang/Prompt.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Prompt.swift",
+      "sha256": "d50d8bc88fd5070115f9285d25051cff6ffc05758104f32e59d7728921b17cb8"
+    },
+    "OpenUI/Sources/OpenUILang/ProtocolTypes.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/ProtocolTypes.swift",
+      "sha256": "61e00effb111a94bfcf3ab60bbd5dfb3440026411f8a7f59b8f0d0a4b8bfed6d"
+    },
+    "OpenUI/Sources/OpenUILang/QueryManager.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/QueryManager.swift",
+      "sha256": "70925c3db049790477609ec5692943420c9ef0506c1f2308962178dd7006ffdf"
+    },
+    "OpenUI/Sources/OpenUILang/ReferenceValues.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/ReferenceValues.swift",
+      "sha256": "387a7c7bcc635011e84ed3da78b95fe7ccc27bced5a52efa3c4ba8043cb5ece0"
+    },
+    "OpenUI/Sources/OpenUILang/RegExp.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/RegExp.swift",
+      "sha256": "9ad5a3e0bda61fb184f01b40bb77073664747fa043d465f295219e602d97f16a"
+    },
+    "OpenUI/Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt",
+      "sha256": "d47180f1530b8ad734d942780e2d91e637cbd660371111243de5b8ef9221824a"
+    },
+    "OpenUI/Sources/OpenUILang/Resources/lang-core.js": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Resources/lang-core.js",
+      "sha256": "10227f1773ec35d0cadee6937cb5f1ca93eb04461d3885cd78d9074c9cbb24af"
+    },
+    "OpenUI/Sources/OpenUILang/RuntimeLimits.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/RuntimeLimits.swift",
+      "sha256": "41acdc33573eca3aba9b6bf7be20b76a83c0f5fe22d1e0ba36b5b87612ce2bd7"
+    },
+    "OpenUI/Sources/OpenUILang/SchemaDocument.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/SchemaDocument.swift",
+      "sha256": "514af6053654a6a9caefab76c09957dd1f129f9257f8e61c2963cb8cd293f426"
+    },
+    "OpenUI/Sources/OpenUILang/Serialize.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Serialize.swift",
+      "sha256": "8f0404bda5214552dd26b5b806d06a0b3d9ecaf038dd4d3f7a3de6d8c2bcb964"
+    },
+    "OpenUI/Sources/OpenUILang/SharedCore.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/SharedCore.swift",
+      "sha256": "cb8bc9e2526b5ed952b4bf293d5b1df51286b0c11c95e9b32a24d4d33ba4540c"
+    },
+    "OpenUI/Sources/OpenUILang/Signature.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Signature.swift",
+      "sha256": "78ebb96b0b1c71dee62a6d703d3afdc0a2a8b1b7f7549806b796afacd4de86a7"
+    },
+    "OpenUI/Sources/OpenUILang/Store.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Store.swift",
+      "sha256": "e1d5b604d2dee344448dab6ddb2ce45e827ec3ed56e55372eb603c70b80188d3"
+    },
+    "OpenUI/Sources/OpenUILang/StreamingParser.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/StreamingParser.swift",
+      "sha256": "50674af84644a7dd747a9d90cc4aca6d2bace40353ed1a010a3f7e4de4f9225d"
+    },
+    "OpenUI/Sources/OpenUILang/Validation.swift": {
+      "sourcePath": "packages/swift-lang/Sources/OpenUILang/Validation.swift",
+      "sha256": "08e2ec4b40e4f570cd754592b921295c2267cc223632ffccdab96e7c8434ff52"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/ChartComponents.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/ChartComponents.swift",
+      "sha256": "1497835b322eada795eeee94d8f4866a08b4fcc77d095fe71587f028907b040d"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/ContentComponents.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/ContentComponents.swift",
+      "sha256": "e34d89b0dc85545e0da1291ba64c7776135342fec1d60007e259af7e58297642"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/DisplayComponents.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/DisplayComponents.swift",
+      "sha256": "7d0c2829108f77a69196f58b4f8bae0a7b2fe2fff83656ea0b60d89a9041b2e7"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/FlowLayout.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/FlowLayout.swift",
+      "sha256": "fe64610300d850522555c7004762d5603003a67e490bf15050f695d9aa0dfd58"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/FormComponents.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/FormComponents.swift",
+      "sha256": "f8494d089729a59d1922176942c6621d23b8d14f1e530b160d083a9b4865bcc7"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeAdaptiveControls.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeAdaptiveControls.swift",
+      "sha256": "38e8ac77b29b498d0e5073d67fc394b899cdec9fad850102b5c64b9e5ea0d7d0"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeArtworkCardLayout.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeArtworkCardLayout.swift",
+      "sha256": "a2cc19142dcfdf3ac88b5dcb7a2827bb377ae6a117963d76535be34ca731be90"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeBadge.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeBadge.swift",
+      "sha256": "734673c0cbecb52e88c3495a629071e1818577e1364527bd6fe3ad6412a5f854"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeButton.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeButton.swift",
+      "sha256": "e3a139362e105b8996ed9982abe3627c93771414cc70a342b35b39bee1d06ef9"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeCardAction.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeCardAction.swift",
+      "sha256": "4957003736d65966cfbbebec0d661450a609035d14d7cb2807b57c4409f608b1"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeChartInteraction.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeChartInteraction.swift",
+      "sha256": "93bca9cadd731083a31235361b51d9e9c374d5556e4f3888fafbb41f3e0b0547"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeChartSemantics.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeChartSemantics.swift",
+      "sha256": "b455abaf16267d941e4ebc8ab6a02299f677ba9d41d1ace27267d19cb03cb232"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeChartStreaming.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeChartStreaming.swift",
+      "sha256": "5ed9b1446cfe8a912b20589dcbb9acb2abce126f393e492e3ca796ea65d34f22"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeChoiceField.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeChoiceField.swift",
+      "sha256": "24804aa98a716afeef47576327b7f5dd8170403b4a79b47c98a185526b454ee4"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeControlStyle.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeControlStyle.swift",
+      "sha256": "a34eb0d26965a71e38212ff60ac4211a07ffb91453fb8e6d11af02be1db16f42"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeDateField.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeDateField.swift",
+      "sha256": "894af814c14b293845f4d2a12f16b00f2caa72d02b93f99aa51a5e21ed655ef7"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeEditableTable.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeEditableTable.swift",
+      "sha256": "52c1dbab5a8adfcf39b9df202e88bd31204d0f9b94b1d0270c49452efb411c89"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeFieldState.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeFieldState.swift",
+      "sha256": "7907c48e11e7b4ebc5b567c3faa042b7965534d131f0f85a71642a1776124034"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeFieldViews.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeFieldViews.swift",
+      "sha256": "ec5d293747a2e6e3a6787b670ed1761b412a02f04182c89c158e3fe7681d782d"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeIcon.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeIcon.swift",
+      "sha256": "7f46adc03408a59845c45afea499c2646660a677a887e98eaebdb9366b3abfc6"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeImageInteraction.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeImageInteraction.swift",
+      "sha256": "d5078bb7a863bab2fb1283aad870055493e1293118e6bbcc23578cd7d6cf5218"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeLayoutContract.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeLayoutContract.swift",
+      "sha256": "5e14432c21557c680e5a0f061a5f21825fa1af8eb53e4abd059575eaa0ea11e1"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeLayoutMeasurement.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeLayoutMeasurement.swift",
+      "sha256": "f43b18f09aef9aa83e04a2ce686ebd641530dbc68bd009a93f85a07797bebb45"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeLoadingViews.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeLoadingViews.swift",
+      "sha256": "61c96c71857c00d68c04fcafd237f82a811781deadb669072f10064655421954"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeMap.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeMap.swift",
+      "sha256": "aa15be78329520eaea119625fa0ff802b352ec5f047a2157841fc63098922649"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeMedia.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeMedia.swift",
+      "sha256": "abad36f5f79f044d1abbd17fc926a32d6e4d7bdd8197ee40dd9be875bf8565ec"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeMediaPreview.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeMediaPreview.swift",
+      "sha256": "cdcc1c4e889032cb0e632ca70c7890d023c427010e6e350a15d15583cd14238a"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativePageControls.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativePageControls.swift",
+      "sha256": "d5680c814d940c024d98385d6bc2e48aa61c4011bbdbb1b0ba5adcb28b96fba3"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativePager.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativePager.swift",
+      "sha256": "217ae9e4c64720e34da5fb162755753022e0ae06ac98e0db9c47cc3d4d4949aa"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativePagerPan.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativePagerPan.swift",
+      "sha256": "40b7ccb3e0f2a1eb67fbb4892a4e6d00db54ed6988ea5e099e2804ca60c290ca"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativePresentationProxy.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativePresentationProxy.swift",
+      "sha256": "78fb65a66979cd9347a5ac7fdaca2648b4a0b3b775a6b1408c29d95a8a97239a"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeSVG.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeSVG.swift",
+      "sha256": "0492ebde6329412865e4c4dce66ec08c27d950398facaa03501517c9fb1cf92d"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeSVGDocument.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeSVGDocument.swift",
+      "sha256": "792c310ac2eea32a07407725db0b2546dfc1ed61c7fbd52cf224fc11c4543636"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeSlider.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeSlider.swift",
+      "sha256": "85b9fbfd9cbe37aa766751f371d84013bff8a551890028ee691c7d29a4879810"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/NativeStreamingPresentation.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeStreamingPresentation.swift",
+      "sha256": "090a27aaf7e403335231d294a1965745365ef007e21777a9bb0b211d8221cf89"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/OpenUIActionSurface.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/OpenUIActionSurface.swift",
+      "sha256": "674d0de84b51fca0a29ac333b72374e122cbf3f9cf70f6877afe233b3a48b692"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/PresentationModifiers.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/PresentationModifiers.swift",
+      "sha256": "493f234787aef669e315e26fd232e36610ad97d66f01dde474f0759e92cd8547"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/StandardContainers.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/StandardContainers.swift",
+      "sha256": "2dfe2b3cd07499d6ca9132d6a2b94ec61c5847bfc58f32c092ae9c30a79e56bd"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/TableCellContent.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/TableCellContent.swift",
+      "sha256": "cf1ba9e76048ec2193bbfdd560966ae427de2de6e9e472ab6a789bd29a228b0e"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/TabsComponents.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/TabsComponents.swift",
+      "sha256": "3f651382d0e26a7990205e316c31b5ad08b3ffb0a007194c231d84ce474dd271"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/Text/CardSourceProvider.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/Text/CardSourceProvider.swift",
+      "sha256": "0cd9452734ba324c9a877a273b822cc8b2edeb135759c471beab892c355dbd9b"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/Text/NativeCodeBlock.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/Text/NativeCodeBlock.swift",
+      "sha256": "21e6b24f55f0295b47ab169c63ad74e35fd8c4376f75618469f05d8599c97e09"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/Text/NativeMarkdownText.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/Text/NativeMarkdownText.swift",
+      "sha256": "e9cc05e715d31b52dc3d51c86a60d95b79f84bce43d296412f3582a4765b7181"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/Text/NativeMath.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/Text/NativeMath.swift",
+      "sha256": "f302745849e12d36eaf80a59ee746e6edd0464289fd2e2d98dd39c25f9d68bb7"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Components/Text/NativeStreamingTextBuffer.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Components/Text/NativeStreamingTextBuffer.swift",
+      "sha256": "4e4f4acc6ddbbdaf61180181be4b48a1121ccc79ad6bc22c0315567ae2221867"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Context/ComponentContext.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Context/ComponentContext.swift",
+      "sha256": "4e4e182923d5a0fcc7aecd3f849e746abdc893dfc3b9f8aafa0f9a6b57749896"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/GenUILib/ComponentBindings.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/GenUILib/ComponentBindings.swift",
+      "sha256": "476b690deda905ee7617ae0af44a980f4152ace317d914938f3065b3c0dc56c6"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/GenUILib/ComponentLibrary.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/GenUILib/ComponentLibrary.swift",
+      "sha256": "4f0dba3ada8473ae5ccadf61f281df0cedeaa3c8c18fca09b6245b62c289ea89"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/GenUILib/ReferenceCatalog.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/GenUILib/ReferenceCatalog.swift",
+      "sha256": "aba5cc7b574f46b5e81c95b23f4a7db760a29425ab255b6d0a27fb4c16cd2e01"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/GenUILib/StandardComponents.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/GenUILib/StandardComponents.swift",
+      "sha256": "038619daa2ebfa0d6cc4db5d14e18d0f542b33ebbba1c74cdb91cd772973f61f"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Internal/NativeCodeSyntax.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Internal/NativeCodeSyntax.swift",
+      "sha256": "8666c35f2b11315ef25294efa3f89097eac460eea6fe3b2bf1b3d1b1f32e0c34"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Internal/NativeControlResources.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Internal/NativeControlResources.swift",
+      "sha256": "6dd26dc3090341ea2dfb6dd868332794c72cf1012b02b87e87d2519ea3aa9612"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Internal/NativeLiveElementIndex.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Internal/NativeLiveElementIndex.swift",
+      "sha256": "204c51a430672edc24d719169900da8488fd692543d403e3671b690a939c623a"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Internal/NativeRichText.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Internal/NativeRichText.swift",
+      "sha256": "1644267484410d63ff652e58e2447abe8e464bb0989ad3110bd9ac5c9f207c0b"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/NativeStringBridge.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/NativeStringBridge.swift",
+      "sha256": "dd479c372078d6e2f6f01e4220f48646d1a12e2be3155e9abaa9a85c417f0731"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/OpenUIState.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/OpenUIState.swift",
+      "sha256": "2c7e967235ab67583ab2684b293d0fa4a3a30e1eb26639dfd187679f41749fad"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/QueryView.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/QueryView.swift",
+      "sha256": "908102be117c708be2a5f4a61e4bfc4094d6a3edadd058664aede5a38fc1fbf0"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/RenderNode.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/RenderNode.swift",
+      "sha256": "96070c3172b5b43944cf74290aff25c747ebd25387d09339004dcfbc151bf7da"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Renderer.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Renderer.swift",
+      "sha256": "e06039740e5bfe3e8fdd65d3b23c774b041b7b5eb0a50b922cfe3d22679d2335"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/CodeHighlighting-LICENSES.txt": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/CodeHighlighting-LICENSES.txt",
+      "sha256": "42c68b135ab41f8411bd4b01fbab78b76ddc42020f0cc50ec8bfb542e41af25e"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/Lucide-LICENSE.txt": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/Lucide-LICENSE.txt",
+      "sha256": "3c57143f22dac950efebf84002e360bba5458c7b90fe583b0667aaaef1a7256e"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/RichText-LICENSES.txt": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/RichText-LICENSES.txt",
+      "sha256": "0af15011d2a948111d36e3b7b07e0127bfef4a206b1e761c463a7fb3f5a87cd2"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/code-highlighting-manifest.json": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/code-highlighting-manifest.json",
+      "sha256": "89b5610a09516af45965f3240d4ba46f63a28ef09123b387fc6385d9ce6eb9f9"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/code-highlighting.js": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/code-highlighting.js",
+      "sha256": "626967082830b91e8393632be7fad180fb1e5f9f7d4db619736efb3f7f9a10d6"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/en.lproj/Localizable.strings": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/en.lproj/Localizable.strings",
+      "sha256": "1431eb830230ea043f676f079156f32b7b1319db6eecc9824c705ed124ea8228"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/lucide-icons.json": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/lucide-icons.json",
+      "sha256": "17f8210d44080ddfe674f6f9235bdc85417d239c23c9604b4acfcc085017b9b7"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/rich-math.css": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/rich-math.css",
+      "sha256": "0efdf5e34969f4a7792335fa5e6b84a30f4d55270fa5f773877bd3c3ec4a010a"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/rich-text-manifest.json": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/rich-text-manifest.json",
+      "sha256": "905350aa48e98257933ef011c6900100eedae3756c7fee34d43e96c719eb11f6"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/rich-text.js": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/rich-text.js",
+      "sha256": "68e97d52e63dc2a2297cfa695f76396deb076b10e901c6f92ba0b86d1ca08a09"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/upstream-catalog.json": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/upstream-catalog.json",
+      "sha256": "24d428b6fd5bc3c50939840a3649c68351106b6c82be9a0b1ee72b88a4e2f55e"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources/zh-Hans.lproj/Localizable.strings": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/zh-Hans.lproj/Localizable.strings",
+      "sha256": "bfbf4d46d487192cc5cb4a66077a0b2e2f30f507426e0b456637690c151fc3e6"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Resources.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Resources.swift",
+      "sha256": "d570e8954ea163c345f3ea0b1cb12a8054a63b8c7f95861dd3254d967db2469e"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/ChartPalette.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/ChartPalette.swift",
+      "sha256": "0f148ae25d8df69a11aee3a9c9a62bd313fbe1b2dc702b2e8940d7584be8b0ca"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/NativeComponentStyle.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/NativeComponentStyle.swift",
+      "sha256": "f3ee494408075ee2f303e6e55bbea2bacb400ab14a81fc806b5e2424185b4a6d"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/NativeControlPalette.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/NativeControlPalette.swift",
+      "sha256": "b74d6a5d74c7b837e8d77b3cdfaff5482ce1fdda2e69647ed48ca9a9b6dc7b6f"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/OpenUIMotion.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/OpenUIMotion.swift",
+      "sha256": "ff3c4306c8bae4f80f09c17ae18777619c1e24ad78ced850ab93a790023679a4"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/OpenUIPresentation.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/OpenUIPresentation.swift",
+      "sha256": "54a16775b50fe272e626e0b40259df3c5e20dfb8ac89ba30479d181afdae55d5"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/OpenUITheme.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/OpenUITheme.swift",
+      "sha256": "9044440ed4b2e9d9fa261a596342dd90e93ceb5dc970026c0df09840ff2e7d0f"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/OpenUITypography.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/OpenUITypography.swift",
+      "sha256": "ce1204056b79782cac8e9a9c36b5739d0351a2f27676a6873f63daeb3b0aff28"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/TextStyles.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/TextStyles.swift",
+      "sha256": "2035e04b7974589c52000a6ba0a8348f6833a5e7fcabe4bc443286ea57c4bc60"
+    },
+    "OpenUI/Sources/OpenUISwiftUI/Theme/ThemeEnvironment.swift": {
+      "sourcePath": "packages/swift-ui/Sources/OpenUISwiftUI/Theme/ThemeEnvironment.swift",
+      "sha256": "c4be5e9a2767efb46a457930d54415456d37da730f7acb36c566f2130900be2c"
+    }
+  },
+  "scope": "Source snapshot import, not an unrelated-history merge. Original production code/resources are byte-preserved except generated provenance metadata; private component catalog remains separate.",
+  "releaseStatus": "Migration candidate; not an rc.21 publication or complete device acceptance."
+}

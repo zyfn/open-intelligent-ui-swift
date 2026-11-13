@@ -14,9 +14,9 @@ if not exported_manifest.exists() or json.loads(exported_manifest.read_text()).g
 output = root / "outputs/delivery"
 output.mkdir(parents=True, exist_ok=True)
 files = []
-for directory in ["Sources", "Tests", "Tools", "Benchmarks", "Examples", "docs", ".github"]:
+for directory in ["Sources", "Tests", "Tools", "Benchmarks", "Examples", "docs", ".github", "OpenUI"]:
     for path in (root / directory).rglob("*"):
-        if path.is_file() and not any(part in {"node_modules", "__pycache__", "xcuserdata", ".DS_Store"} for part in path.parts):
+        if path.is_file() and not any(part in {"node_modules", "__pycache__", "xcuserdata", ".DS_Store", ".build", ".swiftpm", ".git"} for part in path.parts):
             files.append((path, path.relative_to(root)))
 for name in ["README.md", "Package.swift", "Package.resolved", "THIRD-PARTY-NOTICES.txt", ".gitignore"]:
     files.append((root / name, Path(name)))

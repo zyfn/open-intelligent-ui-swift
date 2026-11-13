@@ -1,6 +1,6 @@
 # Swift Intelligent UI
 
-基于 OpenUI Swift 的 Apple 平台组件库：把模型生成的 OpenUI Lang 渲染为 SwiftUI 内容，并从实际组件目录导出 spec、Prompt 和 manifest。
+独立维护的 Apple 平台 Swift SDK 工作区：OpenUI 通用底座与 Intelligent UI 组件库共仓，把模型生成的 OpenUI Lang 渲染为 SwiftUI 内容，并从实际组件目录导出 spec、Prompt 和 manifest。
 
 ## 开始之前
 
@@ -8,10 +8,16 @@
 
 本项目有两条基线，不能混用：
 
-- **运行时**：OpenUI Swift 固定远程 revision，负责 DSL 语法、解析、求值、状态、绑定和流式。
+- **运行时**：`OpenUI/` 中的 `OpenUILang` / `OpenUISwiftUI`，负责 DSL 语法、解析、求值、状态、绑定和流式。来源及逐文件哈希由 `OpenUI/IMPORT.json` 固定，不再拉取整个 OpenUI fork。
 - **组件契约**：`thesysdev/open-intelligent-ui` 固定提交 `16ef26475999e3a021a50b1607a03717c0721255` 的 **55 组件参考库**。
 
 OpenUI 运行时自带的 **ReferenceCatalog 不是本项目的组件基线**，不要用它替换或“修正”现有组件。
+
+## 工作区与产品
+
+根 Swift Package 保持 `SwiftIntelligentUI` 产品，并独立导出 `OpenUILang`、`OpenUISwiftUI`。通用库位于 [`OpenUI/`](OpenUI/README.md)，原有 `Sources/SwiftIntelligentUI` 目录及组件参数不合并、不改名。普通 Intelligent UI 使用者仍只链接 `SwiftIntelligentUI`。
+
+`OpenUIStandardComponents` 的 87 项库与这里的 Intelligent UI reader/writer 是两套独立目录，不能混用它们的 spec/Prompt。当前合并为迁移候选；不得把源码集成当成 RC21 发布或真机验收。
 
 ## 体系
 
@@ -67,7 +73,7 @@ iOS Gallery 使用 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme �
 3. **Map 只负责地图。** 不接收任意卡片投影，不增加私有身份、筛选或路线协议；地点卡片放 Map 外组合。
 4. **DesignSystem 管规则，token 管参数。** 不要让父容器隐式改变子组件业务语义，也不要把所有组件尺寸都塞入公共主题。
 5. **生成契约必须与实现同源。** 不得用 Prompt 正则补丁或长段说明掩盖签名和运行时差异。
-6. **OpenUI 只用远程固定依赖。** 禁止本机 path 依赖、未提交工作区和本地候选 SDK。
+6. **运行时依赖必须可复现。** 本仓的 `OpenUI/` 是提交并共同验证的正式源码，不是本机 path override。应用只依赖根 Swift Package；禁止同时引入旧 fork 的同名产品。上游源码由 `OpenUI/Tools/upstream.json` 固定，仅在维护者重建资源时获取。
 7. **不要改偏测试来制造通过。** 失败必须保留并解释；构建通过不等于真实界面通过。
 8. **文档只写当前体系。** `docs/swift-intelligent-ui-design.md` 不记录版本流水或变更过程；历史证据另存，不在主文档展开。
 
