@@ -5,7 +5,7 @@ import {readFileSync, writeFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {resolve, dirname} from 'node:path';
-import {execFileSync} from 'node:child_process';
+import assert from 'node:assert/strict';
 const here = dirname(fileURLToPath(import.meta.url));
 const moduleArgument = process.argv.slice(2).find(arg => !arg.startsWith('--'));
 const modules = moduleArgument ? resolve(moduleArgument) : resolve(here, 'node_modules');
@@ -71,6 +71,58 @@ if (Object.keys(icons).length < 1500) throw Error('Incomplete dynamic icon catal
 const fallbackSource = upstreamFile(revision, 'packages/react-ui/src/components/_shared/icons/categoryFallbacks.ts');
 const fallbacks = Object.fromEntries([...fallbackSource.split('};')[0].matchAll(/^\s*(?:"([^"]+)"|(\w+)):\s*"([^"]+)"/gm)].map(m=>[m[1]??m[2],m[3]]));
 for(const name of [...Object.values(fallbacks),'circle-dot']) if(!icons[name]) throw Error('Missing fallback: '+name);
+// SVG arc conversion uses platform transcendental math. Its final binary
+// digits are not portable across Node/CPU/libm implementations. Check geometry
+// with an explicitly tiny scale-relative rounding budget, while requiring exact
+// names, order, commands, flags, metadata, lengths and all non-geometry values.
+// Never rewrite the committed artwork merely to fit a new build platform.
+function compareArtwork(expected, actual) {
+  let roundedCoordinates = 0, maximumAbsoluteDifference = 0;
+  function visit(a, b, path) {
+    if (Object.is(a, b)) return;
+    if (typeof a === 'number' && typeof b === 'number' && path[0] === 'icons') {
+      assert.ok(Number.isFinite(a) && Number.isFinite(b), `Non-finite coordinate: ${path.join('.')}`);
+      const difference = Math.abs(a - b);
+      const roundingBudget = Math.min(1e-10, 16 * Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)));
+      assert.ok(difference <= roundingBudget,
+        `Artwork geometry changed: ${path.join('.')} (${a} -> ${b}; delta ${difference}, budget ${roundingBudget})`);
+      roundedCoordinates++;
+      maximumAbsoluteDifference = Math.max(maximumAbsoluteDifference, difference);
+      return;
+    }
+    assert.equal(typeof b, typeof a, `Type changed: ${path.join('.')}`);
+    if (a === null || b === null || typeof a !== 'object') {
+      assert.deepEqual(b, a, `Value changed: ${path.join('.')}`);
+      return;
+    }
+    assert.equal(Array.isArray(b), Array.isArray(a), `Structure changed: ${path.join('.')}`);
+    assert.deepEqual(Object.keys(b), Object.keys(a), `Keys/order/length changed: ${path.join('.')}`);
+    for (const key of Object.keys(a)) visit(a[key], b[key], [...path, key]);
+  }
+  visit(expected, actual, []);
+  return {roundedCoordinates, maximumAbsoluteDifference};
+}
+// Negative controls prove that portability does not permit changed topology,
+// labels, fills, revisions, missing aliases, or visible geometric drift.
+const control = {version: 'pinned', revision: 'fixed', fallbacks: {place: 'pin'},
+  icons: {pin: [{commands: [['M', 6.11856720214702, 12]], fill: false}]}};
+for (const mutate of [
+  x => { x.version = 'different'; },
+  x => { x.fallbacks.place = 'other'; },
+  x => { x.icons.pin[0].commands[0][0] = 'L'; },
+  x => { x.icons.pin[0].fill = true; },
+  x => { x.icons.pin[0].commands[0][1] += 0.000001; },
+  x => { x.icons.pin[0].commands[0].push(1); },
+  x => { delete x.icons.pin; },
+  x => { x.icons.pin[0].commands[0][1] = NaN; },
+]) {
+  const changed = structuredClone(control); mutate(changed);
+  assert.throws(() => compareArtwork(control, changed));
+}
+const rounded = structuredClone(control);
+rounded.icons.pin[0].commands[0][1] = 6.1185672021470205;
+assert.equal(compareArtwork(control, rounded).roundedCoordinates, 1);
+assert.equal(compareArtwork(control, structuredClone(control)).roundedCoordinates, 0);
 const target = resolve(here,'../../../Sources/OpenUISwiftUI/Resources');
 for (const [name, data] of [
   ['lucide-icons.json', JSON.stringify({version,revision,fallbacks,icons})+'\n'],
@@ -78,12 +130,11 @@ for (const [name, data] of [
 ]) {
   if (process.argv.includes('--check')) {
     const expected = readFileSync(resolve(target,name),'utf8');
-    if (expected !== data) {
-      let offset = 0;
-      while (offset < Math.min(expected.length,data.length) && expected[offset] === data[offset]) offset++;
-      const preview = value => JSON.stringify(value.slice(Math.max(0,offset-50),offset+100));
-      throw Error(`Generated resource differs: ${name}; offset=${offset}; expected=${preview(expected)}; actual=${preview(data)}`);
-    }
+    if (name === 'lucide-icons.json') {
+      const result = compareArtwork(JSON.parse(expected), JSON.parse(data));
+      console.log(JSON.stringify({resource: name, byteIdentical: expected === data,
+        ...result, policy: 'exact structure and metadata; geometry <= min(1e-10, 16*EPSILON*scale)'}));
+    } else assert.equal(data, expected, `Generated resource differs: ${name}`);
   } else writeFileSync(resolve(target,name), data);
 }
 console.log(`Lucide ${version}: ${Object.keys(icons).length} names, ${Object.keys(fallbacks).length} category fallbacks`);
