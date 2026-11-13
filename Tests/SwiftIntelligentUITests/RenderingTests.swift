@@ -14,6 +14,8 @@ final class RenderingTests: XCTestCase {
         XCTAssertEqual(PropValue.string(try children(state)[1], "text"), "已选")
         CheckboxComponent.toggle(context)
         XCTAssertEqual(state.stateValue("$selected"), .boolean(false))
+        // RC20 preserves identical completed snapshots; reset explicitly to replay.
+        state.reset()
         state.setSource(source)
         CheckboxComponent.toggle(context)
         XCTAssertEqual(state.stateValue("$selected"), .boolean(false))
@@ -73,10 +75,32 @@ final class RenderingTests: XCTestCase {
         state.setSource(source)
         let context = OpenUIComponentContext(element: try children(state)[0], registry: library.components.registry, state: state)
         let binding = try XCTUnwrap(context.binding("checked"))
+        state.reset()
         state.setSource(source)
         XCTAssertFalse(context.canInteract)
         binding.wrappedValue = .boolean(true)
         XCTAssertEqual(state.stateValue("$selected"), .boolean(false))
+    }
+
+    @MainActor func testDuplicateCompletedSourceAndEmptyChunksPreserveUserStateAndBindings() throws {
+        let library = try IntelligentUILibrary(), state = library.makeState()
+        state.setSource(source)
+        let context = OpenUIComponentContext(element: try children(state)[0], registry: library.components.registry, state: state)
+        let binding = try XCTUnwrap(context.binding("checked"))
+        binding.wrappedValue = .boolean(true)
+        let snapshot = state.snapshotState()
+        let revision = state.presentationRevision
+
+        state.setSource(source)
+        state.push("")
+
+        XCTAssertEqual(state.presentationRevision, revision)
+        XCTAssertEqual(state.snapshotState(), snapshot)
+        XCTAssertTrue(state.isComplete)
+        XCTAssertTrue(context.canInteract)
+        XCTAssertEqual(PropValue.string(try children(state)[1], "text"), "已选")
+        binding.wrappedValue = .boolean(false)
+        XCTAssertEqual(PropValue.string(try children(state)[1], "text"), "未选")
     }
 
     @MainActor func testButtonActionUsesSDKState() async throws {

@@ -11,7 +11,7 @@
 - **运行时**：OpenUI Swift 固定远程 revision，负责 DSL 语法、解析、求值、状态、绑定和流式。
 - **组件契约**：`thesysdev/open-intelligent-ui` 固定提交 `16ef26475999e3a021a50b1607a03717c0721255` 的 **55 组件参考库**。
 
-OpenUI rc.9 自带的 **82 组件 ReferenceCatalog 不是本项目的组件基线**，不要用它替换或“修正”现有组件。
+OpenUI 运行时自带的 **ReferenceCatalog 不是本项目的组件基线**，不要用它替换或“修正”现有组件。
 
 ## 体系
 

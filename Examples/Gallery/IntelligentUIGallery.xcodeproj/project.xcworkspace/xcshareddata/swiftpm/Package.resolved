@@ -15,7 +15,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/zyfn/openui.git",
       "state" : {
-        "revision" : "335f99b90e62306d399343c98ad67f363f13c771"
+        "revision" : "b8ea283916b9630ce8590338c8f8dc5b71fd75e4"
       }
     },
     {
