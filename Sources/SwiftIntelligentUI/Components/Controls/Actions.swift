@@ -62,8 +62,13 @@ enum PressableComponent {
 private struct PressableView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.locale) private var locale
     private var selected: Bool { context.flag("selected") == true }
     private var hasSelection: Bool { context.flag("selected") != nil }
+    private var accessibilitySummary: String {
+        let summary = context.children().map { PresentationText.summary($0.value, locale: locale) }.filter { !$0.isEmpty }.joined(separator: "，")
+        return summary.isEmpty ? SDKStrings.text("controls.action.fallback", locale: locale) : summary
+    }
     var body: some View {
         OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true, showsProgress: true) {
             VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }
@@ -85,7 +90,7 @@ private struct PressableView: View {
                 }
         }.buttonStyle(QuietControlStyle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"))))
             .disabled(context.action() == nil)
-            .accessibilityLabel(context.children().map { PresentationText.summary($0.value) }.filter { !$0.isEmpty }.joined(separator: "，"))
+            .accessibilityLabel(accessibilitySummary)
             .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }

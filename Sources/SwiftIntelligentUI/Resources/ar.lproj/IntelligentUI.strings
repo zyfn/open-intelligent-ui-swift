@@ -159,4 +159,5 @@
 "video.preparing" = "جارٍ إعداد الفيديو";
 "video.invalid" = "عنوان الفيديو غير صالح";
 "video.open" = "فتح في YouTube";
+"controls.input.pending" = "لم يُطبّق هذا الإدخال. القيمة الحالية: %@";
 

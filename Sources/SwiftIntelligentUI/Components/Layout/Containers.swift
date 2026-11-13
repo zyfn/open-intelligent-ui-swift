@@ -41,7 +41,7 @@ private struct PopoverView: View {
         Button { presented = true } label: {
             rendered("trigger").intelligentUIPresentationOnly().contentShape(Rectangle())
         }.buttonStyle(.plain).tint(theme.actionAccent).contentShape(Rectangle())
-            .accessibilityLabel(PresentationText.summary(context.value("trigger")).isEmpty ? SDKStrings.text("popover.open", locale: locale) : PresentationText.summary(context.value("trigger")))
+            .accessibilityLabel(PresentationText.summary(context.value("trigger"), locale: locale).isEmpty ? SDKStrings.text("popover.open", locale: locale) : PresentationText.summary(context.value("trigger"), locale: locale))
             .disabled(!context.canInteract)
             .popover(isPresented: $presented) {
                 panel

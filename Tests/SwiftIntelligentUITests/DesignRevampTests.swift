@@ -136,6 +136,40 @@ final class DesignRevampTests: XCTestCase {
         XCTAssertFalse(ListMarkerRules.usesHeader("🚉"))
     }
 
+    func testPresentationSummaryIncludesStructuredVisibleContentWithoutActionOrURLData() {
+        let product = Value.object([
+            .init(key: "id", value: .string("opaque-id")),
+            .init(key: "title", value: .string("相机套装")),
+            .init(key: "images", value: .array([.object([.init(key: "url", value: .string("https://example.com/photo-only")), .init(key: "alt", value: .string("相机图片"))])])),
+            .init(key: "price", value: .number(1299)),
+            .init(key: "priceText", value: .string("旧报价 999")),
+            .init(key: "currency", value: .string("CNY")),
+            .init(key: "purchaseURL", value: .string("https://example.com/private-path"))
+        ])
+        let text = PresentationText.summary(node("ProductCard", [("product", product)]))
+        XCTAssertTrue(text.contains("相机套装"))
+        XCTAssertTrue(text.contains("1299"))
+        XCTAssertTrue(text.contains("CNY"))
+        XCTAssertFalse(text.contains("opaque-id"))
+        XCTAssertFalse(text.contains("private-path"))
+        XCTAssertFalse(text.contains("photo-only"))
+        XCTAssertFalse(text.contains("旧报价"))
+        XCTAssertTrue(text.contains("相机图片"))
+        let editorial = Value.object([.init(key: "title", value: .string("济州岛")), .init(key: "body", value: .string("海景"))])
+        XCTAssertEqual(PresentationText.summary(node("ImageText", [("content", editorial)])), "济州岛，海景")
+        XCTAssertEqual(PresentationText.summary(node("List", [("items", .array([node("ListItem", [("title", .string("第一项"))])]))])), "第一项")
+    }
+
+    func testPresentationSummaryKeepsTableLabelsAndOnlyTheChartDisplaySeries() {
+        let table = node("Table", [("columns", .array([.string("名称"), .string("数值")])),
+                                   ("rows", .array([.array([.string("A"), .number(0.004)])]))])
+        XCTAssertEqual(PresentationText.summary(table), "名称: A，数值: 0.004")
+        let row = Value.object([.init(key: "x", value: .string("A")), .init(key: "value", value: .number(1.23456)), .init(key: "hidden", value: .number(999))])
+        let chart = node("Chart", [("type", .string("line")), ("x", .string("x")), ("series", .array([.string("value")])), ("data", .array([row]))])
+        XCTAssertEqual(PresentationText.summary(chart, locale: Locale(identifier: "en_US")), "A，value: 1.23456")
+        XCTAssertFalse(PresentationText.summary(chart).contains("999"))
+    }
+
     func testCodePreviewBoundsLinesAndKeepsUnicodeGraphemesIntact() {
         let source = (1...60).map { "line \($0)" }.joined(separator: "\n")
         let preview = CodePreview(source)

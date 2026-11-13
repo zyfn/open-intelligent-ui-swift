@@ -15,7 +15,7 @@ private struct FlashcardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         let key = revealed ? "back" : "front"
-        let summary = PresentationText.summary(context.value(key))
+        let summary = PresentationText.summary(context.value(key), locale: locale)
         return Button {
             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { revealed.toggle() }
         } label: {

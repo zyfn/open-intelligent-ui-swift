@@ -517,7 +517,8 @@ enum MapLabelLayout {
             if !settingViewport && viewportRestored { cameraState?.mode = .manual }
         }
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            cameraState?.currentRect = mapView.visibleMapRect
+            // A newly created MKMapView may report its default world before restoration.
+            if viewportRestored || settingViewport { cameraState?.currentRect = mapView.visibleMapRect }
             refresh(mapView)
         }
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {

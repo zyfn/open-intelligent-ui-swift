@@ -4,6 +4,20 @@ import OpenUILang
 @testable import SwiftIntelligentUI
 
 final class ControlsDataRevampTests: XCTestCase {
+    func testNumericDraftReportsUnappliedValueBeforeLosingFocus() {
+        var draft = NumericInputDraft()
+        XCTAssertFalse(draft.isPending(current: .number(100)))
+        XCTAssertNil(draft.edit("1e"))
+        XCTAssertTrue(draft.isPending(current: .number(100)))
+        XCTAssertFalse(draft.needsReview, "Editing feedback does not require blur or show an error state")
+        XCTAssertEqual(draft.text, "1e")
+        XCTAssertEqual(draft.edit("12"), .number(12))
+        XCTAssertTrue(draft.isPending(current: .number(100)))
+        XCTAssertFalse(draft.isPending(current: .number(12)))
+        XCTAssertFalse(draft.needsReview)
+        XCTAssertEqual(draft.text, "12", "Checking pending state does not consume or rewrite the draft")
+    }
+
     func testInvalidNumericDraftSurvivesBlurAndExternalValueChange() {
         var draft = NumericInputDraft()
         XCTAssertNil(draft.edit("1e"))

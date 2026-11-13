@@ -7,7 +7,7 @@ enum InputComponent {
         let value = ParamDef(name: "value", required: true, isBindable: true, schema: .object([
             .init(key: "type", value: .array([.string("string"), .string("number")]))
         ]))
-        return OpenUIComponent(name: "Input", description: "Text or number input. type defaults to text. Bind value to a $variable; literals are read-only. Finite numeric edits update the binding and empty input writes null. Invalid drafts remain visible with feedback after editing; they never replace the committed value. Numbers use dot decimals and valid comma thousands grouping. Form does not automatically commit or validate all fields.", params: [
+        return OpenUIComponent(name: "Input", description: "Text or number input. type defaults to text. Bind value to a $variable; literals are read-only. Finite numeric edits update the binding and empty input writes null. Unapplied numeric drafts show the current committed value during editing; invalid drafts remain visible for review afterward and never replace it. Numbers use dot decimals and valid comma thousands grouping. Form does not automatically commit or validate all fields.", params: [
             value, OpenUIParameter.string("label", required: false),
             OpenUIParameter.string("type", required: false, values: ["text", "number"]),
             OpenUIParameter.string("placeholder", required: false)
@@ -58,6 +58,10 @@ struct NumericInputDraft {
     }
     mutating func discard() { text = nil; needsReview = false }
     var parsed: Value? { text.flatMap(InputEditing.numericValue) }
+    func isPending(current: Value) -> Bool {
+        guard text != nil else { return false }
+        return parsed != current
+    }
 }
 
 private struct InputView: View {
@@ -70,10 +74,21 @@ private struct InputView: View {
     private var value: Value { context.binding("value")?.wrappedValue ?? context.value("value") ?? .null }
     private var label: String { context.string("label") ?? "" }
     private var numeric: Bool { context.string("type") == "number" }
-    private var reviewMessage: String {
+    private var showingReview: Bool { numeric && draft.needsReview && !focused }
+    private var committedText: String {
         let committed = InputEditing.text(value)
-        let current = committed.isEmpty ? SDKStrings.text("controls.input.empty_value", locale: locale) : committed
-        return SDKStrings.text(draft.parsed == nil ? "controls.input.invalid" : "controls.input.external_change", locale: locale, current)
+        return committed.isEmpty ? SDKStrings.text("controls.input.empty_value", locale: locale) : committed
+    }
+    private var reviewMessage: String {
+        SDKStrings.text(draft.parsed == nil ? "controls.input.invalid" : "controls.input.external_change", locale: locale, committedText)
+    }
+    private var pendingMessage: String {
+        SDKStrings.text("controls.input.pending", locale: locale, committedText)
+    }
+    private var feedbackMessage: String {
+        guard numeric else { return "" }
+        if showingReview { return reviewMessage }
+        return draft.isPending(current: value) ? pendingMessage : ""
     }
     private var binding: Binding<String> {
         Binding(get: { (numeric ? draft.text : nil) ?? InputEditing.text(value) }, set: { text in
@@ -98,10 +113,10 @@ private struct InputView: View {
                 #if os(iOS)
                 .keyboardType(context.string("type") == "number" ? .numbersAndPunctuation : .default)
                 #endif
-                .modifier(FieldSurface(focused: focused, invalid: numeric && draft.needsReview))
+                .modifier(FieldSurface(focused: focused, invalid: showingReview))
                 .accessibilityLabel(label.isEmpty ? context.string("placeholder") ?? SDKStrings.text("controls.input.label", locale: locale) : label)
-                .accessibilityHint(numeric && draft.needsReview ? reviewMessage : "")
-            if numeric && draft.needsReview {
+                .accessibilityHint(feedbackMessage)
+            if showingReview {
                 Label(reviewMessage, systemImage: "exclamationmark.circle")
                     .font(theme.captionFont).foregroundStyle(theme.danger)
                     .fixedSize(horizontal: false, vertical: true)
@@ -109,6 +124,10 @@ private struct InputView: View {
                     HStack(spacing: theme.innerSpacing) { reviewActions }
                     VStack(alignment: .leading, spacing: theme.innerSpacing) { reviewActions }
                 }
+            } else if numeric && draft.isPending(current: value) {
+                Text(pendingMessage)
+                    .font(theme.captionFont).foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .foregroundStyle(theme.primaryText)

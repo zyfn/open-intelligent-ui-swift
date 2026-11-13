@@ -159,4 +159,5 @@
 "video.preparing" = "正在准备视频";
 "video.invalid" = "视频地址无效";
 "video.open" = "在 YouTube 中打开";
+"controls.input.pending" = "输入尚未生效，当前有效值：%@";
 

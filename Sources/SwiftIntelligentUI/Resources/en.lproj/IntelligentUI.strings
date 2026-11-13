@@ -159,4 +159,5 @@
 "video.preparing" = "Preparing video";
 "video.invalid" = "Invalid video address";
 "video.open" = "Open in YouTube";
+"controls.input.pending" = "This draft has not been applied. Current value: %@";
 
