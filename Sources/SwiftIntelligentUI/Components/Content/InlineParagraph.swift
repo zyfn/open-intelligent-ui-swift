@@ -20,6 +20,7 @@ typealias InlineHost = NSHostingView<AnyView>
 struct InlineParagraph: View {
     let context: OpenUIComponentContext
     @EnvironmentObject private var state: OpenUIState
+    @Environment(\.self) private var inheritedEnvironment
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.colorScheme) private var colorScheme
@@ -74,19 +75,11 @@ struct InlineParagraph: View {
         return InlineParagraphBridge(parts: context.children("text").map { child in
             if case .string(let text) = child.value { return .text(text.displayString) }
             return .attachment(id: child.id, value: child.value, view: AnyView(context.render(child.value)
-                .environmentObject(state).environment(\.intelligentUITheme, theme)
-                .environment(\.dynamicTypeSize, typeSize).environment(\.colorScheme, colorScheme)
-                .environment(\.colorSchemeContrast, contrast).environment(\.locale, locale)
-                .environment(\.displayScale, displayScale).environment(\.accessibilityReduceMotion, reduceMotion)
-                .environment(\.accessibilityDifferentiateWithoutColor, differentiateWithoutColor)
-                .environment(\.intelligentUIEditorial, editorial)
-                .environment(\.intelligentUIImages, images).environment(\.intelligentUIImageAlbum, album)
-                .environment(\.intelligentUIImageRevisions, imageRevisions)
-                .environment(\.intelligentUIImagePresentations, imagePresentations)
-                .environment(\.intelligentUIMapContentInsets, mapInsets)
-                .environment(\.intelligentUIInteractiveContent, interactive).environment(\.intelligentUIScrolling, scrolling)
-                .environment(\.intelligentUIContentBackground, background)
-                .environment(\.layoutDirection, direction).environment(\.intelligentUIInlineContent, true)))
+                .environmentObject(state)
+                .environment(\.intelligentUIInlineContent, true)
+                // The outer snapshot preserves read-only system values; the inner
+                // inline flag deliberately overrides its captured value.
+                .environment(\.self, inheritedEnvironment)))
         }, size: style.sizeName, color: theme.textColor(context.string("color")), weight: style.weightName,
         lineSpacing: style.lineSpacing, maxLines: TextLineLimit.resolve(context.number("maxLines")),
         open: { url in

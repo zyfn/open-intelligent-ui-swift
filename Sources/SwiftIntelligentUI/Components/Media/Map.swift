@@ -292,7 +292,7 @@ private struct MapPinAppearance: Equatable {
     let displayScale: CGFloat
 }
 private final class MapPinView: MKAnnotationView {
-    var appearance: MapPinAppearance?
+    var pinAppearance: MapPinAppearance?
     var fullLabelSize = CGSize(width: 140, height: 88)
 }
 
@@ -542,12 +542,12 @@ enum MapLabelLayout {
             let appearance = MapPinAppearance(text: text, label: pin.label, category: pin.category, showsLabel: showsLabel,
                 selected: pin.id == selected, font: font, captionFont: captionFont, targetHeight: targetHeight,
                 typeSize: typeSize, colorScheme: colorScheme, displayScale: displayScale)
-            if let pinView = view as? MapPinView, pinView.appearance == appearance { return }
+            if let pinView = view as? MapPinView, pinView.pinAppearance == appearance { return }
             let renderer = ImageRenderer(content: MapAnnotation(text: text, label: pin.label, showsLabel: showsLabel, selected: pin.id == selected, font: font, captionFont: captionFont, targetHeight: targetHeight).environment(\.dynamicTypeSize, typeSize).environment(\.colorScheme, colorScheme))
             renderer.scale = displayScale
             if let image = IntelligentUIPerformance.measure("map.rasterize", { renderer.cgImage }) {
                 if let pinView = view as? MapPinView {
-                    pinView.appearance = appearance
+                    pinView.pinAppearance = appearance
                     if showsLabel { pinView.fullLabelSize = CGSize(width: CGFloat(image.width) / displayScale, height: CGFloat(image.height) / displayScale) }
                 }
                 let badgeHeight = max(32, targetHeight - 12) + 12

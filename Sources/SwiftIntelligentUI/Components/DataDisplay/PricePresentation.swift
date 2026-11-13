@@ -50,7 +50,7 @@ struct PricePresentation {
         note = Self.string(ValueReading.field(value, "priceNote"))
         legacyText = Self.string(ValueReading.field(value, "priceText"))
         let currency = Self.string(ValueReading.field(value, "currency"))
-        currencyCode = currency?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        currencyCode = Self.normalizedCurrencyCode(currency)
         if let price = ValueReading.field(value, "price"), price != .undefined {
             canonical = true
             switch price {
@@ -99,8 +99,12 @@ struct PricePresentation {
         guard case .string(let value) = value, !value.displayString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return value.displayString
     }
+    private static func normalizedCurrencyCode(_ currency: String?) -> String? {
+        guard let code = currency?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(), !code.isEmpty else { return nil }
+        return code
+    }
     private static func currencyPrefix(_ currency: String?) -> String {
-        guard let code = currency?.uppercased(), !code.isEmpty else { return "" }
+        guard let code = normalizedCurrencyCode(currency) else { return "" }
         return ["CNY":"¥", "JPY":"¥", "USD":"$", "EUR":"€", "GBP":"£", "HKD":"HK$", "TWD":"NT$", "KRW":"₩", "INR":"₹"][code] ?? code + " "
     }
     private static func cleanLegacy(_ raw: String) -> String {

@@ -128,6 +128,10 @@ final class ControlsDataRevampTests: XCTestCase {
         XCTAssertEqual(jpy.text, "¥0")
         XCTAssertEqual(cny.displayText, "CNY ¥0")
         XCTAssertEqual(jpy.displayText, "JPY ¥0")
+        let padded = PricePresentation(.object([.init(key: "price", value: .number(1299)), .init(key: "currency", value: .string(" CNY "))]))
+        XCTAssertEqual(padded.text, "¥1299")
+        XCTAssertEqual(padded.displayText, "CNY ¥1299")
+        XCTAssertTrue(padded.diagnostics.isEmpty)
     }
 
     func testPriceReaderPreservesOddGroupingAndConflictsWithDiagnostics() {
