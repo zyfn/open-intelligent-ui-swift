@@ -6,7 +6,7 @@ import AppKit
 #endif
 
 /// Semantic styles scoped to an individual render subtree.
-public struct IntelligentUITheme {
+public struct IntelligentUITheme: Equatable {
     public var primaryText: Color = .primary
     public var secondaryText: Color = .secondary
     public var canvas: Color = NativeColors.canvas
@@ -21,17 +21,17 @@ public struct IntelligentUITheme {
     public var info: Color = .blue
     public var warning: Color = .orange
     public var chartColors: [Color] = [.blue, .teal, .orange, .purple, .pink, .green, .indigo, .brown]
-    public var bodyFont: Font = .body
-    public var secondaryFont: Font = .subheadline
-    public var captionFont: Font = .caption
+    public var bodyFont: Font = .body { didSet { nativeTextFonts.removeValue(forKey: .body) } }
+    public var secondaryFont: Font = .subheadline { didSet { nativeTextFonts.removeValue(forKey: .secondary) } }
+    public var captionFont: Font = .caption { didSet { nativeTextFonts.removeValue(forKey: .caption) } }
     public var labelFont: Font = .subheadline.weight(.medium)
-    public var bodyLargeFont: Font = .title3
+    public var bodyLargeFont: Font = .title3 { didSet { nativeTextFonts.removeValue(forKey: .bodyLarge) } }
     public var sectionTitleFont: Font = .title3.weight(.medium)
     public var pageTitleFont: Font = .title2.weight(.medium)
     public var largeTitleFont: Font = .title.weight(.medium)
     public var displayFont: Font = .largeTitle.weight(.semibold)
     public var headingWeight: Font.Weight = .medium
-    public var emphasisWeight: Font.Weight = .medium
+    public var emphasisWeight: Font.Weight = .semibold
     public var codeFont: Font = .system(.body, design: .monospaced)
     public var markdownHeadingScales: [Double] = [22.0 / 17.0, 20.0 / 17.0, 1]
     public var codeKeyword: Color = .purple
@@ -64,6 +64,8 @@ public struct IntelligentUITheme {
     public var cornerRadius: CGFloat = 16
     public var controlRadius: CGFloat = 8
     public var minimumControlHeight: CGFloat = NativeColors.minimumControlHeight
+    // Optional native partners for TextKit on systems that cannot resolve Font.
+    var nativeTextFonts: [IntelligentUITextFontRole: IntelligentUINativeFont] = [:]
     public init() {}
 
     func headingScale(_ level: Int) -> Double {
@@ -110,6 +112,46 @@ public struct IntelligentUITheme {
         case "xl": return radiusXL
         case "full": return 10_000
         default: return fallback ?? cornerRadius
+        }
+    }
+}
+
+/// The four existing Text size roles. This is a Swift host configuration API,
+/// not an additional component or language parameter.
+public enum IntelligentUITextFontRole: String, Hashable, Sendable {
+    case body, secondary, caption, bodyLarge
+}
+
+#if canImport(UIKit)
+typealias IntelligentUINativeFont = UIFont
+extension IntelligentUITheme {
+    /// Pairs a concrete font with its SwiftUI representation for identical
+    /// string/inline typography on every supported OS. The supplied size is
+    /// preserved; callers can supply a UIFontMetrics-scaled font when needed.
+    public mutating func setTextFont(_ font: UIFont, for role: IntelligentUITextFontRole) {
+        setSwiftUIFont(Font(font), for: role)
+        nativeTextFonts[role] = font
+    }
+}
+#else
+typealias IntelligentUINativeFont = NSFont
+extension IntelligentUITheme {
+    /// Pairs a concrete font with its SwiftUI representation. Its supplied
+    /// point size is preserved in both ordinary and inline text.
+    public mutating func setTextFont(_ font: NSFont, for role: IntelligentUITextFontRole) {
+        setSwiftUIFont(Font(font), for: role)
+        nativeTextFonts[role] = font
+    }
+}
+#endif
+
+private extension IntelligentUITheme {
+    mutating func setSwiftUIFont(_ font: Font, for role: IntelligentUITextFontRole) {
+        switch role {
+        case .body: bodyFont = font
+        case .secondary: secondaryFont = font
+        case .caption: captionFont = font
+        case .bodyLarge: bodyLargeFont = font
         }
     }
 }

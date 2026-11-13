@@ -21,6 +21,7 @@ private struct BoxView: View {
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.intelligentUIContentBackground) private var contentBackground
     @Environment(\.intelligentUIEditorial) private var editorial
+    @Environment(\.layoutDirection) private var direction
     private var radius: CGFloat { theme.radius(named: context.string("radius"), points: context.number("radius"), fallback: 0) }
     @ViewBuilder var body: some View {
         Group {
@@ -34,13 +35,15 @@ private struct BoxView: View {
         let cross = context.string("align") ?? (isRow ? "center" : "start")
         let justify = context.string("justify") ?? "start"
         let horizontal: HorizontalAlignment = cross == "end" ? .trailing : cross == "center" ? .center : .leading
-        let layout = isRow ? AnyLayout(WrappingRowLayout(gap: gap, alignment: cross, justification: justify, wraps: context.flag("wrap") == true)) : AnyLayout(VStackLayout(alignment: horizontal, spacing: gap))
+        let layout = isRow ? AnyLayout(WrappingRowLayout(gap: gap, alignment: cross, justification: justify, wraps: context.flag("wrap") == true, rightToLeft: direction == .rightToLeft)) : AnyLayout(VStackLayout(alignment: horizontal, spacing: gap))
         return layout {
             let children = context.children()
             ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                 context.render(child.value).frame(maxWidth: !isRow && cross == "stretch" ? .infinity : nil, alignment: .leading)
                     .environment(\.intelligentUIEditorial, flowContext(isRow))
                     .padding(.top, !isRow && context.number("gap") == nil && index > 0 ? EditorialSpacing.between(children[index - 1].value, child.value, theme: theme, nested: editorial.flowDepth > 0 || editorial.cardDepth > 0) : 0)
+                    .layoutValue(key: RowFlexWeight.self, value: RowFlexRules.weight(child.value))
+                    .layoutValue(key: RowDivider.self, value: EditorialNode.kind(child.value) == "Divider")
                 if !isRow && justify == "between" && child.id != context.children().last?.id { Spacer(minLength: 0) }
             }
         }
@@ -53,7 +56,7 @@ private struct BoxView: View {
     }
     private func flowContext(_ row: Bool) -> EditorialContext {
         var value = editorial
-        if !row && context.number("gap") == nil { value.flowDepth += 1 }
+        if !row { value.flowDepth += 1 }
         return value
     }
 }

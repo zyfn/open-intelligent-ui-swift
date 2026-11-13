@@ -12,13 +12,14 @@ enum CaptionComponent {
 private struct CaptionView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.intelligentUIInteractiveContent) private var interactive
     var body: some View {
         Text(InlineTypography.attributed(context.string("text") ?? "", font: theme.captionFont, emphasis: theme.emphasisWeight)).font(theme.captionFont)
             .foregroundStyle(theme.textColor(context.string("color") ?? "muted"))
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
             .environment(\.openURL, OpenURLAction { url in
-                guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return .discarded }
+                guard context.canInteract, !interactive, SourceURL.isActionable(url.absoluteString) else { return .discarded }
                 Task { await context.perform(OpenUIActions.openURL(url.absoluteString)) }; return .handled
             })
     }

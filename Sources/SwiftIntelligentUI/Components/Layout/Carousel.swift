@@ -4,21 +4,37 @@ import OpenUISwiftUI
 
 enum CarouselComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Carousel", description: "Horizontal collection with adaptive equal-height items, native snapping on iOS 17/macOS 14+ and desktop navigation. itemWidth is the preferred width (default 240), gap uses 4-point units.", params: [
+        OpenUIComponent(name: "Carousel", description: "Horizontal collection with adaptive widths and native snapping on iOS 17/macOS 14+ and desktop navigation. Comparable product/transport cards retain equal heights; general content retains its natural height. itemWidth is the preferred width (default 240), gap uses 4-point units.", params: [
             OpenUIParameter.slot("children", required: true), Parameter.number("itemWidth", minimum: 80, maximum: 640), Parameter.number("gap", minimum: 0, maximum: 24)
         ]) { CarouselView(context: $0) }
     }
 }
 
 enum CarouselMetrics {
+    static func trailingSpace(available: CGFloat, itemWidth: CGFloat) -> CGFloat {
+        guard available.isFinite, itemWidth.isFinite else { return 0 }
+        return max(0, available - itemWidth)
+    }
+    static func comparable(_ values: [Value]) -> Bool {
+        guard let first = values.first else { return false }
+        func surfaceKind(_ value: Value) -> String {
+            if EditorialNode.kind(value) == "Card" {
+                let children = ValueReading.array(ValueReading.field(value, "children"))
+                if children.count == 1 { return EditorialNode.kind(children[0]) }
+            }
+            return EditorialNode.kind(value)
+        }
+        let kind = surfaceKind(first)
+        return ["ProductCard", "TransportCard"].contains(kind) && values.allSatisfy { surfaceKind($0) == kind }
+    }
     static func width(preferred: CGFloat, available: CGFloat, accessibility: Bool) -> CGFloat {
         let preferred = preferred.isFinite ? min(640, max(80, preferred)) : 240
-        guard available > 0 else { return preferred }
+        guard available.isFinite, available > 0 else { return preferred }
         return accessibility ? available : min(preferred, max(min(80, available), available * 0.85))
     }
     static func index(offset: CGFloat, itemWidth: CGFloat, gap: CGFloat, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        return min(count - 1, max(0, Int((offset / max(1, itemWidth + gap)).rounded())))
+        guard count > 0, offset.isFinite, itemWidth.isFinite, gap.isFinite else { return 0 }
+        return Int(min(CGFloat(count - 1), max(0, (offset / max(1, itemWidth + gap)).rounded())))
     }
     static func currentIndex(current: Int, previousIDs: [String], newIDs: [String]) -> Int {
         guard !newIDs.isEmpty else { return 0 }
@@ -28,10 +44,13 @@ enum CarouselMetrics {
 }
 
 private struct CarouselView: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var direction
+    @Environment(\.intelligentUIEditorial) private var editorial
     @State private var available: CGFloat = 0
     @State private var current = 0
     @State private var previousIDs: [String] = []
@@ -44,16 +63,16 @@ private struct CarouselView: View {
             VStack(alignment: .leading, spacing: theme.innerSpacing) {
                 scroll(children: children, itemWidth: itemWidth)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityAction(named: "下一个") { move(to: current + 1, children: children, proxy: proxy) }
-                    .accessibilityAction(named: "上一个") { move(to: current - 1, children: children, proxy: proxy) }
+                    .accessibilityAction(named: Text(SDKStrings.text("common.next", locale: locale))) { move(to: current + 1, children: children, proxy: proxy) }
+                    .accessibilityAction(named: Text(SDKStrings.text("common.previous", locale: locale))) { move(to: current - 1, children: children, proxy: proxy) }
                 #if os(macOS)
                 if children.count > 1 {
                     HStack(spacing: theme.innerSpacing) {
                         Spacer()
-                        Button { move(to: current - 1, children: children, proxy: proxy) } label: { Image(systemName: "chevron.left") }
-                            .accessibilityLabel("上一个").disabled(current <= 0)
-                        Button { move(to: current + 1, children: children, proxy: proxy) } label: { Image(systemName: "chevron.right") }
-                            .accessibilityLabel("下一个").disabled(current >= children.count - 1)
+                        Button { move(to: current - 1, children: children, proxy: proxy) } label: { Image(systemName: "chevron.backward") }
+                            .accessibilityLabel(SDKStrings.text("common.previous", locale: locale)).disabled(current <= 0)
+                        Button { move(to: current + 1, children: children, proxy: proxy) } label: { Image(systemName: "chevron.forward") }
+                            .accessibilityLabel(SDKStrings.text("common.next", locale: locale)).disabled(current >= children.count - 1)
                     }.buttonStyle(.borderless).tint(theme.actionAccent)
                 }
                 #endif
@@ -72,16 +91,7 @@ private struct CarouselView: View {
     }
 
     @ViewBuilder private func scroll(children: [OpenUIRenderChild], itemWidth: CGFloat) -> some View {
-        if #available(iOS 18, macOS 15, *) {
-            ScrollView(.horizontal) { items(children, itemWidth: itemWidth).scrollTargetLayout() }
-                .coordinateSpace(name: coordinateSpace)
-                .scrollTargetBehavior(.viewAligned)
-                .scrollIndicators(.hidden, axes: .horizontal)
-                .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, offset in
-                    let gap = CGFloat(min(24, max(0, context.number("gap") ?? 3))) * theme.spacingUnit
-                    current = CarouselMetrics.index(offset: offset, itemWidth: itemWidth, gap: gap, count: children.count)
-                }
-        } else if #available(iOS 17, macOS 14, *) {
+        if #available(iOS 17, macOS 14, *) {
             ScrollView(.horizontal) { items(children, itemWidth: itemWidth).scrollTargetLayout() }
                 .coordinateSpace(name: coordinateSpace)
                 .scrollTargetBehavior(.viewAligned).scrollIndicators(.hidden, axes: .horizontal)
@@ -93,21 +103,34 @@ private struct CarouselView: View {
     }
 
     private func items(_ children: [OpenUIRenderChild], itemWidth: CGFloat) -> some View {
-        EqualHeightCarouselLayout(itemWidth: itemWidth, gap: CGFloat(min(24, max(0, context.number("gap") ?? 3))) * theme.spacingUnit) {
+        EqualHeightCarouselLayout(itemWidth: itemWidth, gap: CGFloat(min(24, max(0, context.number("gap") ?? 3))) * theme.spacingUnit,
+            equalizesHeights: CarouselMetrics.comparable(children.map(\.value)), rightToLeft: direction == .rightToLeft) {
             ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
                 context.render(child.value)
-                    .environment(\.intelligentUIEditorial, EditorialContext(compactContent: EditorialNode.kind(child.value) == "Col"))
+                    .environment(\.intelligentUIEditorial, childContext(child.value))
                     .frame(width: itemWidth)
                     .id(child.id)
             }
-        }.padding(.bottom, theme.innerSpacing)
-            .background(GeometryReader { geometry in
-                Color.clear.onChange(of: geometry.frame(in: .named(coordinateSpace)).minX) { minX in
-                    let gap = CGFloat(min(24, max(0, context.number("gap") ?? 3))) * theme.spacingUnit
-                    current = CarouselMetrics.index(offset: -minX, itemWidth: itemWidth, gap: gap, count: children.count)
-                }
-            })
+        }
+            // Let the final item reach the same leading alignment as every
+            // other item. Without this space a short final viewport can never
+            // produce the final logical index.
+            .padding(.trailing, CarouselMetrics.trailingSpace(available: available, itemWidth: itemWidth))
+            .padding(.bottom, theme.innerSpacing)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(coordinateSpace)) } action: { frame in
+                let gap = CGFloat(min(24, max(0, context.number("gap") ?? 3))) * theme.spacingUnit
+                let offset = direction == .rightToLeft ? frame.maxX - available : -frame.minX
+                let index = CarouselMetrics.index(offset: offset, itemWidth: itemWidth, gap: gap, count: children.count)
+                if current != index { current = index }
+            }
             .environment(\.intelligentUIImageAlbum, ImageAlbumItem.collect(children.map(\.value)))
+    }
+
+    private func childContext(_ value: Value) -> EditorialContext {
+        var result = editorial
+        result.compactContent = result.compactContent || EditorialNode.kind(value) == "Col"
+        result.openingCardTitle = false; result.cardSubtitle = false
+        return result
     }
 
     private func reconcile(ids: [String], proxy: ScrollViewProxy) {
@@ -116,25 +139,32 @@ private struct CarouselView: View {
         previousIDs = ids
         guard !ids.isEmpty else { return }
         let id = ids[current]
-        DispatchQueue.main.async { proxy.scrollTo(id, anchor: .leading) }
+        DispatchQueue.main.async { proxy.scrollTo(id, anchor: direction == .rightToLeft ? .trailing : .leading) }
     }
     private func move(to index: Int, children: [OpenUIRenderChild], proxy: ScrollViewProxy) {
         guard context.canInteract, !children.isEmpty else { return }
         current = min(children.count - 1, max(0, index))
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { proxy.scrollTo(children[current].id, anchor: .leading) }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { proxy.scrollTo(children[current].id, anchor: direction == .rightToLeft ? .trailing : .leading) }
     }
 }
 
 private struct EqualHeightCarouselLayout: Layout {
     let itemWidth: CGFloat
     let gap: CGFloat
+    var equalizesHeights = true
+    var rightToLeft = false
+    static var layoutProperties: LayoutProperties {
+        var properties = LayoutProperties(); properties.stackOrientation = .horizontal; return properties
+    }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let height = subviews.map { $0.sizeThatFits(.init(width: itemWidth, height: nil)).height }.max() ?? 0
         return CGSize(width: CGFloat(subviews.count) * itemWidth + CGFloat(max(0, subviews.count - 1)) * gap, height: height)
     }
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         for (index, view) in subviews.enumerated() {
-            view.place(at: .init(x: bounds.minX + CGFloat(index) * (itemWidth + gap), y: bounds.minY), proposal: .init(width: itemWidth, height: bounds.height))
+            let x = rightToLeft ? bounds.maxX - itemWidth - CGFloat(index) * (itemWidth + gap) : bounds.minX + CGFloat(index) * (itemWidth + gap)
+            let height = equalizesHeights ? bounds.height : view.sizeThatFits(.init(width: itemWidth, height: nil)).height
+            view.place(at: .init(x: x, y: bounds.minY), anchor: .topLeading, proposal: .init(width: itemWidth, height: height))
         }
     }
 }

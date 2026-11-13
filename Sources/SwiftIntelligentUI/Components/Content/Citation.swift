@@ -27,22 +27,25 @@ struct CitationSource: Identifiable {
     }
 }
 private struct CitationView: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.intelligentUIInlineContent) private var inline
+    @Environment(\.intelligentUIInteractiveContent) private var interactive
     @State private var presented = false
     private var sources: [CitationSource] { CitationSource.decode(context.value("sources")) }
     var body: some View {
         if let first = sources.first {
             Group {
-                if sources.count == 1 {
+                if interactive { label(first) }
+                else if sources.count == 1 {
                     OpenUIActionSurface(context: context, action: OpenUIActions.openURL(first.url), useNativeStyle: true) { label(first) }
                         .disabled(!SourceURL.isActionable(first.url))
                 } else {
                     Button { presented = true } label: { label(first) }.disabled(!context.canInteract)
                         .popover(isPresented: $presented) { details }
                 }
-            }.buttonStyle(.plain).accessibilityLabel(sources.count == 1 ? "查看来源：" + first.title : "查看 \(sources.count) 个来源")
+            }.buttonStyle(.plain).accessibilityLabel(sources.count == 1 ? SDKStrings.text("citation.openOne", locale: locale, first.title) : SDKStrings.text("citation.openMany", locale: locale, Int64(sources.count)))
                 .onChange(of: sources.map(\.id)) { _ in presented = false }
         }
     }
@@ -54,15 +57,21 @@ private struct CitationView: View {
         }.font(theme.captionFont).foregroundStyle(theme.secondaryText)
             .padding(.horizontal, theme.innerSpacing).padding(.vertical, theme.spacingUnit)
             .background(theme.surface, in: Capsule()).frame(minHeight: inline ? nil : theme.minimumControlHeight, alignment: .leading)
+            .contentShape(Rectangle())
     }
     @ViewBuilder private var details: some View {
         let content = VStack(alignment: .leading, spacing: theme.innerSpacing) {
-            HStack { Text("来源").font(theme.titleFont); Spacer(); Button("完成") { presented = false }.accessibilityLabel("关闭来源") }
-            ForEach(sources) { source in
-                OpenUIActionSurface(context: context, action: OpenUIActions.openURL(source.url), useNativeStyle: true) {
-                    VStack(alignment: .leading, spacing: theme.spacingUnit) { Text(source.title).font(theme.bodyFont); Text(source.domain).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
-                        .frame(maxWidth: .infinity, minHeight: theme.minimumControlHeight, alignment: .leading)
-                }.buttonStyle(.plain).disabled(!SourceURL.isActionable(source.url))
+            HStack { Text(SDKStrings.text("citation.title", locale: locale)).font(theme.titleFont); Spacer(); Button(SDKStrings.text("common.done", locale: locale)) { presented = false }.accessibilityLabel(SDKStrings.text("citation.close", locale: locale)).frame(minHeight: theme.minimumControlHeight) }
+            BoundedContentScroll(maximumHeight: 400) {
+                VStack(alignment: .leading, spacing: theme.innerSpacing) {
+                    ForEach(sources) { source in
+                        OpenUIActionSurface(context: context, action: OpenUIActions.openURL(source.url), useNativeStyle: true) {
+                            VStack(alignment: .leading, spacing: theme.spacingUnit) { Text(source.title).font(theme.bodyFont); Text(source.domain).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
+                                .frame(maxWidth: .infinity, minHeight: theme.minimumControlHeight, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }.buttonStyle(.plain).disabled(!SourceURL.isActionable(source.url))
+                    }
+                }
             }
         }.padding(theme.groupSpacing).frame(minWidth: 240, idealWidth: 300, maxWidth: 360).tint(theme.actionAccent)
         if #available(iOS 16.4, macOS 13.3, *) { content.presentationCompactAdaptation(.popover) } else { content }

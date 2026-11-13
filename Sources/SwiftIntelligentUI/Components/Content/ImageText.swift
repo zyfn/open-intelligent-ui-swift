@@ -15,30 +15,31 @@ enum ImageTextComponent {
 }
 
 private struct ImageTextView: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var direction
+    @State private var availableWidth: CGFloat = 0
     private func text(_ key: String) -> String { ValueReading.string(ValueReading.field(context.value("content"), key)) }
     private var image: Value? { ValueReading.field(context.value("content"), "image") }
     private var hasImage: Bool { !ValueReading.string(ValueReading.field(image, "url")).isEmpty }
     var body: some View {
-        if !hasImage { content }
-        else if context.string("layout") == "top" || typeSize.isAccessibilitySize { vertical }
-        else {
-            ViewThatFits(in: .horizontal) {
-                EditorialRowLayout(preferredImageWidth: EditorialMetrics.imageWidth, ratio: EditorialMetrics.imageAspectRatio, gap: theme.groupSpacing, rightToLeft: direction == .rightToLeft, idealWidth: EditorialMetrics.minimumRowWidth) {
-                    picture(ratio: EditorialMetrics.imageAspectRatio)
-                    content
-                }.frame(minWidth: EditorialMetrics.minimumRowWidth)
-                vertical
+        let horizontal = hasImage && context.string("layout") != "top" && !typeSize.isAccessibilitySize
+            && (availableWidth == 0 || availableWidth >= EditorialMetrics.minimumRowWidth)
+        let layout = horizontal
+            ? AnyLayout(EditorialRowLayout(preferredImageWidth: EditorialMetrics.imageWidth, ratio: EditorialMetrics.imageAspectRatio,
+                gap: theme.groupSpacing, rightToLeft: direction == .rightToLeft, idealWidth: EditorialMetrics.minimumRowWidth))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: theme.groupSpacing))
+        return layout {
+            ForEach(hasImage ? ["image", "content"] : ["content"], id: \.self) { item in
+                if item == "image" { picture(ratio: horizontal ? EditorialMetrics.imageAspectRatio : theme.coverImageAspectRatio) }
+                else { content }
             }
         }
-    }
-    private var vertical: some View {
-        VStack(alignment: .leading, spacing: theme.groupSpacing) {
-            picture(ratio: theme.coverImageAspectRatio).fixedSize(horizontal: false, vertical: true)
-            content
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            if width.isFinite, width > 0, abs(width - availableWidth) > 0.5 { availableWidth = width }
         }
     }
     private func picture(ratio: CGFloat) -> some View {
@@ -49,7 +50,7 @@ private struct ImageTextView: View {
         VStack(alignment: .leading, spacing: theme.innerSpacing) {
             if SourceURL.isActionable(text("url")) {
                 OpenUIActionSurface(context: context, action: OpenUIActions.openURL(text("url")), useNativeStyle: true) { title }
-                    .buttonStyle(.plain).accessibilityHint("查看详情")
+                    .buttonStyle(.plain).accessibilityHint(SDKStrings.text("imageText.openDetailHint", locale: locale))
             } else { title }
             if !text("badge").isEmpty {
                 Text(text("badge")).font(theme.captionFont.weight(.medium)).padding(.horizontal, theme.innerSpacing).padding(.vertical, theme.spacingUnit)

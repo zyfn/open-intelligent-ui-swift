@@ -43,7 +43,7 @@ private struct ColumnView: View {
     }
     private var childContext: EditorialContext {
         var value = editorial
-        if context.number("gap") == nil { value.flowDepth += 1 }
+        value.flowDepth += 1
         value.openingCardTitle = false; value.cardSubtitle = false
         return value
     }

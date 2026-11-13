@@ -141,6 +141,7 @@ import UIKit
 
 private enum GalleryFixture: String, CaseIterable, Identifiable {
     case compositionDemo = "智能排版"
+    case designRevamp = "设计改造验收"
     case layout = "布局", reading = "阅读", editorial = "图文检索", technical = "技术文章", data = "数据", comparison = "对比", controls = "交互", inputs = "输入", timing = "日期与计时", products = "商品", transport = "交通", timeline = "行程时间线", patterns = "组合模式", mapProducts = "地图与地点", images = "图片", productDetails = "商品布局", imageStates = "图片状态", formFeedback = "表单反馈", streaming = "连续生成", empty = "异常状态", drawing = "图示", platform = "平台内容", functions = "计算", styles = "样式"
     private static let productDefinitions = """
         productA = {id: "nikon-d850", title: "Nikon D850 机身", images: [{url: "https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg", alt: "Nikon D850 正面"}], specification: "单反相机 · 机身", priceText: "¥9,999", purchaseURL: "/products/nikon-demo?item=camera", sourceURL: "https://commons.wikimedia.org/wiki/File:Nikon_DSLR_camera_D850.jpg"}
@@ -149,6 +150,7 @@ private enum GalleryFixture: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .compositionDemo: return "rectangle.3.group"
+        case .designRevamp: return "checkmark.rectangle"
         case .layout: return "rectangle.3.group"
         case .reading: return "doc.text"
         case .editorial: return "text.below.photo"
@@ -183,6 +185,30 @@ private enum GalleryFixture: String, CaseIterable, Identifiable {
     var source: String {
         switch self {
         case .compositionDemo: return CompositionDemo.source
+        case .designRevamp: return """
+        root = Col([
+          Title("设计改造 · 人工验收", "lg"),
+          Caption("以下均为测试数据。切换语言、深色和大字号后，检查输入、来源原文和局部状态。"),
+          Text("普通正文与 **强调文字**"),
+          Text(["同字号混排与 **强调文字** ", Badge("来源原文", "info")]),
+          Card([Text("第一项仍是显式大字正文", "lg"), Text("次级正文", "sm")]),
+          Input($amount, "数值草稿", "number", "尝试输入 1e 或 1,2"),
+          Text("已提交值：" + $amount),
+          Slider($range, 0, 100, 1, "越界源值", "", [{value:48,label:"临近的较长标记 A"},{value:50,label:"临近的较长标记 B"},{value:52,label:"临近的较长标记 C"}]),
+          DatePicker($date, "非法源日期", "2026-01-01", "2026-12-31"),
+          Chart("line", [{x:"A",v:0.004},{x:"B",v:null},{x:"C",v:1.23456}], "x", ["v"]),
+          Row([Text("首项"), Spacer(1), Text("尾项")]),
+          Popover("打开并编辑内容", Col([Input($note,"弹层草稿"),Disclosure("详情",[Text("关闭后重开，确认草稿与展开行为。")])])),
+          Flashcard("正面来源内容", "背面来源内容"),
+          Timer($seconds),
+          Button("查看当前状态", @ToAssistant("amount=" + $amount + "; range=" + $range + "; date=" + $date + "; note=" + $note))
+        ])
+        $amount=100
+        $range=150
+        $date="2026-02-30"
+        $note=""
+        $seconds=40000000
+        """
         case .editorial: return ShowcasePrograms.editorial
         case .transport: return ShowcasePrograms.transport
         case .timeline: return ShowcasePrograms.timeline
@@ -290,10 +316,22 @@ private enum GalleryResources {
 private struct GalleryView: View {
     @StateObject private var model = GalleryModel()
     @State private var fixture: GalleryFixture? = CommandLine.arguments.contains("--program") ? nil : GalleryFixture.initial
-    @State private var appearance = "自动"
-    @State private var large = false
+    @State private var appearance = CommandLine.arguments.contains("--dark") ? "深色" : "自动"
+    @State private var large = CommandLine.arguments.contains("--accessibility")
+    @State private var localeName: String = {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(of: "--locale"), args.indices.contains(index + 1),
+              ["en", "zh-Hans", "ar"].contains(args[index + 1]) else { return "system" }
+        return args[index + 1]
+    }()
     @State private var showEvents = false
     @Environment(\.dynamicTypeSize) private var systemType
+    @Environment(\.locale) private var systemLocale
+    @Environment(\.layoutDirection) private var systemDirection
+    private var contentLocale: Locale { localeName == "system" ? systemLocale : Locale(identifier: localeName) }
+    private var contentDirection: LayoutDirection {
+        localeName == "system" ? systemDirection : localeName == "ar" ? .rightToLeft : .leftToRight
+    }
     private var horizontalPadding: CGFloat {
         #if os(macOS)
         return 32
@@ -324,6 +362,8 @@ private struct GalleryView: View {
                     GalleryDocumentView(library: library, state: state, images: model.images,
                                         fixture: fixture, large: large, systemType: systemType,
                                         horizontalPadding: horizontalPadding)
+                        .environment(\.locale, contentLocale)
+                        .environment(\.layoutDirection, contentDirection)
                 } else { Text(model.failure ?? "无法载入组件库").padding() }
             }
             .background(IntelligentUITheme().canvas)
@@ -338,6 +378,12 @@ private struct GalleryView: View {
                 ToolbarItem {
                     Menu {
                         Picker("外观", selection: $appearance) { ForEach(["自动", "浅色", "深色"], id: \.self) { Text($0) } }
+                        Picker("SDK 文案与方向", selection: $localeName) {
+                            Text("跟随系统").tag("system")
+                            Text("English").tag("en")
+                            Text("简体中文").tag("zh-Hans")
+                            Text("العربية · RTL").tag("ar")
+                        }
                         Toggle("大字号", isOn: $large)
                         Toggle("显示操作记录", isOn: $showEvents)
                     } label: { Label("显示选项", systemImage: "slider.horizontal.3") }

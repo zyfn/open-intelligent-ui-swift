@@ -7,7 +7,7 @@ enum InputComponent {
         let value = ParamDef(name: "value", required: true, isBindable: true, schema: .object([
             .init(key: "type", value: .array([.string("string"), .string("number")]))
         ]))
-        return OpenUIComponent(name: "Input", description: "Text or number input. type defaults to text. Bind value to a $variable; literals are read-only. Numeric drafts stay visible while editing, finite values update the binding, empty input writes null, invalid drafts preserve the previous value until blur. Numbers use dot decimals and allow comma grouping.", params: [
+        return OpenUIComponent(name: "Input", description: "Text or number input. type defaults to text. Bind value to a $variable; literals are read-only. Finite numeric edits update the binding and empty input writes null. Invalid drafts remain visible with feedback after editing; they never replace the committed value. Numbers use dot decimals and valid comma thousands grouping. Form does not automatically commit or validate all fields.", params: [
             value, OpenUIParameter.string("label", required: false),
             OpenUIParameter.string("type", required: false, values: ["text", "number"]),
             OpenUIParameter.string("placeholder", required: false)
@@ -17,8 +17,12 @@ enum InputComponent {
 
 enum InputEditing {
     static func numericValue(_ text: String) -> Value? {
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .null }
-        guard let number = Double(text.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)), number.isFinite else { return nil }
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { return .null }
+        // Editing grammar only. Existing source values and price strings are not rewritten.
+        let pattern = #"^[+-]?(?:(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#
+        guard text.range(of: pattern, options: .regularExpression) != nil,
+              let number = Double(text.replacingOccurrences(of: ",", with: "")), number.isFinite else { return nil }
         return .number(number)
     }
     static func text(_ value: Value) -> String {
@@ -32,22 +36,50 @@ enum InputEditing {
     }
 }
 
+/// Presentation-only editing session. The binding remains the committed value.
+/// Invalid drafts and drafts superseded by an external edit require an explicit choice.
+struct NumericInputDraft {
+    private(set) var text: String?
+    private(set) var needsReview = false
+
+    mutating func edit(_ text: String) -> Value? {
+        self.text = text
+        needsReview = false
+        return InputEditing.numericValue(text)
+    }
+    mutating func finish(current: Value) {
+        guard let text else { return }
+        if InputEditing.numericValue(text) == current { discard() }
+        else { needsReview = true }
+    }
+    mutating func externalValueChanged(to value: Value) {
+        guard let text, InputEditing.numericValue(text) != value else { return }
+        needsReview = true
+    }
+    mutating func discard() { text = nil; needsReview = false }
+    var parsed: Value? { text.flatMap(InputEditing.numericValue) }
+}
+
 private struct InputView: View {
     let context: OpenUIComponentContext
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.intelligentUITheme) private var theme
-    @State private var draft: String?
-    @State private var lastWritten: Value?
+    @Environment(\.locale) private var locale
+    @State private var draft = NumericInputDraft()
     @FocusState private var focused: Bool
     private var value: Value { context.binding("value")?.wrappedValue ?? context.value("value") ?? .null }
     private var label: String { context.string("label") ?? "" }
+    private var numeric: Bool { context.string("type") == "number" }
+    private var reviewMessage: String {
+        let committed = InputEditing.text(value)
+        let current = committed.isEmpty ? SDKStrings.text("controls.input.empty_value", locale: locale) : committed
+        return SDKStrings.text(draft.parsed == nil ? "controls.input.invalid" : "controls.input.external_change", locale: locale, current)
+    }
     private var binding: Binding<String> {
-        Binding(get: { draft ?? InputEditing.text(value) }, set: { text in
+        Binding(get: { (numeric ? draft.text : nil) ?? InputEditing.text(value) }, set: { text in
             guard context.canInteract else { return }
-            if context.string("type") == "number" {
-                draft = text
-                if let parsed = InputEditing.numericValue(text) {
-                    lastWritten = parsed
+            if numeric {
+                if let parsed = draft.edit(text) {
                     context.binding("value")?.wrappedValue = parsed
                 }
             } else {
@@ -62,19 +94,37 @@ private struct InputView: View {
                 .font(theme.bodyFont).textFieldStyle(.plain)
                 .focused($focused)
                 .submitLabel(.done)
-                .onSubmit { focused = false }
+                .onSubmit { if numeric { draft.finish(current: value) }; focused = false }
                 #if os(iOS)
                 .keyboardType(context.string("type") == "number" ? .numbersAndPunctuation : .default)
                 #endif
-                .modifier(FieldSurface(focused: focused))
-                .accessibilityLabel(label.isEmpty ? context.string("placeholder") ?? "输入" : label)
+                .modifier(FieldSurface(focused: focused, invalid: numeric && draft.needsReview))
+                .accessibilityLabel(label.isEmpty ? context.string("placeholder") ?? SDKStrings.text("controls.input.label", locale: locale) : label)
+                .accessibilityHint(numeric && draft.needsReview ? reviewMessage : "")
+            if numeric && draft.needsReview {
+                Label(reviewMessage, systemImage: "exclamationmark.circle")
+                    .font(theme.captionFont).foregroundStyle(theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: theme.innerSpacing) { reviewActions }
+                    VStack(alignment: .leading, spacing: theme.innerSpacing) { reviewActions }
+                }
+            }
         }
         .foregroundStyle(theme.primaryText)
         .disabled(!context.canInteract || context.binding("value") == nil)
-        .onChange(of: focused) { if !$0 { draft = nil; lastWritten = nil } }
-        .onChange(of: value) { new in
-            if new != lastWritten { draft = nil }
-            lastWritten = nil
+        .onChange(of: focused) { if !$0 && numeric { draft.finish(current: value) } }
+        .onChange(of: value) { if numeric { draft.externalValueChanged(to: $0) } }
+    }
+    @ViewBuilder private var reviewActions: some View {
+        Button(SDKStrings.text("controls.input.restore", locale: locale)) { draft.discard() }
+            .buttonStyle(UpstreamButtonStyle(variant: "ghost", tint: theme.actionAccent, size: "sm"))
+        if let parsed = draft.parsed {
+            Button(SDKStrings.text("controls.input.accept", locale: locale)) {
+                guard context.canInteract, let binding = context.binding("value") else { return }
+                binding.wrappedValue = parsed
+                draft.discard()
+            }.buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.actionAccent, size: "sm"))
         }
     }
 }

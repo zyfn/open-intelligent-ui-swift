@@ -4,7 +4,7 @@ import OpenUISwiftUI
 @testable import SwiftIntelligentUI
 
 final class GenerationContractTests: XCTestCase {
-    func testWriterSignaturesAndSchemaHaveOneSourceWhileReaderRetainsLegacyFields() throws {
+    @MainActor func testWriterSignaturesAndSchemaHaveOneSourceWhileReaderRetainsLegacyFields() throws {
         let service = IntelligentUIImageSearch { _ in .init(url: "https://example.invalid/image.jpg", alt: "Image") }
         let library = try IntelligentUILibrary(imageSearch: service)
         let writer = library.components.library.components

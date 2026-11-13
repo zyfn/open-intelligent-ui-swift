@@ -27,8 +27,12 @@ jobs:
         run: |
           swift --version
           xcodebuild -version
+      - name: Localization resources
+        run: python3 Tools/check_localization.py
       - name: Swift package tests
         run: swift test
+      - name: Gallery fixture programs
+        run: swift run IntelligentUIGallery --validate-fixtures
       - name: Historical lang compatibility
         run: python3 Tools/check_lang_compatibility.py
       - name: iOS Simulator build

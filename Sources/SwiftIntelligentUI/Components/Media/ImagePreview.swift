@@ -28,27 +28,34 @@ extension EnvironmentValues {
 }
 
 struct ImagePreview: View {
+    @Environment(\.locale) private var locale
     let image: Image
     let alt: String
     var source: String? = nil
     var album: [ImageAlbumItem] = []
     @Environment(\.dismiss) private var dismiss
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.intelligentUIImages) private var images
+    @Environment(\.intelligentUIImageRevisions) private var revisions
     @State private var zoom: CGFloat = 1
     @State private var startingZoom: CGFloat = 1
-    @Environment(\.intelligentUIImages) private var images
     @State private var selectedSource: String?
     @State private var decoded: CGImage?
-    @State private var decodedSource: String?
+    @State private var decodedResource: String?
     @State private var failed = false
     @State private var retry = 0
+    @State private var viewport: CGSize = .zero
     private var currentSource: String? { selectedSource ?? source }
     private var currentAlt: String { album.first { $0.source == currentSource }?.alt ?? alt }
     private var index: Int? { album.firstIndex { $0.source == currentSource } }
+    private var revision: String { revisions[currentSource ?? ""] ?? "" }
+    private var resource: String { "\(currentSource?.utf8.count ?? 0):\(currentSource ?? ""):\(revision)" }
+    private var pixelTarget: Int { ImagePixelSize.target(points: viewport, scale: displayScale, zoom: zoom) }
     private var currentImage: Image? {
-        if currentSource == source { return image }
         if let currentSource, let supplied = images[currentSource] { return supplied }
-        if let decoded, decodedSource == currentSource { return Image(decorative: decoded, scale: 1) }
+        if let decoded, decodedResource == resource { return Image(decorative: decoded, scale: 1) }
+        if currentSource == source { return image }
         return nil
     }
 
@@ -56,17 +63,32 @@ struct ImagePreview: View {
         NavigationStack {
             GeometryReader { geometry in
                 ScrollView([.horizontal, .vertical]) {
-                  if let currentImage {
-                    currentImage.resizable().scaledToFit()
-                        .frame(width: max(1, geometry.size.width * zoom), height: max(1, geometry.size.height * zoom))
-                        .accessibilityLabel(currentAlt)
-                        .accessibilityValue("\(Int(zoom * 100))%")
-                        .accessibilityAction(named: "还原大小") { setZoom(1) }
-                        .gesture(MagnificationGesture().onChanged { zoom = min(4, max(1, startingZoom * $0)) }.onEnded { _ in startingZoom = zoom })
-                        .onTapGesture(count: 2) { setZoom(zoom > 1 ? 1 : 2) }
-                  } else if failed { ImageFailurePlaceholder(alt: currentAlt, status: "图片暂不可用", retry: { retry += 1 }).frame(width: geometry.size.width, height: geometry.size.height) }
-                  else { ImageLoadingPlaceholder(alt: currentAlt, surface: theme.surface).frame(width: geometry.size.width, height: geometry.size.height) }
+                    if let currentImage {
+                        currentImage.resizable().scaledToFit()
+                            .frame(width: max(1, geometry.size.width * zoom), height: max(1, geometry.size.height * zoom))
+                            .accessibilityLabel(currentAlt)
+                            .accessibilityValue(SDKStrings.text("image.zoom.value", locale: locale, Int(zoom * 100)))
+                            .accessibilityAction(named: SDKStrings.text("image.zoom.reset", locale: locale)) { setZoom(1) }
+                            .gesture(MagnificationGesture().onChanged { zoom = min(4, max(1, startingZoom * $0)) }.onEnded { _ in startingZoom = zoom })
+                            .onTapGesture(count: 2) { setZoom(zoom > 1 ? 1 : 2) }
+                    } else if failed {
+                        ImageFailurePlaceholder(alt: currentAlt, status: SDKStrings.text("image.unavailable", locale: locale), retry: { retry &+= 1 })
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    } else {
+                        ImageLoadingPlaceholder(alt: currentAlt, surface: theme.surface)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                    }
                 }
+                .id(currentSource ?? "single-image")
+                .overlay(alignment: .bottomTrailing) {
+                    if failed, currentImage != nil {
+                        Button { retry &+= 1 } label: {
+                            Image(systemName: "arrow.clockwise").frame(minWidth: theme.minimumControlHeight, minHeight: theme.minimumControlHeight)
+                        }.buttonStyle(.borderless).accessibilityLabel(SDKStrings.text("image.retry", locale: locale))
+                    }
+                }
+                .onAppear { viewport = geometry.size }
+                .onChange(of: geometry.size) { viewport = $0 }
             }
             .background(theme.canvas)
             .navigationTitle(currentAlt)
@@ -75,36 +97,55 @@ struct ImagePreview: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("完成") { dismiss() }.accessibilityLabel("关闭大图")
+                    Button(SDKStrings.text("common.done", locale: locale)) { dismiss() }.accessibilityLabel(SDKStrings.text("image.preview.close", locale: locale))
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     if album.count > 1, let index {
-                        Button { selectedSource = album[index - 1].source } label: { Image(systemName: "chevron.left") }
-                            .accessibilityLabel("上一张图片").disabled(index == 0)
-                        Button { selectedSource = album[index + 1].source } label: { Image(systemName: "chevron.right") }
-                            .accessibilityLabel("下一张图片").disabled(index == album.count - 1)
+                        Button { move(by: -1) } label: { Image(systemName: "chevron.left") }
+                            .accessibilityLabel(SDKStrings.text("image.previous", locale: locale)).disabled(index == 0)
+                        Button { move(by: 1) } label: { Image(systemName: "chevron.right") }
+                            .accessibilityLabel(SDKStrings.text("image.next", locale: locale)).disabled(index == album.count - 1)
                     }
                     Button { setZoom(zoom - 0.5) } label: { Image(systemName: "minus.magnifyingglass") }
-                        .accessibilityLabel("缩小图片").disabled(zoom <= 1)
+                        .accessibilityLabel(SDKStrings.text("image.zoom.out", locale: locale)).disabled(zoom <= 1)
                     Button { setZoom(zoom + 0.5) } label: { Image(systemName: "plus.magnifyingglass") }
-                        .accessibilityLabel("放大图片").disabled(zoom >= 4)
+                        .accessibilityLabel(SDKStrings.text("image.zoom.in", locale: locale)).disabled(zoom >= 4)
                 }
             }
             .tint(theme.actionAccent)
-            .task(id: (currentSource ?? "") + "#" + String(retry)) {
-                setZoom(1); failed = false; decoded = nil; decodedSource = nil
-                guard let currentSource, currentSource != source, images[currentSource] == nil else { return }
-                guard let url = URL(string: currentSource), ["http", "https"].contains(url.scheme ?? "") else { failed = true; return }
+            .onChange(of: currentSource) { _ in
+                setZoom(1); decoded = nil; decodedResource = nil; failed = false
+            }
+            .onChange(of: album) { items in
+                if let selectedSource, !items.contains(where: { $0.source == selectedSource }) {
+                    self.selectedSource = items.contains(where: { $0.source == source }) ? source : items.first?.source
+                }
+            }
+            .task(id: "\(resource):\(pixelTarget):\(retry):\(viewport.width > 0 && viewport.height > 0)") {
+                failed = false
+                if decodedResource != resource { decoded = nil; decodedResource = nil }
+                guard viewport.width > 0, viewport.height > 0,
+                      let currentSource, images[currentSource] == nil else { return }
+                guard let url = URL(string: currentSource), url.host != nil,
+                      ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+                    failed = currentSource != source; return
+                }
+                let key = resource
                 do {
-                    let result = try await ImagePipeline.shared.load(url)
+                    let result = try await ImagePipeline.shared.load(url, maximumDimension: pixelTarget, revision: revision)
                     guard !Task.isCancelled else { return }
-                    decoded = result; decodedSource = currentSource
+                    decoded = result; decodedResource = key
                 } catch { if !Task.isCancelled { failed = true } }
             }
+            .onDisappear { decoded = nil; decodedResource = nil }
         }
         #if os(macOS)
         .frame(minWidth: 480, minHeight: 420)
         #endif
+    }
+    private func move(by offset: Int) {
+        guard let index, album.indices.contains(index + offset) else { return }
+        selectedSource = album[index + offset].source
     }
     private func setZoom(_ value: CGFloat) { zoom = min(4, max(1, value)); startingZoom = zoom }
 }

@@ -20,20 +20,29 @@ enum SourceURL {
 }
 
 struct SourceLink: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     let text: String
     let url: String?
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.intelligentUIEditorial) private var editorial
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.intelligentUIInteractiveContent) private var interactive
+    private var typography: TextTypography {
+        TextTypography(size: nil, weight: nil, editorial: editorial, theme: theme, colorScheme: colorScheme)
+    }
     var body: some View {
-        if let url, SourceURL.isActionable(url) {
+        Group {
+        if let url, SourceURL.isActionable(url), !interactive {
             OpenUIActionSurface(context: context, action: OpenUIActions.openURL(url), useNativeStyle: true) {
                 Text(text.isEmpty ? url : text).underline()
                     .foregroundStyle(theme.primaryText).fixedSize(horizontal: false, vertical: true)
             }
             .buttonStyle(.plain)
-            .accessibilityHint("由应用打开链接")
+            .accessibilityHint(SDKStrings.text("link.openHint", locale: locale))
         } else {
-            Text(text).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+            Text(text.isEmpty ? (url ?? "") : text).foregroundStyle(interactive ? theme.primaryText : theme.secondaryText).fixedSize(horizontal: false, vertical: true)
         }
+        }.font(typography.font.weight(typography.weight)).lineSpacing(typography.lineSpacing)
     }
 }

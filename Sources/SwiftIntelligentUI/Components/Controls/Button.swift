@@ -28,7 +28,7 @@ private struct ActionButtonView: View {
     @ViewBuilder var body: some View {
         let variant = context.string("variant") ?? "solid"
         surface.buttonStyle(UpstreamButtonStyle(variant: variant, tint: tint, size: context.string("size") ?? "md"))
-        .font(theme.labelFont)
+        .font(context.string("size") == "sm" ? theme.compactActionFont : theme.labelFont)
         .tint(tint)
         .controlSize(context.string("size") == "sm" ? .small : context.string("size") == "lg" ? .large : .regular)
         .frame(minHeight: theme.minimumControlHeight)
@@ -54,27 +54,35 @@ struct UpstreamButtonStyle: ButtonStyle {
     var tint: Color = .primary
     var size = "md"
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.isFocused) private var focused
     @Environment(\.intelligentUITheme) private var theme
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, size == "sm" ? 12 : size == "lg" ? 20 : 16)
             .padding(.vertical, size == "sm" ? 6 : size == "lg" ? 10 : 8)
-            .frame(minHeight: size == "sm" ? 32 : size == "lg" ? 44 : 36)
+            .frame(minHeight: max(theme.minimumControlHeight, size == "lg" ? 44 : 0))
+            .contentShape(Capsule())
             .background(variant == "solid" ? tint : variant == "soft" ? theme.surface : variant == "outline" ? theme.canvas : .clear, in: Capsule())
             .overlay(Capsule().strokeBorder(variant == "outline" ? theme.fieldBorder : .clear))
             .overlay(Capsule().fill(theme.primaryText.opacity(configuration.isPressed ? 0.08 : 0)))
-            .opacity(enabled ? 1 : 0.4)
+            .overlay(Capsule().strokeBorder(focused ? tint : .clear, lineWidth: 2))
+            .opacity(enabled ? 1 : 0.5)
     }
 }
 
-private struct NativeOutlineStyle: ButtonStyle {
-    let tint: Color
+/// Shared feedback for controls whose label already owns its layout and surface.
+/// Native Button continues to own activation, focus and accessibility semantics.
+struct QuietControlStyle: ButtonStyle {
+    var cornerRadius: CGFloat? = nil
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.isFocused) private var focused
     @Environment(\.intelligentUITheme) private var theme
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.padding(.horizontal, theme.controlHorizontalPadding).padding(.vertical, theme.controlVerticalPadding)
-            .foregroundStyle(enabled ? tint : theme.secondaryText)
-            .background(configuration.isPressed ? tint.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: theme.controlRadius))
-            .overlay(RoundedRectangle(cornerRadius: theme.controlRadius).strokeBorder(theme.fieldBorder))
+        configuration.label
+            .background(configuration.isPressed ? theme.actionAccent.opacity(0.08) : .clear,
+                        in: RoundedRectangle(cornerRadius: cornerRadius ?? theme.controlRadius))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius ?? theme.controlRadius)
+                .strokeBorder(focused ? theme.actionAccent : .clear, lineWidth: 2))
+            .opacity(enabled ? 1 : 0.55)
     }
 }

@@ -8,29 +8,36 @@ enum FlashcardComponent {
     }
 }
 private struct FlashcardView: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     @State private var revealed = false
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        Button { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { revealed.toggle() } } label: {
-            ZStack {
-                face("front").opacity(revealed ? 0 : 1).accessibilityHidden(revealed)
-                face("back").rotation3DEffect(.degrees(reduceMotion ? 0 : 180), axis: (x: 0, y: 1, z: 0))
-                    .opacity(revealed ? 1 : 0).accessibilityHidden(!revealed)
+        let key = revealed ? "back" : "front"
+        let summary = PresentationText.summary(context.value(key))
+        return Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { revealed.toggle() }
+        } label: {
+            // Only the visible face is mounted. Keep scrolling outside the
+            // presentation-only subtree so a long answer remains reachable.
+            BoundedContentScroll(maximumHeight: 420) {
+                face(key).intelligentUIPresentationOnly()
             }
+            .id(key)
             .frame(maxWidth: .infinity, minHeight: 168)
             .background(revealed ? theme.surface : theme.canvas, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.fieldBorder))
-            .rotation3DEffect(.degrees(reduceMotion || !revealed ? 0 : 180), axis: (x: 0, y: 1, z: 0))
-        }.buttonStyle(.plain).disabled(!context.canInteract)
-            .accessibilityValue(revealed ? "背面" : "正面").accessibilityHint("轻点翻面")
+            .contentShape(RoundedRectangle(cornerRadius: 14))
+        }.buttonStyle(.plain).contentShape(RoundedRectangle(cornerRadius: 14)).disabled(!context.canInteract)
+            .accessibilityLabel(summary.isEmpty ? SDKStrings.text("flashcard.title", locale: locale) : summary)
+            .accessibilityValue(SDKStrings.text(revealed ? "flashcard.back" : "flashcard.front", locale: locale)).accessibilityHint(SDKStrings.text("flashcard.flip", locale: locale))
     }
     private func face(_ key: String) -> some View {
         VStack(spacing: theme.innerSpacing) {
             if let text = context.string(key) { RichMarkdown(context: context, text: text, compact: true, isTitle: key == "front") }
             else { context.slot(key) }
-            if key == "front" { Text(context.string("hint") ?? "轻点翻面").font(theme.captionFont).foregroundStyle(theme.secondaryText) }
+            if key == "front" { Text(context.string("hint") ?? SDKStrings.text("flashcard.flip", locale: locale)).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
         }.multilineTextAlignment(.center).padding(20).environment(\.intelligentUIInteractiveContent, true)
     }
 }

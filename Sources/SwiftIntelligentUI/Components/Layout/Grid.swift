@@ -1,4 +1,5 @@
 import SwiftUI
+import OpenUILang
 import OpenUISwiftUI
 
 enum GridComponent {
@@ -15,6 +16,7 @@ private struct GridView: View {
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var direction
+    @Environment(\.intelligentUIEditorial) private var editorial
     var body: some View {
         EqualGridLayout(columns: typeSize.isAccessibilitySize ? 1 : Int(min(12, max(1, (context.number("columns") ?? 2).rounded()))),
                         minimumWidth: context.number("minChildWidth").map { CGFloat(max(0, $0)) },
@@ -22,10 +24,16 @@ private struct GridView: View {
                         rightToLeft: direction == .rightToLeft) {
             ForEach(context.children()) { child in
                 context.render(child.value).frame(maxWidth: .infinity, alignment: .leading)
-                    .environment(\.intelligentUIEditorial, EditorialContext(compactContent: EditorialNode.kind(child.value) == "Col", mediaRatio: 1))
+                    .environment(\.intelligentUIEditorial, childContext(child.value))
             }
         }
         .environment(\.intelligentUIImageAlbum, ImageAlbumItem.collect(context.children().map(\.value)))
+    }
+    private func childContext(_ value: OpenUILang.Value) -> EditorialContext {
+        var result = editorial
+        result.compactContent = result.compactContent || EditorialNode.kind(value) == "Col"
+        result.openingCardTitle = false; result.cardSubtitle = false; result.mediaRatio = 1
+        return result
     }
 }
 

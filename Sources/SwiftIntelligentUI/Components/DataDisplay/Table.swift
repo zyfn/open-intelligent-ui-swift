@@ -11,7 +11,7 @@ private enum TableMetrics {
 
 enum TableComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Table", description: "Native table with SDK default column sizing: descriptions take flexible remaining width, numeric/money columns stay content-sized and right aligned. Few readable columns fill the viewport; wide tables scroll. Header surface/semibold labels, consistent cell padding, vertically centered multiline rows and subtle separators preserve row relationships. Numeric digits are monospaced. Accessibility sizes use labeled vertical records. Missing cells show an em dash. No manual per-table sizing or Markdown conversion is needed.", params: [
+        OpenUIComponent(name: "Table", description: "Native table with SDK default column sizing: descriptions take flexible remaining width, numeric/money columns stay content-sized and right aligned. Few readable columns fill the viewport; wide tables scroll. Header surface/semibold labels, consistent cell padding, top-aligned multiline rows and subtle separators preserve row relationships. Numeric digits are monospaced. Accessibility sizes use labeled vertical records. Missing cells show an em dash. No manual per-table sizing or Markdown conversion is needed.", params: [
             Parameter.array("columns", items: .object([.init(key: "type", value: .string("string"))])),
             Parameter.array("rows", items: .object([.init(key: "type", value: .string("array")), .init(key: "items", value: .object([]))]))
         ]) { TableView(context: $0) }
@@ -33,9 +33,14 @@ struct TableData {
         self.columns = ValueReading.array(columns).enumerated().map { index, value in
             let title = ValueReading.string(value)
             counts[title, default: 0] += 1
-            let populated = decodedRows.compactMap { $0.cells.indices.contains(index) ? $0.cells[index] : nil }.filter { !ValueReading.string($0).isEmpty && ValueReading.string($0) != "—" }
+            let populated = decodedRows.compactMap { $0.cells.indices.contains(index) ? $0.cells[index] : nil }.filter { !Self.isAlignmentPlaceholder($0) }
             return Column(id: title + "#" + String(counts[title]!), title: title, position: index, numeric: !populated.isEmpty && populated.allSatisfy(Self.isNumeric))
         }
+    }
+    static func isAlignmentPlaceholder(_ value: Value) -> Bool {
+        let text = ValueReading.string(value).trimmingCharacters(in: .whitespacesAndNewlines)
+        // Presentation-only classification. The cell's supplied text is preserved.
+        return text.isEmpty || text == "—" || text.uppercased() == "N/A"
     }
     static func isNumeric(_ value: Value) -> Bool {
         if ValueReading.number(value) != nil { return true }
@@ -127,6 +132,7 @@ private struct NativeTableLayout: Layout {
 private struct TableView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.displayScale) private var scale
     @State private var identities = TableRowIdentities()
@@ -135,7 +141,7 @@ private struct TableView: View {
     var body: some View {
         let data = TableData(columns: context.value("columns"), rows: context.value("rows"), identity: identities.id)
         if data.columns.isEmpty || data.rows.isEmpty {
-            Text("暂无表格数据").foregroundStyle(theme.secondaryText)
+            Text(SDKStrings.text("table.empty", locale: locale)).foregroundStyle(theme.secondaryText)
         } else if typeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: theme.groupSpacing) {
                 ForEach(data.rows) { row in
@@ -165,7 +171,7 @@ private struct TableView: View {
                         ForEach(data.rows) { row in
                             ForEach(data.columns) { column in
                                 VStack(alignment: column.numeric ? .trailing : .leading, spacing: 0) { cell(row, column) }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .trailing : .leading)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
                                     .padding(.horizontal, TableMetrics.cellHorizontalPadding).padding(.vertical, TableMetrics.cellVerticalPadding)
                             }
                             separator
@@ -178,7 +184,7 @@ private struct TableView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.fieldBorder))
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
                 if viewportWidth > 0 && contentWidth > viewportWidth + 1 {
-                    Label("左右滑动查看其余列", systemImage: "arrow.left.and.right")
+                    Label(SDKStrings.text("table.scroll_hint", locale: locale), systemImage: "arrow.left.and.right")
                         .font(theme.captionFont).foregroundStyle(theme.secondaryText)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
@@ -191,7 +197,7 @@ private struct TableView: View {
             if case .element = value { context.render(value) }
             else {
                 Text(InlineTypography.attributed(ValueReading.string(value).isEmpty ? "—" : ValueReading.string(value), font: theme.secondaryFont.monospacedDigit(), emphasis: theme.emphasisWeight))
-                    .font(theme.secondaryFont).monospacedDigit().fixedSize(horizontal: column.numeric, vertical: true)
+                    .font(theme.secondaryFont).monospacedDigit().fixedSize(horizontal: column.numeric && !typeSize.isAccessibilitySize, vertical: true)
                     .environment(\.openURL, OpenURLAction { url in
                         guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return .discarded }
                         Task { await context.perform(OpenUIActions.openURL(url.absoluteString)) }; return .handled

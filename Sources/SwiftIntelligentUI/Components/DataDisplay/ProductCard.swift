@@ -31,7 +31,7 @@ enum ProductCardComponent {
             if let product = ProductCardData(context.value("product")) {
                 ProductCardView(context: context, product: product).id(product.id)
             } else {
-                Text("商品资料不完整").foregroundStyle(.secondary)
+                ProductUnavailableView()
             }
         }
     }
@@ -58,6 +58,7 @@ struct ProductCardData {
     let sourceURL: String?
     let actionLabel: String?
     var purchaseActionLabel: String { actionLabel ?? "去购买" }
+    var imageAlbum: [ImageAlbumItem] { images.map { .init(source: $0.url, alt: $0.alt) } }
 
     init?(_ value: Value?) {
         guard let value, case .object(let fields) = value,
@@ -101,6 +102,7 @@ private struct ProductCardView: View {
     let context: OpenUIComponentContext
     let product: ProductCardData
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var direction
     @State private var selectedImageURL: String?
@@ -153,17 +155,18 @@ private struct ProductCardView: View {
         return SourceImage(source: photo?.url, alt: photo?.alt ?? product.title,
                     ratio: thumbnail ? 1 : ProductCardMetrics.mediaAspectRatio, radius: radius, fit: contain ? .fit : .fill,
                     fillsContainBackground: contain)
+            .environment(\.intelligentUIImageAlbum, product.imageAlbum)
     }
     private var imageControls: some View {
         HStack(spacing: 0) {
             Button { selectedImageURL = product.images[max(0, photoIndex - 1)].url } label: {
                 Image(systemName: "chevron.left").frame(minWidth: theme.minimumControlHeight, minHeight: theme.minimumControlHeight)
-            }.accessibilityLabel("上一张商品图片").disabled(photoIndex == 0)
+            }.accessibilityLabel(SDKStrings.text("product.previous_image", locale: locale)).disabled(photoIndex == 0)
             Button { selectedImageURL = product.images[min(product.images.count - 1, photoIndex + 1)].url } label: {
                 Image(systemName: "chevron.right").frame(minWidth: theme.minimumControlHeight, minHeight: theme.minimumControlHeight)
-            }.accessibilityLabel("下一张商品图片").disabled(photoIndex == product.images.count - 1)
+            }.accessibilityLabel(SDKStrings.text("product.next_image", locale: locale)).disabled(photoIndex == product.images.count - 1)
         }
-        .buttonStyle(.plain).foregroundStyle(theme.primaryText)
+        .buttonStyle(QuietControlStyle(cornerRadius: 10_000)).foregroundStyle(theme.primaryText)
         .background(.regularMaterial, in: Capsule()).disabled(!context.canInteract)
     }
     private var information: some View {
@@ -194,30 +197,43 @@ private struct ProductCardView: View {
             footer
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-    @ViewBuilder private var title: some View {
-        let text = Text(product.title).font(theme.titleFont).foregroundStyle(theme.primaryText).accessibilityAddTraits(.isHeader)
-        if typeSize.isAccessibilitySize { text.fixedSize(horizontal: false, vertical: true) }
-        else { text.lineLimit(2) }
+    private var title: some View {
+        Text(product.title).font(theme.titleFont).foregroundStyle(theme.primaryText)
+            .fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
     }
-    private var footer: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: theme.innerSpacing) { price; Spacer(minLength: theme.innerSpacing); action }
-            VStack(alignment: .leading, spacing: theme.innerSpacing) { price; action }
+    @ViewBuilder private var footer: some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: theme.innerSpacing) { price(wrapping: true); action }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: theme.innerSpacing) { price(wrapping: false); Spacer(minLength: theme.innerSpacing); action }
+                VStack(alignment: .leading, spacing: theme.innerSpacing) { price(wrapping: true); action }
+            }
         }
     }
-    private var price: some View {
+    private func price(wrapping: Bool) -> some View {
         VStack(alignment: .leading, spacing: theme.spacingUnit) {
-            Text(product.price.text ?? PricePresentation.missingLabel)
+            Text(product.price.displayText ?? SDKStrings.text("price.unknown", locale: locale))
                 .font(product.price.text == nil ? theme.secondaryFont : theme.priceFont).monospacedDigit()
                 .foregroundStyle(product.price.text == nil ? theme.secondaryText : theme.primaryText)
-                .fixedSize(horizontal: product.price.canonical, vertical: true)
+                .fixedSize(horizontal: !wrapping && product.price.canonical, vertical: true)
+                .accessibilityLabel(product.price.accessibilityText(locale: locale) ?? SDKStrings.text("price.unknown", locale: locale))
             if let note = product.price.note { Text(note).font(theme.captionFont).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true) }
+            ForEach(product.price.diagnostics, id: \.self) { diagnostic in
+                Label(diagnostic.message(locale: locale), systemImage: "exclamationmark.circle").font(theme.captionFont).foregroundStyle(theme.warning)
+                    .fixedSize(horizontal: false, vertical: true).accessibilityHidden(product.price.text != nil)
+            }
         }
     }
-    private var action: some View { purchaseAction(compact: false) }
+    private var action: some View { purchaseAction(compact: true) }
     @ViewBuilder private func purchaseAction(compact: Bool) -> some View {
         if let url = product.purchaseURL, SourceURL.isActionable(url) {
-            PrimaryLinkButton(context: context, label: product.purchaseActionLabel, url: url, compact: compact, symbol: "arrow.up.right")
+            PrimaryLinkButton(context: context, label: product.actionLabel ?? SDKStrings.text("product.buy", locale: locale), url: url, compact: compact, symbol: "arrow.up.right")
         }
     }
+}
+
+private struct ProductUnavailableView: View {
+    @Environment(\.locale) private var locale
+    var body: some View { Text(SDKStrings.text("product.incomplete", locale: locale)).foregroundStyle(.secondary) }
 }

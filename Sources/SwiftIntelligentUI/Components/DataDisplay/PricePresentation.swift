@@ -3,6 +3,19 @@ import OpenUILang
 
 /// One supplied amount. Source scope is separate; no inference from links or legs.
 struct PricePresentation {
+    enum Diagnostic: Hashable {
+        case grouping
+        case currencyConflict(amount: String, field: String)
+        case invalidCurrency(String)
+        func message(locale: Locale) -> String {
+            switch self {
+            case .grouping: return SDKStrings.text("price.grouping_review", locale: locale)
+            case .currencyConflict(let amount, let field):
+                return SDKStrings.text("price.currency_conflict", locale: locale, amount, field)
+            case .invalidCurrency(let code): return SDKStrings.text("price.currency_review", locale: locale, code)
+            }
+        }
+    }
     static let missingLabel = "价格待补充"
     static let pattern = #"^(?:[A-Z]{3}\s*|HK\$|NT\$|US\$|CA\$|A\$|S\$|[¥￥$€£₩₹])?\d[\d,]*(?:\.\d+)?$"#
     static let schema: JSONValue = .object([.init(key: "anyOf", value: .array([
@@ -15,11 +28,29 @@ struct PricePresentation {
     let note: String?
     let legacyText: String?
     let canonical: Bool
+    let currencyCode: String?
+    /// Display diagnostics preserve the historical reader and never repair an amount.
+    let diagnostics: [Diagnostic]
+    var displayText: String? {
+        guard let text else { return nil }
+        guard let currencyCode, !currencyCode.isEmpty else { return text }
+        if let embedded = Self.embeddedCurrency(text), embedded != currencyCode {
+            // Conflicting source fields are reported below, not silently reconciled.
+            return text
+        }
+        if text.hasPrefix(currencyCode) { return text }
+        return currencyCode + " " + text
+    }
+    func accessibilityText(locale: Locale = .current) -> String? {
+        guard let displayText else { return nil }
+        return ([displayText] + diagnostics.map { $0.message(locale: locale) }).joined(separator: ", ")
+    }
 
     init(_ value: Value?) {
         note = Self.string(ValueReading.field(value, "priceNote"))
         legacyText = Self.string(ValueReading.field(value, "priceText"))
         let currency = Self.string(ValueReading.field(value, "currency"))
+        currencyCode = currency?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if let price = ValueReading.field(value, "price"), price != .undefined {
             canonical = true
             switch price {
@@ -35,6 +66,26 @@ struct PricePresentation {
             canonical = false
             text = legacyText.map(Self.cleanLegacy)
         }
+        var diagnostics: [Diagnostic] = []
+        if let text, text.contains(","), !Self.hasCanonicalGrouping(text) {
+            diagnostics.append(.grouping)
+        }
+        if let currencyCode, let embedded = text.flatMap(Self.embeddedCurrency), embedded != currencyCode {
+            diagnostics.append(.currencyConflict(amount: embedded, field: currencyCode))
+        }
+        if let currencyCode, currencyCode.range(of: "^[A-Z]{3}$", options: .regularExpression) == nil {
+            diagnostics.append(.invalidCurrency(currencyCode))
+        }
+        self.diagnostics = diagnostics
+    }
+    static func hasCanonicalGrouping(_ text: String) -> Bool {
+        let prefix = #"(?:[A-Z]{3}\s*|HK\$|NT\$|US\$|CA\$|A\$|S\$|[¥￥$€£₩₹])?"#
+        return text.range(of: "^" + prefix + #"(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]+)?$"#, options: .regularExpression) != nil
+    }
+    private static func embeddedCurrency(_ text: String) -> String? {
+        if let range = text.range(of: "^[A-Z]{3}(?=\\s|[0-9])", options: .regularExpression) { return String(text[range]) }
+        let explicit = [("HK$", "HKD"), ("NT$", "TWD"), ("US$", "USD"), ("CA$", "CAD"), ("A$", "AUD"), ("S$", "SGD")]
+        return explicit.first { text.hasPrefix($0.0) }?.1
     }
     static func valid(_ value: Value) -> Bool {
         switch value {

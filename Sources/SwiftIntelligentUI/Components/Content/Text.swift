@@ -17,26 +17,12 @@ enum TextComponent {
 private struct TextView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.intelligentUIInteractiveContent) private var interactive
     @Environment(\.intelligentUIEditorial) private var editorial
     @Environment(\.colorScheme) private var colorScheme
-    private var font: Font {
-        if editorial.cardSubtitle { return theme.captionFont }
-        if editorial.compactContent && (context.string("size") == nil || context.string("size") == "md") { return theme.secondaryFont }
-        switch context.string("size") {
-        case "xs": return theme.captionFont
-        case "sm": return theme.secondaryFont
-        case "lg": return theme.bodyLargeFont
-        default: return theme.bodyFont
-        }
-    }
-    private var weight: Font.Weight {
-        switch context.string("weight") {
-        case "medium": return .medium
-        case "semibold": return .semibold
-        default:
-            let defaultBody = context.string("weight") == nil && [nil, "md"].contains(context.string("size")) && !editorial.compactContent && !editorial.cardSubtitle
-            return defaultBody ? theme.defaultBodyWeight(for: colorScheme) : .regular
-        }
+    private var typography: TextTypography {
+        TextTypography(size: context.string("size"), weight: context.string("weight"),
+                       editorial: editorial, theme: theme, colorScheme: colorScheme)
     }
     @ViewBuilder var body: some View {
         if let text = context.string("text") { styled(text) }
@@ -45,16 +31,17 @@ private struct TextView: View {
         }
     }
     private func styled(_ text: String) -> some View {
-        Text(InlineTypography.attributed(text, font: context.flag("tabularNums") == true ? font.monospacedDigit() : font, emphasis: theme.emphasisWeight))
-            .font((context.flag("tabularNums") == true ? font.monospacedDigit() : font).weight(weight))
-            .foregroundStyle(editorial.cardSubtitle && context.string("color") == nil ? theme.secondaryText : theme.textColor(context.string("color")))
+        let font = typography.font
+        return Text(InlineTypography.attributed(text, font: context.flag("tabularNums") == true ? font.monospacedDigit() : font, emphasis: theme.emphasisWeight))
+            .font((context.flag("tabularNums") == true ? font.monospacedDigit() : font).weight(typography.weight))
+            .foregroundStyle(theme.textColor(context.string("color")))
             .italic(context.flag("italic") ?? false)
             .strikethrough(context.flag("lineThrough") ?? false)
-            .lineSpacing(["xs", "sm"].contains(context.string("size") ?? "md") ? theme.bodyLineSpacing / 2 : theme.bodyLineSpacing)
+            .lineSpacing(typography.lineSpacing)
             .lineLimit(TextLineLimit.resolve(context.number("maxLines")))
             .fixedSize(horizontal: false, vertical: true)
             .environment(\.openURL, OpenURLAction { url in
-                guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return .discarded }
+                guard context.canInteract, !interactive, SourceURL.isActionable(url.absoluteString) else { return .discarded }
                 Task { await context.perform(OpenUIActions.openURL(url.absoluteString)) }
                 return .handled
             })

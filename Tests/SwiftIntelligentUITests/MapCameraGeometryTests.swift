@@ -37,4 +37,14 @@ final class MapCameraGeometryTests: XCTestCase {
         XCTAssertEqual(screen.x, visible.midX, accuracy: 0.001)
         XCTAssertEqual(screen.y, visible.midY, accuracy: 0.001)
     }
+    func testHostOcclusionUsesAllEdgesAndRejectsUnusableViewports() throws {
+        let size = CGSize(width: 402, height: 780)
+        let visible = try XCTUnwrap(MapCameraGeometry.visibleArea(size: size, top: 96, bottom: 220, left: 20, right: 10))
+        XCTAssertEqual(visible.minX, 60)
+        XCTAssertEqual(visible.width, 292)
+        XCTAssertEqual(visible.height, 432)
+        XCTAssertNil(MapCameraGeometry.visibleArea(size: size, top: .nan, bottom: 0))
+        XCTAssertNil(MapCameraGeometry.visibleArea(size: size, top: 400, bottom: 400))
+    }
+
 }
