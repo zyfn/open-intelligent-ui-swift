@@ -7,6 +7,10 @@ import SwiftIntelligentUI
     static func run(_ name: String?, state: OpenUIState, library: IntelligentUILibrary) async -> [String: Bool] {
         guard let name, let root = state.root else { return [:] }
         let nodes = elements(.element(root))
+        // Free composition is checked against the writer schema here.
+        // Its source fidelity, presentation and interactions have explicit
+        // review criteria; a generic successful render is not a semantic pass.
+        if name.hasPrefix("free-") { return [:] }
         var checks = ["nativeScenario": !nodes.contains { ["HtmlView", "YouTube", "Map", "SearchImage"].contains($0.typeName) }]
         switch name {
         case "reading":

@@ -15,28 +15,58 @@ enum CodeComponent {
 }
 
 struct CodeBlockContent: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     let code: String
     let language: String?
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.intelligentUIInteractiveContent) private var interactive
+    @State private var expanded = false
+    private var preview: CodePreview { CodePreview(code) }
     var body: some View {
         VStack(alignment: .leading, spacing: theme.innerSpacing) {
             HStack {
                 if let language { Text(language).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
                 Spacer()
                 OpenUIActionSurface(context: context, action: CodeComponent.copyAction(code), useNativeStyle: true, showsProgress: true) {
-                    Label("复制", systemImage: "doc.on.doc").font(theme.captionFont)
+                    Label(SDKStrings.text("code.copy", locale: locale), systemImage: "doc.on.doc").font(theme.captionFont)
                         .frame(minHeight: theme.minimumControlHeight)
                 }.buttonStyle(.borderless).tint(theme.actionAccent)
-                    .accessibilityLabel("复制代码")
+                    .accessibilityLabel(SDKStrings.text("code.copyAccessibility", locale: locale))
             }
-            ScrollView(.horizontal) {
-                Text(CodeColoring.highlight(code, language: language, theme: theme))
+            ScrollView(expanded && preview.isTruncated ? [.horizontal, .vertical] : [.horizontal]) {
+                Text(CodeColoring.highlight(expanded ? code : preview.text, language: language, theme: theme))
                     .font(theme.codeFont).textSelection(.enabled).fixedSize()
+            }.frame(maxHeight: expanded && preview.isTruncated ? 480 : nil)
+            if preview.isTruncated {
+                Button(SDKStrings.text(expanded ? "code.collapse" : "code.expand", locale: locale)) { expanded.toggle() }
+                    .buttonStyle(.plain).font(theme.captionFont).underline()
+                    .frame(minHeight: theme.minimumControlHeight, alignment: .leading)
+                    .disabled(!context.canInteract || interactive)
+                    .accessibilityHint(SDKStrings.text("code.fullCopyHint", locale: locale))
             }
         }
         .padding(theme.groupSpacing)
         .background(theme.surface, in: RoundedRectangle(cornerRadius: theme.cornerRadius))
+    }
+}
+
+/// The collapsed preview never modifies the source sent to CopyToClipboard.
+struct CodePreview {
+    let text: String
+    let isTruncated: Bool
+    init(_ source: String, maximumLines: Int = 40, maximumCharacters: Int = 12_000) {
+        var end = source.startIndex
+        var lines = 1, characters = 0
+        while end < source.endIndex && characters < maximumCharacters {
+            if source[end] == "\n" {
+                if lines >= maximumLines { break }
+                lines += 1
+            }
+            characters += 1
+            end = source.index(after: end)
+        }
+        text = String(source[..<end]); isTruncated = end < source.endIndex
     }
 }
 

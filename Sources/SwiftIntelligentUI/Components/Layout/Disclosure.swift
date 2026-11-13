@@ -9,6 +9,7 @@ enum DisclosureComponent {
     }
 }
 private struct DisclosureView: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.intelligentUITheme) private var theme
@@ -26,7 +27,7 @@ private struct DisclosureView: View {
         DisclosureGroup(isExpanded: expanded) {
             VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }.padding(.top, theme.innerSpacing)
         } label: {
-            Text(context.string("title") ?? "详情").font(theme.labelFont).foregroundStyle(theme.primaryText).fixedSize(horizontal: false, vertical: true)
-        }.tint(theme.actionAccent)
+            Text(context.string("title") ?? SDKStrings.text("disclosure.details", locale: locale)).font(theme.labelFont).foregroundStyle(theme.primaryText).fixedSize(horizontal: false, vertical: true)
+        }.tint(theme.actionAccent).disabled(!context.canInteract)
     }
 }

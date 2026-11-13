@@ -5,7 +5,7 @@ import OpenUISwiftUI
 @testable import SwiftIntelligentUI
 
 final class LinkedPresentationTests: XCTestCase {
-    @MainActor func testOfficialComponentSignaturesDoNotExposePrivateParameters() throws {
+    @MainActor func testHistoricalComponentSignaturesDoNotExposePrivateParameters() throws {
         let library = try IntelligentUILibrary()
         let expected: [String: [String]] = [
             "Map": ["markers", "route", "selected", "height"],
@@ -20,7 +20,7 @@ final class LinkedPresentationTests: XCTestCase {
             "ListItem": ["title", "description", "marker", "children"]
         ]
         for (name, parameters) in expected {
-            let component = try XCTUnwrap(library.components.library.components.first { $0.name == name }, name)
+            let component = try XCTUnwrap(library.readerComponents.library.components.first { $0.name == name }, name)
             XCTAssertEqual(component.params.map(\.name), parameters, name)
         }
     }

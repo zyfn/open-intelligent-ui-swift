@@ -19,6 +19,7 @@ private struct CheckboxView: View {
     let context: OpenUIComponentContext
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.locale) private var locale
     @ScaledMetric(relativeTo: .body) private var indicatorSize: CGFloat = 20
     private var checked: Bool {
         if case .boolean(let value) = context.binding("checked")?.wrappedValue { return value }
@@ -43,9 +44,9 @@ private struct CheckboxView: View {
             .frame(maxWidth: .infinity, minHeight: theme.minimumControlHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QuietControlStyle())
         .accessibilityLabel(context.string("label") ?? "")
-        .accessibilityValue(checked ? "已勾选" : "未勾选")
+        .accessibilityValue(checked ? SDKStrings.text("controls.checkbox.checked", locale: locale) : SDKStrings.text("controls.checkbox.unchecked", locale: locale))
         .accessibilityAddTraits(checked ? [.isSelected] : [])
         .disabled(!context.canInteract || context.binding("checked") == nil)
     }

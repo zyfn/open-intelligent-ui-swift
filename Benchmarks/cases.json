@@ -1,8 +1,92 @@
 [
-  {"id":"reading","task":"用中文展示一段阅读内容：先给出标题，再用两条列表解释系统字体与清楚的层级。只输出可执行 OpenUI Lang。"},
-  {"id":"budget","task":"生成一个可调预算计算器，初始总额100，三人等分，输入框修改总额后分摊结果立即更新，使用 Allocate 和 Join。不请求工具。"},
-  {"id":"comparison","task":"比较两项固定数据：A价格100，来源/a；B价格120，来源/b。用表格显示，提供保留原始相对地址的来源操作。未知库存不要补造。"},
-  {"id":"editorial","task":"用现有组件生成图文阅读内容：开头用 Image 放一张封面，然后用两个 ImageText 展示两条信息，来源用 Citation。只使用以下资料：A 标题建筑观察，正文观察建筑形制，图片 https://example.com/photo-a.jpg，alt 建筑，来源 /source/a；B 标题器物观察，正文观察器物纹饰，图片 https://example.com/photo-b.jpg，alt 器物，来源 /source/b。封面复用图片A。保留原始URL，不补地点、开放时间、排名或票务事实。"},
-  {"id":"transport","task":"使用一个 TransportCard 展示固定混合联程，journey id mix。第一段 id rail：train，A站到B站，2026-11-12 21:00到22:00，bookingURL /transport/train。第二段 id air：flight，B机场到C机场，2026-11-13 08:00到11:00，bookingURL /transport/flight。两段分开预订，separateTickets true；afterLeg 0的中转需要换站，changeStation true，中转时长原文10小时。没有提供总价、总时长、承运人、航班车次，不要补造或计算这些字段。"},
-  {"id":"shopping","task":"用 Carousel 横滑展示两件不同商品，每件使用 vertical ProductCard，大图保持默认3:2，不加数字页码。只使用输入的固定演示数据：id camera，标题 Nikon D850 机身，价格原文 ¥9,999，购买地址 /products/nikon-demo?item=camera，图片 https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg，alt 相机正面；id headphones，标题 Sony WH-CH500 耳机，价格原文 ¥299，购买地址 /products/sony-demo?item=headphones，图片 https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Sony_WH-CH500-40869.jpg/500px-Sony_WH-CH500-40869.jpg，alt 蓝色耳机。这是两件商品，不是同一商品多报价。未提供库存、商家或配送条件，不要补造。"}
+  {
+    "id": "reading",
+    "task": "用中文展示一段阅读内容：先给出标题，再用两条列表解释系统字体与清楚的层级。只输出可执行 OpenUI Lang。",
+    "mode": "guided"
+  },
+  {
+    "id": "budget",
+    "task": "生成一个可调预算计算器，初始总额100，三人等分，输入框修改总额后分摊结果立即更新，使用 Allocate 和 Join。不请求工具。",
+    "mode": "guided"
+  },
+  {
+    "id": "comparison",
+    "task": "比较两项固定数据：A价格100，来源/a；B价格120，来源/b。用表格显示，提供保留原始相对地址的来源操作。未知库存不要补造。",
+    "mode": "guided"
+  },
+  {
+    "id": "editorial",
+    "task": "用现有组件生成图文阅读内容：开头用 Image 放一张封面，然后用两个 ImageText 展示两条信息，来源用 Citation。只使用以下资料：A 标题建筑观察，正文观察建筑形制，图片 https://example.com/photo-a.jpg，alt 建筑，来源 /source/a；B 标题器物观察，正文观察器物纹饰，图片 https://example.com/photo-b.jpg，alt 器物，来源 /source/b。封面复用图片A。保留原始URL，不补地点、开放时间、排名或票务事实。",
+    "mode": "guided"
+  },
+  {
+    "id": "transport",
+    "task": "使用一个 TransportCard 展示固定混合联程，journey id mix。第一段 id rail：train，A站到B站，2026-11-12 21:00到22:00，bookingURL /transport/train。第二段 id air：flight，B机场到C机场，2026-11-13 08:00到11:00，bookingURL /transport/flight。两段分开预订，separateTickets true；afterLeg 0的中转需要换站，changeStation true，中转时长原文10小时。没有提供总价、总时长、承运人、航班车次，不要补造或计算这些字段。",
+    "mode": "guided"
+  },
+  {
+    "id": "shopping",
+    "task": "用 Carousel 横滑展示两件不同商品，每件使用 vertical ProductCard，大图保持默认3:2，不加数字页码。只使用输入的固定演示数据：id camera，标题 Nikon D850 机身，价格原文 ¥9,999，购买地址 /products/nikon-demo?item=camera，图片 https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg，alt 相机正面；id headphones，标题 Sony WH-CH500 耳机，价格原文 ¥299，购买地址 /products/sony-demo?item=headphones，图片 https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Sony_WH-CH500-40869.jpg/500px-Sony_WH-CH500-40869.jpg，alt 蓝色耳机。这是两件商品，不是同一商品多报价。未提供库存、商家或配送条件，不要补造。",
+    "mode": "guided"
+  },
+  {
+    "id": "free-explanation",
+    "mode": "free",
+    "task": "请把这份建筑观察资料组织成一篇适合手机阅读的简短介绍，自主选择表达方式，不要预设组件。资料：主题“看见屋檐的层次”；结论“先看轮廓，再看支撑关系”；两条观察分别是“屋檐线条形成整体轮廓”和“支撑构件解释重量如何传递”。资料图 https://example.com/architecture.jpg，alt“建筑屋檐示意资料图”，来源 /architecture/source。只用这些演示事实，不编造年代、人物或地点。",
+    "review": [
+      "主要阅读内容无需逐段套卡",
+      "图、说明、来源关系清楚",
+      "窄宽和大字号保留阅读层级"
+    ]
+  },
+  {
+    "id": "free-commerce",
+    "mode": "free",
+    "task": "帮我比较两件演示商品并保留后续查看入口，自主安排适合手机的内容。cn：标题“白色旅行收纳袋”，价格100，币种CNY，图片 https://example.com/cn-front.jpg 和 https://example.com/cn-back.jpg（正面、背面），购买地址 /items/cn?opaque=A%3D%3D。jp：标题“蓝色旅行收纳袋”，价格100，币种JPY，图片 https://example.com/jp-front.jpg 和 https://example.com/jp-back.jpg（正面、背面），购买地址 /items/jp?opaque=B%3D%3D。没有尺寸、库存、运费或汇率信息，不要补造或换算。",
+    "followups": [
+      "我选蓝色那件。只保留选中的完整商品信息，用紧凑的呈现方式，并加一个可勾选的“已核对条件”。保留同一商品身份、币种、全部图片和原始购买地址。"
+    ],
+    "review": [
+      "跨币种金额不会只剩不可区分的¥",
+      "每种卡片布局都能访问同一实体的两张图",
+      "跟进保留jp身份、来源URL和报价",
+      "清单不替代实体卡"
+    ]
+  },
+  {
+    "id": "free-data",
+    "mode": "free",
+    "task": "解释这组演示测量值的变化，自主选择清楚的呈现方式：A=0.004，B=缺失，C=1.23456。单位“示例单位”，来源 /measurements。不要把缺失当成0，也不要凭这三个点推断原因。需要能查到每个原始值。",
+    "review": [
+      "0.004不显示成0",
+      "B的缺失位置明确，连线不暗示连续观测",
+      "每个可视数据都有原值入口",
+      "图表与明细一致"
+    ]
+  },
+  {
+    "id": "free-form",
+    "mode": "free",
+    "task": "做一个演示预算计算器：初始预算100元，人数3人，可以修改预算和人数，展示人均金额。人均显示允许两位小数，但原始预算不应被修改。人数必须大于0；输入不合法时给出实际反馈，不要声称已经提交或保存。自由安排界面。",
+    "followups": [
+      "把当前预算设为120元、人数设为4，并加一个可选备注。保留修改输入后结果更新的能力。"
+    ],
+    "review": [
+      "输入、有效值与可见结果一致",
+      "非法草稿有反馈",
+      "没有伪造保存或成功状态",
+      "跟进仍具有真实绑定"
+    ]
+  },
+  {
+    "id": "free-map",
+    "mode": "free",
+    "task": "把两处演示地点放在一起查看，方便按类别筛选和比较，布局由你决定。地点A：纬度30.23、经度120.17、类别“展览”、介绍“室内观察”；地点B：纬度30.24、经度120.16、类别“散步”、介绍“沿岸观察”。这些是虚构演示点，不代表真实景点；不要添加营业时间、票价、定位或道路导航。",
+    "review": [
+      "点位与外部介绍来自同一批实体",
+      "筛选后适配按钮的含义清楚",
+      "切换选择、展开、重建地图后当前模式稳定",
+      "无额外定位请求"
+    ]
+  }
 ]

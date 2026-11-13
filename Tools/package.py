@@ -7,14 +7,14 @@ from pathlib import Path
 import tarfile
 
 root = Path(__file__).resolve().parents[1]
-version = "0.1.0-preview.28-design-system"
+version = "0.1.0-preview.29-design-revamp"
 exported_manifest = root / "outputs/contracts/manifest.json"
 if not exported_manifest.exists() or json.loads(exported_manifest.read_text()).get("version") != version:
     raise SystemExit("Contract version does not match source preview; export current contracts before packaging.")
 output = root / "outputs/delivery"
 output.mkdir(parents=True, exist_ok=True)
 files = []
-for directory in ["Sources", "Tests", "Tools", "Benchmarks", "Examples", "docs"]:
+for directory in ["Sources", "Tests", "Tools", "Benchmarks", "Examples", "docs", ".github"]:
     for path in (root / directory).rglob("*"):
         if path.is_file() and not any(part in {"node_modules", "__pycache__", "xcuserdata", ".DS_Store"} for part in path.parts):
             files.append((path, path.relative_to(root)))

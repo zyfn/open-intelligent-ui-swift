@@ -43,8 +43,11 @@ public struct IntelligentUILibrary {
         )
         readerComponents = complete
         excludedComponentNames = excludingComponents
-        let removing = excludingComponents.intersection(Set(supplied.map(\.definition.name)))
-        components = removing.isEmpty ? complete : try complete.extending(removing: removing.sorted())
+        components = try OpenUIComponentLibrary(
+            components: supplied.filter { !excludingComponents.contains($0.definition.name) }.map(WriterContract.project),
+            functions: functions, actions: complete.library.actions,
+            root: complete.library.root, id: complete.library.id
+        )
     }
 
     /// Detect a UI program using the full reader catalog, including components

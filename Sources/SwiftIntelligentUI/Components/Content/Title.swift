@@ -14,18 +14,10 @@ enum TitleComponent {
 private struct TitleView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.intelligentUIInteractiveContent) private var interactive
     @Environment(\.intelligentUIEditorial) private var editorial
     private var font: Font {
-        if editorial.openingCardTitle && [nil, "sm", "md"].contains(context.string("size")) { return theme.secondaryFont.weight(.medium) }
-        if editorial.compactContent && ["lg", "xl", "2xl", "3xl"].contains(context.string("size") ?? "md") { return theme.bodyLargeFont.weight(theme.headingWeight) }
-        switch context.string("size") {
-        case "sm": return theme.secondaryFont.weight(theme.headingWeight)
-        case "lg": return theme.sectionTitleFont
-        case "xl": return theme.pageTitleFont
-        case "2xl": return theme.largeTitleFont
-        case "3xl": return theme.displayFont
-        default: return theme.titleFont
-        }
+        TitleTypography.font(size: context.string("size"), editorial: editorial, theme: theme)
     }
     var body: some View {
         Text(InlineTypography.attributed(context.string("text") ?? "", font: font, emphasis: theme.headingWeight))
@@ -35,7 +27,7 @@ private struct TitleView: View {
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .environment(\.openURL, OpenURLAction { url in
-                guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return .discarded }
+                guard context.canInteract, !interactive, SourceURL.isActionable(url.absoluteString) else { return .discarded }
                 Task { await context.perform(OpenUIActions.openURL(url.absoluteString)) }; return .handled
             })
     }

@@ -44,7 +44,7 @@ private struct CardView: View {
                 context.render(child.value)
                     .environment(\.intelligentUIEditorial, childContext(child.value, index: index, previous: index > 0 ? children[index - 1].value : nil))
                     .padding(.top, index == 0 ? 0 : context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
-                        ?? (index == 1 && EditorialNode.smallTitle(children[0].value) && ["Text", "Caption"].contains(EditorialNode.kind(child.value)) ? 2 : EditorialSpacing.between(children[index - 1].value, child.value, theme: theme, nested: true)))
+                        ?? EditorialSpacing.between(children[index - 1].value, child.value, theme: theme, nested: true))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -58,8 +58,8 @@ private struct CardView: View {
     private func childContext(_ value: OpenUILang.Value, index: Int, previous: OpenUILang.Value?) -> EditorialContext {
         var result = editorial
         result.cardDepth += 1; result.compactContent = true
-        result.openingCardTitle = index == 0 && (EditorialNode.smallTitle(value) || EditorialNode.kind(value) == "Row")
-        result.cardSubtitle = index == 1 && previous.map(EditorialNode.smallTitle) == true && ["Text", "Caption"].contains(EditorialNode.kind(value))
+        result.openingCardTitle = index == 0 && EditorialNode.smallTitle(value)
+        result.cardSubtitle = false
         return result
     }
 }

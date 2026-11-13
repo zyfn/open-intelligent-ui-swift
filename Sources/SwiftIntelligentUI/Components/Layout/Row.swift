@@ -4,7 +4,7 @@ import OpenUISwiftUI
 
 enum RowComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Row", description: "Horizontal flex layout. Defaults: gap 2 theme units, align center, justify start, wrap false. Explicit Box.flex/width controls ordinary rows. A two-item image/text row uses the SDK thumbnail profile and top-aligned text; image position follows child order. Do not supply image proportions. Accessibility block rows stack. wrap moves items to further lines.", params: [
+        OpenUIComponent(name: "Row", description: "Horizontal flex layout. Defaults: gap 2 theme units, align center, justify start, wrap false. Explicit Box.flex/width controls ordinary rows. A two-item image/prose row with default placement uses the SDK thumbnail profile; explicit gap is honored and explicit align/justify/wrap use ordinary row placement. Narrow or accessibility reading rows may stack without replacing their children. wrap moves items to further lines.", params: [
             OpenUIParameter.slot("children", required: true), Parameter.number("gap", minimum: 0, maximum: 24),
             OpenUIParameter.string("align", required: false, values: ["start", "center", "end", "stretch"]),
             OpenUIParameter.string("justify", required: false, values: ["start", "center", "end", "between"]),
@@ -19,53 +19,66 @@ private struct RowView: View {
     @Environment(\.layoutDirection) private var direction
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.intelligentUIEditorial) private var editorial
-    private func isBlock(_ child: OpenUIRenderChild) -> Bool {
-        guard case .element(let element) = child.value else { return false }
-        return ["Box", "Col", "Card", "ImageText", "ProductCard", "TransportCard", "List", "Table", "Chart", "Form"].contains(element.typeName)
-    }
-    private func weight(_ child: OpenUIRenderChild) -> Double {
-        if let explicit = ValueReading.number(ValueReading.field(child.value, "flex")) { return min(1000, max(0, explicit)) }
-        if ValueReading.number(ValueReading.field(child.value, "width")) != nil { return 0 }
-        return 0
-    }
-    @ViewBuilder var body: some View {
+    @State private var availableWidth: CGFloat = 0
+
+    var body: some View {
         let children = context.children()
-        if children.count == 2, children.filter({ EditorialNode.media($0.value) }).count == 1, let mediaIndex = children.firstIndex(where: { EditorialNode.media($0.value) }), !typeSize.isAccessibilitySize {
-            EditorialRowLayout(preferredImageWidth: EditorialMetrics.imageWidth, ratio: EditorialNode.imageRatio(children[mediaIndex].value) ?? EditorialMetrics.imageAspectRatio, gap: theme.groupSpacing, rightToLeft: (direction == .rightToLeft) != (mediaIndex == 1)) {
-                context.render(children[mediaIndex].value).environment(\.intelligentUIEditorial, mediaContext(true))
-                context.render(children[1 - mediaIndex].value).environment(\.intelligentUIEditorial, mediaContext(false))
-            }
-            .environment(\.layoutDirection, direction)
-        } else if typeSize.isAccessibilitySize && children.count > 1 && children.allSatisfy({ isBlock($0) || EditorialNode.media($0.value) }) {
-            VStack(alignment: .leading, spacing: CGFloat(context.number("gap") ?? 3) * theme.spacingUnit) {
-                ForEach(children) { child in
-                    context.render(child.value).frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        } else { row }
-    }
-    private func mediaContext(_ media: Bool) -> EditorialContext {
-        var value = editorial; value.mediaRatio = media ? EditorialMetrics.imageAspectRatio : nil
-        return value
-    }
-    private var row: some View {
-        WrappingRowLayout(gap: CGFloat(min(24, max(0, context.number("gap") ?? 2))) * theme.spacingUnit,
-                          alignment: context.string("align") ?? "center",
-                          justification: context.string("justify") ?? "start",
-                          wraps: context.flag("wrap") ?? false,
-                          rightToLeft: direction == .rightToLeft) {
-            let children = context.children()
-            ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
-                context.render(child.value).layoutValue(key: RowFlexWeight.self, value: CGFloat(weight(child)))
-                    .environment(\.intelligentUIEditorial, rowContext(child.value, previous: index > 0 ? children[index - 1].value : nil))
+        let mediaIndex = RowPresentation.mediaIndex(children.map(\.value), hasExplicitPlacement: context.string("align") != nil || context.string("justify") != nil || context.flag("wrap") != nil)
+        let stacked = (typeSize.isAccessibilitySize && children.count > 1 && children.allSatisfy { RowPresentation.isReadingBlock($0.value) })
+            || (mediaIndex != nil && availableWidth > 0 && availableWidth < EditorialMetrics.minimumRowWidth)
+        let gap = context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
+            ?? (mediaIndex == nil ? theme.spacingUnit * 2 : theme.groupSpacing)
+        let stackedAlignment: HorizontalAlignment = context.string("align") == "end" ? .trailing : context.string("align") == "center" ? .center : .leading
+        let layout: AnyLayout = stacked
+            ? AnyLayout(VStackLayout(alignment: stackedAlignment, spacing: gap))
+            : mediaIndex.map { AnyLayout(EditorialRowLayout(preferredImageWidth: EditorialMetrics.imageWidth,
+                ratio: EditorialNode.imageRatio(children[$0].value) ?? EditorialMetrics.imageAspectRatio,
+                gap: gap, rightToLeft: direction == .rightToLeft, mediaIndex: $0)) }
+                ?? AnyLayout(WrappingRowLayout(gap: gap, alignment: context.string("align") ?? "center",
+                    justification: context.string("justify") ?? "start", wraps: context.flag("wrap") ?? false,
+                    rightToLeft: direction == .rightToLeft))
+        // Keep the same ForEach and IDs while only the layout changes.
+        return layout {
+            ForEach(children) { child in
+                context.render(child.value)
+                    .environment(\.intelligentUIEditorial, childContext(child.value, media: mediaIndex != nil, stacked: stacked))
+                    .frame(maxWidth: stacked && context.string("align") == "stretch" ? .infinity : nil, alignment: .leading)
+                    .layoutValue(key: RowFlexWeight.self, value: RowFlexRules.weight(child.value))
+                    .layoutValue(key: RowDivider.self, value: EditorialNode.kind(child.value) == "Divider")
             }
         }
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: stackedAlignment, vertical: .top))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            if width.isFinite, width > 0, abs(width - availableWidth) > 0.5 { availableWidth = width }
+        }
     }
-    private func rowContext(_ value: Value, previous: Value?) -> EditorialContext {
+
+    private func childContext(_ value: Value, media: Bool, stacked: Bool) -> EditorialContext {
         var result = editorial
-        result.cardSubtitle = editorial.openingCardTitle && previous.map(EditorialNode.smallTitle) == true && ["Text", "Caption"].contains(EditorialNode.kind(value))
-        result.openingCardTitle = editorial.openingCardTitle && EditorialNode.smallTitle(value)
+        result.openingCardTitle = false; result.cardSubtitle = false
+        if media && EditorialNode.media(value) { result.mediaRatio = stacked ? theme.coverImageAspectRatio : EditorialMetrics.imageAspectRatio }
         return result
+    }
+}
+
+enum RowFlexRules {
+    static func weight(_ value: Value) -> CGFloat {
+        if let explicit = ValueReading.number(ValueReading.field(value, "flex")) { return CGFloat(min(1000, max(0, explicit))) }
+        return EditorialNode.kind(value) == "Spacer" ? 1 : 0
+    }
+}
+
+enum RowPresentation {
+    static func isReadingBlock(_ value: Value) -> Bool {
+        EditorialNode.media(value) || ["Text", "Title", "Caption", "Markdown", "Box", "Col", "Card", "ImageText", "ProductCard", "TransportCard", "List", "Table", "Chart", "Form", "Quote", "Code", "Disclosure"].contains(EditorialNode.kind(value))
+    }
+    static func mediaIndex(_ children: [Value], hasExplicitPlacement: Bool) -> Int? {
+        guard !hasExplicitPlacement, children.count == 2,
+              children.filter({ EditorialNode.media($0) }).count == 1,
+              let index = children.firstIndex(where: EditorialNode.media),
+              EditorialNode.isProse(children[1 - index]),
+              children.allSatisfy({ ValueReading.field($0, "width") == nil && ValueReading.field($0, "flex") == nil }) else { return nil }
+        return index
     }
 }
 
@@ -74,7 +87,7 @@ struct RowGeometry {
     let frames: [CGRect]
     let size: CGSize
 
-    init(sizes: [CGSize], width: CGFloat, gap: CGFloat, alignment: String, justification: String, wraps: Bool) {
+    init(sizes: [CGSize], width: CGFloat, gap: CGFloat, alignment: String, justification: String, wraps: Bool, stretchIndices: Set<Int> = []) {
         guard !sizes.isEmpty else { frames = []; size = .zero; return }
         var rows: [[Int]] = [[]]
         var used: CGFloat = 0
@@ -95,8 +108,9 @@ struct RowGeometry {
             let spacing = justification == "between" && row.count > 1 ? gap + spare / CGFloat(row.count - 1) : gap
             var x = justification == "center" ? spare / 2 : justification == "end" ? spare : 0
             for i in row {
-                let dy = alignment == "end" ? height - sizes[i].height : alignment == "center" ? (height - sizes[i].height) / 2 : 0
-                result[i] = CGRect(x: x, y: y + dy, width: sizes[i].width, height: alignment == "stretch" ? height : sizes[i].height)
+                let stretches = alignment == "stretch" || stretchIndices.contains(i)
+                let dy = stretches ? 0 : alignment == "end" ? height - sizes[i].height : alignment == "center" ? (height - sizes[i].height) / 2 : 0
+                result[i] = CGRect(x: x, y: y + dy, width: sizes[i].width, height: stretches ? height : sizes[i].height)
                 x += sizes[i].width + spacing
             }
             y += height + gap
@@ -114,8 +128,16 @@ struct WrappingRowLayout: Layout {
     var rightToLeft = false
     var fillsWidth = true
 
+    static var layoutProperties: LayoutProperties {
+        var properties = LayoutProperties(); properties.stackOrientation = .horizontal; return properties
+    }
+
     private func geometry(proposal: ProposedViewSize, subviews: Subviews) -> RowGeometry {
-        let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+        let dividers = Set(subviews.indices.filter { subviews[$0][RowDivider.self] })
+        let ideal = subviews.indices.map { index -> CGSize in
+            let size = subviews[index].sizeThatFits(.unspecified)
+            return dividers.contains(index) ? CGSize(width: size.width.isFinite ? size.width : 1, height: 0) : size
+        }
         let natural = ideal.reduce(CGFloat.zero) { $0 + $1.width } + CGFloat(max(0, ideal.count - 1)) * gap
         let proposed = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? natural
         let width = max(0, fillsWidth ? proposed : min(proposed, natural))
@@ -128,9 +150,9 @@ struct WrappingRowLayout: Layout {
             let offered = !wraps && weight > 0
                 ? (weights[i] > 0 ? max(0, available - fixed) * weights[i] / weight : ideal[i].width)
                 : wraps ? min(width, ideal[i].width) : total > available && total > 0 ? available * ideal[i].width / total : ideal[i].width
-            return subviews[i].sizeThatFits(ProposedViewSize(width: offered, height: nil))
+            return dividers.contains(i) ? CGSize(width: offered, height: 0) : subviews[i].sizeThatFits(ProposedViewSize(width: offered, height: nil))
         }
-        return RowGeometry(sizes: sizes, width: width, gap: gap, alignment: alignment, justification: justification, wraps: wraps)
+        return RowGeometry(sizes: sizes, width: width, gap: gap, alignment: alignment, justification: justification, wraps: wraps, stretchIndices: dividers)
     }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         geometry(proposal: proposal, subviews: subviews).size

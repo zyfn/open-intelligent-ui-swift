@@ -3,14 +3,14 @@ import OpenUILang
 import OpenUISwiftUI
 
 enum DividerComponent {
-    static var component: OpenUIComponent { OpenUIComponent(name: "Divider", description: "Native content separator.", params: []) { _ in Divider() } }
+    static var component: OpenUIComponent { OpenUIComponent(name: "Divider", description: "Native content separator.", params: []) { _ in Divider().layoutValue(key: RowDivider.self, value: true) } }
 }
 enum SpacerComponent {
     static var component: OpenUIComponent { OpenUIComponent(name: "Spacer", description: "Fills remaining horizontal space in a nonwrapping Row.", params: []) { _ in Spacer(minLength: 0).layoutValue(key: RowFlexWeight.self, value: 1) } }
 }
 enum FormComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Form", description: "Groups fields and scopes their values for actions. Bind fields explicitly; feedback is composed with ordinary components.", params: [
+        OpenUIComponent(name: "Form", description: "Groups explicitly bound fields in a native form context. Related action data must be explicit; feedback is composed with ordinary components. Layout wrappers do not change group spacing.", params: [
             OpenUIParameter.slot("children", required: true)
         ]) { FormGroup(context: $0) }
     }
@@ -20,16 +20,11 @@ private struct FormGroup: View {
     @State private var identity = UUID().uuidString
     @Environment(\.intelligentUITheme) private var theme
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacingUnit * 6) {
-            let children = context.children()
-            ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+        VStack(alignment: .leading, spacing: theme.groupSpacing) {
+            ForEach(context.children()) { child in
                 context.render(child.value)
-                    .padding(.top, index > 0 && index == children.count - 1 && actionRow(child.value) ? theme.groupSpacing : 0)
             }
         }.openUIForm(context.element.statementId ?? identity)
-    }
-    private func actionRow(_ value: Value) -> Bool {
-        EditorialNode.kind(value) == "Button" || (EditorialNode.kind(value) == "Row" && ValueReading.array(ValueReading.field(value, "children")).contains { EditorialNode.kind($0) == "Button" })
     }
 }
 enum PopoverComponent {
@@ -38,21 +33,31 @@ enum PopoverComponent {
     }
 }
 private struct PopoverView: View {
+    @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
     @State private var presented = false
     var body: some View {
-        Button { presented = true } label: { rendered("trigger").environment(\.intelligentUIInteractiveContent, true) }.buttonStyle(.plain).tint(theme.actionAccent)
+        Button { presented = true } label: {
+            rendered("trigger").intelligentUIPresentationOnly().contentShape(Rectangle())
+        }.buttonStyle(.plain).tint(theme.actionAccent).contentShape(Rectangle())
+            .accessibilityLabel(PresentationText.summary(context.value("trigger"), locale: locale).isEmpty ? SDKStrings.text("popover.open", locale: locale) : PresentationText.summary(context.value("trigger"), locale: locale))
             .disabled(!context.canInteract)
             .popover(isPresented: $presented) {
                 panel
             }
     }
     @ViewBuilder private var panel: some View {
-        let content = ViewThatFits(in: .vertical) {
-            VStack(alignment: .leading, spacing: theme.innerSpacing) { rendered("content") }.padding(14)
-            ScrollView { VStack(alignment: .leading, spacing: theme.innerSpacing) { rendered("content") }.padding(14) }
-        }.frame(idealWidth: 280, maxWidth: 320, maxHeight: 480)
+        let content = VStack(alignment: .leading, spacing: theme.innerSpacing) {
+            HStack {
+                Spacer()
+                Button(SDKStrings.text("common.done", locale: locale)) { presented = false }.accessibilityLabel(SDKStrings.text("popover.close", locale: locale))
+                    .frame(minHeight: theme.minimumControlHeight)
+            }
+            BoundedContentScroll(maximumHeight: 420) {
+                VStack(alignment: .leading, spacing: theme.innerSpacing) { rendered("content") }
+            }
+        }.padding(theme.groupSpacing).frame(idealWidth: 280, maxWidth: 320, maxHeight: 480)
         if #available(iOS 16.4, macOS 13.3, *) { content.presentationCompactAdaptation(.popover) }
         else { content }
     }
@@ -62,3 +67,4 @@ private struct PopoverView: View {
 }
 
 struct RowFlexWeight: LayoutValueKey { static let defaultValue: CGFloat = 0 }
+struct RowDivider: LayoutValueKey { static let defaultValue = false }

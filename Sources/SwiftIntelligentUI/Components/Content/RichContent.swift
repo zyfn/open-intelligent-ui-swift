@@ -18,38 +18,43 @@ struct RichMarkdown: View {
     var isTitle = false
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.intelligentUIEditorial) private var editorial
+    @Environment(\.intelligentUIInteractiveContent) private var interactive
+    private var typography: TextTypography {
+        TextTypography(size: nil, weight: nil, editorial: editorial, theme: theme, colorScheme: colorScheme)
+    }
     var body: some View {
         Markdown(text)
             .markdownTheme(Theme.basic
                 .strong { FontWeight(theme.emphasisWeight) }
                 .paragraph { configuration in
                     configuration.label.fixedSize(horizontal: false, vertical: true)
-                        .lineSpacing(theme.bodyLineSpacing)
+                        .lineSpacing(typography.lineSpacing)
                         .markdownMargin(top: 0, bottom: compact ? 0 : theme.paragraphSpacing)
                 }
                 .heading1 { configuration in
                     configuration.label.markdownTextStyle { FontSize(.em(theme.headingScale(0))); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: theme.sectionSpacing + theme.innerSpacing, bottom: theme.innerSpacing)
+                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
                 }
                 .heading2 { configuration in
                     configuration.label.markdownTextStyle { FontSize(.em(theme.headingScale(1))); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: theme.sectionSpacing + theme.innerSpacing, bottom: theme.innerSpacing)
+                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
                 }
                 .heading3 { configuration in
                     configuration.label.markdownTextStyle { FontSize(.em(theme.headingScale(2))); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: theme.groupSpacing, bottom: theme.innerSpacing)
+                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
                 }
                 .heading4 { configuration in
                     configuration.label.markdownTextStyle { FontSize(.em(1)); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
                 }
                 .heading5 { configuration in
                     configuration.label.markdownTextStyle { FontSize(.em(0.83)); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
                 }
                 .heading6 { configuration in
                     configuration.label.markdownTextStyle { FontSize(.em(0.67)); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
                 }
                 .codeBlock { configuration in
                     CodeBlockContent(context: context, code: configuration.content, language: configuration.language)
@@ -60,11 +65,11 @@ struct RichMarkdown: View {
                     .markdownTableBorderStyle(.init(.horizontalBorders, color: theme.separator, width: 0.5))
                     .markdownMargin(top: theme.innerSpacing, bottom: theme.groupSpacing)
             })
-            .font(isTitle ? theme.titleFont : theme.bodyFont(for: colorScheme))
+            .font(isTitle ? theme.titleFont : typography.font.weight(typography.weight))
             .foregroundStyle(theme.primaryText)
             .tint(theme.accent)
             .environment(\.openURL, OpenURLAction { url in
-                guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return .discarded }
+                guard context.canInteract, !interactive, SourceURL.isActionable(url.absoluteString) else { return .discarded }
                 Task { await context.perform(OpenUIActions.openURL(url.absoluteString)) }
                 return .handled
             })
@@ -89,6 +94,7 @@ private struct QuoteView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(alignment: .leading) { Rectangle().fill(theme.primaryText).frame(width: 3) }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -103,14 +109,16 @@ enum BadgeComponent {
 private struct BadgeView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.colorSchemeContrast) private var contrast
     var body: some View {
         let token = context.string("color") ?? "neutral"
-        let color = token == "info" ? theme.primaryText : theme.textColor(token)
+        let color = theme.textColor(token)
         HStack(spacing: theme.spacingUnit) {
-            if let icon = IconCatalog.symbol(context.string("icon")) { Image(systemName: icon).accessibilityHidden(true) }
+            if let icon = IconCatalog.symbol(context.string("icon")) { Image(systemName: icon).foregroundStyle(color).accessibilityHidden(true) }
             Text(context.string("text") ?? "").fixedSize(horizontal: false, vertical: true)
-        }.font(theme.captionFont.weight(.medium)).foregroundStyle(color)
+        }.font(theme.captionFont.weight(.medium)).foregroundStyle(theme.primaryText)
             .padding(.horizontal, theme.innerSpacing).padding(.vertical, theme.spacingUnit)
-            .background(color.opacity(token == "neutral" || token == "info" ? 0.06 : 0.12), in: Capsule())
+            .background(token == "neutral" ? theme.surface : color.opacity(0.12), in: RoundedRectangle(cornerRadius: theme.radiusSM))
+            .overlay(RoundedRectangle(cornerRadius: theme.radiusSM).strokeBorder(color.opacity(contrast == .increased ? 0.6 : 0.16)))
     }
 }

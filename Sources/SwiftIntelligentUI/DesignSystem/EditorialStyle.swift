@@ -1,7 +1,7 @@
 import SwiftUI
 import OpenUILang
 
-struct EditorialContext {
+struct EditorialContext: Equatable {
     var flowDepth = 0
     var cardDepth = 0
     var compactContent = false
@@ -40,6 +40,29 @@ enum EditorialNode {
         guard kind(value) == "Box", case .array(let values) = ValueReading.field(value, "children"), values.count == 1 else { return false }
         return ["Image", "SearchImage"].contains(kind(values[0]))
     }
+
+    /// Only unstyled, single-child wrappers are transparent to reading edges.
+    /// Real surfaces and groups keep their own boundaries.
+    static func readingEdge(_ value: Value, depth: Int = 0) -> Value {
+        guard depth < 16, ["Col", "Box"].contains(kind(value)) else { return value }
+        if kind(value) == "Box", ValueReading.field(value, "background") != nil || ValueReading.field(value, "border") == .boolean(true) || (ValueReading.number(ValueReading.field(value, "padding")) ?? 0) > 0 { return value }
+        let children = ValueReading.array(ValueReading.field(value, "children"))
+        guard children.count == 1 else { return value }
+        return readingEdge(children[0], depth: depth + 1)
+    }
+
+    static func isProse(_ value: Value) -> Bool {
+        ["Text", "Title", "Caption", "Markdown", "Col", "ImageText"].contains(kind(readingEdge(value)))
+    }
+
+    static func isSourceParagraph(_ value: Value) -> Bool {
+        guard kind(value) == "Text" else { return false }
+        let segments = ValueReading.array(ValueReading.field(value, "text"))
+        return segments.contains { kind($0) == "Citation" } && segments.allSatisfy {
+            if case .string = $0 { return true }
+            return kind($0) == "Citation"
+        }
+    }
 }
 
 enum InlineTypography {
@@ -56,19 +79,18 @@ enum InlineTypography {
 }
 
 enum EditorialSpacing {
+    static func section(_ theme: IntelligentUITheme) -> CGFloat { theme.sectionSpacing + theme.spacingUnit }
     static func between(_ previous: Value, _ next: Value, opening: Bool = false, theme: IntelligentUITheme, nested: Bool = false) -> CGFloat {
-        func kind(_ value: Value) -> String {
-            if case .element(let element) = value { return element.typeName }
-            return "Text"
-        }
-        let before = kind(previous), after = kind(next)
-        if ["Text", "Markdown"].contains(before) && ["Image", "SearchImage"].contains(after) { return theme.spacingUnit * 3 }
-        if after == "Caption" && ["Image", "SearchImage", "Chart", "Table", "Svg"].contains(before) { return theme.innerSpacing }
+        let leading = EditorialNode.readingEdge(previous), trailing = EditorialNode.readingEdge(next)
+        let before = EditorialNode.kind(leading), after = EditorialNode.kind(trailing)
+        let figures = ["Image", "SearchImage", "Chart", "Table", "Svg", "YouTube", "Map", "Math", "HtmlView"]
+        if ["Text", "Markdown"].contains(before) && figures.contains(after) { return theme.paragraphSpacing }
+        if figures.contains(before) && (["Caption", "Citation"].contains(after) || EditorialNode.isSourceParagraph(trailing)) { return theme.innerSpacing }
         if before == "Caption" && after == "Title" { return theme.spacingUnit }
-        let badgeRow = after == "Row" && ValueReading.array(ValueReading.field(next, "children")).contains { kind($0) == "Badge" }
-        if before == "Title" && (["Text", "Caption"].contains(after) || badgeRow) { return theme.innerSpacing }
-        if before == "Title" || nested || (before == "Text" && after == "Text") { return theme.spacingUnit * 3 }
-        return theme.spacingUnit * 6
+        let badgeRow = after == "Row" && ValueReading.array(ValueReading.field(trailing, "children")).contains { EditorialNode.kind($0) == "Badge" }
+        if before == "Title" && (["Text", "Caption", "Markdown"].contains(after) || badgeRow) { return theme.innerSpacing }
+        if before == "Title" || nested || (["Text", "Markdown"].contains(before) && ["Text", "Markdown"].contains(after)) { return theme.paragraphSpacing }
+        return section(theme)
     }
 }
 
@@ -86,16 +108,21 @@ struct EditorialRowLayout: Layout {
     let gap: CGFloat
     let rightToLeft: Bool
     var idealWidth: CGFloat = 280
+    var mediaIndex = 0
+    static var layoutProperties: LayoutProperties {
+        var properties = LayoutProperties(); properties.stackOrientation = .horizontal; return properties
+    }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? idealWidth
         let columns = EditorialRowMetrics.columns(width: width, preferred: preferredImageWidth, gap: gap)
-        let text = subviews.count > 1 ? subviews[1].sizeThatFits(.init(width: columns.text, height: nil)).height : 0
+        let text = subviews.count > 1 ? subviews[1 - mediaIndex].sizeThatFits(.init(width: columns.text, height: nil)).height : 0
         return CGSize(width: width, height: max(columns.image / max(0.2, ratio), text))
     }
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard subviews.count == 2 else { return }
         let columns = EditorialRowMetrics.columns(width: bounds.width, preferred: preferredImageWidth, gap: gap)
-        subviews[0].place(at: CGPoint(x: rightToLeft ? bounds.maxX - columns.image : bounds.minX, y: bounds.minY), proposal: .init(width: columns.image, height: columns.image / max(0.2, ratio)))
-        subviews[1].place(at: CGPoint(x: rightToLeft ? bounds.minX : bounds.minX + columns.image + gap, y: bounds.minY), proposal: .init(width: columns.text, height: bounds.height))
+        let imageOnRight = rightToLeft != (mediaIndex == 1)
+        subviews[mediaIndex].place(at: CGPoint(x: imageOnRight ? bounds.maxX - columns.image : bounds.minX, y: bounds.minY), anchor: .topLeading, proposal: .init(width: columns.image, height: columns.image / max(0.2, ratio)))
+        subviews[1 - mediaIndex].place(at: CGPoint(x: imageOnRight ? bounds.minX : bounds.minX + columns.image + gap, y: bounds.minY), anchor: .topLeading, proposal: .init(width: columns.text, height: bounds.height))
     }
 }

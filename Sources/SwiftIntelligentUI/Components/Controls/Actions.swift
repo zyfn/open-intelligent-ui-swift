@@ -17,7 +17,8 @@ struct PrimaryLinkButton: View {
                 if let symbol { Image(systemName: symbol).accessibilityHidden(true) }
             }.font(compact ? theme.compactActionFont : theme.labelFont).foregroundStyle(theme.actionForeground)
         }
-        .buttonStyle(.borderedProminent).controlSize(compact ? .small : .regular).tint(theme.actionAccent)
+        .buttonStyle(UpstreamButtonStyle(tint: theme.actionAccent, size: compact ? "sm" : "md"))
+        .controlSize(compact ? .small : .regular).tint(theme.actionAccent)
         .frame(minHeight: theme.minimumControlHeight).contentShape(Rectangle()).accessibilityLabel(label)
     }
 }
@@ -33,18 +34,20 @@ enum IconButtonComponent {
 private struct IconButtonView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.locale) private var locale
     @ViewBuilder var body: some View {
-        surface.buttonStyle(.plain).disabled(context.action() == nil).tint(theme.actionAccent)
-            .frame(minWidth: theme.minimumControlHeight, minHeight: theme.minimumControlHeight)
+        surface.buttonStyle(QuietControlStyle(cornerRadius: 10_000)).disabled(context.action() == nil).tint(theme.actionAccent)
     }
     private var surface: some View {
         OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true, showsProgress: true) {
             Image(systemName: IconCatalog.symbol(context.string("icon")) ?? "questionmark")
                 .foregroundStyle(context.string("variant") == "solid" ? theme.actionForeground : theme.actionAccent)
                 .frame(width: 34, height: 34)
-                .background(context.string("variant") == "solid" ? theme.primaryText : context.string("variant") == "ghost" ? .clear : theme.canvas, in: Circle())
+                .background(context.string("variant") == "solid" ? theme.actionAccent : context.string("variant") == "ghost" ? .clear : theme.canvas, in: Circle())
                 .overlay(Circle().strokeBorder(context.string("variant") == "ghost" ? .clear : theme.fieldBorder))
-                .accessibilityLabel(context.string("label") ?? context.string("icon") ?? "操作")
+                .frame(minWidth: theme.minimumControlHeight, minHeight: theme.minimumControlHeight)
+                .contentShape(Rectangle())
+                .accessibilityLabel(context.string("label") ?? context.string("icon") ?? SDKStrings.text("controls.action.fallback", locale: locale))
         }
     }
 }
@@ -59,25 +62,35 @@ enum PressableComponent {
 private struct PressableView: View {
     let context: OpenUIComponentContext
     @Environment(\.intelligentUITheme) private var theme
-    private var rowContent: Bool { context.children().contains { EditorialNode.kind($0.value) == "Row" } }
+    @Environment(\.locale) private var locale
+    private var selected: Bool { context.flag("selected") == true }
+    private var hasSelection: Bool { context.flag("selected") != nil }
+    private var accessibilitySummary: String {
+        let summary = context.children().map { PresentationText.summary($0.value, locale: locale) }.filter { !$0.isEmpty }.joined(separator: "，")
+        return summary.isEmpty ? SDKStrings.text("controls.action.fallback", locale: locale) : summary
+    }
     var body: some View {
-        OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true) {
+        OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true, showsProgress: true) {
             VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }
-                .environment(\.intelligentUIInteractiveContent, true)
+                .intelligentUIPresentationOnly()
+                .padding(.trailing, hasSelection ? 28 : 0)
                 .padding(CGFloat(min(24, max(0, context.number("padding") ?? 3))) * theme.spacingUnit)
+                .frame(minHeight: theme.minimumControlHeight, alignment: .leading)
                 .contentShape(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"))))
                 .background(context.string("background").map { theme.backgroundColor($0) } ?? .clear,
                             in: RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"))))
                 .overlay(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius")))
-                    .fill(!rowContent && context.flag("selected") == true ? theme.primaryText.opacity(0.06) : .clear))
+                    .fill(selected ? theme.actionAccent.opacity(0.06) : .clear))
                 .overlay(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius")))
-                    .strokeBorder(!rowContent && context.flag("selected") == true ? theme.primaryText.opacity(0.2) : .clear))
+                    .strokeBorder(selected ? theme.actionAccent.opacity(0.35) : .clear))
                 .overlay(alignment: .topTrailing) {
-                    if !rowContent && context.flag("selected") == true {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(theme.primaryText).padding(8).accessibilityHidden(true)
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(theme.actionAccent).padding(8).accessibilityHidden(true)
                     }
                 }
-        }.buttonStyle(.plain).disabled(context.action() == nil)
-            .accessibilityAddTraits(context.flag("selected") == true ? [.isSelected] : [])
+        }.buttonStyle(QuietControlStyle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"))))
+            .disabled(context.action() == nil)
+            .accessibilityLabel(accessibilitySummary)
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }

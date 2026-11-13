@@ -44,6 +44,8 @@ swift test
 swift run IntelligentUIGallery
 swift run IntelligentUIGallery --validate-fixtures
 swift run ContractExport outputs/contracts
+python3 Tools/check_localization.py
+python3 Tools/check_lang_compatibility.py
 ```
 
 iOS Gallery 使用 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 `IntelligentUIGallery`。在 Xcode 中选择模拟器并运行即可，修改 Swift 代码或资源后需要重新构建、安装并启动。
@@ -53,6 +55,10 @@ iOS Gallery 使用 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme �
 - `spec.json`：组件签名、函数与 schema。
 - `prompt.txt`：供模型使用的生成约束。
 - `manifest.json`：组件、函数、动作及运行要求。
+
+历史 Lang 的读取契约与生成契约分开：原有组件名、位置参数、字段和绑定保持 reader 兼容；新生成按 writer 校验。用 `swift run ContractExport --validate program.lang --historical` 检查历史记录，用 `--reader-contract --include-search` 导出完整 reader。默认 `--validate` 检查新生成契约。
+
+本轮组件与设计系统改造记录见 [设计改造状态](docs/design-revamp-status.md)。Gallery 新增“设计改造验收”案例与语言/RTL 切换；可用 `swift run IntelligentUIGallery --fixture 设计改造验收 --locale ar --accessibility --dark` 打开指定环境。代码、构建、契约、界面与真实模型评测分别报告结果。
 
 ## 修改时必须遵守
 

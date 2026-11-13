@@ -61,6 +61,8 @@ private struct SelectView: View {
     let context: OpenUIComponentContext
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.locale) private var locale
+    @FocusState private var focused: Bool
     private var options: [ChoiceOption] { ChoiceOption.decode(context.value("options")) }
     private var selection: Binding<String?> {
         Binding(get: {
@@ -76,18 +78,24 @@ private struct SelectView: View {
         VStack(alignment: .leading, spacing: theme.innerSpacing) {
         if let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont) }
         Menu {
-            Picker(context.string("label") ?? "选择", selection: selection) {
-                Text(context.string("placeholder") ?? "请选择").tag(Optional<String>.none).disabled(true)
+            Picker(context.string("label") ?? SDKStrings.text("controls.choice.label", locale: locale), selection: selection) {
+                Text(context.string("placeholder") ?? SDKStrings.text("controls.choice.placeholder", locale: locale)).tag(Optional<String>.none).disabled(true)
                 ForEach(options) { Text($0.label).tag(Optional($0.id)) }
             }
         } label: {
             HStack {
-                Text(options.first { $0.id == selection.wrappedValue }?.label ?? context.string("placeholder") ?? "请选择")
+                Text(options.first { $0.id == selection.wrappedValue }?.label ?? context.string("placeholder") ?? SDKStrings.text("controls.choice.placeholder", locale: locale))
                 Spacer(minLength: theme.innerSpacing)
                 Image(systemName: "chevron.down").font(theme.captionFont).accessibilityHidden(true)
-            }.foregroundStyle(theme.primaryText).modifier(FieldSurface())
+            }.foregroundStyle(selection.wrappedValue == nil ? theme.secondaryText : theme.primaryText)
+                .modifier(FieldSurface(focused: focused))
+                .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton).font(theme.bodyFont).tint(theme.actionAccent)
+        .focused($focused)
+        .accessibilityLabel(context.string("label") ?? SDKStrings.text("controls.choice.label", locale: locale))
+        .accessibilityValue(options.first { $0.id == selection.wrappedValue }?.label ?? context.string("placeholder") ?? SDKStrings.text("controls.choice.unselected", locale: locale))
+        .accessibilityHint(options.isEmpty ? SDKStrings.text("controls.choice.empty", locale: locale) : context.binding("value") == nil ? SDKStrings.text("controls.choice.read_only", locale: locale) : "")
         .disabled(!context.canInteract || context.binding("value") == nil || options.isEmpty)
         }
     }
@@ -103,6 +111,7 @@ enum SegmentedControlComponent {
 
 private struct NativeSegmentedView: View {
     let context: OpenUIComponentContext
+    @Environment(\.locale) private var locale
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.dynamicTypeSize) private var typeSize
     private var options: [ChoiceOption] { ChoiceOption.decode(context.value("options")) }
@@ -113,9 +122,9 @@ private struct NativeSegmentedView: View {
         }, set: { if let value = $0 { context.binding("value")?.wrappedValue = .string(OpenUIString(value)) } })
     }
     var body: some View {
-        if !typeSize.isAccessibilitySize && (2...4).contains(options.count) {
+        if !typeSize.isAccessibilitySize && (2...4).contains(options.count) && selection.wrappedValue != nil {
             ViewThatFits(in: .horizontal) {
-                Picker("选项", selection: selection) {
+                Picker(SDKStrings.text("controls.choice.options", locale: locale), selection: selection) {
                     ForEach(options) { Text($0.label).tag(Optional($0.id)) }
                 }.pickerStyle(.segmented).labelsHidden()
                     .fixedSize(horizontal: true, vertical: false)
@@ -139,20 +148,23 @@ enum RadioGroupComponent {
 
 private struct ChoiceGroupView: View {
     let context: OpenUIComponentContext
+    @Environment(\.locale) private var locale
     let segmented: Bool
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.layoutDirection) private var direction
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .body) private var indicatorSize: CGFloat = 18
     private var options: [ChoiceOption] { ChoiceOption.decode(context.value("options")) }
     private var selected: String { InputEditing.text(context.binding("value")?.wrappedValue ?? context.value("value") ?? .null) }
     private var pills: Bool { segmented || context.string("variant") == "pills" }
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacingUnit * 2) {
-            if !segmented, let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont) }
+            if !segmented, let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont).accessibilityHidden(true) }
             let layout = pills
                 ? AnyLayout(WrappingRowLayout(gap: theme.spacingUnit * 2, alignment: "center", justification: "start", wraps: true, rightToLeft: direction == .rightToLeft, fillsWidth: !segmented || context.flag("block") == true))
                 : context.string("variant") == "cards"
-                    ? AnyLayout(EqualGridLayout(columns: 12, minimumWidth: 200, gap: theme.innerSpacing, rightToLeft: direction == .rightToLeft))
+                    ? AnyLayout(EqualGridLayout(columns: typeSize.isAccessibilitySize ? 1 : 12, minimumWidth: 200, gap: theme.innerSpacing, rightToLeft: direction == .rightToLeft))
                     : AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
             layout {
                 ForEach(options) { option in
@@ -160,7 +172,15 @@ private struct ChoiceGroupView: View {
                         context.binding("value")?.wrappedValue = .string(OpenUIString(option.id))
                     } label: {
                         HStack(alignment: .top, spacing: theme.spacingUnit * 2) {
-                            if !pills { Image(systemName: selected == option.id ? "largecircle.fill.circle" : "circle").accessibilityHidden(true) }
+                            if !pills {
+                                Image(systemName: selected == option.id ? "largecircle.fill.circle" : "circle")
+                                    .font(.system(size: indicatorSize))
+                                    .foregroundStyle(selected == option.id ? theme.actionAccent : theme.secondaryText)
+                                    .accessibilityHidden(true)
+                            } else {
+                                Image(systemName: "checkmark").opacity(selected == option.id ? 1 : 0)
+                                    .accessibilityHidden(true)
+                            }
                             VStack(alignment: .leading, spacing: theme.spacingUnit) {
                                 Text(option.label).fontWeight(selected == option.id ? .medium : .regular).fixedSize(horizontal: false, vertical: true)
                                 if let detail = option.detail { Text(detail).font(theme.captionFont).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true) }
@@ -170,16 +190,18 @@ private struct ChoiceGroupView: View {
                         .frame(maxWidth: pills ? nil : .infinity, minHeight: theme.minimumControlHeight, alignment: .leading)
                         .contentShape(Rectangle())
                         .foregroundStyle(pills && !segmented && selected == option.id ? theme.actionForeground : theme.primaryText)
-                        .background(pills && selected == option.id ? (!segmented ? theme.primaryText : theme.surface) : .clear, in: Capsule())
-                        .overlay(Capsule().strokeBorder(pills && !segmented ? (selected == option.id ? theme.primaryText : theme.fieldBorder) : .clear))
+                        .background(pills && selected == option.id ? (!segmented ? theme.actionAccent : theme.surface) : .clear, in: Capsule())
+                        .overlay(Capsule().strokeBorder(pills && !segmented ? (selected == option.id ? theme.actionAccent : theme.fieldBorder) : .clear))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(QuietControlStyle(cornerRadius: pills ? 10_000 : theme.controlRadius))
                     .accessibilityAddTraits(selected == option.id ? [.isSelected] : [])
-                    .accessibilityValue(selected == option.id ? "已选择" : "未选择")
+                    .accessibilityValue(selected == option.id ? SDKStrings.text("controls.choice.selected", locale: locale) : SDKStrings.text("controls.choice.unselected", locale: locale))
                 }
             }
         }
         .frame(maxWidth: !segmented || context.flag("block") == true ? .infinity : nil, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(segmented ? SDKStrings.text("controls.choice.options", locale: locale) : context.string("label") ?? SDKStrings.text("controls.choice.single", locale: locale))
         .disabled(!context.canInteract || context.binding("value") == nil)
     }
 }

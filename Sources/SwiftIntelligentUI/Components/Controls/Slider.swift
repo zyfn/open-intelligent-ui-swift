@@ -40,67 +40,134 @@ private struct SliderView: View {
     let context: OpenUIComponentContext
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.intelligentUITheme) private var theme
-    private var current: Double {
-        if case .number(let value) = context.binding("value")?.wrappedValue { return value }
-        return context.number("value") ?? context.number("min") ?? 0
+    @Environment(\.locale) private var locale
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.layoutDirection) private var direction
+    private var current: Double? { ValueReading.number(context.binding("value")?.wrappedValue ?? context.value("value")) }
+    private var canEdit: Bool { context.canInteract && context.binding("value") != nil }
+    private func formatted(_ number: Double) -> String {
+        let unit = context.string("unit") ?? ""
+        let currency = ["$", "€", "£", "¥", "₹"].contains(String(unit.prefix(1)))
+        return (currency ? unit : "") + jsNumberString(number) + (currency ? "" : unit)
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.spacingUnit * 2) {
+        VStack(alignment: .leading, spacing: theme.innerSpacing) {
             if let range = SliderRange(minimum: context.number("min") ?? 0,
                                        maximum: context.number("max") ?? 100,
                                        step: context.number("step") ?? 1) {
-                let unit = context.string("unit") ?? ""
-                let currency = ["$", "€", "£", "¥", "₹"].contains(String(unit.prefix(1)))
-                if context.string("label") != nil || !unit.isEmpty {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(context.string("label") ?? "").font(theme.secondaryFont)
-                        Spacer(minLength: theme.innerSpacing)
-                        Text((currency ? unit : "") + range.clamped(current).formatted() + (currency ? "" : unit))
-                            .font(theme.captionFont.weight(.medium)).monospacedDigit()
-                    }
-                }
-                Slider(value: Binding(get: { range.clamped(current) }, set: {
-                    context.binding("value")?.wrappedValue = .number($0)
+                let valid = current.map { range.bounds.contains($0) } ?? false
+                let projected = range.clamped(current ?? range.bounds.lowerBound)
+                heading(current.map(formatted) ?? SDKStrings.text("controls.slider.unset", locale: locale))
+                Slider(value: Binding(get: { projected }, set: { value in
+                    guard canEdit else { return }
+                    context.binding("value")?.wrappedValue = .number(value)
                 }), in: range.bounds, step: range.step)
                 .tint(theme.actionAccent)
-                .accessibilityLabel(context.string("label") ?? "数值")
-                .accessibilityValue((currency ? unit : "") + range.clamped(current).formatted() + (currency ? "" : unit))
-                .accessibilityAdjustableAction { direction in
-                    guard context.canInteract, let binding = context.binding("value") else { return }
-                    switch direction {
-                    case .increment: binding.wrappedValue = .number(range.clamped(current + range.step))
-                    case .decrement: binding.wrappedValue = .number(range.clamped(current - range.step))
+                .accessibilityLabel(context.string("label") ?? SDKStrings.text("controls.slider.label", locale: locale))
+                .accessibilityValue((current.map(formatted) ?? SDKStrings.text("controls.slider.no_selection", locale: locale)) + (valid ? "" : SDKStrings.text("controls.slider.outside_suffix", locale: locale)))
+                .accessibilityHint(valid ? "" : SDKStrings.text("controls.slider.projection_hint", locale: locale))
+                .accessibilityAdjustableAction { adjustment in
+                    guard canEdit, let binding = context.binding("value") else { return }
+                    switch adjustment {
+                    case .increment: binding.wrappedValue = .number(range.clamped(projected + range.step))
+                    case .decrement: binding.wrappedValue = .number(range.clamped(projected - range.step))
                     @unknown default: break
                     }
                 }
-                .disabled(!context.canInteract || context.binding("value") == nil)
-                let marks = ValueReading.array(context.value("marks")).compactMap { value -> (Double, String)? in
+                .disabled(!canEdit)
+                if !valid {
+                    Label(SDKStrings.text("controls.slider.range_message", locale: locale, formatted(range.bounds.lowerBound), formatted(range.bounds.upperBound)), systemImage: "exclamationmark.circle")
+                        .font(theme.captionFont).foregroundStyle(theme.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if canEdit {
+                        Button(SDKStrings.text("controls.slider.use_value", locale: locale, formatted(projected))) { context.binding("value")?.wrappedValue = .number(projected) }
+                            .buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.actionAccent, size: "sm"))
+                    }
+                }
+                let marks = ValueReading.array(context.value("marks")).compactMap { value -> (Double, Double, String)? in
                     guard let n = ValueReading.number(ValueReading.field(value, "value")), range.bounds.contains(n) else { return nil }
-                    return ((n - range.bounds.lowerBound) / (range.bounds.upperBound - range.bounds.lowerBound), ValueReading.string(ValueReading.field(value, "label")))
+                    return ((n - range.bounds.lowerBound) / (range.bounds.upperBound - range.bounds.lowerBound), n, ValueReading.string(ValueReading.field(value, "label")))
                 }
                 if !marks.isEmpty {
-                    SliderMarkLayout(positions: marks.map(\.0)) {
-                        ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in Text(mark.1).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
-                    }.accessibilityHidden(true)
+                    SliderMarkLayout(positions: marks.map(\.0), rightToLeft: direction == .rightToLeft, gap: theme.innerSpacing) {
+                        ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+                            Text(mark.2).font(theme.captionFont).foregroundStyle(theme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityLabel(mark.2 + "，" + formatted(mark.1))
+                        }
+                    }
                 }
             } else {
-                Text("数值范围不可用").font(theme.captionFont).foregroundStyle(theme.secondaryText)
+                Label(SDKStrings.text("controls.slider.invalid_range", locale: locale), systemImage: "exclamationmark.circle")
+                    .font(theme.captionFont).foregroundStyle(theme.danger)
             }
+        }
+    }
+    @ViewBuilder private func heading(_ value: String) -> some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: theme.spacingUnit) { headingLabel; headingValue(value) }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) { headingLabel; Spacer(minLength: theme.innerSpacing); headingValue(value).fixedSize() }
+                VStack(alignment: .leading, spacing: theme.spacingUnit) { headingLabel; headingValue(value) }
+            }
+        }
+    }
+    @ViewBuilder private var headingLabel: some View {
+        if let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont) }
+    }
+    private func headingValue(_ text: String) -> some View {
+        Text(text).font(theme.secondaryFont).monospacedDigit().fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Greedy lanes retain each mark's track position without overlapping labels.
+/// A long label receives the container width and can wrap; no mark is discarded.
+enum SliderMarkGeometry {
+    static func frames(width: CGFloat, sizes: [CGSize], positions: [Double], rightToLeft: Bool, gap: CGFloat) -> [CGRect] {
+        let width = max(1, width.isFinite ? width : 240)
+        let fractions = sizes.indices.map { index -> CGFloat in
+            let value = positions.indices.contains(index) ? min(1, max(0, positions[index])) : 0
+            return CGFloat(rightToLeft ? 1 - value : value)
+        }
+        var rowEnds: [CGFloat] = [], rowHeights: [CGFloat] = []
+        var rows = Array(repeating: 0, count: sizes.count), xs = Array(repeating: CGFloat(0), count: sizes.count)
+        for index in sizes.indices.sorted(by: { fractions[$0] == fractions[$1] ? $0 < $1 : fractions[$0] < fractions[$1] }) {
+            let itemWidth = min(width, max(0, sizes[index].width))
+            let center = min(9, width / 2) + max(0, width - 18) * fractions[index]
+            let x = max(0, min(width - itemWidth, center - itemWidth / 2))
+            let row = rowEnds.firstIndex { $0 + gap <= x } ?? rowEnds.count
+            if row == rowEnds.count { rowEnds.append(0); rowHeights.append(0) }
+            rows[index] = row; xs[index] = x
+            rowEnds[row] = x + itemWidth
+            rowHeights[row] = max(rowHeights[row], sizes[index].height)
+        }
+        var tops: [CGFloat] = [], y: CGFloat = 0
+        for height in rowHeights { tops.append(y); y += height + gap }
+        return sizes.indices.map { index in
+            CGRect(x: xs[index], y: tops[rows[index]], width: min(width, max(0, sizes[index].width)), height: sizes[index].height)
         }
     }
 }
 
 private struct SliderMarkLayout: Layout {
     let positions: [Double]
+    let rightToLeft: Bool
+    let gap: CGFloat
+    private func frames(width: CGFloat, subviews: Subviews) -> [CGRect] {
+        SliderMarkGeometry.frames(width: width,
+            sizes: subviews.map { $0.sizeThatFits(.init(width: width, height: nil)) },
+            positions: positions, rightToLeft: rightToLeft, gap: gap)
+    }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        .init(width: proposal.width ?? 240, height: subviews.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0)
+        let width = proposal.width.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 240
+        return .init(width: width, height: frames(width: width, subviews: subviews).map(\.maxY).max() ?? 0)
     }
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = frames(width: bounds.width, subviews: subviews)
         for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            let center = 9 + max(0, bounds.width - 18) * positions[index]
-            let x = max(0, min(bounds.width - size.width, center - size.width / 2))
-            subviews[index].place(at: .init(x: bounds.minX + x, y: bounds.minY), proposal: .init(size))
+            subviews[index].place(at: .init(x: bounds.minX + frames[index].minX, y: bounds.minY + frames[index].minY),
+                                 anchor: .topLeading, proposal: .init(frames[index].size))
         }
     }
 }

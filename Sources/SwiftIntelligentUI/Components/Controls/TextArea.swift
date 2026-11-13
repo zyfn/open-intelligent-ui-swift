@@ -15,8 +15,10 @@ private struct TextAreaView: View {
     let context: OpenUIComponentContext
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.intelligentUITheme) private var theme
+    @Environment(\.locale) private var locale
     @ScaledMetric(relativeTo: .body) private var lineHeight = 24.0
     @FocusState private var focused: Bool
+    private var editorHeight: CGFloat { CGFloat(lineHeight * min(20, max(2, (context.number("rows") ?? 3).rounded()))) }
     private var text: Binding<String> {
         Binding(get: { InputEditing.text(context.binding("value")?.wrappedValue ?? context.value("value") ?? .null) },
                 set: { context.binding("value")?.wrappedValue = .string(OpenUIString($0)) })
@@ -28,15 +30,27 @@ private struct TextAreaView: View {
                 TextEditor(text: text).font(theme.bodyFont)
                     .scrollContentBackground(.hidden)
                     .focused($focused)
-                    .frame(minHeight: lineHeight * min(20, max(2, (context.number("rows") ?? 3).rounded())))
+                    .frame(height: editorHeight)
+                    .accessibilityLabel(context.string("label") ?? context.string("placeholder") ?? SDKStrings.text("controls.textarea.label", locale: locale))
+                    #if os(iOS)
+                    .scrollDismissesKeyboard(.interactively)
+                    #endif
                 if text.wrappedValue.isEmpty, let placeholder = context.string("placeholder") {
-                    Text(placeholder).foregroundStyle(theme.secondaryText).padding(6).allowsHitTesting(false).accessibilityHidden(true)
+                    Text(placeholder).font(theme.bodyFont).foregroundStyle(theme.secondaryText)
+                        .padding(.horizontal, 5).padding(.vertical, 8)
+                        .allowsHitTesting(false).accessibilityHidden(true)
                 }
             }
             .modifier(FieldSurface(focused: focused, multiline: true))
-            .accessibilityLabel(context.string("label") ?? context.string("placeholder") ?? "多行输入")
         }
         .foregroundStyle(theme.primaryText)
         .disabled(!context.canInteract || context.binding("value") == nil)
+        #if os(iOS)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                if focused { Spacer(); Button(SDKStrings.text("controls.textarea.done", locale: locale)) { focused = false } }
+            }
+        }
+        #endif
     }
 }

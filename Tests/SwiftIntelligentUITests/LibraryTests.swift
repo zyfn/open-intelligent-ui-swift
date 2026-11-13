@@ -21,7 +21,8 @@ final class LibraryTests: XCTestCase {
         XCTAssertFalse(library.systemPrompt.contains("aspectRatio?:"))
         XCTAssertFalse(library.systemPrompt.contains("source-ordered ready prefix"))
         XCTAssertTrue(library.systemPrompt.contains("Do not depend on a particular intermediate rendering order"))
-        XCTAssertTrue(try XCTUnwrap(library.components.library.components.first { $0.name == "Image" }).params.contains { $0.name == "aspectRatio" })
+        XCTAssertFalse(try XCTUnwrap(library.components.library.components.first { $0.name == "Image" }).params.contains { $0.name == "aspectRatio" })
+        XCTAssertTrue(try XCTUnwrap(library.readerComponents.library.components.first { $0.name == "Image" }).params.contains { $0.name == "aspectRatio" })
     }
 
     func testBindingsAndPositionalContracts() throws {

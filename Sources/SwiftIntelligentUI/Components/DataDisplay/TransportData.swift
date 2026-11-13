@@ -10,6 +10,7 @@ struct TransportData {
         var label: String {
             switch self { case .flight: return "航班"; case .train: return "列车"; case .bus: return "巴士"; case .ferry: return "轮渡"; case .other: return "交通" }
         }
+        func localizedLabel(locale: Locale) -> String { SDKStrings.text("transport.mode." + rawValue, locale: locale) }
     }
     struct Leg: Identifiable {
         let id: String
@@ -90,6 +91,12 @@ struct TransportData {
     }
     var hasCompleteConnections: Bool { legs.count > 1 && connections.count == legs.count - 1 }
     var routeLabel: String { legs.count == 1 ? "直达" : hasCompleteConnections ? "\(connections.count)次中转" : "\(legs.count)段行程" }
+    func localizedRouteLabel(locale: Locale) -> String {
+        if legs.count == 1 { return SDKStrings.text("transport.direct", locale: locale) }
+        return hasCompleteConnections
+            ? SDKStrings.text("transport.transfers", locale: locale, connections.count)
+            : SDKStrings.text("transport.segments", locale: locale, legs.count)
+    }
     var modeLabel: String { Set(legs.map(\.mode)).count == 1 ? legs[0].mode.label : hasCompleteConnections ? "联程" : "交通" }
     var primaryBookingURL: String? { bookingURL ?? (legs.count == 1 ? legs[0].bookingURL : nil) }
     var displayDurationText: String? { durationText ?? (legs.count == 1 ? legs[0].durationText : nil) }
@@ -107,6 +114,10 @@ struct TransportData {
     static func offsetText(_ offset: Int?) -> String? {
         guard let offset, offset != 0 else { return nil }
         return offset > 0 ? "+\(offset)天" : "\(offset)天"
+    }
+    static func offsetText(_ offset: Int?, locale: Locale) -> String? {
+        guard let offset, offset != 0 else { return nil }
+        return SDKStrings.text("transport.day_offset", locale: locale, offset > 0 ? "+" + String(offset) : String(offset))
     }
     private static func text(_ value: Value?, _ key: String) -> String? {
         guard case .string(let text) = ValueReading.field(value, key), !text.displayString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
