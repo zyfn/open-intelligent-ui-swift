@@ -7,7 +7,7 @@ from pathlib import Path
 import tarfile
 
 root = Path(__file__).resolve().parents[1]
-version = "0.1.0-preview.28-design-system"
+version = "0.1.0-preview.29-design-revamp"
 exported_manifest = root / "outputs/contracts/manifest.json"
 if not exported_manifest.exists() or json.loads(exported_manifest.read_text()).get("version") != version:
     raise SystemExit("Contract version does not match source preview; export current contracts before packaging.")

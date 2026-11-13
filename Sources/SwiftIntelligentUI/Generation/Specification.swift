@@ -4,51 +4,91 @@ import OpenUILang
 extension IntelligentUILibrary {
     public var specification: LibrarySpec { components.toSpec() }
     public var specificationJSON: String { specification.jsonString() }
+    /// Historical read contract, including compatibility-only fields.
+    public var readerSpecification: LibrarySpec { readerComponents.toSpec() }
+
     public var systemPrompt: String {
         let generated = components.prompt(PromptOptions(
-            additionalRules: [
-                "Output only the complete openui-lang program, without a Markdown fence or a JSON wrapper. Use registered components, declared positional arguments and supported functions. State defaults are literals; derived values belong in ordinary variables. Use ASCII identifiers, quoted non-ASCII keys and bracket access. Respect exact case-sensitive source field names.",
-                "Organize the answer around the user task: concise conclusion, meaningful groups, then supporting details. Choose one primary presentation for each idea. Keep secondary facts and long explanations in optional details; do not repeat the same entities, caveats or source limitations across text, cards and tables. For follow-ups, show requested updates and briefly refer to unchanged material; do not recreate unrelated interactive sections unless the user requests them.",
-                "Compose ordinary content with Col, Row, Grid, Box, Text, Image and Carousel. Use whitespace and alignment for reading; use Card for a real object or coherent group, not every paragraph. Vary structure to fit content rather than reproducing an example page.",
-                "Generate Image(src, alt) using required arguments only. Any registered image-search component also takes only its query. The SDK owns framing, crop, radius and image sizes according to layout. Do not emit image proportions or use Box dimensions to override an image frame. Use Col for covers, Row for leading/trailing thumbnails, Grid for tiles and Carousel for a short visual collection. No page numbers or current/total counters.",
-                "Keep a figure and its attribution in one compact Col([Image(src,alt), Text([suppliedCredit, Citation(suppliedSources)], \"xs\", \"muted\")], 2). The small supporting line preserves supplied author/license facts; the inline citation is the source entry. Use the surrounding flow for separation from subsequent prose. Use Link for intentional navigation such as an official site or full guide, not a duplicate standalone image-source row. Add references only where supported and useful; do not fabricate attribution or add an empty source entry.",
-                "Use the default semantic typography and colors. Title labels real headings; Text is the reading body; Caption is supporting text. Text sizes are xs/sm/md/lg only. Leave body weight at normal; emphasize only short key phrases when useful. Do not wrap headings in Markdown bold or make entire paragraphs semibold. Avoid display headings inside every card, muted primary prose and equivalent solid foreground/background colors. Status backgrounds are soft tints. SVG drawing coordinates are the exception: preserve readable labels and provide native explanatory text for accessibility.",
-                "Use Badge for static facts, SegmentedControl for a short view switch, RadioGroup for one choice and Checkbox for independent choices. Group fields by meaning. Bind edits to visible results or an explicit action. Compose validation and result feedback with ordinary Text and explicit state. No decorative controls or fabricated progress.",
-                "Every enabled Button, IconButton and Pressable needs an explicit action. Never nest interactive controls in a Pressable or Popover trigger. ToAssistant is allowed only when the caller explicitly supports a follow-up request; the SDK provides no assistant or order service. An OpenUrl action navigates, it does not purchase or confirm inventory.",
-                "Use ProductCard for supplied purchasable goods or bookable services, including accommodation; use TransportCard for transport. One transport card represents one source journey/direction and only that journey's supplied ordered segments. Do not flatten independent journeys, outbound/return or alternatives into connecting legs; use independent cards without a composed option container and preserve parent quote ownership. Transport price and navigation belong in journey fields, not sibling Text or Button. If a shared quote has unclear scope, leave price empty and preserve its amount and uncertainty once in the first related journey's priceNote; do not duplicate it. Use source fromCity/toCity for the city header and from/to for full airport or station names; never derive cities by trimming names. Only supplied connection facts justify transfer labels. Preserve known price, images, exact purchase/booking destination and stable entity identity. On later turns, filtering, confirmation or adding a checklist must keep selected entities as cards; use a compact layout if needed and collapse only alternatives. A task checklist supplements the entity card, never replaces it with plain links.",
-                "Product and transport price is the supplied amount plus optional source currency and priceNote. Use supplied field definitions for the quote scope; an earlier assistant explanation is not additional source evidence. Correct unsupported scope descriptions instead of repeating them on later turns, keeping the known price unchanged. Do not generate legacy priceText, offers, marketing prefixes or inferred units. Missing conditions do not justify discarding a known amount. A round URL or number of legs does not establish a round-trip total. Never sum, split, reprice, invent stock, ratings or cancellation conditions.",
-                "Copy each source URL once into a variable and reuse its exact opaque string, including encoded/compressed values and padding. Never normalize, shorten, decode, repair or remove parts. Keep fields owned by their exact source entity or endpoint. Do not infer elapsed time from local clocks, fees from unknown status codes, missing photos or coordinates. Describe planned amounts as estimates, not actual purchases.",
-                "Build Map markers from supplied place facts with names, coordinates and optional category/emoji icon. Map.selected holds the clicked marker label. The SDK supplies category filtering, fit and expansion. Put place cards, photos, details and Carousel outside Map using ordinary composition. route draws schematic straight connectors in marker order, not road directions or an inferred visit order.",
-                "Use stable named statements for stateful content and explicit bindings for state that must survive unmounting. ListItem.description is a secondary summary; put substantial reading content in children. Timeline times/stages use marker. References attached to a sentence belong in mixed Text([text, Citation(...)]) so they share paragraph flow; standalone source lists remain valid. Do not append sources around consumer cards by default.",
-                "Start with a self-contained introduction and use stable named statements for major sections. Do not depend on a particular intermediate rendering order while the source is streaming; the runtime follows the pinned OpenUI default publication behavior. Reactive state edits may update already visible content.",
-                "Examples show syntax and composition only; replace illustrative data with supplied task facts. Project records to component schemas instead of passing rich business objects wholesale. Parser success does not establish source fidelity, legal fields, correct calculations or accessible layout. Preserve source uncertainty concisely.",
-                "Use typed calculations: numeric Min/Max do not consume clock strings. Same-date/same-zone zero-padded clocks can be sorted then the owning record selected. FormatDate has no locale argument; its named styles are English, iso is language-neutral. Plural defaults to English. Keep monetary rounding and source duration scope explicit. Flashcard, Celebration, HTML and SVG are for tasks that need them, not decoration."
-            ].filter(generationTextIsAvailable), examples: selectedGenerationExamples, toolCalls: false, bindings: true
+            additionalRules: selectedGenerationRules,
+            examples: selectedGenerationExamples, toolCalls: false, bindings: true
         ))
-        // The pinned upstream template describes its own implicit button action.
-        // Our registered Button deliberately requires an explicit action.
-        // Reader schemas keep the deprecated field for historical programs;
-        // writer-facing declarations expose only the canonical price field.
-        let imageSignature = specification.components.first { $0.name == "Image" }?.signature ?? ""
-        let writer = imageSignature.isEmpty ? generated : generated.replacingOccurrences(of: imageSignature, with: "Image(src: string, alt: string)")
-        let searchSignature = specification.components.first { $0.name == "SearchImage" }?.signature ?? ""
-        let imageWriter = searchSignature.isEmpty ? writer : writer.replacingOccurrences(of: searchSignature, with: "SearchImage(query: string)")
-        return imageWriter.replacingOccurrences(of: #", priceText\?: (?:string|any)"#, with: "", options: .regularExpression)
-            .replacingOccurrences(
+        // RC20's generic template still assumes an implicit Button action.
+        // This narrow policy adapter is not a signature/schema transformation.
+        // Writer definitions above are the source of every exported signature.
+        return generated.replacingOccurrences(
             of: "Buttons without an action automatically send their label to the assistant (equivalent to @ToAssistant(label)).",
             with: "Buttons without an explicit action are disabled. No implicit assistant request is sent."
         )
     }
 
-    /// Omit complete examples/rules that require a Host-excluded component.
-    /// Component filtering itself is handled by the upstream library extension.
-    var selectedGenerationExamples: [String] { Self.generationExamples.filter(generationTextIsAvailable) }
+    var selectedGenerationRules: [String] {
+        let available = Set(components.library.components.map(\.name))
+        return Self.generationRules.filter { $0.requires.isSubset(of: available) }.map(\.text)
+    }
 
-    private func generationTextIsAvailable(_ text: String) -> Bool {
-        !excludedComponentNames.contains { name in
-            text.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: name) + #"\b"#, options: .regularExpression) != nil
+    var selectedGenerationExamples: [String] {
+        let available = Set(components.library.components.map(\.name))
+        return zip(Self.generationExamples, Self.exampleRequirements).compactMap { example, requirements in
+            requirements.isSubset(of: available) ? example : nil
         }
     }
+
+    private struct GenerationRule {
+        let text: String
+        let requires: Set<String>
+        init(_ text: String, requires: Set<String> = []) {
+            self.text = text
+            self.requires = requires
+        }
+    }
+
+    private static let generationRules: [GenerationRule] = [
+        .init("Output only the complete openui-lang program, without a Markdown fence or a JSON wrapper. Use registered components, declared positional arguments and supported functions. State defaults are literals; derived values belong in ordinary variables. Use ASCII identifiers, quoted non-ASCII keys and bracket access. Respect exact case-sensitive source field names."),
+        .init("Organize the answer around the user task: concise conclusion, meaningful groups, then supporting details. Choose one primary presentation for each idea. Use whitespace and alignment for reading. Preserve source uncertainty concisely. For follow-ups, update the requested material and retain relevant entity identity; do not recreate unrelated interactive sections."),
+        .init("Copy each source URL once into a variable and reuse its exact opaque string, including encoded/compressed values and padding. Never normalize, shorten, decode, repair or remove parts. Keep fields owned by their exact source entity or endpoint. Do not infer elapsed time from local clocks, fees from unknown status codes, missing photos or coordinates. Describe planned amounts as estimates, not actual purchases."),
+        .init("Use stable named statements for stateful content and explicit bindings for state that must survive unmounting. Do not depend on a particular intermediate rendering order while the source is streaming; the runtime follows the pinned OpenUI default publication behavior. Reactive state edits may update already visible content."),
+        .init("Examples show syntax and composition only; replace illustrative data with supplied task facts. Project records to component schemas instead of passing rich business objects wholesale. Parser success does not establish source fidelity, legal fields, correct calculations or accessible layout."),
+        .init("Bind edits to visible results or an explicit action. Present real validation and result feedback. Never fabricate progress, availability, completion or action success. Navigation does not purchase or confirm inventory. ToAssistant is allowed only when the caller explicitly supports a follow-up request; the SDK provides no assistant or order service."),
+        .init("A supplied price remains its supplied amount, currency and scope. Use source field definitions for quote ownership; an earlier assistant explanation is not additional evidence. Preserve known amounts and corrections on later turns. Never sum, split, reprice, invent stock, ratings or cancellation conditions. Missing conditions do not justify discarding a known amount. Do not infer a round-trip total from a round URL or number of legs."),
+        .init("Use the default semantic typography and colors. Leave body weight at normal; emphasize only short key phrases when useful. Do not make entire paragraphs semibold or mute primary prose. Avoid equivalent solid foreground/background colors. Status backgrounds are soft tints. Explicit component parameters express intent; wrapping content does not redefine its meaning."),
+        .init("Use typed calculations: numeric Min/Max do not consume clock strings. Same-date/same-zone zero-padded clocks can be sorted then the owning record selected. FormatDate has no locale argument; its named styles are English, iso is language-neutral. Plural defaults to English. Keep monetary rounding and source duration scope explicit."),
+        .init("Use Card for a real object or coherent group. Ordinary paragraphs and chapters keep open reading layout. Avoid redundant nested surfaces and display headings inside every card.", requires: ["Card"]),
+        .init("Title labels real headings; Text is the reading body; Caption is supporting text. Text sizes are xs/sm/md/lg only. Do not wrap headings in Markdown bold. Choose an explicit supporting role when intended rather than relying on an item's position.", requires: ["Title", "Text", "Caption"]),
+        .init("Grid columns retain their declared meaning. Supply the existing minChildWidth when cards or reading columns need a minimum readable width; narrow containers should not depend on guessed screen dimensions.", requires: ["Grid"]),
+        .init("Generate Image(src, alt) using required arguments only. The SDK owns framing, crop, radius and image sizes according to layout. Do not emit image proportions or use container dimensions to override an image frame. Describe meaningful content in alt and preserve supplied attribution.", requires: ["Image"]),
+        .init("SearchImage(query) uses an explicitly configured caller service. Use its query only; do not add legacy presentation arguments or fabricate a source attribution.", requires: ["SearchImage"]),
+        .init("Use Col for covers, Row for leading/trailing thumbnails, Grid for tiles and Carousel for a short visual collection. Choose structure from the information relationship. No decorative page numbers or current/total counters.", requires: ["Image", "Col", "Row", "Grid", "Carousel"]),
+        .init("Keep a figure and its attribution in one compact Col([Image(src,alt), Text([suppliedCredit, Citation(suppliedSources)], \"xs\", \"muted\")], 2). Preserve supplied author/license facts. Add references only where supported and useful; do not fabricate attribution or add an empty source entry.", requires: ["Image", "Col", "Text", "Citation"]),
+        .init("References attached to a sentence belong in mixed Text([text, Citation(...)]) so they share paragraph flow; standalone source lists remain valid. Do not append sources around consumer cards by default.", requires: ["Citation", "Text"]),
+        .init("Use Link for intentional navigation such as an official site or full guide; avoid duplicate standalone source links when a source entry already serves that purpose.", requires: ["Link"]),
+        .init("Badge presents static facts; it is not a selectable or actionable control.", requires: ["Badge"]),
+        .init("Use SegmentedControl for a short view switch with a real visible result.", requires: ["SegmentedControl"]),
+        .init("Use RadioGroup for one choice. Retain complete supplied option descriptions and an explicit binding.", requires: ["RadioGroup"]),
+        .init("Use Checkbox for independent choices and a real binding; do not replace an entity's details with a checklist.", requires: ["Checkbox"]),
+        .init("Every enabled Button needs an explicit action. Buttons without an explicit action are disabled. No implicit assistant request is sent.", requires: ["Button"]),
+        .init("Every enabled IconButton needs an explicit action and an accessible label describing the operation.", requires: ["IconButton"]),
+        .init("Every enabled Pressable needs an explicit action. Its children are presentation-only; never nest interactive controls or independent link/image operations inside the trigger.", requires: ["Pressable"]),
+        .init("Popover trigger content is presentation-only. Put independent controls and links inside the opened content, not inside the trigger.", requires: ["Popover"]),
+        .init("Use ProductCard for supplied purchasable goods or bookable services, including accommodation. Preserve known price, all supplied images, exact purchase/booking destination and stable entity identity. Filtering, confirmation or adding a checklist must keep selected entities as cards; use a compact layout when useful. Do not generate legacy priceText, offers, marketing prefixes or inferred units. Put supplied conditions in priceNote.", requires: ["ProductCard"]),
+        .init("Use TransportCard for transport. One card represents one source journey/direction and only its supplied ordered segments. Independent journeys, outbound/return and alternatives remain separate cards. Preserve parent quote ownership. Price and navigation belong in journey fields. An unclear shared quote is preserved once in the first related journey's priceNote, with price empty, rather than duplicated or assigned an unsupported scope. Use supplied fromCity/toCity and full from/to names without trimming or guessing. Only supplied connection facts justify transfer labels. Do not generate legacy priceText or inferred units.", requires: ["TransportCard"]),
+        .init("Build Map markers from supplied names, coordinates and optional category/emoji icon. Map.selected holds the clicked marker label. The SDK supplies filtering, fit and expansion. Keep place cards, photos and details outside the map. route draws schematic straight connectors in marker order, not road directions or an inferred visit order.", requires: ["Map", "MapMarker"]),
+        .init("ListItem.description is a secondary summary; put substantial reading content in children. Timeline times and stages use the existing marker field.", requires: ["ListItem"]),
+        .init("Use Svg for a task that needs a diagram. Preserve supplied drawing coordinates and readable labels; provide equivalent native explanatory text for accessibility. Explicit source colors retain their meaning; semantic colors follow the theme.", requires: ["Svg"]),
+        .init("Flashcard is a learning surface, not decoration. Both faces are presentation-only; keep independent interactive operations outside the flipping surface.", requires: ["Flashcard"]),
+        .init("Celebration reflects a real supplied state transition only. Do not use it to imply an unconfirmed business result.", requires: ["Celebration"]),
+        .init("Use HtmlView only when the task needs its content. It has no native bridge and is not a substitute for registered native controls.", requires: ["HtmlView"])
+    ]
+
+    private static let exampleRequirements: [Set<String>] = [
+        ["Col", "Title", "Text", "Button"],
+        ["Col", "SegmentedControl", "List", "ListItem", "Checkbox", "Disclosure", "Text"],
+        ["Col", "ProductCard", "Checkbox", "Button", "Text"],
+        ["Col", "Title", "Image", "Text", "Citation", "Row"],
+        ["Col", "TransportCard"],
+        ["Col", "TransportCard"],
+        ["Col", "Map", "MapMarker", "Carousel", "Card", "Row", "Image", "Title", "Caption"],
+        ["Col", "Title", "Form", "Card", "Input", "RadioGroup", "SegmentedControl", "Slider", "Checkbox", "Disclosure", "TextArea", "Button", "Caption", "Text"]
+    ]
 
     static let generationExamples: [String] = [
         """

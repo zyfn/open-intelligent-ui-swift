@@ -2,15 +2,27 @@ import Foundation
 import OpenUILang
 import OpenUISwiftUI
 
+/// Validation does not change parsing or rendering. Historical reading keeps
+/// the full RC20-era contract; generation uses only the advertised writer.
+public enum IntelligentUIValidationProfile: Sendable, Equatable {
+    case historical
+    case generation
+}
+
 extension IntelligentUILibrary {
     /// Combined source/runtime/schema check. Presentation warnings are intentionally separate.
     @MainActor public func validationIssues(in state: IntelligentUIState, source: String) -> [String] {
+        validationIssues(in: state, source: source, profile: .historical)
+    }
+
+    @MainActor public func validationIssues(in state: IntelligentUIState, source: String,
+                                           profile: IntelligentUIValidationProfile) -> [String] {
         var issues = sourceIssues(in: source) + state.errors.map { String(describing: $0) }
         guard let root = state.root else { return issues + ["program: missing evaluated root"] }
         if state.isComplete && !root.isSourceComplete {
             issues.append("program: unfinished or unresolved source remains after stream completion")
         }
-        issues += validationIssues(in: root)
+        issues += validationIssues(in: root, profile: profile)
         return issues
     }
 
@@ -87,7 +99,11 @@ extension IntelligentUILibrary {
 
     /// Content checks supplement parser errors; consumers should also inspect OpenUIState.errors.
     public func validationIssues(in root: EvaluatedElement) -> [String] {
-        var issues = undeclaredFieldIssues(in: root)
+        validationIssues(in: root, profile: .historical)
+    }
+
+    public func validationIssues(in root: EvaluatedElement, profile: IntelligentUIValidationProfile) -> [String] {
+        var issues = undeclaredFieldIssues(in: root, profile: profile)
         func visit(_ value: Value, path: String, depth: Int) {
             guard depth < 64 else { return }
             switch value {
@@ -119,20 +135,30 @@ extension IntelligentUILibrary {
     /// Supplements runtime type/required checks with undeclared-object-field diagnostics.
     /// Reading keeps the complete schema so historical messages remain valid.
     public func undeclaredFieldIssues(in root: EvaluatedElement) -> [String] {
-        guard let data = readerComponents.toSpec().jsonString().data(using: .utf8),
+        undeclaredFieldIssues(in: root, profile: .historical)
+    }
+
+    public func undeclaredFieldIssues(in root: EvaluatedElement, profile: IntelligentUIValidationProfile) -> [String] {
+        let catalog = profile == .generation ? components : readerComponents
+        guard let data = catalog.toSpec().jsonString().data(using: .utf8),
               let spec = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let schema = spec["schema"] as? [String: Any],
               let definitions = schema["$defs"] as? [String: Any] else { return ["Component schema could not be read"] }
-        return FieldDiagnostics(definitions: definitions).inspect(.element(root), schema: [:], path: "root", depth: 0)
+        return FieldDiagnostics(definitions: definitions, componentNames: Set(catalog.library.components.map(\.name)))
+            .inspect(.element(root), schema: [:], path: "root", depth: 0)
     }
 }
 
 private struct FieldDiagnostics {
     let definitions: [String: Any]
+    let componentNames: Set<String>
 
     func inspect(_ value: Value, schema: [String: Any], path: String, depth: Int) -> [String] {
         guard depth < 64 else { return [path + ": object inspection depth exceeded"] }
         if case .element(let element) = value {
+            guard componentNames.contains(element.typeName) else {
+                return [path + "." + element.typeName + ": component is not available in this validation profile"]
+            }
             let definition = definitions[element.typeName] as? [String: Any] ?? [:]
             return inspectFields(element.props, schema: definition, path: path + "." + element.typeName, depth: depth + 1)
         }
@@ -171,6 +197,9 @@ private struct FieldDiagnostics {
         let strict = schema["additionalProperties"] as? Bool == false
         var issues: [String] = []
         for (key, value) in fields {
+            // Reader evaluation may retain omitted optional fields as undefined.
+            // They do not constitute arguments in a generated program.
+            if case .undefined = value { continue }
             if strict && properties[key] == nil { issues.append(path + "." + key + ": undeclared field") }
             let child = properties[key] as? [String: Any] ?? schema["additionalProperties"] as? [String: Any] ?? [:]
             issues += inspect(value, schema: child, path: path + "." + key, depth: depth)
