@@ -222,7 +222,7 @@ final class VisualPolishTests: XCTestCase {
       for width: CGFloat in [180, 320] {
         func dimensions(_ cached: Image?, sourceReady: Bool = true) -> CGSize {
           NSHostingView(rootView: NativeRemoteImage(src: nil, alt: "Object", layout: .aspect(16 / 9), cachedImage: cached)
-            .environment(\.openUIMediaSourceReady, sourceReady: sourceReady).dynamicTypeSize(size)
+            .environment(\.openUIMediaSourceReady, sourceReady).dynamicTypeSize(size)
             .frame(width: width)).fittingSize
         }
         let empty = dimensions(nil)
