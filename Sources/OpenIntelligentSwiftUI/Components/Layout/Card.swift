@@ -11,7 +11,6 @@ enum CardComponent {
             Parameter.number("gap", minimum: 0, maximum: 24)
         ]) { context in
             CardView(context: context)
-                .environment(\.openUIInteractionScopeReady, context.canInteract)
         }
     }
 }
@@ -35,10 +34,13 @@ private struct CardView: View {
         return ["ProductCard", "TransportCard"].contains(child.typeName)
     }
     @ViewBuilder var body: some View {
-        if ownsSurface {
-            VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else { surface }
+        Group {
+            if ownsSurface {
+                VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else { surface }
+        }
+        .environment(\.openUIInteractionScopeReady, context.canInteract)
     }
     private var surface: some View {
         let children = context.children()

@@ -14,7 +14,6 @@ enum FormComponent {
             OpenUIParameter.slot("children", required: true)
         ]) { context in
             FormGroup(context: context)
-                .environment(\.openUIInteractionScopeReady, context.canInteract)
         }
     }
 }
@@ -28,6 +27,7 @@ private struct FormGroup: View {
                 context.render(child.value)
             }
         }.openUIForm(context.element.statementId ?? identity)
+            .environment(\.openUIInteractionScopeReady, context.canInteract)
     }
 }
 enum PopoverComponent {
