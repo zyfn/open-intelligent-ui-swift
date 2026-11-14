@@ -50,6 +50,19 @@
     "removal": "Equivalent upstream native authoring interface; mutable public setters require a migration"
   },
   {
+    "id": "zod-schema-unions",
+    "category": "dependency-compatibility",
+    "locations": [
+      "Tools/Core/compat.mjs",
+      "Tools/Core/build.mjs",
+      "Tools/Presentation/catalog.mjs"
+    ],
+    "reason": "Zod 4.6.7 compacts pure anyOf type unions; preserve the established exported schema representation while retaining its security-fixed validators",
+    "observable": "Union and nullable nesting, branch order and schema key order; parsing, validation and collection security limits are unchanged",
+    "verification": "Exact dependency version and source/transform SHA-256 pins, unchanged reference catalog and native authoring regression cases",
+    "removal": "An explicitly reviewed schema-format migration or an equivalent upstream compatibility option"
+  },
+  {
     "id": "serializer",
     "category": "upstream-defect-fix",
     "locations": [

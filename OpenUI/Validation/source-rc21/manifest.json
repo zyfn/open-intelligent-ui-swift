@@ -7,7 +7,7 @@
     "revision": "f3dfa1d0b479c131b6d4268e81961186f22ff09c",
     "tree": "3e2704beeb571bb99f7de41abe4484340a3ce03d"
   },
-  "candidate_tree": "2ba62a124ff882a083f8304868692d2521d50760",
+  "candidate_tree": "efae2a8cd4eae3f3ff1217b26eaa6f70d3c87da6",
   "repairs": [
     {
       "id": "supported-motion-fixture",
@@ -19,35 +19,43 @@
     },
     {
       "id": "zod-security",
-      "reason": "Pin Zod 4.6.7 and independently regenerate the original core with its unchanged builder/adapters. Preserve the source-specific adapter hash. The strict oracle digest changes with its dependency; all semantic expectations remain unchanged.",
+      "reason": "Pin Zod 4.6.7 and independently regenerate the source core with the explicitly reviewed JSON Schema export compatibility transform. Record the source-specific builder/adapter digest and exact dependency transform hashes. The strict oracle digest changes with its dependency; all semantic expectations remain unchanged.",
       "advisory": "GHSA-mrhx-c7xc-m3w5"
     },
     {
       "id": "katex-security",
       "reason": "Pin and override KaTeX 0.18.2 for the direct and transitive dependency, then independently regenerate original rich-text resources with its unchanged builder.",
       "advisory": "GHSA-238p-pmpm-9mq7"
+    },
+    {
+      "id": "zod-schema-format",
+      "reason": "Share the exact-version and exact-source-hash checked Zod JSON Schema compatibility plugin between the source core and catalog builders. Disable only the new compactTypeUnion export-format pass, preserving the existing anyOf representation, nesting and key order. Keep Zod 4.6.7 parsing, validators and collection security fixes unchanged; retain the original catalog bytes."
+    },
+    {
+      "id": "public-generator-registries",
+      "reason": "Replace Alibaba registry tarball origins in the three source presentation locks with registry.npmjs.org. Package versions, integrity digests and all other package metadata stay identical; verify fresh installation using a new cache and zero-vulnerability audits."
     }
   ],
   "patch": {
     "path": "source-rc21-fixes.patch",
-    "sha256": "47b414b881c217540b948822ce641d2c286442bfababacff738d5a1e303d9a92"
+    "sha256": "e899fbe7f7ce8d08a9319bef1fd6180cb58da5bba364ad3c32c40cc843f03606"
   },
   "files": [
     {
       "path": "packages/swift-lang/Sources/OpenUILang/Resources/core-manifest.json",
       "operation": "patch",
       "before_sha256": "aa71142b2ad7a71d26ec27a9ece3aed1ab2db4b760ed2d7bcf3bb7bde70760fc",
-      "after_sha256": "3186f20795f43d9289299bd24aae33107ced0806f90e4c46b64c7040bb5b17ee",
+      "after_sha256": "018bed455a4e5400346625ddc6307892ce84dfdf72a78e0914a3d6eb41b83ca6",
       "before_blob": "b5e2ace0d0974315e99bf91516cfa2da523569b9",
-      "after_blob": "7f9a2d8e27096e268eae7d03c3a73213622333ac"
+      "after_blob": "c1896e55d09f28ee6b8184fb9ffd4ed89d538530"
     },
     {
       "path": "packages/swift-lang/Sources/OpenUILang/Resources/lang-core.js",
       "operation": "copy",
       "before_sha256": "10227f1773ec35d0cadee6937cb5f1ca93eb04461d3885cd78d9074c9cbb24af",
-      "after_sha256": "c8f7ced6b8d8a36707b42e48cefb4ecea884814b709507f67a7c522ea3b51480",
+      "after_sha256": "a416d761c9ec2cf179f97f09772a8232982b63303978a76f7546e2f5ac363293",
       "before_blob": "97b072a68de93946cbb67a8d8ca3364d90b1bf1b",
-      "after_blob": "671dc40eb2260e6056997eb4fae64616831ef1b2",
+      "after_blob": "9f9d23eb3db8e66998d3ce48e8ecf7537e6d7b13",
       "copy_from": "Sources/OpenUILang/Resources/lang-core.js"
     },
     {
@@ -58,6 +66,30 @@
       "before_blob": "7a94eec33173308b3a51b9aaa7b6b0648aeca9fc",
       "after_blob": "503fe60935aed31b6a6c3f9763ec1967c1d43bcf",
       "copy_from": "Tests/OpenUILangTests/Fixtures/strict-compatibility.json"
+    },
+    {
+      "path": "packages/swift-lang/scripts/adaptations.json",
+      "operation": "patch",
+      "before_sha256": "7a5faa6b55bd43f48fa5036ad36dae2ec60c6c2a652f6b786785c69d5b0ee196",
+      "after_sha256": "7148141cd65856b0da4a1ddbefd2cb990e86e213746061e9592e02a5c7dbc796",
+      "before_blob": "e4f7ba33da11f7f7de7af50cd796ea840bb8c497",
+      "after_blob": "8d55faaad79a0ca1451cd06488b8bc089cae2c9f"
+    },
+    {
+      "path": "packages/swift-lang/scripts/build.mjs",
+      "operation": "patch",
+      "before_sha256": "ca8bbf2aff4bb555291bbdd14ade37e684a5375b5438aa9ed7c0fc7c4f2540f7",
+      "after_sha256": "018e3467d3a2c5fab9de34fed45b62f42841bd7ffebfdb2ea412938b616dde48",
+      "before_blob": "544c723095220d7955ccb1291f76ec5a53695096",
+      "after_blob": "b45fa5b7f4b0f5c84657e978511ccbf978bc9c73"
+    },
+    {
+      "path": "packages/swift-lang/scripts/compat.mjs",
+      "operation": "patch",
+      "before_sha256": "70c105c48a2e09aa357ce15d0017a7070ec76ac35b48d41f9ab5791e0d9d4cc0",
+      "after_sha256": "3170cff66ccbbb36c0cbb3c93e70f452ebb7691319a75df14374e8560c887935",
+      "before_blob": "0b535ea7b2b142a95e43eb8f149305b2c4dc2e8e",
+      "after_blob": "a08584840247e1e280b48a7219bfe0141f873a63"
     },
     {
       "path": "packages/swift-lang/scripts/package-lock.json",
@@ -128,12 +160,36 @@
       "after_blob": "0a3e2248ddffd0efe6ead8a3838cf32c5cd861ec"
     },
     {
+      "path": "packages/swift-ui/scripts/catalog.mjs",
+      "operation": "patch",
+      "before_sha256": "7afe9a429dfe309cf8f4453cac86a151b62de8f9867bd15366535ab5a500cb6d",
+      "after_sha256": "cc916990334965f8684cb13aa72bca2b179d38421a78466714927a30b9ac2880",
+      "before_blob": "56b63dcfc286054b398448426ba0929e9204dfb0",
+      "after_blob": "1a8b47836c0eea626c39cd286ce85fc81f488593"
+    },
+    {
+      "path": "packages/swift-ui/scripts/code-highlighting/package-lock.json",
+      "operation": "patch",
+      "before_sha256": "b2afdd686ee8c3b264072fd6b479503f008be1834ff422f3b6fdbea2677a7a2c",
+      "after_sha256": "15fed28ed53eef80eecbe71795ca21f71cbb8d8c6303a3bdcf8d648345ca2fbd",
+      "before_blob": "bb082dda9e28037bf35345f6f1ba15c20d91588a",
+      "after_blob": "cd3febc0e9ee84b08f310c3a1d5a4c418adb43e1"
+    },
+    {
+      "path": "packages/swift-ui/scripts/icons/package-lock.json",
+      "operation": "patch",
+      "before_sha256": "db3b2e53ee1ee4dd38ddf2229823cd37fac5ba1dbc5acbdfd59e4bf76418f698",
+      "after_sha256": "5fc9c8db0bdf877953c03e051247465f31c30e10b0ad85b7937dc139624afaf7",
+      "before_blob": "2e093098bbfeefc8633e70b5ea20557310dad196",
+      "after_blob": "33286d61f4c991616c9e09f10a215d9118495218"
+    },
+    {
       "path": "packages/swift-ui/scripts/rich-text/package-lock.json",
       "operation": "patch",
       "before_sha256": "7da4bbc0c0489b160bf9cca2c9463b36c71d65bf22e03131236077784a821ef5",
-      "after_sha256": "d9c0071f1b779cae31653160f8e2d7a54be719fa6b573762024a8f4144217d77",
+      "after_sha256": "87d600354934618bae5b60afb3a2a5887625d329a905f0f1cb0b2f119c8e2a7e",
       "before_blob": "f78fa7f8b94607f4b78e661fcb71b8f1d2e3fe1d",
-      "after_blob": "039f39788a412d63dcaa209b4515895a73aa9873"
+      "after_blob": "c98ebf251c160b9a3cb0b2469cad53eab2315cdc"
     },
     {
       "path": "packages/swift-ui/scripts/rich-text/package.json",

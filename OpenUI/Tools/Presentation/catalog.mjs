@@ -1,7 +1,9 @@
 import { prepareCoreSource, upstreamFile, upstreamFiles } from "../upstream.mjs";
 // Export the pinned upstream library's schemas. Rendering functions are erased
-// only in this build-time projection; lang-core and Zod execute unchanged.
+// only in this build-time projection. The shared Zod export adapter preserves
+// historical union schemas without changing Zod runtime validation.
 import { build } from '../Core/node_modules/esbuild/lib/main.js';
+import { zodJSONSchemaCompatibilityPlugin } from '../Core/compat.mjs';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
@@ -48,7 +50,7 @@ const promptOptions={...openuiPromptOptions,
   examples:followUpExample?[...openuiPromptOptions.examples,followUpExample]:openuiPromptOptions.examples};
 export function parseReference(source){return createParser(spec.schema).parse(source).meta.errors;}
 export const catalog={revision:${JSON.stringify(pin)},root:library.root,componentGroups:library.componentGroups,components:Object.entries(library.components).map(([name,c])=>({name,description:c.description,params:compiled.get(name).params.map(p=>({name:p.name,required:p.required,hasDefault:Object.hasOwn(p.schema??{},'default'),defaultValue:p.defaultValue??null,isBindable:isReactiveSchema(c.props.shape[p.name]),schema:spec.schema.$defs[name].properties[p.name]}))})),spec,promptOptions};`;
-const result=await build({stdin:{contents:entry,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',target:'node20',nodePaths:[join(here,'../Core/node_modules')],plugins:[{name:'reference-catalog',setup(b){
+const result=await build({stdin:{contents:entry,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',target:'node20',nodePaths:[join(here,'../Core/node_modules')],plugins:[zodJSONSchemaCompatibilityPlugin(),{name:'reference-catalog',setup(b){
   b.onResolve({filter:/^catalog:library$/},()=>({path:prefix+'openuiLibrary.tsx',namespace:'upstream'}));
   b.onResolve({filter:/^catalog:chat-presets$/},()=>({path:prefix+'prompt-options/index.ts',namespace:'upstream'}));
   b.onResolve({filter:/^catalog:followup-block$/},()=>({path:prefix+'FollowUpBlock/index.tsx',namespace:'upstream'}));

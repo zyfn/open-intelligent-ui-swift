@@ -13,7 +13,11 @@
 
 这些更新使用 npm 提供的真实 tarball 与 integrity，锁文件固定构建图。标准富文本中直接和传递的 KaTeX 使用相同的精确版本。Intelligent UI 的 MathML 引擎也由受审计的生成工具维护，避免只更新 npm 依赖而遗留旧的运行时文件。
 
-语言上游仍是 `@openuidev/lang-core` 1.0.2，来源 revision、位置参数补丁、适配后的源码树和原生桥接逻辑保持不变。Zod 更新后的严格 oracle fixture 只有 `oracleSHA256` 改变；解析、动作、查询、序列化及其来源期望保持原值。原生契约检查仍对照固定的历史 Intelligent UI 基线，完整比较组件顺序、位置参数和 schema。
+语言上游仍是 `@openuidev/lang-core` 1.0.2，来源 revision、位置参数补丁和适配后的语言源码树保持不变。Zod 更新后的严格 oracle fixture 只有 `oracleSHA256` 改变；解析、动作、查询、序列化及其来源期望保持原值。原生契约检查仍对照固定的历史 Intelligent UI 基线，完整比较组件顺序、位置参数和 schema。
+
+Zod 4.6.7 的 JSON Schema 导出新增了把纯标量 `anyOf` 合并成 `type` 数组的优化。两种写法表达相同类型集合，但本 SDK 保留既有导出契约，因此在现有构建兼容层中仅禁用该导出压缩步骤。共享适配同时用于原生 bundle 和官方组件目录生成，严格校验 Zod 版本、源文件 SHA-256、唯一匹配的替换片段及变换后 SHA-256；清单中的 `dependencyTransforms` 记录这些证据。Zod 的解析、校验和修复后的集合限制不受此导出适配影响。
+
+组件目录继续与原已提交文件逐字一致，不刷新 schema 期望来接受漂移。新增回归直接执行实际打包的 `nativeAuthoring`，覆盖联合分支顺序、nullable、类型数组输入、默认值、约束、嵌套、参数顺序及历史 parser 结果。
 
 标准富文本生成器继续嵌入字体，运行时不加载外部 CSS 或字体。Intelligent UI 继续输出 MathML，保留原来的 `trust: false`、严格语法、展开次数和输出大小限制。公式安全回归在隔离的 JavaScript 上下文中验证原型污染不能开启受信任渲染，并覆盖有效公式与非法输入。
 
@@ -27,11 +31,12 @@
 
 - 原视觉测试直接写只读的 SwiftUI `accessibilityReduceMotion` 环境值，在当前 Xcode 上无法编译。改用已有 presentation 配置和 transaction 控制动画，保留原视觉断言。
 - 原 ObjectCard 图片边缘测试使用没有图片地址的占位内容来断言红色图片。改用已加载的确定性红色 PNG，保留边缘、留白、像素坐标和阈值断言。
-- 源码候选的 Zod 与 KaTeX 同步升级，并使用冻结源码自身的生成器独立重建。源路径下的适配器哈希保留其自身来源。
+- 源码候选的 Zod 与 KaTeX 同步升级，生成器接入同一份精确 JSON Schema 导出适配后独立重建；原始 Lang 源码不变。源路径下的适配器哈希按其实际生成器单独计算，清单包含这些经过审查的修改。
+- 源码中三份 presentation 锁文件的遗留私有下载地址改为公开 npm registry；该地址规范化逐项保留包版本、integrity 和其余元数据，并使用全新 npm cache 验证实际下载与审计。
 
 [修复工具](../Tools/repair_rc21_source.py) 验证基线 HEAD 和完整 tree、补丁 SHA-256、每个文件的前后哈希、允许变化的文件集合及完整候选 tree。可复用的生成资源也通过精确哈希声明来源。工具不移动基线 HEAD，不写入源码仓库的真实 index；它用临时 index 计算完整候选 tree。
 
-原始源码测试、Release 尺寸拟合、authoring fixtures、依赖审计、资源再生成、AddressSanitizer、macOS 示例与 iOS 16 Simulator 编译均继续运行。资源再生成及所有构建完成后，再次验证完整候选 tree，确保测试过程没有悄悄改变候选。
+原始源码测试、Release 尺寸拟合、authoring fixtures、依赖审计、资源再生成、原组件目录逐字比较、AddressSanitizer、macOS 示例与 iOS 16 Simulator 编译均继续运行。资源再生成及所有构建完成后，再次验证完整候选 tree，确保测试过程没有悄悄改变候选。
 
 在具备固定源码 checkout 的本机，可以从 SDK 根目录执行：
 

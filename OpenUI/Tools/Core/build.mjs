@@ -5,6 +5,8 @@ import {
   serializer,
   replaceOnce,
   materializer,
+  zodJSONSchemaCompatibility,
+  zodJSONSchemaCompatibilityPlugin,
 } from './compat.mjs';
 import { readFileSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +62,7 @@ const result = await build({
   banner: { js: banner },
   metafile: true,
   plugins: [
+    zodJSONSchemaCompatibilityPlugin(),
     {
       name: 'native-compatibility',
       setup(b) {
@@ -178,6 +181,7 @@ writeFileSync(
       originalSourceTree: lock.core.originalTree,
       sourcePatchSHA256: lock.core.sourcePatchSHA256,
       sourceTree: pin,
+      dependencyTransforms: [zodJSONSchemaCompatibility],
       sha256: createHash('sha256').update(data).digest('hex'),
       bytes: data.length,
       lockSha256: createHash('sha256')

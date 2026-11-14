@@ -49,6 +49,7 @@ jobs:
           git diff --exit-code -- Sources/OpenUILang/Resources
           node OpenUI/Tools/Core/verify-compatibility.mjs
           node --test OpenUI/Validation/validation.test.mjs
+          node --test OpenUI/Tools/Presentation/catalog-compatibility.test.mjs
       - name: Rebuild presentation resources from public registries
         run: |
           set -euo pipefail
@@ -151,6 +152,14 @@ jobs:
         run: |
           set -euo pipefail
           swift test 2>&1 | tee outputs/verification/sdk-tests.log
+      - name: Retain native test diagnostics immediately
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-package-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/sdk-tests.log
+          if-no-files-found: warn
+          retention-days: 7
       - name: Independent public UI product consumers
         if: ${{ !cancelled() }}
         shell: bash
@@ -273,6 +282,14 @@ jobs:
         run: |
           set -euo pipefail
           swift test 2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/sdk-tests.log"
+      - name: Retain source test diagnostics immediately
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-rc21-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/source-rc21-evidence/sdk-tests.log
+          if-no-files-found: warn
+          retention-days: 7
       - name: Source candidate Release fitting
         if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
         shell: bash
@@ -324,6 +341,7 @@ jobs:
           set -euo pipefail
           npm ci --prefix packages/swift-ui/scripts/rich-text --ignore-scripts
           node packages/swift-ui/scripts/rich-text/build.mjs
+          node packages/swift-ui/scripts/catalog.mjs --check
           python3 "$GITHUB_WORKSPACE/candidate-tools/Tools/repair_rc21_source.py" \
             --source "$GITHUB_WORKSPACE/source-rc21" \
             --evidence "$RUNNER_TEMP/source-rc21-evidence" --verify

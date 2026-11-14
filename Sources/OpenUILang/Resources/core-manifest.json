@@ -4,10 +4,20 @@
   "originalSourceTree": "bf6be546007f96c87689c7b47c29e1f09175f6f6",
   "sourcePatchSHA256": "46c23e4a17a94f00c5c97b9f2dfa4257321794bbb44d981f8f7ed697dd4794a5",
   "sourceTree": "92152ac52c9d8effdebbe734bedca3c8016b6bac",
-  "sha256": "c8f7ced6b8d8a36707b42e48cefb4ecea884814b709507f67a7c522ea3b51480",
-  "bytes": 852929,
+  "dependencyTransforms": [
+    {
+      "package": "zod",
+      "version": "4.6.7",
+      "module": "v4/core/to-json-schema.js",
+      "sourceSHA256": "85b883eb8f05e9f060c71a39fce7df9345b566af29d5bc9c8fa477fe616a051d",
+      "transformedSHA256": "38c767e92b86e8c6808531ca3c43f58075284af2eb6ca5503f02a0ef1efb26ec",
+      "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
+    }
+  ],
+  "sha256": "a416d761c9ec2cf179f97f09772a8232982b63303978a76f7546e2f5ac363293",
+  "bytes": 852487,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "6026ef48e0e5e28faeea6118e33918f685888205102057451ceeca2d69e86c9d",
+  "adapterSha256": "197dd52fa2bbfc2353dd240cfc53f9a4227bf930e6d372ceeaee416f91844b89",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -86,6 +96,19 @@
       "observable": "Definitions, constraints, positional fields and native binding metadata",
       "verification": "Authoring oracle and compiled schema mutation tests",
       "removal": "Equivalent upstream native authoring interface; mutable public setters require a migration"
+    },
+    {
+      "id": "zod-schema-unions",
+      "category": "dependency-compatibility",
+      "locations": [
+        "Tools/Core/compat.mjs",
+        "Tools/Core/build.mjs",
+        "Tools/Presentation/catalog.mjs"
+      ],
+      "reason": "Zod 4.6.7 compacts pure anyOf type unions; preserve the established exported schema representation while retaining its security-fixed validators",
+      "observable": "Union and nullable nesting, branch order and schema key order; parsing, validation and collection security limits are unchanged",
+      "verification": "Exact dependency version and source/transform SHA-256 pins, unchanged reference catalog and native authoring regression cases",
+      "removal": "An explicitly reviewed schema-format migration or an equivalent upstream compatibility option"
     },
     {
       "id": "serializer",
