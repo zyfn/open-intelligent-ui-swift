@@ -6,7 +6,7 @@
 
 | 依赖 | 当前固定版本 | 修复与验证 |
 |---|---|---|
-| Zod | `4.6.7` | 修复约束集合校验的内存耗尽问题；重新生成语言 bundle、manifest 与 oracle 构建指纹 |
+| Zod | `4.6.7` | 修复约束集合校验的内存耗尽问题；保留既有 schema 导出与原生 record 契约，重新生成语言 bundle、manifest 与 oracle 构建指纹 |
 | KaTeX | `0.18.2` | 修复从原型继承信任选项的问题；更新标准富文本与 Intelligent UI 实际使用的公式资源 |
 
 官方安全公告分别为 [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) 和 [GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7)。后一个问题依赖于已有原型污染；修复后的依赖不再把继承的选项视为应用主动启用信任。
@@ -17,7 +17,9 @@
 
 Zod 4.6.7 的 JSON Schema 导出新增了把纯标量 `anyOf` 合并成 `type` 数组的优化。两种写法表达相同类型集合，但本 SDK 保留既有导出契约，因此在现有构建兼容层中仅禁用该导出压缩步骤。共享适配同时用于原生 bundle 和官方组件目录生成，严格校验 Zod 版本、源文件 SHA-256、唯一匹配的替换片段及变换后 SHA-256；清单中的 `dependencyTransforms` 记录这些证据。Zod 的解析、校验和修复后的集合限制不受此导出适配影响。
 
-组件目录继续与原已提交文件逐字一致，不刷新 schema 期望来接受漂移。新增回归直接执行实际打包的 `nativeAuthoring`，覆盖联合分支顺序、nullable、类型数组输入、默认值、约束、嵌套、参数顺序及历史 parser 结果。
+Zod 的 JSON Schema 导入也把简单字符串键 record 包装为带校验的 pipe，固定 Lang 核心无法由该表示还原历史 record 签名。现有 authoring 桥接只对没有显式字段、patternProperties、属性数量或键名约束的简单 record 恢复新版 `z.record` 表示，并保留原来的字符串键检查、元数据、默认值和绑定身份。带额外约束的对象继续使用完整的新版 guard.pipe，保留预解析检查。
+
+组件目录继续与原已提交文件逐字一致，不刷新 schema 期望来接受漂移。回归直接执行实际打包的 `nativeAuthoring`，比较全部 84 个组件、304 个参数和完整签名，覆盖联合分支顺序、nullable、类型数组输入、默认值、约束、嵌套、参数顺序及历史 parser 结果。另通过真实桥接的 `props.safeParse` 执行对象大小、键名、固定字段、额外属性类型和 patternProperties 的正反校验，验证安全检查实际生效。
 
 标准富文本生成器继续嵌入字体，运行时不加载外部 CSS 或字体。Intelligent UI 继续输出 MathML，保留原来的 `trust: false`、严格语法、展开次数和输出大小限制。公式安全回归在隔离的 JavaScript 上下文中验证原型污染不能开启受信任渲染，并覆盖有效公式与非法输入。
 
@@ -31,7 +33,7 @@ Zod 4.6.7 的 JSON Schema 导出新增了把纯标量 `anyOf` 合并成 `type` �
 
 - 原视觉测试直接写只读的 SwiftUI `accessibilityReduceMotion` 环境值，在当前 Xcode 上无法编译。改用已有 presentation 配置和 transaction 控制动画，保留原视觉断言。
 - 原 ObjectCard 图片边缘测试使用没有图片地址的占位内容来断言红色图片。改用已加载的确定性红色 PNG，保留边缘、留白、像素坐标和阈值断言。
-- 源码候选的 Zod 与 KaTeX 同步升级，生成器接入同一份精确 JSON Schema 导出适配后独立重建；原始 Lang 源码不变。源路径下的适配器哈希按其实际生成器单独计算，清单包含这些经过审查的修改。
+- 源码候选的 Zod 与 KaTeX 同步升级，接入相同的精确 JSON Schema 导出与原生 record 兼容适配后独立重建；原始 Lang 源码不变。源路径下的适配器哈希按其实际生成器单独计算，清单包含这些经过审查的修改。
 - 源码中三份 presentation 锁文件的遗留私有下载地址改为公开 npm registry；该地址规范化逐项保留包版本、integrity 和其余元数据，并使用全新 npm cache 验证实际下载与审计。
 
 [修复工具](../Tools/repair_rc21_source.py) 验证基线 HEAD 和完整 tree、补丁 SHA-256、每个文件的前后哈希、允许变化的文件集合及完整候选 tree。可复用的生成资源也通过精确哈希声明来源。工具不移动基线 HEAD，不写入源码仓库的真实 index；它用临时 index 计算完整候选 tree。

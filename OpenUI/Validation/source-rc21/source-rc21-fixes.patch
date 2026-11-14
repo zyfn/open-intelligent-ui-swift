@@ -1,5 +1,5 @@
 diff --git a/packages/swift-lang/Sources/OpenUILang/Resources/core-manifest.json b/packages/swift-lang/Sources/OpenUILang/Resources/core-manifest.json
-index b5e2ace0d0974315e99bf91516cfa2da523569b9..c1896e55d09f28ee6b8184fb9ffd4ed89d538530 100644
+index b5e2ace0d0974315e99bf91516cfa2da523569b9..aa0e84359f61bc244cffdea30c0e7250fd2aad30 100644
 --- a/packages/swift-lang/Sources/OpenUILang/Resources/core-manifest.json
 +++ b/packages/swift-lang/Sources/OpenUILang/Resources/core-manifest.json
 @@ -1,10 +1,20 @@
@@ -20,17 +20,28 @@ index b5e2ace0d0974315e99bf91516cfa2da523569b9..c1896e55d09f28ee6b8184fb9ffd4ed8
 +      "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
 +    }
 +  ],
-+  "sha256": "a416d761c9ec2cf179f97f09772a8232982b63303978a76f7546e2f5ac363293",
-+  "bytes": 852487,
++  "sha256": "84619d09343570632de25963c153e67e4d13f1cf51d05dbf7cea13237f88bf5b",
++  "bytes": 853116,
 +  "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-+  "adapterSha256": "c99c742d6915c78cbf12b2a042a40a1a84dafb5a6e28a857aefc0d3913de39f3",
++  "adapterSha256": "1adf2acac7857c20fcd8a7b995bcbd2b12beab7fea30e409b78607a5995a3f26",
    "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
    "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
    "authoring": {
-@@ -84,6 +94,19 @@
+@@ -84,6 +94,30 @@
        "verification": "Authoring oracle and compiled schema mutation tests",
        "removal": "Equivalent upstream native authoring interface; mutable public setters require a migration"
      },
++    {
++      "id": "native-record-representation",
++      "category": "dependency-compatibility",
++      "locations": [
++        "scripts/authoring.ts"
++      ],
++      "reason": "Zod 4.6.7 imports plain string-key records as guarded pipes, which the pinned core cannot introspect as records; retain the historical native record schema and signature",
++      "observable": "Only records without explicit properties, pattern properties, property counts or restricted keys are restored; default/description, binding/ref identity and the original string-key check are retained",
++      "verification": "All 84 catalog components and 304 parameters round-trip against the original contract; native record/binding cases and actual Zod guard validation cover constrained objects",
++      "removal": "Equivalent upstream record introspection or an explicitly reviewed native schema/signature migration"
++    },
 +    {
 +      "id": "zod-schema-unions",
 +      "category": "dependency-compatibility",
@@ -48,17 +59,69 @@ index b5e2ace0d0974315e99bf91516cfa2da523569b9..c1896e55d09f28ee6b8184fb9ffd4ed8
        "id": "serializer",
        "category": "upstream-defect-fix",
 diff --git a/packages/swift-lang/scripts/adaptations.json b/packages/swift-lang/scripts/adaptations.json
-index e4f7ba33da11f7f7de7af50cd796ea840bb8c497..8d55faaad79a0ca1451cd06488b8bc089cae2c9f 100644
+index e4f7ba33da11f7f7de7af50cd796ea840bb8c497..9a1cd4bcd40ef8e197751afe7248b1099412f35a 100644
 --- a/packages/swift-lang/scripts/adaptations.json
 +++ b/packages/swift-lang/scripts/adaptations.json
-@@ -3,6 +3,7 @@
+@@ -3,6 +3,8 @@
    {"id":"value-bridge","category":"platform-bridge","locations":["scripts/entry.ts","Sources/OpenUILang/SharedCore.swift","Sources/OpenUILang/OpenUIString.swift"],"reason":"Ordered UTF16 values and native callback transport","observable":"Identity, undefined, surrogate and key order semantics","verification":"Strict parser traces and semantic oracle vectors","removal":"Equivalent lossless upstream native transport"},
    {"id":"captures","category":"platform-bridge","locations":["scripts/captures.ts","Sources/OpenUILang/Actions.swift"],"reason":"Opaque native values and ActionPlan provenance","observable":"Deferred evaluation and ordered native actions","verification":"Official adapter action traces and interaction tests","removal":"Equivalent upstream capture and executor interface"},
    {"id":"authoring","category":"platform-bridge","locations":["scripts/authoring.ts","Sources/OpenUILang/LibraryBridge.swift","Sources/OpenUILang/SchemaDocument.swift"],"reason":"Lossless JSON/Zod references and compatible editable schema projections","observable":"Definitions, constraints, positional fields and native binding metadata","verification":"Authoring oracle and compiled schema mutation tests","removal":"Equivalent upstream native authoring interface; mutable public setters require a migration"},
++  {"id":"native-record-representation","category":"dependency-compatibility","locations":["scripts/authoring.ts"],"reason":"Zod 4.6.7 imports plain string-key records as guarded pipes, which the pinned core cannot introspect as records; retain the historical native record schema and signature","observable":"Only records without explicit properties, pattern properties, property counts or restricted keys are restored; default/description, binding/ref identity and the original string-key check are retained","verification":"All 84 catalog components and 304 parameters round-trip against the original contract; native record/binding cases and actual Zod guard validation cover constrained objects","removal":"Equivalent upstream record introspection or an explicitly reviewed native schema/signature migration"},
 +  {"id":"zod-schema-unions","category":"dependency-compatibility","locations":["scripts/compat.mjs","scripts/build.mjs","../swift-ui/scripts/catalog.mjs"],"reason":"Zod 4.6.7 compacts pure anyOf type unions; preserve the established exported schema representation while retaining its security-fixed validators","observable":"Union and nullable nesting, branch order and schema key order; parsing, validation and collection security limits are unchanged","verification":"Exact dependency version and source/transform SHA-256 pins, unchanged reference catalog and native authoring regression cases","removal":"An explicitly reviewed schema-format migration or an equivalent upstream compatibility option"},
    {"id":"serializer","category":"upstream-defect-fix","locations":["scripts/compat.mjs","scripts/patches/serializer-roundtrip.patch"],"reason":"Pinned serializer loses precedence and nonidentifier keys","observable":"Serialized spelling changes; parsed computed meaning is retained","verification":"Unmodified official parser accepts emitted programs and evaluates the same meaning","removal":"Upstream passes these round-trip regressions"},
    {"id":"readiness","category":"native-presentation-metadata","locations":["scripts/readiness-compat.mjs","scripts/readiness.ts","Sources/OpenUILang/NativeSourceReadiness.swift"],"reason":"Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness","observable":"Existing syntax marks remain private; new per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs","verification":"Strict intermediate snapshots, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests","removal":"Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"},
    {"id":"materialization-budget","category":"resource-limit","locations":["scripts/compat.mjs"],"reason":"Bound native materialization to 256 levels and 100000 nodes","observable":"Existing parse-exception diagnostic, outside stock equivalence domain","verification":"Budget tests separate from strict equivalence cases","removal":"Equivalent upstream or platform execution bounds"},
+diff --git a/packages/swift-lang/scripts/authoring.ts b/packages/swift-lang/scripts/authoring.ts
+index 96c30e7433526cf765e73befbca37926c73627af..24bbd0b38b937df5f06ebeb1b89fecfd85d88684 100644
+--- a/packages/swift-lang/scripts/authoring.ts
++++ b/packages/swift-lang/scripts/authoring.ts
+@@ -54,14 +54,16 @@ function converterInput(value: any): any {
+   if (next.type === 'object' && !own(next, 'properties') && !own(next, 'propertyNames')) next.propertyNames = { type: 'string' };
+   return next;
+ }
+-function copySchema(schema: any, patch: any): any {
+-  const result = z.core.clone(schema, { ...schema._zod.def, ...patch });
++function carrySchemaMetadata(schema: any, result: any): any {
+   copySchemaTags(schema, result);
+   if (core.isReactiveSchema(schema)) core.markReactive(result);
+   const metadata = z.globalRegistry.get(schema);
+   if (metadata) z.globalRegistry.add(result, metadata);
+   return result;
+ }
++function copySchema(schema: any, patch: any): any {
++  return carrySchemaMetadata(schema, z.core.clone(schema, { ...schema._zod.def, ...patch }));
++}
+ function parts(input: any, previous?: any, changed = new Set<string>()): any {
+   const template = wireTemplate(input);
+   const properties: any = { ...template.properties };
+@@ -102,6 +104,27 @@ function parts(input: any, previous?: any, changed = new Set<string>()): any {
+       if (ACTION_DEFS[name]) return ACTION_DEFS[name];
+       return schema;
+     }
++    // 4.6.7 imports even a plain string-key record as guard.pipe(object).
++    // The pinned core introspects records, but not pipes, for its signatures.
++    // Restore only the historical unconstrained native record representation.
++    // Its sole guard checks string key names and is retained on the new record;
++    // it cannot distinguish pre/post-parse keys, since every key is a string.
++    // Any object/key constraint or explicit properties retain the original pipe
++    // and its pre-parse guards, including property counts and restricted names.
++    const recordKeys = ['type', 'propertyNames', 'additionalProperties', 'default', 'description'];
++    const plainStringKeys = !own(raw, 'propertyNames') ||
++      (raw.propertyNames?.type === 'string' && Object.keys(raw.propertyNames).length === 1);
++    const guardedObject = def.type === 'pipe' && def.in?._zod?.def?.type === 'transform' &&
++      def.out?._zod?.def?.type === 'object' && Object.keys(def.out.shape).length === 0;
++    if (raw.type === 'object' && plainStringKeys && raw.additionalProperties !== false &&
++        Object.keys(raw).every(key => recordKeys.includes(key)) && guardedObject) {
++      const checks = def.in._zod.def.checks;
++      if (Array.isArray(checks) && checks.length === 1) {
++        const value = raw.additionalProperties && typeof raw.additionalProperties === 'object'
++          ? def.out._zod.def.catchall : z.any();
++        if (value) return carrySchemaMetadata(schema, z.record(z.string(), value).check(...checks));
++      }
++    }
+     if (def.type === 'array' && raw.items) return copySchema(schema, { element: link(raw.items, def.element) });
+     if (['union', 'xor'].includes(def.type) && (raw.anyOf || raw.oneOf)) {
+       const options = raw.anyOf ?? raw.oneOf;
 diff --git a/packages/swift-lang/scripts/build.mjs b/packages/swift-lang/scripts/build.mjs
 index 544c723095220d7955ccb1291f76ec5a53695096..b45fa5b7f4b0f5c84657e978511ccbf978bc9c73 100644
 --- a/packages/swift-lang/scripts/build.mjs

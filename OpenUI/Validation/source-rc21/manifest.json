@@ -7,7 +7,7 @@
     "revision": "f3dfa1d0b479c131b6d4268e81961186f22ff09c",
     "tree": "3e2704beeb571bb99f7de41abe4484340a3ce03d"
   },
-  "candidate_tree": "efae2a8cd4eae3f3ff1217b26eaa6f70d3c87da6",
+  "candidate_tree": "51eedac918540b31206b9f613e3ac7566da025a3",
   "repairs": [
     {
       "id": "supported-motion-fixture",
@@ -19,7 +19,7 @@
     },
     {
       "id": "zod-security",
-      "reason": "Pin Zod 4.6.7 and independently regenerate the source core with the explicitly reviewed JSON Schema export compatibility transform. Record the source-specific builder/adapter digest and exact dependency transform hashes. The strict oracle digest changes with its dependency; all semantic expectations remain unchanged.",
+      "reason": "Pin Zod 4.6.7 and independently regenerate the source core with explicitly reviewed schema-export and native-record compatibility adjustments. Record the source-specific builder/adapter digest and exact dependency transform hashes. The strict oracle digest changes with its dependency; all semantic expectations remain unchanged.",
       "advisory": "GHSA-mrhx-c7xc-m3w5"
     },
     {
@@ -34,28 +34,32 @@
     {
       "id": "public-generator-registries",
       "reason": "Replace Alibaba registry tarball origins in the three source presentation locks with registry.npmjs.org. Package versions, integrity digests and all other package metadata stay identical; verify fresh installation using a new cache and zero-vulnerability audits."
+    },
+    {
+      "id": "native-record-authoring",
+      "reason": "Restore only the established unconstrained string-key record representation after the Zod 4.6.7 JSON Schema import, retaining its original string-key check object, defaults, descriptions and binding/reference identity. Constrained objects, property-count restrictions, fixed/pattern properties and restricted keys retain their original guarded pipeline. Preserve the original CheckBoxGroup/SwitchGroup schema and binding signatures; do not change their assertions or catalog expectations."
     }
   ],
   "patch": {
     "path": "source-rc21-fixes.patch",
-    "sha256": "e899fbe7f7ce8d08a9319bef1fd6180cb58da5bba364ad3c32c40cc843f03606"
+    "sha256": "1d8924a5e799a3526372772922bd667d94c1996e6d45ca3605bcedec1d736a3b"
   },
   "files": [
     {
       "path": "packages/swift-lang/Sources/OpenUILang/Resources/core-manifest.json",
       "operation": "patch",
       "before_sha256": "aa71142b2ad7a71d26ec27a9ece3aed1ab2db4b760ed2d7bcf3bb7bde70760fc",
-      "after_sha256": "018bed455a4e5400346625ddc6307892ce84dfdf72a78e0914a3d6eb41b83ca6",
+      "after_sha256": "bc1115d61f085b8dc163d961b7982e6e9caaf71f5168369cce73faaea3350c49",
       "before_blob": "b5e2ace0d0974315e99bf91516cfa2da523569b9",
-      "after_blob": "c1896e55d09f28ee6b8184fb9ffd4ed89d538530"
+      "after_blob": "aa0e84359f61bc244cffdea30c0e7250fd2aad30"
     },
     {
       "path": "packages/swift-lang/Sources/OpenUILang/Resources/lang-core.js",
       "operation": "copy",
       "before_sha256": "10227f1773ec35d0cadee6937cb5f1ca93eb04461d3885cd78d9074c9cbb24af",
-      "after_sha256": "a416d761c9ec2cf179f97f09772a8232982b63303978a76f7546e2f5ac363293",
+      "after_sha256": "84619d09343570632de25963c153e67e4d13f1cf51d05dbf7cea13237f88bf5b",
       "before_blob": "97b072a68de93946cbb67a8d8ca3364d90b1bf1b",
-      "after_blob": "9f9d23eb3db8e66998d3ce48e8ecf7537e6d7b13",
+      "after_blob": "75c7d73ed9f8844e1123ba519f29fa43dd5c9e62",
       "copy_from": "Sources/OpenUILang/Resources/lang-core.js"
     },
     {
@@ -71,9 +75,17 @@
       "path": "packages/swift-lang/scripts/adaptations.json",
       "operation": "patch",
       "before_sha256": "7a5faa6b55bd43f48fa5036ad36dae2ec60c6c2a652f6b786785c69d5b0ee196",
-      "after_sha256": "7148141cd65856b0da4a1ddbefd2cb990e86e213746061e9592e02a5c7dbc796",
+      "after_sha256": "67e4c4ec6edbac37ea4bf39d5ea3fb942ef22bddce5e44072a1e178d51ca478c",
       "before_blob": "e4f7ba33da11f7f7de7af50cd796ea840bb8c497",
-      "after_blob": "8d55faaad79a0ca1451cd06488b8bc089cae2c9f"
+      "after_blob": "9a1cd4bcd40ef8e197751afe7248b1099412f35a"
+    },
+    {
+      "path": "packages/swift-lang/scripts/authoring.ts",
+      "operation": "patch",
+      "before_sha256": "9b235ed905ac7e437f885133b0b844ffeec31467111f8a5133aee721f2604aa2",
+      "after_sha256": "6c4104f1d1dc71524c235ae0fea1b09b8836560d65ed29f3d5eaefa9853d7692",
+      "before_blob": "96c30e7433526cf765e73befbca37926c73627af",
+      "after_blob": "24bbd0b38b937df5f06ebeb1b89fecfd85d88684"
     },
     {
       "path": "packages/swift-lang/scripts/build.mjs",
