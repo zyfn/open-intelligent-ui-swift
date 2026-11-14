@@ -81,7 +81,7 @@ for(const key of ['additionalRules','examples'])
   if(!Array.isArray(catalog.promptOptions[key]) || !catalog.promptOptions[key].every(value=>typeof value==='string'))
     throw Error('Invalid upstream prompt preset '+key);
 catalog.sources=Object.fromEntries([...inputs].sort());
-const destination=resolve(here,'../../Sources/OpenUISwiftUI/Resources/upstream-catalog.json');
+const destination=resolve(here,'../../Sources/OpenSwiftUI/Resources/upstream-catalog.json');
 const text=JSON.stringify(catalog,null,2)+'\n';
 if(process.argv.includes('--check')){if(!existsSync(destination)||readFileSync(destination,'utf8')!==text)throw Error('Catalog differs from reference');}
 else writeFileSync(destination,text);
