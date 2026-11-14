@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 /// Shared card navigation action; public arbitrary actions remain Button.
 struct PrimaryLinkButton: View {

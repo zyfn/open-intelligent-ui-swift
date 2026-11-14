@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum TitleComponent {
     static var component: OpenUIComponent {

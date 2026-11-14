@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum ImageTextComponent {
     static var component: OpenUIComponent {

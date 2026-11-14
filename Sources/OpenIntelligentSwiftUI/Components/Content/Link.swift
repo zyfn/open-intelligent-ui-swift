@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum LinkComponent {
     static var component: OpenUIComponent {
