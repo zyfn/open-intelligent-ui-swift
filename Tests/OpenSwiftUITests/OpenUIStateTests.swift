@@ -2,7 +2,7 @@ import XCTest
 import SwiftUI
 import Combine
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class OpenUIStateTests: XCTestCase {
     private func schema() -> LibrarySchema {

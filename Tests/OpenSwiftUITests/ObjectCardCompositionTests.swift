@@ -3,7 +3,7 @@ import AppKit
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ObjectCardCompositionTests: XCTestCase {
   @MainActor private func frames(_ source: String, width: CGFloat) throws -> [String: CGRect] {

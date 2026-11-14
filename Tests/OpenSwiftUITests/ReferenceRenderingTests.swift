@@ -3,7 +3,7 @@
   import OpenUILang
   import SwiftUI
   import XCTest
-  @testable import OpenUISwiftUI
+  @testable import OpenSwiftUI
 
   final class ReferenceRenderingTests: XCTestCase {
     @MainActor func testMountedChoiceButtonsAndCalloutDriveTheSharedStore() throws {

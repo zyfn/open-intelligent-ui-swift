@@ -1,7 +1,7 @@
 import XCTest
 import Foundation
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 /// Executes the upstream interactions.json files against the native adapter.
 /// The fixture registry is deliberately application-owned, as in react-lang's runner.

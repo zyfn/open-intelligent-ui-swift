@@ -3,7 +3,7 @@ import ImageIO
 import CoreGraphics
 import UniformTypeIdentifiers
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ResourceStoreTests: XCTestCase {
   @MainActor func testReleasingStateCancelsItsPendingResources() async throws {

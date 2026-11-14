@@ -4,7 +4,7 @@ import OpenUILang
 import SwiftUI
 import XCTest
 
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class NativeSelectionRenderingTests: XCTestCase {
     @MainActor func testArrivingDataChangesTheMountedTabsAndAccordion() throws {

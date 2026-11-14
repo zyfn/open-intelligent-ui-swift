@@ -2,7 +2,7 @@ import OpenUILang
 import SwiftUI
 import XCTest
 
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ReferenceCatalogTests: XCTestCase {
   // Zod's official JSON importer represents singleton enums as const. This is

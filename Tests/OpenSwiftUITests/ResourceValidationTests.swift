@@ -1,6 +1,6 @@
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ResourceValidationTests:XCTestCase {
     @MainActor func testExhaustedPatternBlocksSubmissionWithADistinctReason() throws {
