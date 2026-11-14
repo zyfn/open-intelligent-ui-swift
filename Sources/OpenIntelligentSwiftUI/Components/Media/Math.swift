@@ -1,7 +1,7 @@
 import Foundation
 import JavaScriptCore
 import SwiftUI
-import OpenUISwiftUI
+import OpenSwiftUI
 
 final class MathTypesetter: @unchecked Sendable {
     enum Failure: Error { case missingResource, invalidExpression }

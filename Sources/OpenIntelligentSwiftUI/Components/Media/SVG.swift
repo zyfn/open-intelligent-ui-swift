@@ -1,7 +1,7 @@
 import SwiftUI
 import Foundation
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum SVGComponents {
     static var components: [OpenUIComponent] {

@@ -1,7 +1,7 @@
 import SwiftUI
 import WebKit
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum HtmlViewComponent {
     static var component: OpenUIComponent {
