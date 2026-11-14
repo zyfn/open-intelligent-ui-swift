@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenUISwiftUI
+import OpenSwiftUI
 
 /// Renders externally supplied state with the matching component library.
 public struct IntelligentUIView: View {
