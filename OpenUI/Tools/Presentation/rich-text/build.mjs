@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, "../../../..");
-const resources = resolve(here, "../../../Sources/OpenUISwiftUI/Resources");
+const resources = resolve(here, "../../../Sources/OpenSwiftUI/Resources");
 const revision = "9d73d17d2bbac565672a85e78f6eb7740cb0d9ca";
 const upstream = {
   citations: "packages/react-ui/src/components/_shared/remark/remarkCitations.ts",
