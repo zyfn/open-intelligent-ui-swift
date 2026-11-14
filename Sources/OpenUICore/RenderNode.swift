@@ -139,6 +139,11 @@ public struct OpenUIRenderChild: Identifiable {
     public let id: String
     public let value: Value
 
+    public init(id: String, value: Value) {
+        self.id = id
+        self.value = value
+    }
+
     public static func children(of value: Value) -> [OpenUIRenderChild] {
         func flattened(_ value: Value, path: String) -> [(String, Value)] {
             if case .array(let items) = value {
