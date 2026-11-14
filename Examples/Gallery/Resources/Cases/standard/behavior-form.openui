@@ -1,0 +1,11 @@
+root = Stack([heading,form,confirmation],"column","l")
+$confirmed = false
+heading = CardHeader("行程联系人","必填项和邮箱格式由标准表单控件校验。")
+form = Form("trip-contact",actions,[nameField,emailField,guestField,modeField,notesField])
+nameField = FormControl("姓名",Input("name","你的姓名","text",{required:true}))
+emailField = FormControl("邮箱",Input("email","name@example.com","email",{required:true,email:true}))
+guestField = FormControl("人数",Select("guests",[SelectItem("1","1 人"),SelectItem("2","2 人"),SelectItem("3","3 人"),SelectItem("4","4 人")],"2 人"))
+modeField = FormControl("出行方式",Select("mode",[SelectItem("walk","步行"),SelectItem("metro","地铁"),SelectItem("taxi","打车")],"选择方式"))
+notesField = FormControl("备注",TextArea("notes","无障碍、饮食或时间方面的需要",3))
+actions = Buttons([Button("记录一次本页核对",Action([@Set($confirmed,true),@ToAssistant("在示例宿主中核对联系信息")]))])
+confirmation = $confirmed?TextCallout("info","已记录一次本页核对","修改后请重新核对；这里不保存或提交内容。"):TextCallout("neutral","尚未发送任何信息","补全表单并记录核对，查看本页反馈。")

@@ -24,10 +24,15 @@ def main() -> None:
     for name in ["OpenUILang", "OpenUICore", "OpenSwiftUI", "OpenIntelligentSwiftUI"]:
         if len(re.findall(r'\.target\(name:\s*"' + name + r'"', package)) != 1:
             problems.append(f"Target must have exactly one owner: {name}")
-    for path in [ROOT / "Package.resolved", ROOT / "Examples/Gallery/IntelligentUIGallery.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"]:
+    if ".executable(" in package or ".executableTarget(" in package:
+        problems.append("Development apps/tools must not be products or targets of the client SDK package")
+    for relative in ["Package.resolved", "Examples/Gallery/Package.resolved",
+                     "Examples/Gallery/OpenUIGallery.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+                     "Tools/ContractExport/Package.resolved", "Benchmarks/LanguageRuntime/Package.resolved"]:
+        path = ROOT / relative
         if any(pin["identity"] == "openui" for pin in json.loads(path.read_text())["pins"]):
             problems.append(f"Obsolete fork pin: {path.relative_to(ROOT)}")
-    gallery = (ROOT / "Examples/Gallery/IntelligentUIGallery.xcodeproj/project.pbxproj").read_text()
+    gallery = (ROOT / "Examples/Gallery/OpenUIGallery.xcodeproj/project.pbxproj").read_text()
     if "https://github.com/zyfn/openui.git" in gallery or "XCRemoteSwiftPackageReference" in gallery:
         problems.append("Gallery still resolves a separate native runtime")
     for path in (ROOT / "Tools").rglob("package-lock.json"):

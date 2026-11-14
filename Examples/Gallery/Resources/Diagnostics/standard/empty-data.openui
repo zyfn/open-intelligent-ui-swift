@@ -1,0 +1,1 @@
+root = Stack([TextContent("空数据与缺失图片", "large-heavy"), TextContent("没有数据时保留未知；下面的图片没有来源，不替换成无关素材。"), ImageGallery([]), Image("缺少来源的图片", ""), TextContent("价格：—　数量：未知")])

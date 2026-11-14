@@ -1,0 +1,3 @@
+root = Stack([TextContent("本地 Query 依赖链", "large-heavy"), TextContent("模拟工具只在本进程运行。下游等待上游，再根据新结果执行。"), TextContent("上游：" + seed.value), TextContent(details.label), Button("刷新上游", @Run(seed)), TextContent("在诊断面板检查状态；这里没有连接 Agent 或后端。")])
+seed = Query("gallery.seed", {}, {value:0})
+details = Query("gallery.details", {value:seed.value}, {label:"等待上游"})

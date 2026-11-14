@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "scene-discovery",
+      "title": "杭州周末的四种心情",
+      "summary": "通过图文选择旅行方向，用地图理解地点位置，继续讨论半日安排。",
+      "category": "探索",
+      "tags": [
+        "图文",
+        "地图",
+        "后续提问"
+      ],
+      "programs": {
+        "standard": "standard/case-01-explore-scene-discovery.openui",
+        "intelligent": "intelligent/scene-discovery.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-01-explore-scene-discovery.openui"
+      }
+    },
+    {
+      "id": "hangzhou-weekend",
+      "title": "杭州南宋与西湖两日",
+      "summary": "把历史场馆、文人路线与票务入口组织成两日计划。",
+      "category": "旅行",
+      "tags": [
+        "图文",
+        "时间安排",
+        "地图",
+        "票务"
+      ],
+      "programs": {
+        "standard": "standard/case-02-explore-visual-preview-ticket-booking.openui",
+        "intelligent": "intelligent/hangzhou-weekend.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-02-explore-visual-preview-ticket-booking.openui"
+      }
+    },
+    {
+      "id": "heat-pump",
+      "title": "空调制热的原理",
+      "summary": "用示意图、分步解释和数量对比说明热泵怎样搬运热量。",
+      "category": "解释",
+      "tags": [
+        "科普",
+        "SVG",
+        "数量对比"
+      ],
+      "programs": {
+        "standard": "standard/case-03-explore-heat-pump-explanation-editorial.openui",
+        "intelligent": "intelligent/heat-pump.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-03-explore-heat-pump-explanation-editorial.openui"
+      }
+    },
+    {
+      "id": "bedroom-style",
+      "title": "找到舒服的卧室氛围",
+      "summary": "以图片辅助多选偏好，再把选择交给下一步讨论。",
+      "category": "探索",
+      "tags": [
+        "图片",
+        "多选",
+        "表单状态"
+      ],
+      "programs": {
+        "standard": "standard/case-04-explore-bedroom-style.openui",
+        "intelligent": "intelligent/bedroom-style.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-04-explore-bedroom-style.openui"
+      }
+    },
+    {
+      "id": "desk-lamp",
+      "title": "阅读台灯怎么选",
+      "summary": "对比摆放条件，保留三件商品的身份、历史价格和原购买入口。",
+      "category": "决策",
+      "tags": [
+        "商品",
+        "比较",
+        "历史价格"
+      ],
+      "programs": {
+        "standard": "standard/case-05-decide-reading-desk-lamp-refined.openui",
+        "intelligent": "intelligent/desk-lamp.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-05-decide-reading-desk-lamp-refined.openui"
+      }
+    },
+    {
+      "id": "code-isolation",
+      "title": "Agent 代码执行隔离",
+      "summary": "用架构图、路线对比、代码和参考资料解释执行沙箱的选择。",
+      "category": "解释",
+      "tags": [
+        "技术",
+        "SVG",
+        "表格",
+        "代码"
+      ],
+      "programs": {
+        "standard": "standard/case-06-decide-code-execution-isolation.openui",
+        "intelligent": "intelligent/code-isolation.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-06-decide-code-execution-isolation.openui"
+      }
+    },
+    {
+      "id": "suzhou-family",
+      "title": "带父母慢游苏州",
+      "summary": "串联演示交通、住宿预算、园林安排与出发前核对项。",
+      "category": "旅行",
+      "tags": [
+        "行程",
+        "交通",
+        "住宿",
+        "地图"
+      ],
+      "programs": {
+        "standard": "standard/case-07-plan-suzhou-family-trip-ticket-design.openui",
+        "intelligent": "intelligent/suzhou-family.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-07-plan-suzhou-family-trip-ticket-design.openui"
+      }
+    },
+    {
+      "id": "transport-comparison",
+      "title": "同日直飞与中转比较",
+      "summary": "保持同日比较口径，并单独展示跨日期的历史交通记录。",
+      "category": "决策",
+      "tags": [
+        "交通",
+        "时区",
+        "价格口径",
+        "历史记录"
+      ],
+      "programs": {
+        "standard": "standard/case-08-transport-comparison.openui",
+        "intelligent": "intelligent/transport-comparison.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Fixtures/SimpleCases/case-08-transport-comparison.openui"
+      }
+    },
+    {
+      "id": "monthly-spending",
+      "title": "三个月账单与下月计划",
+      "summary": "通过统计范围切换、堆叠图和预算对比解释金额变化。",
+      "category": "数据",
+      "tags": [
+        "图表",
+        "筛选状态",
+        "预算"
+      ],
+      "programs": {
+        "standard": "standard/scene-spending.openui",
+        "intelligent": "intelligent/monthly-spending.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Catalog/Programs/ReviewExamplePrograms.swift"
+      }
+    },
+    {
+      "id": "contact-form",
+      "title": "行程联系人本页核对",
+      "summary": "填写联系信息、检查必填项并观察本地核对反馈与动作载荷。",
+      "category": "交互",
+      "tags": [
+        "表单",
+        "校验",
+        "状态",
+        "动作"
+      ],
+      "programs": {
+        "standard": "standard/behavior-form.openui",
+        "intelligent": "intelligent/contact-form.openui"
+      },
+      "origin": {
+        "repository": "https://github.com/zyfn/openui-case-lab",
+        "revision": "903c6ebaa0611bd228b19962e324524175492437",
+        "path": "Review/Catalog/Programs/ReviewExamplePrograms.swift"
+      }
+    }
+  ]
+}

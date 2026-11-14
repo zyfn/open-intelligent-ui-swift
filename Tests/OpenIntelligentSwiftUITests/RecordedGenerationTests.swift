@@ -6,10 +6,10 @@ import OpenIntelligentSwiftUI
 
 final class RecordedGenerationTests: XCTestCase {
     @MainActor func testRecordedModelProgramsRemainExecutable() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let library = try IntelligentUILibrary()
         for name in ["reading", "budget", "comparison", "editorial", "transport", "shopping"] {
-            let url = root.appendingPathComponent("Benchmarks/Recorded/" + name + ".json")
+            let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json",
+                                                     subdirectory: "Fixtures/GeneratedPrograms"))
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: String])
             let state = library.makeState()
             state.setSource(try XCTUnwrap(object["program"]))

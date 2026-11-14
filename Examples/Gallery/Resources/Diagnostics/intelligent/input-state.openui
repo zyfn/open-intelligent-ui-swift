@@ -1,0 +1,6 @@
+root = Col([Title("输入草稿与局部状态", "lg"), Input($amount,"数值草稿","number","尝试输入 1e 或 1,2"), Text("已提交值：" + $amount), Slider($range,0,100,1,"范围","",[{value:48,label:"临近标记 A"},{value:50,label:"临近标记 B"},{value:52,label:"临近标记 C"}]), TextArea($note,"长备注","检查多行输入",3), Form([Input($name,"名称","text","必填名称"), $error == "" ? null : Text($error,"sm","danger"), Button("记录提交", $name == "" ? @Set($error,"请输入名称") : Action([@Set($error,""),@ToAssistant("检查当前表单",{name:$name,note:$note,amount:$amount})]))]), Caption("此诊断显式展示名称错误；外部动作仅由 Gallery 记录。")])
+$amount = 100
+$range = 50
+$note = ""
+$name = ""
+$error = ""

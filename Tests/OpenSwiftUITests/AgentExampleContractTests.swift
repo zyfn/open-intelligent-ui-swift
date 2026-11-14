@@ -6,25 +6,28 @@ import OpenUILang
 @testable import OpenSwiftUI
 
 final class AgentExampleContractTests: XCTestCase {
-  private var directory: URL {
+  private var programDirectory: URL {
     var root=URL(fileURLWithPath:#filePath)
     for _ in 0..<3 { root.deleteLastPathComponent() }
-    return root.appendingPathComponent("Examples/AgentCases")
+    return root.appendingPathComponent("Examples/Gallery/Resources/Cases/standard")
+  }
+  private var contractDirectory: URL {
+    Bundle.module.resourceURL!.appendingPathComponent("Fixtures/AgentCasesContract")
   }
   @MainActor func testEightCanonicalExamplesMatchTheirManifestAndActualComponentSignatures() throws {
-    let spec=try LibrarySpec(jsonString:String(contentsOf:directory.appendingPathComponent("test-library-spec.json"),encoding:.utf8))
+    let spec=try LibrarySpec(jsonString:String(contentsOf:contractDirectory.appendingPathComponent("test-library-spec.json"),encoding:.utf8))
     let standard=try OpenUIStandardComponents.library().toSpec()
     let expandedSlots:Set<String>=["Card","TabItem","AccordionItem"]
     for component in standard.components where !expandedSlots.contains(component.name) {
       XCTAssertEqual(spec.components.first { $0.name==component.name }?.signature,component.signature,component.name)
     }
     let schema=compileLibrarySchema(spec)
-    let manifest=try JSONSerialization.jsonObject(with:Data(contentsOf:directory.appendingPathComponent("manifest.json"))) as! [String:Any]
+    let manifest=try JSONSerialization.jsonObject(with:Data(contentsOf:contractDirectory.appendingPathComponent("manifest.json"))) as! [String:Any]
     let cases=manifest["cases"] as! [[String:Any]]
     XCTAssertEqual(cases.map { $0["number"] as! Int },Array(1...8))
     for item in cases {
       let file=item["file"] as! String
-      let data=try Data(contentsOf:directory.appendingPathComponent(file))
+      let data=try Data(contentsOf:programDirectory.appendingPathComponent(file))
       XCTAssertEqual(SHA256.hash(data:data).map { String(format:"%02x",$0) }.joined(),item["sha256"] as? String,file)
       let source=String(decoding:data,as:UTF8.self)
       XCTAssertTrue(source.hasPrefix("root = "),file)
@@ -44,9 +47,9 @@ final class AgentExampleContractTests: XCTestCase {
   }
 
   @MainActor func testBedroomSubmitCarriesLatestSelectionsInItsFormPayload() async throws {
-    let spec = try LibrarySpec(jsonString: String(contentsOf: directory.appendingPathComponent("test-library-spec.json"), encoding: .utf8))
+    let spec = try LibrarySpec(jsonString: String(contentsOf: contractDirectory.appendingPathComponent("test-library-spec.json"), encoding: .utf8))
     let state = OpenUIState(schema: compileLibrarySchema(spec))
-    state.setSource(try String(contentsOf: directory.appendingPathComponent("case-04-explore-bedroom-style.openui"), encoding: .utf8))
+    state.setSource(try String(contentsOf: programDirectory.appendingPathComponent("case-04-explore-bedroom-style.openui"), encoding: .utf8))
     func submit(_ value: Value) -> EvaluatedElement? {
       switch value {
       case .element(let element):
@@ -75,9 +78,9 @@ final class AgentExampleContractTests: XCTestCase {
   }
 
   @MainActor func testVisualExampleCanPresentItsFirstCardBeforeTheRestOfTheGroupArrives() throws {
-    let spec=try LibrarySpec(jsonString:String(contentsOf:directory.appendingPathComponent("test-library-spec.json"),encoding:.utf8))
+    let spec=try LibrarySpec(jsonString:String(contentsOf:contractDirectory.appendingPathComponent("test-library-spec.json"),encoding:.utf8))
     let state=OpenUIState(schema:compileLibrarySchema(spec))
-    let source=try String(contentsOf:directory.appendingPathComponent("case-01-explore-scene-discovery.openui"),encoding:.utf8)
+    let source=try String(contentsOf:programDirectory.appendingPathComponent("case-01-explore-scene-discovery.openui"),encoding:.utf8)
     func find(_ value:Value) -> EvaluatedElement? {
       switch value {
       case .element(let e):
@@ -101,9 +104,9 @@ final class AgentExampleContractTests: XCTestCase {
   }
 
   @MainActor func testGalleryExampleSeparatesKnownColumnsFromImageRecordArrival() throws {
-    let spec=try LibrarySpec(jsonString:String(contentsOf:directory.appendingPathComponent("test-library-spec.json"),encoding:.utf8))
+    let spec=try LibrarySpec(jsonString:String(contentsOf:contractDirectory.appendingPathComponent("test-library-spec.json"),encoding:.utf8))
     let state=OpenUIState(schema:compileLibrarySchema(spec))
-    let source=try String(contentsOf:directory.appendingPathComponent("case-02-explore-visual-preview-ticket-booking.openui"),encoding:.utf8)
+    let source=try String(contentsOf:programDirectory.appendingPathComponent("case-02-explore-visual-preview-ticket-booking.openui"),encoding:.utf8)
     func find(_ value:Value) -> EvaluatedElement? {
       switch value {
       case .element(let e):

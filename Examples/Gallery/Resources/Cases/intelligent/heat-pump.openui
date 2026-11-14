@@ -1,0 +1,10 @@
+root = Col([heading,answer,flow,cycle,direction,energy,winter,next])
+$mode = "heating"
+heading = Title("冬天空调为什么能把屋里变暖？","xl")
+answer = Text("空调制热时，电主要用来驱动压缩机，把室外的热量搬到室内。外面冷，仍然有热量；关键是让制冷剂在不同位置处于合适的温度与压力。")
+flow = Card([Title("热量从哪里来","sm"),Svg([Rect(15,20,130,60,"surface","muted",1,1,10),SvgText("室外热量",80,57,20,"ink","middle","semibold"),Rect(15,125,130,60,"surface","muted",1,1,10),SvgText("输入电能",80,162,20,"ink","middle","semibold"),Line(145,50,200,100,"info",3),Line(145,155,200,110,"info",3),Rect(205,75,140,65,"surface","info",2,1,10),SvgText("送入室内",275,114,20,"ink","middle","semibold")],"0 0 360 205",360,205),Caption("室内得到的热量 = 从室外搬来的热量 + 输入的电能。图中箭头说明能量来源，不代表设备管路。")])
+cycle = Col([Title("一次循环，分成四步","lg"),List([ListItem("蒸发：在室外吸热","制冷剂比室外空气更冷时，能从空气吸热。比如室外 0°C、制冷剂约 −15°C 只是示意，不是所有机器的固定参数。","1"),ListItem("压缩：让制冷剂升温","压缩机做功，提高压力和温度。","2"),ListItem("冷凝：在室内放热","较热的制冷剂经过室内换热器，向房间放出热量。","3"),ListItem("节流：降压后再循环","经过节流，制冷剂回到适合在室外吸热的状态。","4")],"number",true)])
+direction = Card([Title("制冷和制热，搬运方向不同","sm"),SegmentedControl($mode,[{value:"heating",label:"冬季制热"},{value:"cooling",label:"夏季制冷"}],true),Text($mode=="heating"?"室外吸热 → 压缩机做功 → 室内放热":"室内吸热 → 压缩机做功 → 室外放热"),Caption("四通换向阀改变制冷剂流向，使同一套系统切换两种工作方式。")])
+energy = Col([Title("为什么 1 份电能得到不止 1 份热？","lg"),Text("热泵还搬来了环境里的热量，因此供热量与耗电量之比 COP 可以大于 1，并不违反能量守恒。"),Chart("bar",[{"设备":"电阻加热","供热量":1},{"设备":"热泵示意","供热量":3.5}],"设备",["供热量"],"number",null,false,210),Caption("仅作概念示意：同样输入 1 kWh 电，电阻加热约得到 1 kWh 热，图中热泵示意得到 3.5 kWh 热。3.5 不是本案例对具体空调的性能承诺；实际 COP 随机型、室外温度、设定和运行条件变化。")])
+winter = Disclosure("为什么天气越冷，制热有时越吃力？",[List(["温差越大，搬运热量通常越费力；制热能力和效率会随工况变化。","室外换热器结霜会影响换热，设备需要化霜，期间室内供热可能暂时减弱或停止。","是否启用辅助电加热以及适合的运行范围，应看具体机型说明。"]),Text("短暂化霜和持续无法升温是不同情况；检查时需要结合机型、环境与实际运行状态。","sm","muted")])
+next = Row([Button("怎样设置温度更合适",@ToAssistant("解释冬季空调温度和风向怎样设置，并区分一般使用建议与需要查看机型说明的事项。")),Button("持续开还是频繁开关",@ToAssistant("解释冬季空调持续运行与频繁开关的权衡，不要承诺固定节能比例。"),"outline")],3,"center","start",true)

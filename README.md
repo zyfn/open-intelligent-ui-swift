@@ -188,15 +188,19 @@ swift test
 python3 Tools/check_module_boundaries.py
 python3 Tools/check_product_consumers.py --scratch-root /tmp/openui-consumers
 swift test -c release --filter 'HostSizingIsolationTests|CoreHostIsolationTests'
-swift run IntelligentUIGallery --validate-fixtures
-swift run ContractExport outputs/contracts
+python3 Tools/check_gallery_catalog.py
+swift test --package-path Examples/Gallery
+swift run --package-path Examples/Gallery OpenUIGallery --validate-fixtures
+swift run --package-path Tools/ContractExport ContractExport "$PWD/outputs/contracts"
 python3 Tools/check_localization.py
 python3 Tools/check_lang_compatibility.py
 ~~~
 
-iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 `IntelligentUIGallery`，使用同一个根 Swift Package。独立消费者检查为 Lang、Core、标准 UI 和 Intelligent UI 各建一个只声明单产品的外部包：Lang 禁止导入 Core/UI，Core 禁止导入两套 UI，两套 UI 分别禁止导入另一套库。Core 和两套 UI 共用相同的宿主接入模板；Lang 消费者直接调用 authoring、解析和流式 API。Lang 不导入 SwiftUI 由源码边界检查负责，不能用系统 SDK 中天然存在的 `canImport(SwiftUI)` 判断包依赖。
+日常调试使用独立的 [OpenUI Gallery](Examples/Gallery/README.md)，在同一入口浏览两套 UI 的精选案例、调整预览尺寸和倍率、编辑源码与回放流式内容。macOS 启动命令为 `swift run --package-path Examples/Gallery OpenUIGallery`；iOS 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 `OpenUIGallery`。Gallery 依赖本地根 SDK，根包仅导出四个库产品。
 
-`ContractExport` 默认输出 Intelligent UI 新生成所用的 `spec.json`、`prompt.txt` 和 `manifest.json`。历史读取契约使用 `--reader-contract`，历史程序验证使用 `--historical`。
+独立消费者检查为 Lang、Core、标准 UI 和 Intelligent UI 各建一个只声明单产品的外部包：Lang 禁止导入 Core/UI，Core 禁止导入两套 UI，两套 UI 分别禁止导入另一套库。Core 和两套 UI 共用相同的宿主接入模板；Lang 消费者直接调用 authoring、解析和流式 API。Lang 不导入 SwiftUI 由源码边界检查负责，不能用系统 SDK 中天然存在的 `canImport(SwiftUI)` 判断包依赖。
+
+独立的 [ContractExport 工具包](Tools/ContractExport/README.md) 默认输出 Intelligent UI 新生成所用的 `spec.json`、`prompt.txt` 和 `manifest.json`。历史读取契约使用 `--reader-contract`，历史程序验证使用 `--historical`。性能测量见 [Benchmarks](Benchmarks/README.md)，可选真实模型评测见 [Validation/Generation](Validation/Generation/README.md)。
 
 完整流水线见 [native-sdk.yml](.github/workflows/native-sdk.yml)。源码检查与测试配置不等同于 Apple 平台编译、交互或发布已经通过；验收证据绑定具体提交。
 
@@ -206,14 +210,16 @@ iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme
 |---|---|
 | `Sources/` | 四个公开模块及语言层内部的 C 正则实现 |
 | `Tests/` | 各模块的原生测试与其打包 fixtures |
-| `Examples/` | Gallery、独立 macOS 示例和 agent cases |
+| `Examples/` | 独立双库 Gallery、精选案例与开发说明 |
 | `Tools/` | 契约导出、资源生成与维护检查 |
-| `Benchmarks/` | 模型生成和交互评测 |
+| `Benchmarks/` | 独立性能基准与测量说明 |
 | `Fixtures/` | 语言兼容验证数据 |
-| `Validation/` | 验收说明、源码修复候选与核验材料 |
+| `Validation/` | 模型生成评测、源码修复候选与核验工具 |
 | `docs/` | 当前架构、组件、语言与设计文档 |
 
 源码只在根 `Sources/` 维护，没有嵌套 SDK 或旧目录软链接。客户端只依赖根包，避免同时解析另外一个定义同名模块的旧 fork。
+
+示例、固定测试输入和评测结果的归属，以及后续 Agent 后端 + iOS 客户端集成位置，见 [Examples 指南](Examples/README.md)。Gallery、契约工具和性能基准分别持有自己的开发包；实际 SDK 模块只有根包维护的一份。
 
 本仓库直接维护整合后的 Swift 源码，未通过 SwiftPM 再依赖旧 OpenUI Swift SDK。历史迁移记录保留在 Git 历史；当前生成输入由 [upstream.json](Tools/upstream.json) 固定，上游许可保留在根 [第三方声明](THIRD-PARTY-NOTICES.txt) 和随 SDK 打包的 [语言层第三方声明](Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt) 中。
 

@@ -1,0 +1,46 @@
+{
+  "images": [
+    {
+      "file": "nikon-front.jpg",
+      "source": "https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg",
+      "author": "Wolfgang Moroder",
+      "license": "CC BY-SA 3.0",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Nikon_DSLR_camera_D850.jpg"
+    },
+    {
+      "file": "nikon-rear.jpg",
+      "source": "https://upload.wikimedia.org/wikipedia/commons/4/49/Nikon_DSLR_camera_D850_lateral_rear_view.jpg",
+      "author": "Wolfgang Moroder",
+      "license": "CC BY-SA 3.0",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Nikon_DSLR_camera_D850_lateral_rear_view.jpg"
+    },
+    {
+      "file": "sony-headphones.jpg",
+      "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Sony_WH-CH500-40869.jpg/500px-Sony_WH-CH500-40869.jpg",
+      "author": "Raimond Spekking",
+      "license": "CC BY-SA 4.0",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Sony_WH-CH500-40869.jpg"
+    },
+    {
+      "file": "deshou-palace.jpg",
+      "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Deshou_Palace.jpg/960px-Deshou_Palace.jpg",
+      "author": "Takashishin",
+      "license": "CC BY-SA 4.0",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Deshou_Palace.jpg"
+    },
+    {
+      "file": "liangzhu-museum.jpg",
+      "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Liangzhu_Museum%2C_2019-07-07_04.jpg/960px-Liangzhu_Museum%2C_2019-07-07_04.jpg",
+      "author": "Siyuwj",
+      "license": "CC BY-SA 4.0",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Liangzhu_Museum,_2019-07-07_04.jpg"
+    },
+    {
+      "file": "west-lake.jpg",
+      "source": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/West_Lake_%28Hangzhou%29_sunset_2016_January.jpg/960px-West_Lake_%28Hangzhou%29_sunset_2016_January.jpg",
+      "author": "Morio",
+      "license": "CC BY-SA 4.0",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:West_Lake_(Hangzhou)_sunset_2016_January.jpg"
+    }
+  ]
+}

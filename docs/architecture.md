@@ -156,7 +156,11 @@ layout/placeholder 的结构元数据也由组件注册提供。Core 只按已�
 
 当前源码和测试只在根 `Sources/` 与 `Tests/` 各自所属模块中维护。构建工具在 `Tools/`，验证材料在 `Validation/`，公共兼容数据在 `Fixtures/`，示例在 `Examples/`，有效文档在 `docs/`。不保留旧目录软链接、重复 SDK 外壳或过时的实施状态文档。
 
-[upstream.json](../Tools/upstream.json) 固定当前生成输入，原始导入来源可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，由根 Package 声明为资源并随 SDK 打包。当前可执行路径以根 Package 与构建工具为准。
+根 Swift Package 只导出四个 SDK 库产品及其测试。开发入口各自是依赖根 SDK 的独立包：`Examples/Gallery` 负责双库人工调试，`Tools/ContractExport` 负责契约导出，`Benchmarks/LanguageRuntime` 只用 Lang 公开 API 测量语言工作负载。开发 App 的图片、案例和编辑状态不进入 SDK 产品。
+
+Gallery 的精选任务有稳定 ID 和两套 UI 各自的源码变体，专项边界案例单列为 Diagnostics。完整案例源码只保存在 Gallery 资源目录；固定的标准历史 schema/摘要和原始模型输出归各自 XCTest fixtures。真实模型生成任务位于 `Validation/Generation`，结果写入忽略的 `outputs/generation`；性能结果写入 `outputs/benchmarks`。旧独立 macOS 编辑器的职责已并入 Gallery，独立产品依赖仍由四个消费者检查验证。后续 Agent 后端与真实 iOS 客户端按独立集成项目接入，见 [Examples 指南](../Examples/README.md)。
+
+[upstream.json](../Tools/upstream.json) 固定当前生成输入，原始导入来源可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，由根 Package 声明为资源并随 SDK 打包。开发执行命令显式指定对应 `--package-path`，不向 SDK 增加 executable 产品。
 
 本轮改变 Swift 模块边界与共享能力归属，保留现有 Lang 组件名、位置参数、枚举、绑定和 reader/writer 契约。标准目录与 Intelligent UI 目录继续独立生成各自 Prompt/spec，不混用两套定义或以布局改动为理由新增私有参数。
 

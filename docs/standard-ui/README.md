@@ -46,6 +46,9 @@ npm ci --prefix Tools/Core --ignore-scripts
 node Tools/Presentation/catalog.mjs --check
 ```
 
-The [macOS example](../../Examples/macOS/README.md) is a separate consumer of
-the root package. The [Agent cases](../../Examples/AgentCases/README.md) are
-versioned contract examples, not live service data or default prompt additions.
+The independent [Gallery](../../Examples/Gallery/README.md) displays both UI
+libraries through the same public host API. Select the standard variant to
+inspect the actual standard component catalog. Curated programs live in
+`Examples/Gallery/Resources/Cases/`; they are fixed examples, not live service
+data or automatic additions to the default prompt. See the
+[example ownership guide](../../Examples/README.md).

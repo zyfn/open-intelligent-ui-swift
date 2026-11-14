@@ -280,7 +280,8 @@ def verify_native(root, baseline):
             evidence = root / "outputs/verification"
             evidence.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(before / "spec.json", evidence / "historical-reader-before.json")
-            run(["swift", "run", "ContractExport", "--reader-contract", "--include-search", str(after)], root)
+            run(["swift", "run", "--package-path", str(root / "Tools/ContractExport"),
+                 "ContractExport", "--reader-contract", "--include-search", str(after)], root)
             shutil.copyfile(after / "reader-spec.json", evidence / "historical-reader-after.json")
             compare(json.loads((before / "spec.json").read_text()),
                     json.loads((after / "reader-spec.json").read_text()))

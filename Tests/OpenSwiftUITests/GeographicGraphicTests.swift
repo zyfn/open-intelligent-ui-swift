@@ -6,7 +6,8 @@ import OpenUILang
 final class GeographicGraphicTests: XCTestCase {
   @MainActor func testDefaultLibraryOwnsExistingHostContractsAndContainerSlots() throws {
     let library = try OpenUIStandardComponents.library()
-    let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Examples/AgentCases/test-library-spec.json")
+    let fixture = try XCTUnwrap(Bundle.module.url(forResource: "test-library-spec", withExtension: "json",
+                                                  subdirectory: "Fixtures/AgentCasesContract"))
     let previous = try LibrarySpec(jsonString: String(contentsOf: fixture, encoding: .utf8))
     for name in ["Map", "MapPoint", "SVG", "Card", "TabItem", "AccordionItem"] {
       XCTAssertEqual(library.toSpec().components.first { $0.name == name }?.signature,

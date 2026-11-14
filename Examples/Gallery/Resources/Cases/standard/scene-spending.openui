@@ -1,0 +1,13 @@
+root = Stack([heading,intro,trend,controls,summary,plan,boundary],"column","l")
+$period = "october"
+food = $period=="quarter"?4800:1800
+transport = $period=="quarter"?1500:600
+home = $period=="quarter"?9000:3000
+other = $period=="quarter"?2700:1200
+heading = TextContent("花费增加，主要不在房租","large-heavy")
+intro = TextContent("10 月比 9 月多花 ¥800；住房没有变化，增量来自餐饮、交通和其他消费。")
+trend = Stack([InlineHeader("三个月，按同一口径看"),BarChart(["8 月","9 月","10 月"],[Series("住房",[3000,3000,3000]),Series("餐饮",[1500,1500,1800]),Series("交通",[500,400,600]),Series("其他",[600,900,1200])],"stacked")],"column","m")
+controls = Stack([InlineHeader("查看单月或三个月合计"),Buttons([Button("只看 10 月",@Set($period,"october"),$period=="october"?"primary":"secondary"),Button("看三个月合计",@Set($period,"quarter"),$period=="quarter"?"primary":"secondary")])],"column","s")
+summary = Stack([TextContent($period=="quarter"?"8–10 月合计 · ¥18,000":"10 月合计 · ¥6,600","large-heavy"),PieChart(["住房","餐饮","交通","其他"],[home,food,transport,other],"donut")],"column","m")
+plan = Stack([InlineHeader("11 月，先试一份 ¥6,000 的计划"),EntityList([{left:"住房",right:"¥3,000 · 保持不变"},{left:"餐饮",right:"¥1,500 · 少 ¥300"},{left:"交通",right:"¥500 · 少 ¥100"},{left:"其他",right:"¥1,000 · 少 ¥200"},{left:"计划合计",right:"¥6,000"}]),BarChart(["住房","餐饮","交通","其他"],[Series("10 月实际",[3000,1800,600,1200]),Series("11 月计划",[3000,1500,500,1000])],"grouped",null,"¥",230)],"column","m")
+boundary = TextCallout("neutral","计划不是预测","金额只来自这份示例账单；月底按真实收据复盘，再调整下一月计划。")

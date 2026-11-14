@@ -40,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 Tools/check_openui_integration.py
+          python3 Tools/check_gallery_catalog.py
           python3 Tools/check_localization.py
       - name: Rebuild the exact bundled official core
         run: |
@@ -175,13 +176,23 @@ jobs:
           set -euo pipefail
           swift test -c release --filter 'HostSizingIsolationTests|CoreHostIsolationTests' \
             2>&1 | tee outputs/verification/release-fitting.log
+      - name: Standalone Gallery tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" \
+            2>&1 | tee outputs/verification/gallery-tests.log
       - name: Gallery fixture programs
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
-          swift run IntelligentUIGallery --validate-fixtures \
+          swift run --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" OpenUIGallery --validate-fixtures \
             2>&1 | tee outputs/verification/gallery-fixtures.log
+          swift run --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" --skip-build OpenUIGallery \
+            --export-contracts "$PWD/outputs/verification/gallery-contracts" \
+            2>&1 | tee outputs/verification/gallery-contracts.log
       - name: Preserve historical Intelligent UI contracts
         if: ${{ !cancelled() }}
         shell: bash
@@ -196,13 +207,15 @@ jobs:
           set -euo pipefail
           swift test --scratch-path "$RUNNER_TEMP/openui-asan" --sanitize=address --filter OpenUILangTests \
             2>&1 | tee outputs/verification/asan.log
-      - name: Standard-library standalone macOS example
+      - name: Independent contract and performance tools
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
-          swift build --package-path Examples/macOS \
-            2>&1 | tee outputs/verification/standard-macos.log
+          swift build --package-path Tools/ContractExport \
+            2>&1 | tee outputs/verification/contract-tool.log
+          swift build --configuration release --package-path Benchmarks/LanguageRuntime \
+            2>&1 | tee outputs/verification/benchmark-build.log
       - name: All library products for iOS 16 Simulator
         if: ${{ !cancelled() }}
         shell: bash
@@ -218,9 +231,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          xcodebuild -project Examples/Gallery/IntelligentUIGallery.xcodeproj \
-            -scheme IntelligentUIGallery -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/IntelligentUIGallery-build" \
+          xcodebuild -project Examples/Gallery/OpenUIGallery.xcodeproj \
+            -scheme OpenUIGallery -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/OpenUIGallery-build" \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee outputs/verification/gallery-ios.log
       - uses: actions/upload-artifact@v4
         if: always()

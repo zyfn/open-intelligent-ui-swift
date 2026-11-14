@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "layout",
+      "title": "布局与换行",
+      "summary": "改变实际宽度检查重排，缩放独立于排版。",
+      "category": "布局",
+      "tags": [
+        "responsive",
+        "layout",
+        "text"
+      ],
+      "programs": {
+        "standard": "standard/layout.openui",
+        "intelligent": "intelligent/layout.openui"
+      }
+    },
+    {
+      "id": "input-state",
+      "title": "输入与局部状态",
+      "summary": "检查输入草稿、长备注与表单提交事件。",
+      "category": "交互",
+      "tags": [
+        "form",
+        "input",
+        "state"
+      ],
+      "programs": {
+        "standard": "standard/input-state.openui",
+        "intelligent": "intelligent/input-state.openui"
+      }
+    },
+    {
+      "id": "images",
+      "title": "图片与加载失败",
+      "summary": "相同来源的六张本地图与明确失败来源。",
+      "category": "媒体",
+      "tags": [
+        "images",
+        "offline",
+        "failure"
+      ],
+      "programs": {
+        "standard": "standard/images.openui",
+        "intelligent": "intelligent/images.openui"
+      }
+    },
+    {
+      "id": "empty-data",
+      "title": "空数据与缺失信息",
+      "summary": "缺失图片、空列表与未知数值保留真实空态。",
+      "category": "边界",
+      "tags": [
+        "empty",
+        "unknown"
+      ],
+      "programs": {
+        "standard": "standard/empty-data.openui",
+        "intelligent": "intelligent/empty-data.openui"
+      }
+    },
+    {
+      "id": "streaming",
+      "title": "长文流式与阅读",
+      "summary": "用播放、暂停、继续、中断观察同一文档。",
+      "category": "生命周期",
+      "tags": [
+        "streaming",
+        "reading"
+      ],
+      "programs": {
+        "standard": "standard/streaming.openui",
+        "intelligent": "intelligent/streaming.openui"
+      }
+    },
+    {
+      "id": "query-chain",
+      "title": "本地 Query 依赖链",
+      "summary": "本地模拟工具展示等待上游、依赖更新与手动刷新。",
+      "category": "生命周期",
+      "tags": [
+        "query",
+        "dependency",
+        "mock"
+      ],
+      "programs": {
+        "standard": "standard/query-chain.openui",
+        "intelligent": "intelligent/query-chain.openui"
+      }
+    },
+    {
+      "id": "drawing",
+      "title": "结构化图示",
+      "summary": "检查结构化 Svg 随绑定状态更新。",
+      "category": "Intelligent 专项",
+      "tags": [
+        "svg",
+        "binding"
+      ],
+      "programs": {
+        "intelligent": "intelligent/drawing.openui"
+      }
+    },
+    {
+      "id": "functions",
+      "title": "函数与计算",
+      "summary": "检查所选组件库的函数、分摊与表格更新。",
+      "category": "Intelligent 专项",
+      "tags": [
+        "functions",
+        "calculation"
+      ],
+      "programs": {
+        "intelligent": "intelligent/functions.openui"
+      }
+    },
+    {
+      "id": "image-search-states",
+      "title": "图片搜索状态",
+      "summary": "固定适配器模拟成功、延迟与失败。",
+      "category": "Intelligent 专项",
+      "tags": [
+        "search-image",
+        "mock",
+        "loading"
+      ],
+      "programs": {
+        "intelligent": "intelligent/image-search-states.openui"
+      }
+    }
+  ]
+}

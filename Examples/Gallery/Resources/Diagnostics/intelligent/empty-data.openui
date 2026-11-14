@@ -1,0 +1,1 @@
+root = Col([Title("空数据与缺失图片", "lg"), Text("缺少数据时保持未知，不猜测补齐。"), ProductCard({id:"missing",title:"待补充图片与价格的商品",images:[]}), Table(["名称","金额"],[]), Chart("bar",[],"月份",["收入"]), Image("","缺少来源的图片",2,"md","contain")])

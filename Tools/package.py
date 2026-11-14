@@ -4,9 +4,12 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tarfile
 
 root = Path(__file__).resolve().parents[1]
+subprocess.run([sys.executable, str(root / "Tools/check_gallery_catalog.py")], cwd=root, check=True)
 version = "0.1.0-preview.29-design-revamp"
 exported_manifest = root / "outputs/contracts/manifest.json"
 if not exported_manifest.exists() or json.loads(exported_manifest.read_text()).get("version") != version:

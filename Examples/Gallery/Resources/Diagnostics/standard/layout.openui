@@ -1,0 +1,1 @@
+root = Stack([TextContent("布局与换行", "large-heavy"), TextContent("改变画布宽度，检查同一段内容的实际重排。缩放只改变观看大小。"), Stack([TextContent("第一项：短文字"), TextContent("第二项：较长的中文，窄屏时应该自然换行，不裁掉结尾。"), TextContent("第三项：一行 English text")], "row", "m", "start", "start", true), TextContent("正文段落保持自然高度。请比较 320、390 和 768 pt，并尝试辅助功能大字号。")])

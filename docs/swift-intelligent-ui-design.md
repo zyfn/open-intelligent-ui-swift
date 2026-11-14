@@ -58,7 +58,7 @@ flowchart TB
 | `Generation/` | spec、Prompt、manifest 与诊断 |
 | `Resources/` | 计算、公式、本地化与许可资源 |
 
-根 `Examples/` 维护 Gallery、macOS 消费示例和 Agent 契约案例；`Tools/` 维护生成器与检查工具，`Fixtures/` 维护版本化语言规范夹具，`Validation/` 维护独立验证器及冻结源码修复清单。`Benchmarks/`、`docs/` 分别维护模型验证和文档，`outputs/` 保存本地导出与验收材料。
+根 `Examples/` 维护独立的双库 Gallery、精选场景与专项诊断；`Tools/` 维护契约导出、生成器与检查工具，`Fixtures/` 维护版本化语言规范夹具，`Validation/` 维护独立验证器、可选模型生成评测及冻结源码修复清单。`Benchmarks/` 只维护语言性能工作负载，`Tests/` 保存行为回归与固定测试输入，`docs/` 维护文档，`outputs/` 保存忽略的本地导出与验收材料。
 
 组件定义与实现相邻，复杂组件在自己的文件或子目录维护辅助类型。Catalog 聚合实际实现，Generation 读取同一个注册库。消费者只需选择 `OpenIntelligentSwiftUI` 产品，其传递依赖由 SwiftPM 自动处理；标准 UI 库、Gallery 和开发工具按需使用。
 
@@ -263,21 +263,21 @@ Carousel(placeCards, itemWidth, gap)
 
 ```sh
 swift test
-swift run IntelligentUIGallery
-swift run ContractExport outputs/contracts
+swift run --package-path Examples/Gallery OpenUIGallery
+swift run --package-path Tools/ContractExport ContractExport "$PWD/outputs/contracts"
 python3 Tools/check_localization.py
 python3 Tools/check_lang_compatibility.py
 python3 Tools/package.py
 ```
 
-iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 IntelligentUIGallery；支持 iPhone/iPad，通过本地 Swift Package 引用当前根包。消费者不需要 Gallery 或开发工具。
+iOS Gallery 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 OpenUIGallery；支持 iPhone/iPad。Gallery 是独立开发包，通过本地 Swift Package 引用当前根 SDK，并同时展示标准 UI 与 Intelligent UI。精选案例、专项诊断、源码编辑和预览尺寸在同一个入口管理，见 [Gallery 指南](../Examples/Gallery/README.md)。消费者只选择根包的 SDK 库产品。
 
 Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。它包含语法、60 个默认组件的签名与行为、内置及注册函数、动作、视觉与事实约束，以及同日记录、稳定任务、消费确认、基础图文、已知联程、独立去返、地图联动与表单计算八个完整示例。示例数据与链接仅用于解释语法，不作为真实推荐。
 
 生成原则：
 
 1. 输出纯 openui-lang，不添加 Markdown fence；宿主若用 JSON program 字段包装，应在传输层解包。
-2. 使用已注册组件、位置参数与显式状态；派生数据放普通变量，状态默认值使用字面量。
+2. 使用已注册组件、位置参数与显式状态；响应式派生数据放普通变量。状态声明里的表达式只计算初值，不会替代后续 Store 状态。
 3. 保留来源字段名、事实、原始 URL、实体 id、价格范围和不确定性，不将解析成功当作事实正确。
 4. 用基础组件组合内容；卡片只表达真实对象或分组，不生成页面模板。图片由布局负责尺寸与比例，署名在相邻紧凑 Text 中保留来源和 Citation。
 5. 交互控件必须有明确动作或状态结果，不生成装饰性按钮、虚构进度或无来源表单反馈。不依赖流式中间帧的固定显示顺序。
@@ -285,16 +285,16 @@ Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` �
 导出验证器接受 Lang 文件或包含 program 字段的 JSON：
 
 ```sh
-swift run ContractExport --validate path/to/program.lang
-swift run ContractExport --validate path/to/historical.lang --historical
-swift run ContractExport --reader-contract --include-search outputs/reader-contract
+swift run --package-path Tools/ContractExport ContractExport --validate "$PWD/path/to/program.lang"
+swift run --package-path Tools/ContractExport ContractExport --validate "$PWD/path/to/historical.lang" --historical
+swift run --package-path Tools/ContractExport ContractExport --reader-contract --include-search "$PWD/outputs/reader-contract"
 ```
 
 `sourceIssues(in:)` 检查源码标识符等问题；`validationIssues(in:source:)` 汇总源码、运行时、组件与 Map 数据关系问题；`validationIssues(in:)` 检查求值树。原有 Swift 调用默认使用 historical，新增 profile: .generation 显式按 writer 检查排除组件与兼容字段；CLI 的 --validate 默认使用 generation，--historical 用于旧记录。`presentationWarnings(in:)` 是独立的非阻断语义提示，不是实测对比度审计。诊断不替代事实审查或真实 UI 验收。
 
 生成规则按显式组件依赖组织，全局事实/URL/动作约束不随单个组件排除而丢失。writer spec、签名与 Prompt 同源；当前 RC20 Prompt 中关于无动作按钮的通用默认说明，仍保留一处精确的策略文字替换，以符合本库“无动作禁用”的既有实现，不再用文字替换修改组件签名或 schema。
 
-模型验证使用 `python3 Benchmarks/run.py --model gpt-6.1-terra`，按用户确认使用该模型。保存请求、原始输出、解析与运行时结果，不静默换型。未经人工改写的模型程序保存在 Benchmarks/Recorded，不能与固定 Gallery 案例的视觉验收混用。
+可选模型验证使用 `python3 Validation/Generation/run.py --model gpt-6.1-terra`，通过指定 Codex 账户执行真实调用。保存请求、原始输出、解析与运行时结果，不静默换型；结果写入 `outputs/generation`。已纳入回归的六份未改写程序保存在 `Tests/OpenIntelligentSwiftUITests/Fixtures/GeneratedPrograms`，由 XCTest 检查当前运行时兼容性，不与 Gallery 的人工视觉验收混用。性能工作负载另归 `Benchmarks/LanguageRuntime`。
 
 `--suite guided|free|all` 区分指定组件的回归与不点名组件的自由组合任务。free 套件包含解释、商品、数据、表单和地图任务，以及商品/表单跟进更新；来源、交互、呈现审查单独记录 pending，解析成功不推断为任务成功。跟进使用前次生成程序和原始来源事实，不能把模型前次输出升级为新事实。
 
@@ -324,7 +324,7 @@ makeState() 使用 `OpenUICore` 中 `OpenUIState` 的默认创建方式，不另
 
 `IntelligentUIPerformance.isEnabled` 默认关闭。调试时可 reset()/snapshot() 获取本库局部解析、测量、附件适配、地图、媒体、公式与 WebKit 的计数/耗时，不记录业务内容，也不代表底座运行时或整机性能。完整同内容重复测量、流式变更与取消测试应分别记录真实调用成本。
 
-[原生流水线](../.github/workflows/native-sdk.yml) 检查四模块依赖与源码边界，编译两个独立 UI 产品消费者，在 macOS 运行 Swift Package 测试、Release fitting、Gallery 固定程序和历史 lang 导出对比，并构建两个 UI target 与 iOS Simulator Gallery。历史对比使用固定基线 ed3f6f82abf6f7cc9e307e9bb2eb21073a1f7d79，仅忽略 schema 的说明文字，不忽略业务字段名 description、默认值、类型、枚举或绑定标记。每次修改的验收记录绑定具体提交与原生运行结果，本文只陈述当前设计，不将检查配置等同于通过结果。
+[原生流水线](../.github/workflows/native-sdk.yml) 检查四模块依赖与源码边界，编译 Lang、Core 和两个 UI 的四个独立产品消费者，在 macOS 运行 Swift Package 测试、Release fitting、Gallery 固定程序和历史 lang 导出对比，并构建两个 UI target、独立契约/性能工具与 iOS Simulator Gallery。Gallery 自身的测试和案例完整/流式验证通过其独立包运行。历史对比使用固定基线 ed3f6f82abf6f7cc9e307e9bb2eb21073a1f7d79，仅忽略 schema 的说明文字，不忽略业务字段名 description、默认值、类型、枚举或绑定标记。每次修改的验收记录绑定具体提交与原生运行结果，本文只陈述当前设计，不将检查配置等同于通过结果。
 
 ## 10. 迭代规则
 

@@ -9,9 +9,7 @@ let package = Package(
         .library(name: "OpenUILang", targets: ["OpenUILang"]),
         .library(name: "OpenUICore", targets: ["OpenUICore"]),
         .library(name: "OpenSwiftUI", targets: ["OpenSwiftUI"]),
-        .library(name: "OpenIntelligentSwiftUI", targets: ["OpenIntelligentSwiftUI"]),
-        .executable(name: "IntelligentUIGallery", targets: ["IntelligentUIGallery"]),
-        .executable(name: "ContractExport", targets: ["ContractExport"])
+        .library(name: "OpenIntelligentSwiftUI", targets: ["OpenIntelligentSwiftUI"])
     ],
     dependencies: [
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", exact: "2.4.1")
@@ -30,15 +28,12 @@ let package = Package(
         .testTarget(name: "OpenUILangTests", dependencies: ["OpenUILang"], path: "Tests/OpenUILangTests",
             resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "OpenSwiftUITests", dependencies: ["OpenSwiftUI"], path: "Tests/OpenSwiftUITests",
-            swiftSettings: [.swiftLanguageMode(.v5)]),
+            resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)]),
         .target(name: "OpenIntelligentSwiftUI", dependencies: [
             "OpenUILang", "OpenUICore",
             .product(name: "MarkdownUI", package: "swift-markdown-ui")
         ], resources: [.process("Resources")], swiftSettings: [.swiftLanguageMode(.v5)]),
-        .executableTarget(name: "IntelligentUIGallery", dependencies: ["OpenIntelligentSwiftUI"],
-                          path: "Examples/Gallery", exclude: ["IntelligentUIGallery.xcodeproj"], resources: [.process("Resources")], swiftSettings: [.swiftLanguageMode(.v5)]),
-        .executableTarget(name: "ContractExport", dependencies: ["OpenIntelligentSwiftUI"], path: "Tools/ContractExport", swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "OpenIntelligentSwiftUITests", dependencies: ["OpenIntelligentSwiftUI"],
-                    swiftSettings: [.swiftLanguageMode(.v5)])
+                    resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)])
     ]
 )

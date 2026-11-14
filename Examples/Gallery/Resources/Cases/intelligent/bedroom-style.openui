@@ -1,0 +1,15 @@
+root = Col([heading,intro,preferences,selectedSummary,principles,next,boundary])
+$natural = false
+$quiet = false
+$vintage = false
+selected = @Concat(@Concat($natural?["自然松弛"]:[],$quiet?["安静克制"]:[]),$vintage?["温暖复古"]:[])
+heading = Title("先找到舒服的感觉，再决定卧室怎么改","xl")
+intro = Text("不必先给自己选一个固定风格。看下面三种氛围，可以选一个，也可以混合喜欢的元素。")
+preferences = Form([Grid([natural,quiet,vintage],3,250,4)])
+natural = Card([Image("https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=900&q=85","奶油白与浅木色为主的卧室参考"),Title("A · 自然松弛","sm"),Text("奶油白、浅木和棉麻，把注意力放在柔和的材质与轻松的日常感。"),Checkbox($natural,"喜欢自然松弛")])
+quiet = Card([Image("https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=900&q=85","安静克制的卧室参考"),Title("B · 安静克制","sm"),Text("深木、亚麻与间接暖光，让视觉安静下来，减少零碎摆设。"),Checkbox($quiet,"喜欢安静克制")])
+vintage = Card([Image("https://images.unsplash.com/photo-1615874694520-474822394e73?w=900&q=85","温暖复古的卧室参考"),Title("C · 温暖复古","sm"),Text("胡桃木、藤编和焦糖色，让空间有更浓一点的温度与旧物感。"),Checkbox($vintage,"喜欢温暖复古")])
+selectedSummary = Text(@Count(selected)==0?"还没选也没关系，先看看下面的三个改造抓手。":"你选中了："+@Join(selected,"、"),"sm","muted")
+principles = Col([Title("先改这三件事","lg"),List([ListItem("灯光","用局部暖光建立睡前氛围，同时保留实际阅读需要的照明。"),ListItem("织物","从床品、窗帘和地毯的小范围配色开始，先看实物质感。"),ListItem("留白","减少床头和视线里的杂物，给常用物品留出明确的位置。")]),Caption("如果是租住，优先试床品、灯具和可移动收纳，先确认房间尺寸与不能改动的部分。")])
+next = Button("按我的偏好继续细化",@ToAssistant("请按我勾选的卧室氛围继续提问，先了解房间尺寸、预算和租住限制，再提出改造建议。",{preferences:selected}),"solid","primary","md",null,@Count(selected)==0,true)
+boundary = Caption("图片只作氛围参考，不代表待售商品或精确装修方案。选择保存在本页；Gallery 仅记录继续讨论的动作，不会发送给外部服务。")

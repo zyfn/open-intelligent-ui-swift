@@ -1,0 +1,2 @@
+root = Col([Title("图示随状态变化", "lg"), Slider($offset,0,40,1,"移动距离"), Svg([Rect(10,25,100,60,"surface","info",2,1,12),SvgText("输入",60,60,16,"ink","middle","medium"),Line(110,55,190,55,"muted",2),G([Circle(240,55,36,"info"),SvgText("结果",240,60,16,"white","middle","semibold")],"translate(" + $offset + " 0)")],"0 0 340 120",null,180),Caption("这是 Intelligent UI 的结构化 Svg 契约，Standard 不复用此 DSL。")])
+$offset = 0
