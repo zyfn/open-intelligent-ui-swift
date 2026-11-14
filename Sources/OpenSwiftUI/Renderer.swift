@@ -1,4 +1,4 @@
-// OpenUISwiftUI — Renderer.
+// OpenSwiftUI — Renderer.
 //
 // The top-level SwiftUI view for OpenUI. Takes an OpenUIState and a
 // ComponentRegistry, renders the evaluated tree.

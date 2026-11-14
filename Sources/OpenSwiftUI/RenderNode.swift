@@ -1,4 +1,4 @@
-// OpenUISwiftUI — Recursive render node.
+// OpenSwiftUI — Recursive render node.
 //
 // Renders a single EvaluatedElement by looking up its component in the
 // registry and recursively rendering its children.
@@ -178,7 +178,7 @@ public struct OpenUIRenderChild: Identifiable {
 
 // MARK: - ErrorBoundary
 
-// OpenUISwiftUI — Error boundary.
+// OpenSwiftUI — Error boundary.
 //
 // Swift port of react-lang's `ElementErrorBoundary`. Keeps the last
 // registered element; if the input becomes unavailable, the last good

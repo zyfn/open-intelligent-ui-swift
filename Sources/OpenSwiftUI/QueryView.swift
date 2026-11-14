@@ -1,4 +1,4 @@
-// OpenUISwiftUI — Query loading view.
+// OpenSwiftUI — Query loading view.
 //
 // Optional host-owned Query UI. Standard data/media components separately own
 // their source-aware loading surfaces; custom loading closures remain untouched.

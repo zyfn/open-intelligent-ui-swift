@@ -1,7 +1,7 @@
 import Foundation
 import OpenUILang
-import OpenUISwiftUI
-import SwiftIntelligentUI
+import OpenSwiftUI
+import OpenIntelligentSwiftUI
 
 @MainActor enum ProgramChecks {
     static func run(_ name: String?, state: OpenUIState, library: IntelligentUILibrary) async -> [String: Bool] {
