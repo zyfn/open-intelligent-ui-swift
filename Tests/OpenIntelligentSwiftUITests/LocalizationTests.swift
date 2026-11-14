@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class LocalizationTests: XCTestCase {
     func testHostLocaleSelectsPackageCopyInsteadOfProcessLanguage() {

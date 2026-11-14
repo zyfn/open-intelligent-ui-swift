@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import CoreGraphics
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class PressableSurfaceTests: XCTestCase {
     @MainActor func testMultipleChildrenShareOneContinuousBackground() throws {

@@ -3,7 +3,7 @@ import Foundation
 import CoreGraphics
 import ImageIO
 import OpenUILang
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class MediaRegressionTests: XCTestCase {
     func testImagePixelTiersRespectScaleAndZoom() {

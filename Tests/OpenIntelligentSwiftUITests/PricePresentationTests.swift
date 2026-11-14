@@ -1,7 +1,7 @@
 import XCTest
 import OpenUILang
-import OpenUISwiftUI
-@testable import SwiftIntelligentUI
+import OpenSwiftUI
+@testable import OpenIntelligentSwiftUI
 
 final class PricePresentationTests: XCTestCase {
     @MainActor func testCanonicalPriceAndTagsPreserveAmountAndScope() throws {

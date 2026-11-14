@@ -1,8 +1,8 @@
 import XCTest
 import Foundation
 import OpenUILang
-import OpenUISwiftUI
-import SwiftIntelligentUI
+import OpenSwiftUI
+import OpenIntelligentSwiftUI
 
 final class RecordedGenerationTests: XCTestCase {
     @MainActor func testRecordedModelProgramsRemainExecutable() throws {

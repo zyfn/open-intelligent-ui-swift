@@ -1,6 +1,6 @@
 import XCTest
 import MapKit
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class MapCameraGeometryTests: XCTestCase {
     func testFitKeepsSuppliedPointsInsideAreaAboveCardsAndBelowControls() throws {
