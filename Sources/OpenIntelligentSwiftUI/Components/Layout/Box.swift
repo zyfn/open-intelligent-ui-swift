@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenSwiftUI
+import OpenUICore
 
 enum BoxComponent {
     static var component: OpenUIComponent {

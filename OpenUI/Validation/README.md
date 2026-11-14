@@ -6,8 +6,8 @@ second parser. It requires Node 18+ and no npm install, renderer or network.
 The bundle and its documented compatibility corrections remain unchanged.
 
 ```sh
-node packages/swift-lang/validation/cli.mjs --contract /path/to/contracts source.openui
-cat source.openui | node packages/swift-lang/validation/cli.mjs --contract /path/to/contracts -
+node OpenUI/Validation/cli.mjs --contract /path/to/contracts source.openui
+cat source.openui | node OpenUI/Validation/cli.mjs --contract /path/to/contracts -
 ```
 
 ```js
@@ -45,10 +45,10 @@ security sandbox; the only loaded executable code is the verified SDK bundle.
 Build a portable offline release after committing the SDK wrapper:
 
 ```sh
-node packages/swift-lang/validation/build.mjs --output /new/lang-validator \
+node OpenUI/Validation/build.mjs --output /new/lang-validator \
   --contract /path/to/contracts
 node /new/lang-validator/cli.mjs source.openui
-node --test packages/swift-lang/validation/validation.test.mjs
+node --test OpenUI/Validation/validation.test.mjs
 ```
 
 The package contains the API/CLI, exact core, provenance/licenses and optionally

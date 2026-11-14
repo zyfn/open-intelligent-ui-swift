@@ -1,3 +1,4 @@
+import OpenUICore
 #if os(macOS)
 import AppKit
 import OpenUILang
@@ -94,12 +95,30 @@ final class ObjectCardCompositionTests: XCTestCase {
     _ = NSApplication.shared
     let library = try OpenUIStandardComponents.library()
     var theme = OpenUIThemeValues()
-    theme.sunk = .red; theme.foreground = .white
+    // Geometry must be measured with loaded artwork. Missing artwork is quiet
+    // and transparent, so a placeholder color cannot establish image bounds.
+    theme.sunk = .blue; theme.foreground = .white
+    let imageSource = "https://fixture.invalid/card.png"
+    let loader = ObjectCardImageLoader()
+    let resources = OpenUIResourceContext(loader: loader)
+    let pixels = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
+      pixelsWide: 1, pixelsHigh: 1, bitsPerSample: 8, samplesPerPixel: 4,
+      hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+      bytesPerRow: 4, bitsPerPixel: 32))
+    pixels.setColor(.red, atX: 0, y: 0)
+    let artwork = Image(decorative: try XCTUnwrap(pixels.cgImage), scale: 1)
     func bitmap(_ source: String, width: CGFloat = 320) throws -> NSBitmapImageRep {
       let state = OpenUIState(schema: library.library.toSchema()); state.setSource(source)
       XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      let scoped = state.resourceStore.scoped(resources)
+      let key = NativeResourceRequestID(request: try XCTUnwrap(scoped.request(for: imageSource)),
+        loader: ObjectIdentifier(scoped.loader), attempt: 0,
+        authorizationScope: scoped.loader.authorizationScopeID)
+      state.mediaCache.insert(.init(image: artwork, size: CGSize(width: 1, height: 1),
+        cost: 4, resourceOwner: scoped.loader, wasPresented: true), for: key)
       let renderer = ImageRenderer(content: OpenUIRenderer(state: state, registry: library.registry)
-        .openUITheme(theme).frame(width: width).background(.white).environment(\.colorScheme, .light))
+        .openUIResourceContext(resources).openUITheme(theme)
+        .frame(width: width).background(.white).environment(\.colorScheme, .light))
       renderer.scale = 1
       return NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
     }
@@ -108,17 +127,25 @@ final class ObjectCardCompositionTests: XCTestCase {
       return color.redComponent > 0.8 && color.greenComponent < 0.5 && color.blueComponent < 0.5
     }
     for source in [
-      "root=Card([Image(\"photo\"),CardHeader(\"Title\")],\"card\")",
-      "root=Card([Stack([ImageTextLarge(\"\",\"photo\",\"Title\")])],\"card\")",
-      "root=CompositeCardBlock([CompositeCardItem(\"a\",ImageTextLarge(\"\",\"photo\",\"Title\"),[]),CompositeCardItem(\"b\",ImageTextLarge(\"\",\"photo\",\"Title\"),[])],\"grid\",false)"
+      "root=Card([Image(\"photo\",\"\(imageSource)\"),CardHeader(\"Title\")],\"card\")",
+      "root=Card([Stack([ImageTextLarge(\"\(imageSource)\",\"photo\",\"Title\")])],\"card\")",
+      "root=CompositeCardBlock([CompositeCardItem(\"a\",ImageTextLarge(\"\(imageSource)\",\"photo\",\"Title\"),[]),CompositeCardItem(\"b\",ImageTextLarge(\"\(imageSource)\",\"photo\",\"Title\"),[])],\"grid\",false)"
     ] {
       let image = try bitmap(source, width: source.contains("CompositeCardBlock") ? 652 : 320)
       XCTAssertTrue(try isRed(image, x: 5, y: 60), "Leading image must reach the card's left edge")
       XCTAssertTrue(try isRed(image, x: 60, y: 5), "Leading image must reach the card's top edge")
     }
-    let body = try bitmap("root=Card([CardHeader(\"Title\"),Image(\"body\")],\"card\")")
+    let body = try bitmap("root=Card([CardHeader(\"Title\"),Image(\"body\",\"\(imageSource)\")],\"card\")")
     XCTAssertFalse(try isRed(body, x: 5, y: 100), "Body image must not extend through its surrounding content inset")
     XCTAssertTrue(try isRed(body, x: 40, y: 100))
+
+    let missing = try bitmap("root=Card([Image(\"No source\"),CardHeader(\"Title\")],\"card\")")
+    for (x, y) in [(5, 60), (60, 5), (160, 60)] {
+      let color = try XCTUnwrap(missing.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+      XCTAssertGreaterThan(color.redComponent, 0.9, "Missing artwork must leave the white card surface visible")
+      XCTAssertGreaterThan(color.greenComponent, 0.9)
+      XCTAssertGreaterThan(color.blueComponent, 0.9)
+    }
   }
 
   @MainActor func testWrappingCardsKeepReadingSpaceAndFillAnIncompleteRow() throws {
@@ -200,6 +227,19 @@ final class ObjectCardCompositionTests: XCTestCase {
   var values: [String: CGRect] = [:]
   func record(_ name: String, _ frame: CGRect) {
     if values[name] == nil || frame.minX <= values[name]!.minX { values[name] = frame }
+  }
+}
+
+/// A deterministic address resolver. Artwork is preloaded in the presentation
+/// cache, and an unexpected transport request fails instead of touching a host.
+private final class ObjectCardImageLoader: OpenUIResourceLoading {
+  func request(for source: String, relativeTo baseURL: URL?) -> URLRequest? {
+    guard !source.isEmpty, let url = URL(string: source, relativeTo: baseURL) else { return nil }
+    return URLRequest(url: url)
+  }
+  func data(for request: URLRequest) async throws -> Data {
+    XCTFail("The card geometry fixture must use its preloaded artwork")
+    throw URLError(.resourceUnavailable)
   }
 }
 #endif

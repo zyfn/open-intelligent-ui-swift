@@ -1,3 +1,4 @@
+import OpenUICore
 import Foundation
 import XCTest
 @testable import OpenSwiftUI

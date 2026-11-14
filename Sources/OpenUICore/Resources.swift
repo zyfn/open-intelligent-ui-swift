@@ -42,12 +42,12 @@ extension OpenUIResourceLoading {
 }
 
 /// FIFO admission with cancellation. No sleeping thread or global network queue.
-actor NativeResourceAdmission {
+package actor NativeResourceAdmission {
     private let maximum: Int
     private var active = 0
     private var waiting: [(UUID, CheckedContinuation<Void, Error>)] = []
-    init(maximum: Int) { self.maximum = max(1, maximum) }
-    func acquire() async throws {
+    package init(maximum: Int) { self.maximum = max(1, maximum) }
+    package func acquire() async throws {
         try Task.checkCancellation()
         if active < maximum { active += 1; return }
         let id = UUID()
@@ -64,29 +64,29 @@ actor NativeResourceAdmission {
         guard let index = waiting.firstIndex(where: { $0.0 == id }) else { return }
         waiting.remove(at: index).1.resume(throwing: CancellationError())
     }
-    func release() {
+    package func release() {
         if !waiting.isEmpty { waiting.removeFirst().1.resume() }
         else { active = max(0, active - 1) }
     }
 }
 
-final class NativeResourceRedirectPolicy: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    let limits: OpenUIResourceLimits
+package final class NativeResourceRedirectPolicy: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    package let limits: OpenUIResourceLimits
     private var redirects = 0
-    init(limits: OpenUIResourceLimits) { self.limits = limits }
+    package init(limits: OpenUIResourceLimits) { self.limits = limits }
     private static func sameOrigin(_ a: URL, _ b: URL) -> Bool {
         let schemeA = a.scheme?.lowercased(), schemeB = b.scheme?.lowercased()
         return schemeA == schemeB && a.host?.lowercased() == b.host?.lowercased()
             && (a.port ?? (schemeA == "https" ? 443 : 80)) == (b.port ?? (schemeB == "https" ? 443 : 80))
     }
-    static func permitted(from old: URL?, to new: URL?, limits: OpenUIResourceLimits) -> Bool {
+    package static func permitted(from old: URL?, to new: URL?, limits: OpenUIResourceLimits) -> Bool {
         guard let old, let new, let scheme = new.scheme?.lowercased(),
               ["http", "https"].contains(scheme), new.host?.isEmpty == false,
               new.user == nil, new.password == nil else { return false }
         if old.scheme?.lowercased() == "https", scheme != "https" { return false }
         return sameOrigin(old, new) || limits.allowsCrossOriginRedirects
     }
-    func urlSession(_ session: URLSession, task: URLSessionTask,
+    package func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest,
                     completionHandler: @escaping (URLRequest?) -> Void) {
@@ -177,7 +177,8 @@ public struct OpenUIResourceContext {
 /// Presentation-scoped transport shared by images and native Markdown.
 /// A view relocation does not own/cancel the underlying request. Credentials,
 /// resource policy and source addresses continue to belong to the injected loader.
-@MainActor final class NativeResourceStore {
+@MainActor package final class NativeResourceStore {
+    package init() {}
     private struct OwnerKey: Hashable {
         let identity: ObjectIdentifier
         let scope: String
@@ -198,9 +199,9 @@ public struct OpenUIResourceContext {
     private var order: [Key] = []
     private var completedBytes = 0
     private var generation = 0
-    var pendingSubscriberCount: Int { pending.values.reduce(0) { $0 + $1.waiters.count } }
+    package var pendingSubscriberCount: Int { pending.values.reduce(0) { $0 + $1.waiters.count } }
 
-    func scoped(_ context: OpenUIResourceContext) -> OpenUIResourceContext {
+    package func scoped(_ context: OpenUIResourceContext) -> OpenUIResourceContext {
         var owner = context.loader
         while let scoped = owner as? ScopedResourceLoader { owner = scoped.owner }
         let key = OwnerKey(identity: ObjectIdentifier(owner), scope: owner.authorizationScopeID)
@@ -291,7 +292,7 @@ public struct OpenUIResourceContext {
             group.task?.cancel(); group.task = nil
         }
     }
-    func removeAll() {
+    package func removeAll() {
         generation &+= 1
         let requests = Array(pending.values)
         pending.removeAll()
@@ -341,9 +342,17 @@ extension View {
     }
 }
 
-struct NativeResourceRequestID: Hashable {
-    let request: URLRequest?
-    let loader: ObjectIdentifier
-    let attempt: Int
-    var authorizationScope: String = ""
+package struct NativeResourceRequestID: Hashable {
+    package let request: URLRequest?
+    package let loader: ObjectIdentifier
+    package let attempt: Int
+    package var authorizationScope: String
+
+    package init(request: URLRequest?, loader: ObjectIdentifier, attempt: Int,
+                 authorizationScope: String = "") {
+        self.request = request
+        self.loader = loader
+        self.attempt = attempt
+        self.authorizationScope = authorizationScope
+    }
 }

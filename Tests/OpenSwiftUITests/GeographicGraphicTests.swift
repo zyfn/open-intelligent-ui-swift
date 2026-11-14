@@ -1,3 +1,4 @@
+import OpenUICore
 import XCTest
 import OpenUILang
 @testable import OpenSwiftUI
@@ -5,7 +6,7 @@ import OpenUILang
 final class GeographicGraphicTests: XCTestCase {
   @MainActor func testDefaultLibraryOwnsExistingHostContractsAndContainerSlots() throws {
     let library = try OpenUIStandardComponents.library()
-    let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Examples/AgentCases/test-library-spec.json")
+    let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("OpenUI/Examples/AgentCases/test-library-spec.json")
     let previous = try LibrarySpec(jsonString: String(contentsOf: fixture, encoding: .utf8))
     for name in ["Map", "MapPoint", "SVG", "Card", "TabItem", "AccordionItem"] {
       XCTAssertEqual(library.toSpec().components.first { $0.name == name }?.signature,

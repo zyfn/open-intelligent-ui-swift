@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// The public IconText sizes select a base glyph; drawing and its box use

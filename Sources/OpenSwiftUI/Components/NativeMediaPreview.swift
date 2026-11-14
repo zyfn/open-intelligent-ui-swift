@@ -1,3 +1,4 @@
+import OpenUICore
 import Foundation
 
 /// Source-proportional geometry. Unknown or invalid source sizes use a loading

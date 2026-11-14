@@ -1,3 +1,4 @@
+import OpenUICore
 #if os(macOS)
 import AppKit
 import SwiftUI
@@ -6,6 +7,28 @@ import OpenUILang
 @testable import OpenSwiftUI
 
 final class ThemeOverrideTests: XCTestCase {
+  @MainActor func testNestedThemeReachesCustomCoreComponentsWithoutErasingHostContext() throws {
+    _ = NSApplication.shared
+    var nested = OpenUIThemeValues(); nested.spaceM = 47
+    let scope = OpenUIComponent(name: "ProbeThemeScope", description: "Local theme scope",
+      params: [OpenUIParameter.slot("children", required: true)]) { context in
+      context.slot().environment(\.openUITheme, nested)
+    }
+    let metric = OpenUIComponent(name: "ProbeMetric", description: "Read the closest theme", params: []) { context in
+      Color.clear.frame(height: context.values[HostContextProbe.self] == "retained" ? context.theme.spaceM : 1)
+    }
+    let library = try OpenUIComponentLibrary(components: [scope, metric], root: "ProbeThemeScope")
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.setSource("root=ProbeThemeScope([ProbeMetric()])")
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    var outer = OpenUIThemeValues(); outer.spaceM = 11
+    var values = OpenUIContextValues(); values[HostContextProbe.self] = "retained"
+    let hosting = NSHostingView(rootView: OpenUIRenderer(state: state, registry: library.registry)
+      .openUITheme(outer).openUIContextValues(values).frame(width: 200))
+    XCTAssertEqual(hosting.fittingSize.height, 47, accuracy: 0.5,
+      "A nested standard theme must reach any registered component while preserving unrelated host context")
+  }
+
   @MainActor func testListTitlesAndCompactDescriptionsUseTheirIndependentThemeFonts() throws {
     _ = NSApplication.shared
     let library = try OpenUIStandardComponents.library()
@@ -185,5 +208,9 @@ final class ThemeOverrideTests: XCTestCase {
       XCTAssertEqual(try rgba(changed.textNeutralPrimary, scheme), try rgba(base.textNeutralPrimary, scheme))
     }
   }
+}
+
+private enum HostContextProbe: OpenUIContextKey {
+  static let defaultValue = "missing"
 }
 #endif

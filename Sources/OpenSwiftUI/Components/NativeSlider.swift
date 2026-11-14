@@ -1,3 +1,4 @@
+import OpenUICore
 @_spi(RuntimeInspection) import OpenUILang
 import SwiftUI
 import Combine

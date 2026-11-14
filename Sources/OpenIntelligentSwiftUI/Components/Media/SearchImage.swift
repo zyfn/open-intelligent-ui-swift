@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenSwiftUI
+import OpenUICore
 import OpenUILang
 
 /// Caller-owned service. It returns source data; the component does not choose a provider.

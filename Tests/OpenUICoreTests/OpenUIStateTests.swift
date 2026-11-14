@@ -2,7 +2,7 @@ import XCTest
 import SwiftUI
 import Combine
 import OpenUILang
-@testable import OpenSwiftUI
+@testable import OpenUICore
 
 final class OpenUIStateTests: XCTestCase {
     private func schema() -> LibrarySchema {
@@ -26,7 +26,7 @@ final class OpenUIStateTests: XCTestCase {
     }
 
     @MainActor func testRegistryKeepsDictionaryLiteralAndLookup() {
-        var registry: ComponentRegistry = ["Text": { el, _ in AnyView(Text(PropValue.string(el, "text") ?? "")) }]
+        var registry: OpenUIComponentRegistry = ["Text": { el, _ in AnyView(Text(PropValue.string(el, "text") ?? "")) }]
         XCTAssertNotNil(registry["Text"])
         registry["Text"] = nil
         XCTAssertNil(registry["Text"])

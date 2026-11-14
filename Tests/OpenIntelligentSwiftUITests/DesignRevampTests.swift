@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 @testable import OpenIntelligentSwiftUI
 #if os(iOS)
 import UIKit

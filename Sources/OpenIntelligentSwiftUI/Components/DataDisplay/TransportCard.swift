@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 private enum TransportCardMetrics {
     static let routeWidth: CGFloat = 88
@@ -186,7 +186,7 @@ private struct TransportCardView: View {
             let facts = leg.temporalText
             if !facts.isEmpty { Text(facts).font(theme.captionFont).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true) }
             if let url = leg.bookingURL, SourceURL.isActionable(url) {
-                OpenUIActionSurface(context: context, action: OpenUIActions.openURL(url), useNativeStyle: true, showsProgress: true) { Text(SDKStrings.text("transport.view_leg", locale: locale)).font(theme.compactActionFont) }
+                IntelligentUIActionSurface(context: context, action: OpenUIActions.openURL(url), showsProgress: true) { Text(SDKStrings.text("transport.view_leg", locale: locale)).font(theme.compactActionFont) }
                     .buttonStyle(UpstreamButtonStyle(variant: "ghost", tint: theme.actionAccent, size: "sm")).tint(theme.actionAccent)
             }
         }.accessibilityElement(children: .contain)

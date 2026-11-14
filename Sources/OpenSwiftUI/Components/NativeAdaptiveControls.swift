@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// A horizontal scroller measures its row with an unspecified width. A plain

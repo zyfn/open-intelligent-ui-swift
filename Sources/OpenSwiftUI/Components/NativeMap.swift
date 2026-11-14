@@ -1,3 +1,4 @@
+import OpenUICore
 import MapKit
 import OpenUILang
 import SwiftUI
@@ -8,9 +9,11 @@ enum OpenUIGeographicComponents {
             OpenUIParameter.slot("points", required: true, accepting: ["MapPoint"]),
             OpenUIParameter.string("crs", required: false, values: ["wgs84", "gcj02"])
         ]) { context in
-            if #available(iOS 17, macOS 14, *) { MainActor.assumeIsolated { NativeMap(context: context) } }
-            else { Text("Map requires iOS 17 or macOS 14", bundle: NativeControlResources.bundle)
-                .nativeTextStyle(context.theme.textStyle(.supporting)) }
+            NativeComponentHost(context: context) { context in
+                if #available(iOS 17, macOS 14, *) { MainActor.assumeIsolated { NativeMap(context: context) } }
+                else { Text("Map requires iOS 17 or macOS 14", bundle: NativeControlResources.bundle)
+                    .nativeTextStyle(context.theme.textStyle(.supporting)) }
+            }
         }
     }
     static var mapPoint: OpenUIComponent {

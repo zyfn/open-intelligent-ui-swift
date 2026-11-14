@@ -1,3 +1,4 @@
+import OpenUICore
 #if os(macOS)
 import AppKit
 import Foundation

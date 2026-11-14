@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 enum CitationComponent {
     static var component: OpenUIComponent {
@@ -39,7 +39,7 @@ private struct CitationView: View {
             Group {
                 if interactive { label(first) }
                 else if sources.count == 1 {
-                    OpenUIActionSurface(context: context, action: OpenUIActions.openURL(first.url), useNativeStyle: true) { label(first) }
+                    IntelligentUIActionSurface(context: context, action: OpenUIActions.openURL(first.url)) { label(first) }
                         .disabled(!SourceURL.isActionable(first.url))
                 } else {
                     Button { presented = true } label: { label(first) }.disabled(!context.canInteract)
@@ -65,7 +65,7 @@ private struct CitationView: View {
             BoundedContentScroll(maximumHeight: 400) {
                 VStack(alignment: .leading, spacing: theme.innerSpacing) {
                     ForEach(sources) { source in
-                        OpenUIActionSurface(context: context, action: OpenUIActions.openURL(source.url), useNativeStyle: true) {
+                        IntelligentUIActionSurface(context: context, action: OpenUIActions.openURL(source.url)) {
                             VStack(alignment: .leading, spacing: theme.spacingUnit) { Text(source.title).font(theme.bodyFont); Text(source.domain).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
                                 .frame(maxWidth: .infinity, minHeight: theme.minimumControlHeight, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true)

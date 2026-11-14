@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 import XCTest
 import OpenUILang

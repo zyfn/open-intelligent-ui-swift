@@ -1,3 +1,4 @@
+import OpenUICore
 import Combine
 import OpenUILang
 import XCTest

@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenSwiftUI
+import OpenUICore
 
 struct ReadingAnchor: Hashable {
     let owner: ObjectIdentifier

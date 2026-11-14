@@ -1,5 +1,6 @@
 import SwiftUI
 import OpenUILang
+import OpenUICore
 
 /// For a card with one primary action. Its label must contain presentation only,
 /// not nested buttons. The host decides how the resulting event is handled.
@@ -70,12 +71,5 @@ public struct OpenUIActionSurface<Content: View>: View {
         case .plan(let action): return NativeFormValidation.requiresValidation(action)
         case .value(_,let value): return NativeFormValidation.requiresValidation(action: value)
         }
-    }
-}
-
-public enum OpenUIActions {
-    public static func openURL(_ url: String) -> ActionPlan { ActionPlan(steps: [.openUrl(urlAST: .str(url))]) }
-    public static func continueConversation(_ message: String, context: ASTNode? = nil) -> ActionPlan {
-        ActionPlan(steps: [.continueConversation(messageAST: .str(message), contextAST: context)])
     }
 }

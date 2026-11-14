@@ -1,7 +1,7 @@
 import XCTest
 import Foundation
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 @testable import OpenIntelligentSwiftUI
 
 final class FunctionTests: XCTestCase {

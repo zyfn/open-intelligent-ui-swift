@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Partial overrides using the pinned React Theme names. Nil keeps the SDK default.

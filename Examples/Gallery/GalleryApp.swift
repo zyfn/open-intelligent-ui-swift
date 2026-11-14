@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 import OpenIntelligentSwiftUI
 
 #if os(macOS)

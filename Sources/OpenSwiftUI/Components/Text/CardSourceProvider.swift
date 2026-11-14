@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Source data has the same fields as the upstream CardSourceSchema. Ordering is

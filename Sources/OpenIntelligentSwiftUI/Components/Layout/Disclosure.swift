@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 enum DisclosureComponent {
     static var component: OpenUIComponent {

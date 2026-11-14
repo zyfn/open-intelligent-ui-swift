@@ -5,10 +5,12 @@ import OpenUILang
 /// Definitions stay Foundation-only; native views are registered at this layer.
 public struct OpenUIComponent {
     public let definition: DefinedComponent
-    fileprivate let builder: ComponentRegistry.Builder
-    var supportsPresentationPlaceholder = false
-    var presentationLayoutFields: [String] = []
-    var ownsFormControlLabel = false
+    fileprivate let builder: OpenUIComponentRegistry.Builder
+    package var supportsPresentationPlaceholder = false
+    package var presentationLayoutFields: [String] = []
+    package var ownsFormControlLabel = false
+    package var presentationIdentityFields: [String]?
+    package var presentationPlaceholderFields: [String] = []
 
     public init<Content: View>(name: String, description: String, params: [ParamDef],
                                @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
@@ -21,7 +23,9 @@ public struct OpenUIComponent {
     public func presentation(
         layoutFields: [String] = [],
         supportsPlaceholder: Bool = false,
-        ownsFormControlLabel: Bool = false
+        ownsFormControlLabel: Bool = false,
+        identityFields: [String]? = nil,
+        placeholderFields: [String] = []
     ) -> OpenUIComponent {
         var result = self
         let declared = Set(definition.params.map(\.name))
@@ -31,6 +35,14 @@ public struct OpenUIComponent {
         }
         result.supportsPresentationPlaceholder = supportsPlaceholder
         result.ownsFormControlLabel = ownsFormControlLabel
+        var identityNames = Set<String>()
+        result.presentationIdentityFields = identityFields.map {
+            $0.filter { declared.contains($0) && identityNames.insert($0).inserted }
+        }
+        var placeholderNames = Set<String>()
+        result.presentationPlaceholderFields = placeholderFields.filter {
+            declared.contains($0) && placeholderNames.insert($0).inserted
+        }
         return result
     }
 
@@ -38,13 +50,16 @@ public struct OpenUIComponent {
     /// The builder still receives the final extended registry and shared state.
     public func replacingDefinition(_ definition: DefinedComponent) -> OpenUIComponent {
         var result = OpenUIComponent(definition: definition, builder: builder)
+        let declared = Set(definition.params.map(\.name))
         result.supportsPresentationPlaceholder = supportsPresentationPlaceholder
         result.ownsFormControlLabel = ownsFormControlLabel
-        result.presentationLayoutFields = presentationLayoutFields.filter { name in definition.params.contains { $0.name == name } }
+        result.presentationLayoutFields = presentationLayoutFields.filter { declared.contains($0) }
+        result.presentationIdentityFields = presentationIdentityFields.map { $0.filter { declared.contains($0) } }
+        result.presentationPlaceholderFields = presentationPlaceholderFields.filter { declared.contains($0) }
         return result
     }
 
-    private init(definition: DefinedComponent, builder: @escaping ComponentRegistry.Builder) {
+    private init(definition: DefinedComponent, builder: @escaping OpenUIComponentRegistry.Builder) {
         self.definition = definition
         self.builder = builder
     }
@@ -64,7 +79,7 @@ public struct OpenUIComponent {
 /// the components whose implementations were supplied by its author.
 public struct OpenUIComponentLibrary {
     public let library: Library
-    public let registry: ComponentRegistry
+    public let registry: OpenUIComponentRegistry
 
     public init(
         components: [OpenUIComponent],
@@ -76,18 +91,20 @@ public struct OpenUIComponentLibrary {
     ) throws {
         let library = try createLibrary(components: components.map(\.definition), functions: functions,
                                         actions: actions, root: root, id: id, componentGroups: componentGroups)
-        var registry = ComponentRegistry()
+        var registry = OpenUIComponentRegistry()
         for component in components {
             registry[component.definition.name] = component.builder
             registry.setPresentationPlaceholder(component.definition.name, enabled: component.supportsPresentationPlaceholder)
             registry.setLayoutFields(component.definition.name, fields: component.presentationLayoutFields)
             registry.setFormControlLabelOwner(component.definition.name, enabled: component.ownsFormControlLabel)
+            registry.setIdentityFields(component.definition.name, fields: component.presentationIdentityFields)
+            registry.setPlaceholderFields(component.definition.name, fields: component.presentationPlaceholderFields)
         }
         self.library = library
         self.registry = registry
     }
 
-    private init(library: Library, registry: ComponentRegistry) {
+    private init(library: Library, registry: OpenUIComponentRegistry) {
         self.library = library
         self.registry = registry
     }
@@ -111,6 +128,8 @@ public struct OpenUIComponentLibrary {
             next.setPresentationPlaceholder(component.definition.name, enabled: component.supportsPresentationPlaceholder)
             next.setLayoutFields(component.definition.name, fields: component.presentationLayoutFields)
             next.setFormControlLabelOwner(component.definition.name, enabled: component.ownsFormControlLabel)
+            next.setIdentityFields(component.definition.name, fields: component.presentationIdentityFields)
+            next.setPlaceholderFields(component.definition.name, fields: component.presentationPlaceholderFields)
         }
         return OpenUIComponentLibrary(library: extended, registry: next)
     }

@@ -1,3 +1,4 @@
+import OpenUICore
 // OpenSwiftUI — Renderer.
 //
 // The top-level SwiftUI view for OpenUI. Takes an OpenUIState and a
@@ -36,7 +37,7 @@ import OpenUILang
 /// ]
 /// ```
 public struct OpenUIRenderer: View {
-    @ObservedObject private var state: OpenUIState
+    private let state: OpenUIState
     private let registry: ComponentRegistry
     @Environment(\.openUITheme) private var theme
 
@@ -46,15 +47,9 @@ public struct OpenUIRenderer: View {
     }
 
     public var body: some View {
-        Group {
-            if let root = state.root ?? state.presentationRoot.flatMap({ NativePresentationProxy.element($0, registry: registry) }) {
-                RenderNode(element: root, registry: registry)
-            } else {
-                // Nothing to render yet (or root failed).
-                EmptyView()
-            }
-        }
-        .environmentObject(state)
-        .openUIFont(theme.textBodyDefault).foregroundStyle(theme.textNeutralPrimary).tint(theme.interactiveAccentDefault)
+        OpenUICoreView(state: state, registry: registry)
+            .openUIFont(theme.textBodyDefault)
+            .foregroundStyle(theme.textNeutralPrimary)
+            .tint(theme.interactiveAccentDefault)
     }
 }

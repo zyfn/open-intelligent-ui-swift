@@ -1,3 +1,4 @@
+import OpenUICore
 import OpenUILang
 
 extension NativeChartStreamingPresentation {

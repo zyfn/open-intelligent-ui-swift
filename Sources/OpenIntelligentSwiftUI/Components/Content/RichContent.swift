@@ -1,7 +1,7 @@
 import SwiftUI
 import MarkdownUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 enum MarkdownComponent {
     static var component: OpenUIComponent {

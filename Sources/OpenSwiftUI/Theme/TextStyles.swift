@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Complete, internal text recipes for slots whose purpose is already explicit.

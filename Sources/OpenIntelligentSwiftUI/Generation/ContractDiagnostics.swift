@@ -1,6 +1,6 @@
 import Foundation
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 /// Validation does not change parsing or rendering. Historical reading keeps
 /// the full RC20-era contract; generation uses only the advertised writer.

@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Shared feedback timing. Views still honor the nearest Reduce Motion setting.

@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// One loading surface for known media/data regions. Its motion changes only

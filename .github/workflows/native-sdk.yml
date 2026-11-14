@@ -23,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -30,7 +31,7 @@ jobs:
       - name: Verify SwiftPM module graph and imports
         run: |
           set -euo pipefail
-          swift package dump-package > /dev/null
+          python3 Tools/check_module_boundaries.py
           if grep -R -nE '(^|[[:space:]])(@testable[[:space:]]+)?import[[:space:]]+(OpenUISwiftUI|SwiftIntelligentUI)([[:space:]]|$)' Sources Tests Examples Tools --include='*.swift'; then
             echo 'Obsolete Swift module imports remain'
             exit 1
@@ -65,7 +66,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/native-input-evidence"
           git rev-parse HEAD > "$RUNNER_TEMP/native-input-evidence/checkout-sha.txt"
-          git diff -- OpenUI/Sources > "$RUNNER_TEMP/native-input-evidence/generated-diff.patch"
+          git diff -- Sources > "$RUNNER_TEMP/native-input-evidence/generated-diff.patch"
           cp Sources/OpenUILang/Resources/core-manifest.json "$RUNNER_TEMP/native-input-evidence/"
       - uses: actions/upload-artifact@v4
         if: always()
@@ -82,6 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -127,6 +129,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Record toolchain and exact checkout
         shell: bash
@@ -140,11 +143,17 @@ jobs:
         run: |
           set -euo pipefail
           swift test 2>&1 | tee outputs/verification/sdk-tests.log
+      - name: Independent public UI product consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Tools/check_product_consumers.py --scratch-root "$RUNNER_TEMP/native-consumers" \
+            2>&1 | tee outputs/verification/product-consumers.log
       - name: Release native fitting
         shell: bash
         run: |
           set -euo pipefail
-          swift test -c release --filter HostSizingIsolationTests \
+          swift test -c release --filter 'HostSizingIsolationTests|CoreHostIsolationTests' \
             2>&1 | tee outputs/verification/release-fitting.log
       - name: Gallery fixture programs
         shell: bash
@@ -174,9 +183,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift build --target OpenIntelligentSwiftUI --scratch-path "$RUNNER_TEMP/native-ios" \
-            --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-            2>&1 | tee outputs/verification/libraries-ios.log
+          for target in OpenSwiftUI OpenIntelligentSwiftUI; do
+            swift build --target "$target" --scratch-path "$RUNNER_TEMP/native-ios" \
+              --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+              2>&1 | tee "outputs/verification/$target-ios.log"
+          done
       - name: iOS Gallery using the same local package
         shell: bash
         run: |

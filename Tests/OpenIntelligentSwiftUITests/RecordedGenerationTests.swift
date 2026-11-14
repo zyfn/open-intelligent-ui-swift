@@ -1,7 +1,7 @@
 import XCTest
 import Foundation
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 import OpenIntelligentSwiftUI
 
 final class RecordedGenerationTests: XCTestCase {

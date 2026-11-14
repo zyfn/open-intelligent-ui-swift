@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 enum DividerComponent {
     static var component: OpenUIComponent { OpenUIComponent(name: "Divider", description: "Native content separator.", params: []) { _ in Divider().layoutValue(key: RowDivider.self, value: true) } }

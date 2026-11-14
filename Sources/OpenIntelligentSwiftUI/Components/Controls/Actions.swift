@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 /// Shared card navigation action; public arbitrary actions remain Button.
 struct PrimaryLinkButton: View {
@@ -11,7 +11,7 @@ struct PrimaryLinkButton: View {
     var symbol: String? = nil
     @Environment(\.intelligentUITheme) private var theme
     var body: some View {
-        OpenUIActionSurface(context: context, action: OpenUIActions.openURL(url), useNativeStyle: true, showsProgress: true) {
+        IntelligentUIActionSurface(context: context, action: OpenUIActions.openURL(url), showsProgress: true) {
             HStack(spacing: theme.spacingUnit) {
                 Text(label)
                 if let symbol { Image(systemName: symbol).accessibilityHidden(true) }
@@ -39,7 +39,7 @@ private struct IconButtonView: View {
         surface.buttonStyle(QuietControlStyle(cornerRadius: 10_000)).disabled(context.action() == nil).tint(theme.actionAccent)
     }
     private var surface: some View {
-        OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true, showsProgress: true) {
+        IntelligentUIActionSurface(context: context, action: context.action() ?? ActionPlan(), showsProgress: true) {
             Image(systemName: IconCatalog.symbol(context.string("icon")) ?? "questionmark")
                 .foregroundStyle(context.string("variant") == "solid" ? theme.actionForeground : theme.actionAccent)
                 .frame(width: 34, height: 34)
@@ -70,7 +70,7 @@ private struct PressableView: View {
         return summary.isEmpty ? SDKStrings.text("controls.action.fallback", locale: locale) : summary
     }
     var body: some View {
-        OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true, showsProgress: true) {
+        IntelligentUIActionSurface(context: context, action: context.action() ?? ActionPlan(), showsProgress: true) {
             VStack(alignment: .leading, spacing: theme.innerSpacing) { context.slot() }
                 .intelligentUIPresentationOnly()
                 .padding(.trailing, hasSelection ? 28 : 0)

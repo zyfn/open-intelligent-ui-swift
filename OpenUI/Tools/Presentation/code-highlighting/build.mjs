@@ -6,7 +6,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const resources = resolve(here, "../../../Sources/OpenSwiftUI/Resources");
+const resources = resolve(here, "../../../../Sources/OpenSwiftUI/Resources");
 const packageInfo = JSON.parse(readFileSync(resolve(here, "node_modules/refractor/package.json")));
 if (packageInfo.version !== "5.0.0") throw new Error("Review upstream syntax-highlighter version");
 const result = await build({

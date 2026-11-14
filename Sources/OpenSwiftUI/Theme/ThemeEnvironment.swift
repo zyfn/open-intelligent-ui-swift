@@ -1,11 +1,20 @@
+import OpenUICore
 import SwiftUI
 
 /// System follows the nearest SwiftUI color scheme, including a containing theme scope.
 public enum OpenUIThemeMode: Equatable { case system, light, dark }
 
 extension EnvironmentValues {
-    @Entry public var openUITheme = OpenUIThemeValues.defaults
-    @Entry public var openUIPresentation = OpenUIPresentation.defaults
+    /// The typed Core context is the single storage location, so direct
+    /// environment overrides and nested scopes reach custom components too.
+    public var openUITheme: OpenUIThemeValues {
+        get { openUIContextValues.standardTheme }
+        set { openUIContextValues.standardTheme = newValue }
+    }
+    public var openUIPresentation: OpenUIPresentation {
+        get { openUIContextValues.standardPresentation }
+        set { openUIContextValues.standardPresentation = newValue }
+    }
 }
 
 private struct OpenUIThemeScope: ViewModifier {

@@ -3,12 +3,14 @@ import ImageIO
 import CoreGraphics
 import UniformTypeIdentifiers
 import XCTest
-@testable import OpenSwiftUI
+import OpenUILang
+@testable import OpenUICore
 
 final class ResourceStoreTests: XCTestCase {
   @MainActor func testReleasingStateCancelsItsPendingResources() async throws {
-    let library = try OpenUIStandardComponents.library()
-    var state: OpenUIState? = OpenUIState(schema: library.library.toSchema())
+    let schema = LibrarySchema(components: ["Probe": [ParamDef(name: "text", required: true)]],
+                               callDefs: builtinCallDefs, rootComponent: "Probe")
+    var state: OpenUIState? = OpenUIState(schema: schema)
     weak var releasedState = state
     let store = try XCTUnwrap(state).resourceStore
     let media = try XCTUnwrap(state).mediaCache

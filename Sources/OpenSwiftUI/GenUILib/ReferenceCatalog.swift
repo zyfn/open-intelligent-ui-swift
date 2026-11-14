@@ -1,3 +1,4 @@
+import OpenUICore
 import Foundation
 import OpenUILang
 import SwiftUI
@@ -45,9 +46,14 @@ enum OpenUIReference {
     guard let definition = definitions.first(where: { $0.name == name }) else {
       preconditionFailure("Component absent from pinned upstream catalog: " + name)
     }
-    var component = OpenUIComponent(definition, content: content)
+    var component = OpenUIComponent(definition) { context in
+      NativeComponentHost(context: context, content: content)
+    }
     component.supportsPresentationPlaceholder = NativePresentationProxy.supportedNames.contains(name)
     component.ownsFormControlLabel = name == "Slider"
+    component.presentationIdentityFields = name == "TabItem" ? ["key", "value"] : nil
+    let placeholderFields: Set<String> = ["height", "imageSize", "size", "iconSize", "variant", "appearance", "layout", "direction", "gap", "align", "justify", "wrap", "id", "key", "resourceId"]
+    component.presentationPlaceholderFields = definition.params.map(\.name).filter { placeholderFields.contains($0) }
     component.presentationLayoutFields = NativeLayoutContract.fields(for: name).filter { field in definition.params.contains { $0.name == field } }
     return component
   }

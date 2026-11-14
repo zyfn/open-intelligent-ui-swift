@@ -1,6 +1,6 @@
 import OpenUILang
 
-/// Narrows the existing live-snapshot search without deciding which snapshot
+/// Narrows the session's live-snapshot search without deciding which snapshot
 /// is safe to use. Property and readiness checks remain in OpenUIState.
 struct NativeLiveElementIndex {
   private struct Key: Hashable {

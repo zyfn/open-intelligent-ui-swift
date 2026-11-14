@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Table is a read-only comparison surface. Its descendants share this smaller

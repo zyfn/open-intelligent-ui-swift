@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 private struct NativeArtworkTagKey: EnvironmentKey { static let defaultValue = false }

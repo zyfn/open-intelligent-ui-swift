@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenSwiftUI
+import OpenUICore
 
 enum LinkComponent {
     static var component: OpenUIComponent {
@@ -34,7 +34,7 @@ struct SourceLink: View {
     var body: some View {
         Group {
         if let url, SourceURL.isActionable(url), !interactive {
-            OpenUIActionSurface(context: context, action: OpenUIActions.openURL(url), useNativeStyle: true) {
+            IntelligentUIActionSurface(context: context, action: OpenUIActions.openURL(url)) {
                 Text(text.isEmpty ? url : text).underline()
                     .foregroundStyle(theme.primaryText).fixedSize(horizontal: false, vertical: true)
             }

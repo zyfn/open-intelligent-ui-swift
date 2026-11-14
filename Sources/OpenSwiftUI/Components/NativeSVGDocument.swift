@@ -1,3 +1,4 @@
+import OpenUICore
 import Foundation
 #if canImport(FoundationXML)
 import FoundationXML

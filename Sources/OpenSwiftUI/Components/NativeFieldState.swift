@@ -1,3 +1,4 @@
+import OpenUICore
 import OpenUILang
 import SwiftUI
 
@@ -150,7 +151,6 @@ private struct OpenUIFormValidationKey: EnvironmentKey {
     static let defaultValue: NativeFormValidation? = nil
 }
 private struct OpenUIFieldLabelKey: EnvironmentKey { static let defaultValue: String? = nil }
-private struct OpenUIExactFormNameKey: EnvironmentKey { static let defaultValue: OpenUIString? = nil }
 extension EnvironmentValues {
     var openUIFieldLabel: String? {
         get { self[OpenUIFieldLabelKey.self] }
@@ -160,10 +160,6 @@ extension EnvironmentValues {
     var openUIFormValidation: NativeFormValidation? {
         get { self[OpenUIFormValidationKey.self] }
         set { self[OpenUIFormValidationKey.self] = newValue }
-    }
-    var openUIExactFormName: OpenUIString? {
-        get { self[OpenUIExactFormNameKey.self] }
-        set { self[OpenUIExactFormNameKey.self] = newValue }
     }
 }
 

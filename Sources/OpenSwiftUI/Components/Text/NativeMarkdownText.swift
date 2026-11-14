@@ -1,3 +1,4 @@
+import OpenUICore
 import MarkdownUI
 import OpenUILang
 import SwiftUI

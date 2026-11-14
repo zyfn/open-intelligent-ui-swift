@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 struct ChoiceOption: Identifiable, Equatable {
     let id: String

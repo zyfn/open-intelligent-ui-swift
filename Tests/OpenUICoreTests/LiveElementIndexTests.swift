@@ -1,6 +1,6 @@
 import OpenUILang
 import XCTest
-@testable import OpenSwiftUI
+@testable import OpenUICore
 
 final class LiveElementIndexTests: XCTestCase {
   func testIndexSeparatesTypesAndDeclarations() {
@@ -94,8 +94,7 @@ final class LiveElementIndexTests: XCTestCase {
   }
 
   @MainActor func testLiveResolutionDoesNotBorrowAnEqualSiblingWithAnotherDeclaration() throws {
-    let library = try OpenUIStandardComponents.library()
-    let state = OpenUIState(schema: library.library.toSchema())
+    let state = OpenUIState(schema: customSchema())
     state.setSource("root=Stack([first,second])\nfirst=TextContent(\"Same\")\nsecond=TextContent(\"Same\")\n")
     let children = PropValue.children(try XCTUnwrap(state.root))
     XCTAssertEqual(children.count, 2)
@@ -109,8 +108,7 @@ final class LiveElementIndexTests: XCTestCase {
   }
 
   @MainActor func testLiveResolutionStillRejectsChangedPropsAndClearsPreviousSearchCache() throws {
-    let library = try OpenUIStandardComponents.library()
-    let state = OpenUIState(schema: library.library.toSchema())
+    let state = OpenUIState(schema: customSchema())
     state.setSource("root=Stack([first])\nfirst=TextContent(\"Before\")\n")
     let first = try XCTUnwrap(PropValue.children(try XCTUnwrap(state.root)).first)
     let stale = EvaluatedElement(typeName: first.typeName, props: first.props,
@@ -119,6 +117,13 @@ final class LiveElementIndexTests: XCTestCase {
     state.setSource("root=Stack([first])\nfirst=TextContent(\"After\")\n")
     XCTAssertTrue(state.liveElement(matching: stale) === stale,
       "A previous match must not survive rebuilding the live index")
+  }
+
+  private func customSchema() -> LibrarySchema {
+    LibrarySchema(components: [
+      "Stack": [ParamDef(name: "children", required: true)],
+      "TextContent": [ParamDef(name: "text", required: true)]
+    ], callDefs: builtinCallDefs, rootComponent: "Stack")
   }
 
   private func element(_ type: String, _ statement: String?, complete: Bool = true) -> EvaluatedElement {

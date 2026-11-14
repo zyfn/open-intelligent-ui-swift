@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 private enum TableMetrics {
     static let minimumColumnWidth: CGFloat = 80

@@ -1,3 +1,4 @@
+import OpenUICore
 import Foundation
 import XCTest
 
@@ -19,10 +20,10 @@ final class ArchitectureBoundaryTests: XCTestCase {
   func testLanguageRuntimeDoesNotDependOnNativePresentation() throws {
     let root = package
     for (file, source) in try swiftSources(root.appendingPathComponent("Sources/OpenUILang")) {
-      XCTAssertNil(source.range(of: #"(?m)^import\s+(SwiftUI|UIKit|AppKit|OpenSwiftUI)\b"#,
+      XCTAssertNil(source.range(of: #"(?m)^import\s+(SwiftUI|UIKit|AppKit|OpenUICore|OpenSwiftUI|OpenIntelligentSwiftUI)\b"#,
         options: .regularExpression), file.lastPathComponent)
     }
-    let manifest = try String(contentsOf: package.deletingLastPathComponent().appendingPathComponent("Package.swift"), encoding: .utf8)
+    let manifest = try String(contentsOf: package.appendingPathComponent("Package.swift"), encoding: .utf8)
     XCTAssertTrue(manifest.contains(#".target(name: "OpenUILang", dependencies: ["COpenUIRegExp"]"#))
     XCTAssertFalse(manifest.contains("https://github.com/zyfn/openui.git"))
   }
@@ -63,11 +64,11 @@ final class ArchitectureBoundaryTests: XCTestCase {
 
   func testRendererHelpersHaveOneOwnerWithoutCompatibilitySourceCopies() throws {
     let root = package.appendingPathComponent("Sources/OpenSwiftUI")
-    let node = try String(contentsOf: root.appendingPathComponent("RenderNode.swift"), encoding: .utf8)
+    let node = try String(contentsOf: package.appendingPathComponent("Sources/OpenUICore/RenderNode.swift"), encoding: .utf8)
     for name in ["RenderNode", "RenderValue", "OpenUIRenderChild", "ElementErrorBoundary"] {
       XCTAssertTrue(node.contains("struct " + name), name)
     }
-    for oldPath in ["RenderValue.swift", "Internal/RenderIdentity.swift", "ErrorBoundary.swift"] {
+    for oldPath in ["RenderNode.swift", "RenderValue.swift", "Internal/RenderIdentity.swift", "ErrorBoundary.swift"] {
       XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(oldPath).path), oldPath)
     }
     for name in ["NativeMarkdownText", "NativeStreamingTextBuffer", "NativeMath", "NativeCodeBlock", "CardSourceProvider"] {
@@ -78,9 +79,9 @@ final class ArchitectureBoundaryTests: XCTestCase {
     }
   }
 
-  func testNativePackageDoesNotAddAChatShellOrAnotherPublicRuntimeProduct() throws {
-    let manifest = try String(contentsOf: package.deletingLastPathComponent().appendingPathComponent("Package.swift"), encoding: .utf8)
-    XCTAssertEqual(manifest.components(separatedBy: ".library(").count - 1, 3)
+  func testNativePackageExportsFourModulesWithoutAChatShell() throws {
+    let manifest = try String(contentsOf: package.appendingPathComponent("Package.swift"), encoding: .utf8)
+    XCTAssertEqual(manifest.components(separatedBy: ".library(").count - 1, 4)
     XCTAssertTrue(manifest.contains(#"name: "OpenSwiftUI""#))
     XCTAssertTrue(manifest.contains(#"name: "OpenIntelligentSwiftUI""#))
     for forbidden in ["react-headless", "react-ui", "DocumentRuntime", "ChatRuntime"] {

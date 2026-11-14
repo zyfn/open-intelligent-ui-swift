@@ -1,6 +1,6 @@
 import Foundation
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 /// Public names let hosts depend on this SDK without importing runtime modules.
 public typealias IntelligentUIState = OpenUIState

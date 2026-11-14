@@ -1,7 +1,7 @@
 import SwiftUI
 import Foundation
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 enum CodeComponent {
     static var component: OpenUIComponent {
@@ -28,7 +28,7 @@ struct CodeBlockContent: View {
             HStack {
                 if let language { Text(language).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
                 Spacer()
-                OpenUIActionSurface(context: context, action: CodeComponent.copyAction(code), useNativeStyle: true, showsProgress: true) {
+                IntelligentUIActionSurface(context: context, action: CodeComponent.copyAction(code), showsProgress: true) {
                     Label(SDKStrings.text("code.copy", locale: locale), systemImage: "doc.on.doc").font(theme.captionFont)
                         .frame(minHeight: theme.minimumControlHeight)
                 }.buttonStyle(.borderless).tint(theme.actionAccent)

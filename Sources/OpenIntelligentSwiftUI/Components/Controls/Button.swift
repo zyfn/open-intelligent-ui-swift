@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenSwiftUI
+import OpenUICore
 import OpenUILang
 
 enum ButtonComponent {
@@ -36,7 +36,7 @@ private struct ActionButtonView: View {
         .disabled(context.flag("disabled") == true || context.action() == nil)
     }
     private var surface: some View {
-        OpenUIActionSurface(context: context, action: context.action() ?? ActionPlan(), useNativeStyle: true, showsProgress: true) {
+        IntelligentUIActionSurface(context: context, action: context.action() ?? ActionPlan(), showsProgress: true) {
             HStack(spacing: theme.iconSpacing) {
                 if let symbol = IconCatalog.symbol(context.string("icon")) { Image(systemName: symbol).accessibilityHidden(true) }
                 Text(context.string("label") ?? "").fixedSize(horizontal: false, vertical: true)
@@ -54,6 +54,7 @@ struct UpstreamButtonStyle: ButtonStyle {
     var tint: Color = .primary
     var size = "md"
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.intelligentUIActionAppearance) private var appearance
     @Environment(\.isFocused) private var focused
     @Environment(\.intelligentUITheme) private var theme
     func makeBody(configuration: Configuration) -> some View {
@@ -66,7 +67,7 @@ struct UpstreamButtonStyle: ButtonStyle {
             .overlay(Capsule().strokeBorder(variant == "outline" ? theme.fieldBorder : .clear))
             .overlay(Capsule().fill(theme.primaryText.opacity(configuration.isPressed ? 0.08 : 0)))
             .overlay(Capsule().strokeBorder(focused ? tint : .clear, lineWidth: 2))
-            .opacity(enabled ? 1 : 0.5)
+            .opacity(enabled || appearance == .pending || appearance == .performing ? 1 : 0.5)
     }
 }
 
@@ -75,6 +76,7 @@ struct UpstreamButtonStyle: ButtonStyle {
 struct QuietControlStyle: ButtonStyle {
     var cornerRadius: CGFloat? = nil
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.intelligentUIActionAppearance) private var appearance
     @Environment(\.isFocused) private var focused
     @Environment(\.intelligentUITheme) private var theme
     func makeBody(configuration: Configuration) -> some View {
@@ -83,6 +85,6 @@ struct QuietControlStyle: ButtonStyle {
                         in: RoundedRectangle(cornerRadius: cornerRadius ?? theme.controlRadius))
             .overlay(RoundedRectangle(cornerRadius: cornerRadius ?? theme.controlRadius)
                 .strokeBorder(focused ? theme.actionAccent : .clear, lineWidth: 2))
-            .opacity(enabled ? 1 : 0.55)
+            .opacity(enabled || appearance == .pending || appearance == .performing ? 1 : 0.55)
     }
 }

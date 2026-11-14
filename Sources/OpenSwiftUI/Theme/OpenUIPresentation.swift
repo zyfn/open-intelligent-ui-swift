@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Native presentation policy. These values are not OpenUI Lang parameters or React theme tokens.

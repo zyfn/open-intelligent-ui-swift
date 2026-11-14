@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 private enum ProductCardMetrics {
     static let mediaAspectRatio: CGFloat = 1.5

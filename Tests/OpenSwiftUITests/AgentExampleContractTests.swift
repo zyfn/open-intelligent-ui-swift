@@ -1,3 +1,4 @@
+import OpenUICore
 import CryptoKit
 import Foundation
 import XCTest
@@ -8,7 +9,7 @@ final class AgentExampleContractTests: XCTestCase {
   private var directory: URL {
     var root=URL(fileURLWithPath:#filePath)
     for _ in 0..<3 { root.deleteLastPathComponent() }
-    return root.appendingPathComponent("Examples/AgentCases")
+    return root.appendingPathComponent("OpenUI/Examples/AgentCases")
   }
   @MainActor func testEightCanonicalExamplesMatchTheirManifestAndActualComponentSignatures() throws {
     let spec=try LibrarySpec(jsonString:String(contentsOf:directory.appendingPathComponent("test-library-spec.json"),encoding:.utf8))

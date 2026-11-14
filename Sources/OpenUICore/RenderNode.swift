@@ -1,4 +1,4 @@
-// OpenSwiftUI — Recursive render node.
+// OpenUICore — Recursive render node.
 //
 // Renders a single EvaluatedElement by looking up its component in the
 // registry and recursively rendering its children.
@@ -16,6 +16,8 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
     private var presentationPlaceholders = Set<String>()
     private var layoutFields: [String: [String]] = [:]
     private var formControlLabelOwners = Set<String>()
+    private var identityProperties: [String: [String]] = [:]
+    private var placeholderProperties: [String: [String]] = [:]
 
     public init(_ builders: [String: Builder] = [:]) { self.builders = builders }
     public init(dictionaryLiteral elements: (String, Builder)...) {
@@ -23,7 +25,14 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
     }
     public subscript(_ name: String) -> Builder? {
         get { builders[name] }
-        set { builders[name] = newValue; presentationPlaceholders.remove(name); layoutFields.removeValue(forKey: name); formControlLabelOwners.remove(name) }
+        set {
+            builders[name] = newValue
+            presentationPlaceholders.remove(name)
+            layoutFields.removeValue(forKey: name)
+            formControlLabelOwners.remove(name)
+            identityProperties.removeValue(forKey: name)
+            placeholderProperties.removeValue(forKey: name)
+        }
     }
     package mutating func setPresentationPlaceholder(_ name: String, enabled: Bool) {
         if enabled { presentationPlaceholders.insert(name) }
@@ -37,6 +46,20 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
         else { formControlLabelOwners.remove(name) }
     }
     package func ownsFormControlLabel(_ name: String) -> Bool { formControlLabelOwners.contains(name) }
+    package mutating func setIdentityFields(_ name: String, fields: [String]?) {
+        identityProperties[name] = fields
+    }
+    /// Identity belongs to the supplied component library, including when two
+    /// libraries use the same component name with different parameter meanings.
+    public func identityFields(for name: String) -> [String] {
+        identityProperties[name] ?? ["key", "id", "resourceId"]
+    }
+    package mutating func setPlaceholderFields(_ name: String, fields: [String]) {
+        placeholderProperties[name] = fields
+    }
+    package func presentationPlaceholderFields(_ name: String) -> [String] {
+        placeholderProperties[name] ?? []
+    }
 }
 
 /// Recursively renders an `EvaluatedElement` tree.
@@ -116,7 +139,7 @@ public struct RenderValue: View {
         case .number(let number): Text(jsNumberString(number))
         case .boolean(let flag): Text(flag ? "true" : "false")
         case .array(let values):
-            ForEach(OpenUIRenderChild.children(of: .array(values))) { child in
+            ForEach(OpenUIRenderChild.children(of: .array(values), registry: registry)) { child in
                 RenderValue(child.value, registry: registry)
             }
         default: EmptyView()
@@ -144,7 +167,7 @@ public struct OpenUIRenderChild: Identifiable {
         self.value = value
     }
 
-    public static func children(of value: Value) -> [OpenUIRenderChild] {
+    public static func children(of value: Value, registry: OpenUIComponentRegistry? = nil) -> [OpenUIRenderChild] {
         func flattened(_ value: Value, path: String) -> [(String, Value)] {
             if case .array(let items) = value {
                 return items.enumerated().flatMap { flattened($0.element, path: path + "." + String($0.offset)) }
@@ -157,7 +180,7 @@ public struct OpenUIRenderChild: Identifiable {
         return flattened(value, path: "root").map { position, value in
             let base: String
             if case .element(let element) = value {
-                let identityProps = element.typeName == "TabItem" ? ["key", "value"] : ["key", "id", "resourceId"]
+                let identityProps = registry?.identityFields(for: element.typeName) ?? ["key", "id", "resourceId"]
                 let key = identityProps.lazy.compactMap { name -> String? in
                     guard let value = element.props.last(where: { $0.0 == name })?.1 else { return nil }
                     switch value {
@@ -183,7 +206,7 @@ public struct OpenUIRenderChild: Identifiable {
 
 // MARK: - ErrorBoundary
 
-// OpenSwiftUI — Error boundary.
+// OpenUICore — Error boundary.
 //
 // Swift port of react-lang's `ElementErrorBoundary`. Keeps the last
 // registered element; if the input becomes unavailable, the last good

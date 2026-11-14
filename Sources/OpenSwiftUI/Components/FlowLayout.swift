@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// A surface can opt into sharing a row's available main-axis space.

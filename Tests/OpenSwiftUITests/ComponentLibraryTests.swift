@@ -1,3 +1,4 @@
+import OpenUICore
 import XCTest
 import SwiftUI
 import OpenUILang
@@ -126,12 +127,13 @@ final class ComponentLibraryTests: XCTestCase {
         XCTAssertEqual(children.map(\.id), reversed.reversed().map(\.id))
     }
 
-    func testTabValuesRetainIdentityAcrossReorderingAndUnicodeVariants() {
+    func testTabValuesRetainIdentityAcrossReorderingAndUnicodeVariants() throws {
+        let registry = try OpenUIStandardComponents.library().registry
         let values = [OpenUIString("é"), OpenUIString("e\u{301}")].map { value in
             Value.element(EvaluatedElement(typeName: "TabItem", props: [("value", .string(value)), ("trigger", .string("Panel"))]))
         }
-        let children = OpenUIRenderChild.children(of: .array(values))
-        let reversed = OpenUIRenderChild.children(of: .array(Array(values.reversed())))
+        let children = OpenUIRenderChild.children(of: .array(values), registry: registry)
+        let reversed = OpenUIRenderChild.children(of: .array(Array(values.reversed())), registry: registry)
         XCTAssertNotEqual(children[0].id, children[1].id)
         XCTAssertEqual(children.map(\.id), reversed.reversed().map(\.id))
     }

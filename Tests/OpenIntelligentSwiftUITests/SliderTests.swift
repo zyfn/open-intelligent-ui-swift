@@ -1,6 +1,6 @@
 import XCTest
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 @testable import OpenIntelligentSwiftUI
 
 final class SliderTests: XCTestCase {

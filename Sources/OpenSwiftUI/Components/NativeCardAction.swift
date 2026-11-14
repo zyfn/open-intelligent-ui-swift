@@ -1,3 +1,4 @@
+import OpenUICore
 import OpenUILang
 
 /// Typed presentation adapter for upstream cardActionUtils' per-item context.

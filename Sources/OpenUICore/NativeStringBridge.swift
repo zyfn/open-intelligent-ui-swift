@@ -1,7 +1,7 @@
 import SwiftUI
 import OpenUILang
 
-// Native-string conveniences do not define the language's string semantics.
+// Shared native-string conveniences do not define the language's semantics.
 // Semantic values, field keys, and wire data use OpenUIString end to end.
 extension OpenUIState {
     @_disfavoredOverload public func stateValue<S: StringProtocol>(_ name: S) -> Value { stateValue(OpenUIString(String(name))) }

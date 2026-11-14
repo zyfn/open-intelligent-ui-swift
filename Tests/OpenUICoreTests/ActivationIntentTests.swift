@@ -1,5 +1,5 @@
 import XCTest
-@testable import OpenSwiftUI
+@testable import OpenUICore
 
 final class ActivationIntentTests: XCTestCase {
   func testDragReleaseCannotAlsoActivateAndDoesNotStayBlocked() {

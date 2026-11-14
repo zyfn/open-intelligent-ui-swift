@@ -1,3 +1,4 @@
+import OpenUICore
 // OpenSwiftUI — Query loading view.
 //
 // Optional host-owned Query UI. Standard data/media components separately own

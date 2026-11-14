@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 enum ImageTextComponent {
     static var component: OpenUIComponent {
@@ -49,7 +49,7 @@ private struct ImageTextView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: theme.innerSpacing) {
             if SourceURL.isActionable(text("url")) {
-                OpenUIActionSurface(context: context, action: OpenUIActions.openURL(text("url")), useNativeStyle: true) { title }
+                IntelligentUIActionSurface(context: context, action: OpenUIActions.openURL(text("url"))) { title }
                     .buttonStyle(.plain).accessibilityHint(SDKStrings.text("imageText.openDetailHint", locale: locale))
             } else { title }
             if !text("badge").isEmpty {

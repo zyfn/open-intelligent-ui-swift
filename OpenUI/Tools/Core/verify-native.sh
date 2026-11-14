@@ -18,7 +18,9 @@ run_check() {
 }
 if [ "${1:-}" != "--platforms" ]; then
 run_check 'Language regression' work/shared-core-validation/lang-tests.log swift test --filter OpenUILangTests
-run_check 'SwiftUI interaction and rendering' work/shared-core-validation/ui-tests.log env OPENUI_CONTRACT_EXPORT_DIR="$PWD/work/shared-core-validation/contracts" OPENUI_SNAPSHOT_DIR="$PWD/work/shared-core-validation/snapshots" swift test --filter OpenUISwiftUITests
+run_check 'Shared native runtime' work/shared-core-validation/core-tests.log swift test --filter OpenUICoreTests
+run_check 'Intelligent UI rendering' work/shared-core-validation/intelligent-tests.log swift test --filter OpenIntelligentSwiftUITests
+run_check 'SwiftUI interaction and rendering' work/shared-core-validation/ui-tests.log env OPENUI_CONTRACT_EXPORT_DIR="$PWD/work/shared-core-validation/contracts" OPENUI_SNAPSHOT_DIR="$PWD/work/shared-core-validation/snapshots" swift test --filter OpenSwiftUITests
 python3 - <<'PY'
 from pathlib import Path
 from hashlib import sha256
@@ -30,6 +32,8 @@ for name,want in expected.items():
 PY
 fi
 run_check 'Language AddressSanitizer regression' work/shared-core-validation/asan-tests.log swift test --filter OpenUILangTests --scratch-path work/shared-core-validation/asan-build --sanitize=address
-run_check 'iOS 16 Simulator compile' work/shared-core-validation/ios-build.log swift build --target OpenUISwiftUI --scratch-path work/shared-core-validation/ios-build --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)"
-run_check 'macOS SDK compile' work/shared-core-validation/macos-build.log swift build --target OpenUISwiftUI --scratch-path work/shared-core-validation/macos-build
+run_check 'iOS 16 Simulator compile' work/shared-core-validation/ios-build.log swift build --target OpenSwiftUI --scratch-path work/shared-core-validation/ios-build --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)"
+run_check 'macOS SDK compile' work/shared-core-validation/macos-build.log swift build --target OpenSwiftUI --scratch-path work/shared-core-validation/macos-build
+run_check 'Intelligent UI iOS 16 Simulator compile' work/shared-core-validation/intelligent-ios-build.log swift build --target OpenIntelligentSwiftUI --scratch-path work/shared-core-validation/ios-build --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)"
+run_check 'Module boundaries' work/shared-core-validation/module-boundaries.log python3 Tools/check_module_boundaries.py
 printf 'Requested native acceptance checks passed.\n'

@@ -1,3 +1,4 @@
+import OpenUICore
 import Foundation
 import OpenUILang
 import XCTest

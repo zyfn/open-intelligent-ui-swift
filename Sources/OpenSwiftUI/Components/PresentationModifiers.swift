@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 private struct OpenUIInheritedFontKey: EnvironmentKey { static let defaultValue: OpenUIFont? = nil }

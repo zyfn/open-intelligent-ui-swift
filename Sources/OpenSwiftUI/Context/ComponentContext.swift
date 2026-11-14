@@ -1,178 +1,62 @@
 import SwiftUI
 import OpenUILang
+import OpenUICore
 
-private struct OpenUIResourcesKey: EnvironmentKey { static let defaultValue: [String: Value] = [:] }
-private struct OpenUIFormKey: EnvironmentKey { static let defaultValue: String? = nil }
-private struct OpenUIProgramScopeKey: EnvironmentKey { static let defaultValue: ObjectIdentifier? = nil }
-private struct NativeInteractionScopeKey: EnvironmentKey { static let defaultValue = true }
-private struct NativeInlineLinksKey: EnvironmentKey { static let defaultValue = true }
-private struct NativeUserInteractionKey: EnvironmentKey { static let defaultValue: (() -> Void)? = nil }
+private enum StandardThemeContextKey: OpenUIContextKey {
+    static let defaultValue = OpenUIThemeValues.defaults
+}
+private enum StandardPresentationContextKey: OpenUIContextKey {
+    static let defaultValue = OpenUIPresentation.defaults
+}
+private enum StandardStretchHeightContextKey: OpenUIContextKey {
+    static let defaultValue = false
+}
+private enum StandardFillControlWidthContextKey: OpenUIContextKey {
+    static let defaultValue = false
+}
 
-extension EnvironmentValues {
-    var openUIUserInteraction: (() -> Void)? {
-        get { self[NativeUserInteractionKey.self] }
-        set { self[NativeUserInteractionKey.self] = newValue }
+extension OpenUIContextValues {
+    public var standardTheme: OpenUIThemeValues {
+        get { self[StandardThemeContextKey.self] }
+        set { self[StandardThemeContextKey.self] = newValue }
     }
-    var openUIInteractionScopeReady: Bool {
-        get { self[NativeInteractionScopeKey.self] }
-        set { self[NativeInteractionScopeKey.self] = newValue }
-    }
-    var openUIInlineLinksReady: Bool {
-        get { self[NativeInlineLinksKey.self] }
-        set { self[NativeInlineLinksKey.self] = newValue }
-    }
-    public var openUIResources: [String: Value] {
-        get { self[OpenUIResourcesKey.self] }
-        set { self[OpenUIResourcesKey.self] = newValue }
-    }
-    public var openUIFormName: String? {
-        get { self[OpenUIFormKey.self] }
-        set { self[OpenUIFormKey.self] = newValue }
-    }
-    fileprivate var openUIProgramScoped: ObjectIdentifier? {
-        get { self[OpenUIProgramScopeKey.self] }
-        set { self[OpenUIProgramScopeKey.self] = newValue }
+    public var standardPresentation: OpenUIPresentation {
+        get { self[StandardPresentationContextKey.self] }
+        set { self[StandardPresentationContextKey.self] = newValue }
     }
 }
 
-extension View {
-    /// Resources belong to this host/message, not a process-global store.
-    public func openUIResources(_ value: [String: Value]) -> some View { environment(\.openUIResources, value) }
-    public func openUIForm(_ name: String?) -> some View {
-        environment(\.openUIFormName, name).environment(\.openUIExactFormName, name.map { OpenUIString($0) })
+/// Standard-library presentation extends the shared runtime context.
+extension OpenUIComponentContext {
+    public var theme: OpenUIThemeValues { values.standardTheme }
+    public var presentation: OpenUIPresentation { values.standardPresentation }
+
+    // A one-level proposal consumed at a standard component boundary.
+    var stretchesVertically: Bool {
+        get { values[StandardStretchHeightContextKey.self] }
+        set { values[StandardStretchHeightContextKey.self] = newValue }
     }
-}
-
-/// Created by the registered component host; all operations use the same runtime.
-public struct OpenUIComponentContext {
-    public let element: EvaluatedElement
-    public let theme: OpenUIThemeValues
-    public let presentation: OpenUIPresentation
-    public let resources: [String: Value]
-    public let formName: String?
-    public let exactFormName: OpenUIString?
-    /// Program transport state. Individual controls use canInteract, which
-    /// checks their own source, dependencies and enclosing card/form scope.
-    public let isStreaming: Bool
-    public let isQueryLoading: Bool
-    // A one-level native layout proposal. Component hosts consume it so a
-    // stretched row item cannot accidentally stretch all nested descendants.
-    var stretchesVertically = false
-    var fillsControlWidth = false
-    // EvaluatedElement's equality intentionally follows normative values, not
-    // presentation metadata. Copy these snapshots so SwiftUI also invalidates
-    // a child when a delimiter or its own query status changes without new data.
-    let presentationReadiness: NativeSourceReadiness
-    let hasPendingData: Bool
-    let hasDataFailure: Bool
-    let hasInterruptedData: Bool
-    var interactionScopeReady = true
-    var activationIntent: NativeActivationIntent?
-    var onUserInteraction: (() -> Void)?
-    @MainActor func recordUserInteraction() { if isCurrentPresentation { onUserInteraction?() } }
-    private let state: OpenUIState
-    private let registry: ComponentRegistry
-    private let sourceRevision: Int
-
-    @MainActor public init(element: EvaluatedElement, registry: ComponentRegistry, state: OpenUIState,
-                theme: OpenUIThemeValues = OpenUIThemeValues(), presentation: OpenUIPresentation = OpenUIPresentation(), resources: [String: Value] = [:], formName: String? = nil, exactFormName: OpenUIString? = nil) {
-        self.element = element; self.registry = registry; self.state = state
-        self.theme = theme; self.presentation = presentation; self.resources = resources; self.formName = exactFormName?.displayString ?? formName
-        self.exactFormName = exactFormName ?? formName.map { OpenUIString($0) }
-        self.sourceRevision = state.sourceRevision
-        self.isStreaming = !state.isComplete
-        self.isQueryLoading = state.isQueryLoading
-        self.presentationReadiness = element.sourceReadiness
-        let queries = element.sourceReadiness.queryDependencies.map { state.queryStates[$0.displayString] }
-        self.hasPendingData = queries.contains { $0?.status == .loading || (!state.isComplete && ($0 == nil || $0?.status == .idle)) }
-        self.hasDataFailure = queries.contains { $0?.status == .error }
-        self.hasInterruptedData = state.isInterrupted && queries.contains { $0 == nil || $0?.status == .idle }
+    var fillsControlWidth: Bool {
+        get { values[StandardFillControlWidthContextKey.self] }
+        set { values[StandardFillControlWidthContextKey.self] = newValue }
     }
 
-    @MainActor public var canInteract: Bool { interactionScopeReady && state.isElementReady(element) && isCurrentPresentation }
-    /// Discrete activations also reject the release of a reading/paging drag.
-    @MainActor public var canActivate: Bool { canInteract && activationIntent?.permitsActivation != false }
-    @MainActor func canDispatch(_ action: Value?) -> Bool {
-        guard canInteract else { return false }
-        if case .actionPlan(let plan) = action { return state.isPlanReady(state.currentActionPlan(plan, source: element)) }
-        return true
+    /// Keeps the standard-library initializer available while a Core-only
+    /// caller can construct the same context without a standard design system.
+    @MainActor @_disfavoredOverload
+    public init(element: EvaluatedElement, registry: OpenUIComponentRegistry, state: OpenUIState,
+                theme: OpenUIThemeValues = OpenUIThemeValues(),
+                presentation: OpenUIPresentation = OpenUIPresentation(),
+                resources: [String: Value] = [:], formName: String? = nil, exactFormName: OpenUIString? = nil) {
+        var values = OpenUIContextValues()
+        values.standardTheme = theme
+        values.standardPresentation = presentation
+        self.init(element: element, registry: registry, state: state, values: values,
+                  resources: resources, formName: formName, exactFormName: exactFormName)
     }
-    @MainActor var isCurrentPresentation: Bool { state.sourceRevision == sourceRevision }
-    var presentationSourceRevision: Int { sourceRevision }
-    /// Local presentation controls such as Modal close can update their value
-    /// while streaming. Epoch checks still reject callbacks from replaced UI.
-    @MainActor func presentationBinding(_ name: String) -> Binding<Value>? {
-        guard let binding = state.binding(for: element, prop: name) else { return nil }
-        return Binding(get: { binding.wrappedValue }, set: { if isCurrentPresentation { binding.wrappedValue = $0 } })
-    }
-    @MainActor func presentationFieldValue(_ name: OpenUIString, fallback: Value) -> Value {
-        state.fieldValue(form: exactFormName, name: name, fallback: fallback)
-    }
-    @MainActor func setPresentationFieldValue(_ name: OpenUIString, value: Value) {
-        guard isCurrentPresentation else { return }
-        state.setFieldValue(form: exactFormName, name: name, value: value, componentType: nil)
-    }
-    /// Editing records can be retained by the document. Their callbacks must
-    /// not retain the document in return, or releasing a renderer leaks it.
-    @MainActor func weakOperation<Input>(_ body: @escaping (OpenUIComponentContext, Input) -> Void) -> (Input) -> Void {
-        let element = element, registry = registry, theme = theme, presentation = presentation
-        let resources = resources, form = exactFormName, revision = sourceRevision
-        let scopeReady = interactionScopeReady
-        return { [weak state] value in
-            guard let state, state.sourceRevision == revision else { return }
-            var current = OpenUIComponentContext(element: element, registry: registry, state: state,
-                theme: theme, presentation: presentation, resources: resources, exactFormName: form)
-            current.interactionScopeReady = scopeReady
-            body(current, value)
-        }
-    }
-    @MainActor func editingRecord<T: AnyObject>(kind: String, name: OpenUIString, create: () -> T) -> T {
-        state.editingRecord(kind: kind, form: exactFormName, name: name, create: create)
-    }
-    @MainActor func existingEditingRecord<T: AnyObject>(kind: String, name: OpenUIString) -> T? {
-        state.existingEditingRecord(kind: kind, form: exactFormName, name: name)
-    }
-    @MainActor func childContext(_ child: EvaluatedElement, form: OpenUIString?) -> OpenUIComponentContext {
-        var next = OpenUIComponentContext(element: child, registry: registry, state: state,
-            theme: theme, presentation: presentation, resources: resources, exactFormName: form)
-        next.interactionScopeReady = interactionScopeReady
-        next.activationIntent = activationIntent
-        return next
-    }
-    public func value(_ name: String) -> Value? { element.props.last(where: { $0.0 == name })?.1 }
-    /// Geometry/style arguments must not consume an unfinished numeric or enum
-    /// token. Data text continues to use value/string for progressive reading.
-    func presentationNumber(_ name: String) -> Double? {
-        element.sourceReadiness[name].complete ? number(name) : nil
-    }
-    func presentationString(_ name: String) -> String? {
-        element.sourceReadiness[name].complete ? string(name) : nil
-    }
-    func componentOwnsFormControlLabel(_ name: String) -> Bool {
-        registry.ownsFormControlLabel(name)
-    }
-    /// Native display text. Use codeUnitString/value for semantic action data.
-    public func string(_ name: String) -> String? { codeUnitString(name)?.displayString }
-    public func codeUnitString(_ name: String) -> OpenUIString? {
-        guard case .string(let text) = value(name) else { return nil }; return text
-    }
-    public func number(_ name: String) -> Double? {
-        guard case .number(let number) = value(name), number.isFinite else { return nil }; return number
-    }
-    public func flag(_ name: String) -> Bool? {
-        guard case .boolean(let flag) = value(name) else { return nil }; return flag
-    }
-    public func resource(_ id: String) -> Value? { resource(OpenUIString(id)) }
-    public func resource(_ id: OpenUIString) -> Value? {
-        resources.first(where: { OpenUIString($0.key) == id })?.value
-    }
-    public func slot(_ name: String = "children") -> RenderValue { RenderValue(value(name) ?? .null, registry: registry) }
-    public func render(_ value: Value) -> RenderValue { RenderValue(value, registry: registry) }
+
     func renderTableCell(_ value: Value, policy: OpenUITableCellPolicy) -> RenderValue {
         RenderValue(value, registry: NativeTableCellContent.registry(from: registry, policy: policy))
-    }
-    public func children(_ name: String = "children") -> [OpenUIRenderChild] {
-        OpenUIRenderChild.children(of: value(name) ?? .null)
     }
     func presentationChildren(_ name: String = "children") -> [OpenUIRenderChild] {
         NativePresentationProxy.children(value(name) ?? .null, source: element.sourceReadiness[name], registry: registry)
@@ -187,133 +71,59 @@ public struct OpenUIComponentContext {
     func presentationValue(_ name: String = "children") -> Value {
         NativePresentationProxy.expandedValue(value(name) ?? .null, source: element.sourceReadiness[name], registry: registry)
     }
-    @MainActor public func binding(_ name: String) -> Binding<Value>? {
-        guard let binding = state.binding(for: element, prop: name) else { return nil }
-        return Binding(get: { binding.wrappedValue }, set: { if canInteract { binding.wrappedValue = $0 } })
-    }
-    public func action(_ name: String = "action") -> ActionPlan? { PropValue.actionPlan(element, name) }
-
-    @MainActor @_disfavoredOverload public func fieldValue<S: StringProtocol>(_ name: S, fallback: Value = .null) -> Value { fieldValue(OpenUIString(String(name)), fallback:fallback) }
-    @MainActor public func fieldValue(_ name: OpenUIString, fallback: Value = .null) -> Value {
-        state.fieldValue(form: exactFormName, name: name, fallback: fallback)
-    }
-    @MainActor @_disfavoredOverload public func fieldBinding<S: StringProtocol>(_ name: S, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {
-        fieldBinding(OpenUIString(String(name)), fallback:fallback, componentType:componentType)
-    }
-    @MainActor public func fieldBinding(_ name: OpenUIString, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {
-        let binding = state.fieldBinding(form: exactFormName, name: name, fallback: fallback, componentType: componentType)
-        return Binding(get: { binding.wrappedValue }, set: { if canInteract { binding.wrappedValue = $0 } })
-    }
-    @MainActor @_disfavoredOverload public func initializeField<S: StringProtocol>(_ name: S, value: Value, componentType: String = "input") {
-        initializeField(OpenUIString(String(name)), value:value, componentType:componentType)
-    }
-    @MainActor public func initializeField(_ name: OpenUIString, value: Value, componentType: String = "input") {
-        guard canInteract else { return }
-        state.initializeField(form: exactFormName, name: name, value: value, componentType: componentType)
-    }
-
-    @discardableResult
-    @MainActor func commitFieldAndTrigger(_ message: String, form: OpenUIString,
-        name: OpenUIString, value: Value, componentType: String,
-        onDispatch: (() -> Void)? = nil) async -> [ActionEvent] {
-        guard canActivate, canDispatch(nil) else { return [] }
-        state.setFieldValue(form: form, name: name, value: value, componentType: componentType)
-        // A host state-update callback may synchronously replace this answer.
-        // Preserve the captured presentation when dispatching the committed value.
-        guard canActivate, canDispatch(nil) else { return [] }
-        // This receipt means local event delivery only, not remote persistence.
-        return await state.triggerAction(message, formName: form, action: nil, source: element,
-            onDispatch: { _ in onDispatch?() })
-    }
-
-    @discardableResult
-    @MainActor public func perform(_ action: ActionPlan) async -> [ActionEvent] {
-        guard canInteract else { return [] }
-        return await state.perform(action, formName: exactFormName, source: element)
-    }
-
-    @discardableResult
-    @MainActor public func triggerAction(_ message: String, action: Value? = nil) async -> [ActionEvent] {
-        guard canDispatch(action) else { return [] }
-        return await state.triggerAction(message, formName: exactFormName, action: action, source: element)
+    func componentOwnsFormControlLabel(_ name: String) -> Bool {
+        registry.ownsFormControlLabel(name)
     }
 }
 
-struct OpenUIComponentHost<Content: View>: View {
-    let element: EvaluatedElement
-    let registry: ComponentRegistry
+/// Applies only the standard component library's visual and layout policy.
+/// The enclosing Core host already owns session scope and resource lifetime.
+struct NativeComponentHost<Content: View>: View {
+    let context: OpenUIComponentContext
     let content: (OpenUIComponentContext) -> Content
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openUITheme) private var theme
     @Environment(\.openUIPresentation) private var presentation
-    @Environment(\.openUIResources) private var resources
-    @Environment(\.openUIFormName) private var formName
-    @Environment(\.openUIExactFormName) private var exactFormName
     @Environment(\.openUIStretchHeight) private var stretchesVertically
     @Environment(\.openUIFillControlWidth) private var fillsControlWidth
-    @Environment(\.openUIProgramScoped) private var programScoped
-    @Environment(\.openUIInteractionScopeReady) private var interactionScopeReady
-    @Environment(\.openUIActivationIntent) private var activationIntent
-    @Environment(\.openUIUserInteraction) private var userInteraction
+
+    init(context: OpenUIComponentContext,
+         @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
+        self.context = context
+        self.content = content
+    }
 
     var body: some View {
-        let element = self.element.isSourceComplete ? self.element : state.liveElement(matching: self.element)
-        var context = OpenUIComponentContext(element: element, registry: registry, state: state,
-            theme: theme, presentation: presentation, resources: resources, formName: formName, exactFormName: exactFormName)
+        // Only inheritable library values continue down the tree. The current
+        // row/control proposal belongs to this boundary and is consumed here.
+        var scopedValues = context.values
+        scopedValues.standardTheme = theme
+        scopedValues.standardPresentation = presentation
+        var context = context
+        context.values = scopedValues
         context.stretchesVertically = stretchesVertically
         context.fillsControlWidth = fillsControlWidth
-        context.interactionScopeReady = interactionScopeReady
-        context.activationIntent = activationIntent
-        context.onUserInteraction = userInteraction
+        let element = context.element
         let atomic = ["Card", "Form", "CompositeCardItem", "VisualCardItem", "ContextCardItem", "OverviewCardItem", "SnippetCardItem"].contains(element.typeName)
         let presented = Group {
             if !context.layoutConfigurationReady && element.typeName != "Stack" && element.typeName != "Card" {
                 NativePendingContent(loading: !context.hasDataFailure && (context.isStreaming || context.hasPendingData),
                     terminalMessage: context.hasDataFailure ? "Content unavailable" : "Content is incomplete")
-            } else if registry.supportsPresentationPlaceholder(element.typeName),
+            } else if context.registry.supportsPresentationPlaceholder(element.typeName),
                let field = NativePresentationProxy.primaryTextField(element.typeName),
                element.sourceReadiness.placeholder != nil || context.codeUnitString(field) == nil {
                 NativeTextPlaceholder(context: context)
             } else { content(context) }
         }
-        let view = presented.environment(\.openUIStretchHeight, false)
+        return presented.environment(\.openUIStretchHeight, false)
             .environment(\.openUIFillControlWidth, false)
-            .environment(\.openUIInteractionScopeReady, interactionScopeReady && (!atomic || context.canInteract))
+            .environment(\.openUIInteractionScopeReady,
+                context.interactionScopeReady && (!atomic || context.canInteract))
             .environment(\.openUIInlineLinksReady, context.canInteract)
             .environment(\.openUIMediaSourceReady,
                 ["Image", "ImageBlock", "ImageText", "ImageTextLarge"].contains(element.typeName)
                     ? element.sourceReadiness["src"].complete : element.isSourceComplete)
             .environment(\.openUIStreamActive, context.isStreaming)
             .allowsHitTesting(element.sourceReadiness.placeholder == nil)
-        // Reset once at the native tree's entry, including direct RenderNode
-        // hosts. Repeating one explicit id on every descendant makes lazy
-        // containers merge distinct siblings, losing cards and their content.
-        return Group {
-            if programScoped == ObjectIdentifier(state) { view }
-            else {
-                NativeProgramScope(owner: ObjectIdentifier(state), revision: state.presentationRevision, resources: state.resourceStore,
-                    content: view.environment(\.openUIMediaCache, state.mediaCache))
-            }
-        }
     }
-}
-
-private struct NativeProgramScope<Content: View>: View {
-    let owner: ObjectIdentifier
-    let revision: Int
-    let resources: NativeResourceStore
-    let content: Content
-    @Namespace private var instance
-    @Environment(\.openUIResourceContext) private var parentResources
-    var body: some View {
-        content.environment(\.openUIProgramScoped, owner)
-            .openUIResourceContext(resources.scoped(parentResources))
-            .id(NativeProgramIdentity(instance: instance, owner: owner, revision: revision))
-    }
-}
-private struct NativeProgramIdentity: Hashable {
-    let instance: Namespace.ID
-    let owner: ObjectIdentifier
-    let revision: Int
 }
 

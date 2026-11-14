@@ -1,6 +1,6 @@
 import Foundation
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 import OpenIntelligentSwiftUI
 
 @main enum ContractExport {

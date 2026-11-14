@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 @testable import OpenIntelligentSwiftUI
 
 final class RenderingTests: XCTestCase {

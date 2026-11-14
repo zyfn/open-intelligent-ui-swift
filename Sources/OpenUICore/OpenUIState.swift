@@ -1,4 +1,6 @@
-// SwiftUI ownership around the platform-independent OpenUI language runtime.
+// Shared SwiftUI session ownership around the OpenUI language runtime.
+// Component libraries supply schemas and presentation; this state owns one
+// stream, Store, action/query lifecycle, and presentation-scoped resources.
 import SwiftUI
 import OpenUILang
 import Combine
@@ -15,7 +17,7 @@ public struct OpenUIActionEvaluation {
 @MainActor
 public final class OpenUIState: ObservableObject {
     @Published public private(set) var root: EvaluatedElement?
-    @Published private(set) var presentationRoot: NativeSourceReadiness?
+    @Published package private(set) var presentationRoot: NativeSourceReadiness?
     @Published public private(set) var errors: [OpenUIError] = []
     @Published public private(set) var isComplete = false
     @Published public private(set) var isInterrupted = false
@@ -48,13 +50,13 @@ public final class OpenUIState: ObservableObject {
     private var latestResult: ParseResult?
     /// Stream termination alone does not make a truncated preview executable.
     /// Recoverable rendering diagnostics remain local to their components.
-    var canExecuteActions: Bool {
+    package var canExecuteActions: Bool {
         guard isComplete, !isInterrupted, let result = latestResult else { return false }
         return !result.nativeLimitExceeded && !result.meta.incomplete && result.meta.unresolved.isEmpty
     }
     private var liveElements = NativeLiveElementIndex()
     private var liveElementCache: [ObjectIdentifier: (snapshot: EvaluatedElement, current: EvaluatedElement)] = [:]
-    func liveElement(matching element: EvaluatedElement) -> EvaluatedElement {
+    package func liveElement(matching element: EvaluatedElement) -> EvaluatedElement {
         guard let root, root !== element else { return element }
         let key = ObjectIdentifier(element)
         if let cached = liveElementCache[key], cached.snapshot === element { return cached.current }
@@ -125,7 +127,7 @@ public final class OpenUIState: ObservableObject {
         }
         if let root { visit(.element(root), depth: 0) }
     }
-    func isElementReady(_ snapshot: EvaluatedElement) -> Bool {
+    package func isElementReady(_ snapshot: EvaluatedElement) -> Bool {
         let element = snapshot.isSourceComplete ? snapshot : liveElement(matching: snapshot)
         guard let result = latestResult, !result.nativeLimitExceeded, element.isSourceComplete else { return false }
         func ready(_ value: Value) -> Bool {
@@ -138,7 +140,7 @@ public final class OpenUIState: ObservableObject {
         }
         return element.props.allSatisfy { ready($0.1) }
     }
-    func isPlanReady(_ plan: ActionPlan) -> Bool {
+    package func isPlanReady(_ plan: ActionPlan) -> Bool {
         guard plan.isSourceComplete else { return false }
         if canExecuteActions { return true }
         func ready(_ node: ASTNode) -> Bool {
@@ -177,19 +179,19 @@ public final class OpenUIState: ObservableObject {
     private var querySourceGeneration = -1
     private var queryStoreSnapshot: [OpenUIString: Value] = [:]
     private var idleMutations: [String: Value] = [:]
-    let mediaCache = NativeMediaCache()
-    let resourceStore = NativeResourceStore()
+    package let mediaCache = NativeMediaCache()
+    package let resourceStore = NativeResourceStore()
     // Unrepresentable edits may outlive a mounted view. These records are not
     // another committed Store and never appear in actions or serialization.
     private struct EditingKey: Hashable { let kind: String; let form: OpenUIString?; let name: OpenUIString }
     private var editingRecords: [EditingKey: AnyObject] = [:]
-    func editingRecord<T: AnyObject>(kind: String, form: OpenUIString?, name: OpenUIString,
+    package func editingRecord<T: AnyObject>(kind: String, form: OpenUIString?, name: OpenUIString,
                                      create: () -> T) -> T {
         let key = EditingKey(kind: kind, form: form, name: name)
         if let record = editingRecords[key] as? T { return record }
         let record = create(); editingRecords[key] = record; return record
     }
-    func existingEditingRecord<T: AnyObject>(kind: String, form: OpenUIString?, name: OpenUIString) -> T? {
+    package func existingEditingRecord<T: AnyObject>(kind: String, form: OpenUIString?, name: OpenUIString) -> T? {
         editingRecords[EditingKey(kind: kind, form: form, name: name)] as? T
     }
 
@@ -412,7 +414,7 @@ public final class OpenUIState: ObservableObject {
     public func triggerAction(_ userMessage: String, formName: OpenUIString? = nil, action: Value? = nil) async -> [ActionEvent] {
         await triggerAction(userMessage, formName: formName, action: action, source: nil)
     }
-    func triggerAction(_ userMessage: String, formName: OpenUIString?, action: Value?, source: EvaluatedElement?, onDispatch: ((ActionEvent) -> Void)? = nil) async -> [ActionEvent] {
+    package func triggerAction(_ userMessage: String, formName: OpenUIString?, action: Value?, source: EvaluatedElement?, onDispatch: ((ActionEvent) -> Void)? = nil) async -> [ActionEvent] {
         guard source.map(isElementReady) ?? canExecuteActions else { return [] }
         if case .actionPlan(let plan) = action { return await perform(plan, formName: formName, source: source, onDispatch: onDispatch) }
         if case .object(let fields) = action {
@@ -437,7 +439,7 @@ public final class OpenUIState: ObservableObject {
 
     /// A retained control can outlive a parser readiness snapshot. Resolve only
     /// the same action in the same live source before checking or dispatching it.
-    func currentActionPlan(_ plan: ActionPlan, source: EvaluatedElement?) -> ActionPlan {
+    package func currentActionPlan(_ plan: ActionPlan, source: EvaluatedElement?) -> ActionPlan {
         var plan = plan
         if !plan.isSourceComplete, let source {
             let live = liveElement(matching: source)
@@ -457,7 +459,7 @@ public final class OpenUIState: ObservableObject {
     public func perform(_ plan: ActionPlan, formName: OpenUIString? = nil) async -> [ActionEvent] {
         await perform(plan, formName: formName, source: nil)
     }
-    func perform(_ plan: ActionPlan, formName: OpenUIString?, source: EvaluatedElement?, onDispatch: ((ActionEvent) -> Void)? = nil) async -> [ActionEvent] {
+    package func perform(_ plan: ActionPlan, formName: OpenUIString?, source: EvaluatedElement?, onDispatch: ((ActionEvent) -> Void)? = nil) async -> [ActionEvent] {
         let plan = currentActionPlan(plan, source: source)
         guard source.map(isElementReady) ?? canExecuteActions, source == nil || isPlanReady(plan) else { return [] }
         let generation = streamGeneration

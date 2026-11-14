@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenSwiftUI
+import OpenUICore
 
 enum IconCatalog {
     // Explicit subset of upstream Lucide names mapped to native SF Symbols.

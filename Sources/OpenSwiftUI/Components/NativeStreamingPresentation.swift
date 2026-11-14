@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Source generation and in-flight execution are not business-disabled styles.

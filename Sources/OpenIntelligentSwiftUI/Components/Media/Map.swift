@@ -1,7 +1,7 @@
 import SwiftUI
 import MapKit
 import OpenUILang
-import OpenSwiftUI
+import OpenUICore
 
 private enum MapMetrics {
     static let inlineHeight: CGFloat = 360

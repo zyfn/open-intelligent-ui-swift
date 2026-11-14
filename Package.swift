@@ -32,7 +32,7 @@ let package = Package(
         .testTarget(name: "OpenSwiftUITests", dependencies: ["OpenSwiftUI"], path: "Tests/OpenSwiftUITests",
             swiftSettings: [.swiftLanguageMode(.v5)]),
         .target(name: "OpenIntelligentSwiftUI", dependencies: [
-            "OpenUILang", "OpenSwiftUI",
+            "OpenUILang", "OpenUICore",
             .product(name: "MarkdownUI", package: "swift-markdown-ui")
         ], resources: [.process("Resources")], swiftSettings: [.swiftLanguageMode(.v5)]),
         .executableTarget(name: "IntelligentUIGallery", dependencies: ["OpenIntelligentSwiftUI"],

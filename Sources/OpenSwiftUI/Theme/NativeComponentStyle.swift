@@ -1,3 +1,4 @@
+import OpenUICore
 import SwiftUI
 
 /// Reading roles resolve layout defaults without rewriting a complete host font.
