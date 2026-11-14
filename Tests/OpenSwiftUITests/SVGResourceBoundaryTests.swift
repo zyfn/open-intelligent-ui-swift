@@ -1,5 +1,5 @@
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class SVGResourceBoundaryTests: XCTestCase {
   func testOrdinarySVGRemainsValid() throws {

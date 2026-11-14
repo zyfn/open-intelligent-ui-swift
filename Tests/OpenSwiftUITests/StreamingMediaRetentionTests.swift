@@ -4,7 +4,7 @@ import Foundation
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class StreamingMediaRetentionTests: XCTestCase {
   @MainActor func testEachMediaAndActionBecomeReadyInsideTheSameMountedCard() throws {

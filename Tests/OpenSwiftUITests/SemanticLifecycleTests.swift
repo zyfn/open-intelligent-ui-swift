@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class SemanticLifecycleTests: XCTestCase {
     private func schema() -> LibrarySchema {

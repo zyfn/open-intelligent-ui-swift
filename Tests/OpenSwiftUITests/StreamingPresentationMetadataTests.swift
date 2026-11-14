@@ -1,6 +1,6 @@
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class StreamingPresentationMetadataTests: XCTestCase {
   @MainActor func testDeclaredChartGetsAPresentationSlotWithoutChangingTheLangTree() throws {

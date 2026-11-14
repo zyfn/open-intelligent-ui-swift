@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class SnippetWrappingTests: XCTestCase {
   @MainActor func testLongSnippetAddressWrapsInTheRightColumn() throws {

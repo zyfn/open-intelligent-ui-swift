@@ -3,7 +3,7 @@ import AppKit
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class SDKVisualContractTests: XCTestCase {
   @MainActor private func height(_ source: String, width: CGFloat = 320) throws -> CGFloat {

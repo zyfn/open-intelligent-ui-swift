@@ -1,6 +1,6 @@
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class StreamingFormCorrectnessTests: XCTestCase {
   @MainActor func testSliderFlushCommitsLatestFiniteEditBeforeImmediateFormSubmission() {
