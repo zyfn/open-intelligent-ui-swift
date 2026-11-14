@@ -27,6 +27,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify SwiftPM module graph and imports
+        run: |
+          set -euo pipefail
+          swift package dump-package > /dev/null
+          if grep -R -nE '(^|[[:space:]])(@testable[[:space:]]+)?import[[:space:]]+(OpenUISwiftUI|SwiftIntelligentUI)([[:space:]]|$)' Sources Tests Examples Tools --include='*.swift'; then
+            echo 'Obsolete Swift module imports remain'
+            exit 1
+          fi
       - name: Import ownership and localization
         run: |
           set -euo pipefail
