@@ -4,7 +4,7 @@ on:
   push:
     branches: [codex/sdk-baseline, codex/swift-sdk-consolidation-rc21]
   pull_request:
-    branches: [codex/sdk-baseline, codex/intelligentui-design-revamp]
+    branches: [codex/sdk-baseline, codex/intelligentui-design-revamp, codex/swift-sdk-consolidation-rc21]
   workflow_dispatch:
 
 permissions:
