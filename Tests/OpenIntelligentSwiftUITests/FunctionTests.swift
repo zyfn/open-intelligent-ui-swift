@@ -1,8 +1,8 @@
 import XCTest
 import Foundation
 import OpenUILang
-import OpenUISwiftUI
-@testable import SwiftIntelligentUI
+import OpenSwiftUI
+@testable import OpenIntelligentSwiftUI
 
 final class FunctionTests: XCTestCase {
     func testEveryExtensionFunctionAgainstGoldenData() throws {

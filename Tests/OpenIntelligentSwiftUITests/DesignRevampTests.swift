@@ -1,8 +1,8 @@
 import XCTest
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
-@testable import SwiftIntelligentUI
+import OpenSwiftUI
+@testable import OpenIntelligentSwiftUI
 #if os(iOS)
 import UIKit
 #else

@@ -2,7 +2,7 @@ import XCTest
 import Foundation
 import ImageIO
 import CoreGraphics
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class ImagePipelineTests: XCTestCase {
     func testContainFramingPreservesWholePhotoOverOpaqueBackdrop() throws {

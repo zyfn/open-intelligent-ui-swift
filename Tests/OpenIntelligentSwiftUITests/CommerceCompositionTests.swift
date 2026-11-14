@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import CoreGraphics
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class CommerceCompositionTests: XCTestCase {
     // Exact complete reproduction from the independent host. This macOS render

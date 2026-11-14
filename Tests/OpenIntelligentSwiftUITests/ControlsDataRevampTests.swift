@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import OpenUILang
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class ControlsDataRevampTests: XCTestCase {
     func testNumericDraftReportsUnappliedValueBeforeLosingFocus() {
