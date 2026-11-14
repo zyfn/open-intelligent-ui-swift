@@ -26,6 +26,7 @@ let package = Package(
         .target(name: "OpenUICore", dependencies: ["OpenUILang"], path: "Sources/OpenUICore", swiftSettings: [.swiftLanguageMode(.v5)]),
         .target(name: "OpenSwiftUI", dependencies: ["OpenUILang", "OpenUICore", .product(name: "MarkdownUI", package: "swift-markdown-ui")],
             path: "Sources/OpenSwiftUI", resources: [.process("Resources")], swiftSettings: [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "OpenUICoreTests", dependencies: ["OpenUICore"], path: "Tests/OpenUICoreTests", swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "OpenUILangTests", dependencies: ["OpenUILang"], path: "Tests/OpenUILangTests",
             resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "OpenSwiftUITests", dependencies: ["OpenSwiftUI"], path: "Tests/OpenSwiftUITests",
