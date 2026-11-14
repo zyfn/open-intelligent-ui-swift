@@ -1,5 +1,5 @@
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum ValueReading {
     @MainActor static func boundString(_ context: OpenUIComponentContext, _ name: String) -> String? {

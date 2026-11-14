@@ -1,6 +1,6 @@
 import Foundation
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 /// Public names let hosts depend on this SDK without importing runtime modules.
 public typealias IntelligentUIState = OpenUIState
@@ -33,7 +33,7 @@ public struct IntelligentUILibrary {
         let known = Set(supplied.map(\.definition.name)).union(["SearchImage"])
         let invalid = excludingComponents.subtracting(known).union(excludingComponents.intersection(["Col"]))
         guard invalid.isEmpty else {
-            throw NSError(domain: "SwiftIntelligentUI", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot exclude unknown components or the Col root: " + invalid.sorted().joined(separator: ", ")])
+            throw NSError(domain: "OpenIntelligentSwiftUI", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot exclude unknown components or the Col root: " + invalid.sorted().joined(separator: ", ")])
         }
         let complete = try OpenUIComponentLibrary(
             components: supplied,

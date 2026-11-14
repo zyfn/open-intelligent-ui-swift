@@ -1,5 +1,5 @@
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 /// The writer is a projection of the existing reader definition. This changes
 /// neither the language nor the native builder, and old messages keep the full
