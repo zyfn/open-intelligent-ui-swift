@@ -1,3 +1,5 @@
+> 本文记录 `codex/intelligentui-design-revamp` 的历史实施范围。当前共仓结构以设计文档和 `OpenUI/README.md` 为准；历史 RC20 结论不是迁移候选的通过证据。
+
 # IntelligentUI 设计改造状态
 
 分支：`codex/intelligentui-design-revamp`  

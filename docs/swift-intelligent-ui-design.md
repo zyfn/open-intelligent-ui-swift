@@ -25,19 +25,20 @@ flowchart TB
 ### 依赖与边界
 
 - 最低平台为 iOS 16 / macOS 13。
-- OpenUI Swift 固定远程 `b8ea283916b9630ce8590338c8f8dc5b71fd75e4`（0.1.1-rc.20），负责 DSL 语法、解析、求值、状态、绑定和流式。依赖只能使用可复现的远程固定版本，不使用本机 SDK 路径或未提交工作区。
+- OpenUI Swift 在本仓 `OpenUI/` 中作为正式源码共同版本化，首次来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`。根包导出 `OpenUILang` / `OpenUISwiftUI`，不再依赖整个远程 fork。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。来源和边界见 `OpenUI/README.md` 与 `OpenUI/IMPORT.json`。
 - 组件及计算参考固定为 `16ef26475999e3a021a50b1607a03717c0721255` 的 55 组件库，不是 OpenUI 运行时内置的 ReferenceCatalog。
-- swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.16.47。
+- swift-markdown-ui 2.4.1；组件计算使用 Zod 4.6.7、KaTeX 0.16.47；OpenUI Core 构建固定 Zod 4.6.6。
 
 ## 2. 模块与目录
 
-统一库模块为 `SwiftIntelligentUI`，内部按职责和 UI 能力分类。
+Intelligent UI 库模块仍为 `SwiftIntelligentUI`，内部按职责和 UI 能力分类；通用运行时与标准组件分别属于 `OpenUILang`、`OpenUISwiftUI`，在独立 `OpenUI/` 目录维护。三者由同一个根 Package 构建，不复制运行时状态，不合并两套组件契约。
 
 ```text
 open-intelligent-ui-swift/
 ├── Package.swift
 ├── Package.resolved
 ├── THIRD-PARTY-NOTICES.txt
+├── OpenUI/                     # 通用 Sources / Tests / Tools / Fixtures / Documentation
 ├── Sources/SwiftIntelligentUI/
 │   ├── IntelligentUIView.swift
 │   ├── Catalog/                 # 组件注册、状态工厂与参数读取
@@ -82,7 +83,7 @@ let view = IntelligentUIView(state: state, library: library)
 
 同一状态实例支持完整输入、流式追加、绑定和派生计算。组件使用 SDK 上下文检查交互就绪和旧回调失效，不重复实现运行时。默认内容宽度由 IntelligentUIView 读取 theme.readingWidth，接入方可通过同一主题调整。
 
-rc.20 中，重复传入相同的已完成源码不会重建展示或清空用户状态，空的 push 也不启动新流。宿主需要重新播放同一程序时，应显式 reset() 后再 setSource；真正替换内容或 reset 后，原展示的回调与绑定失效。
+运行时中，重复传入相同的已完成源码不会重建展示或清空用户状态，空的 push 也不启动新流。宿主需要重新播放同一程序时，应显式 reset() 后再 setSource；真正替换内容或 reset 后，原展示的回调与绑定失效。
 
 库区分两个目录：
 
@@ -306,7 +307,7 @@ CLI 保留导出、--validate 与 --case 命令结构，并提供显式历史验
 | Gallery | 固定程序的 UI 演示和离线检查，不代替真实模型输出或真实操作 |
 | 真实界面 | 指定设备、原程序与原图片的实际显示和操作，不能由编译或单元测试推断 |
 
-makeState() 使用 OpenUI 0.1.1-rc.20 的默认创建方式，不启用本地候选或补丁。调用方必须接受以下运行时边界：
+makeState() 使用本仓 `OpenUIState` 的默认创建方式，不另建解析器、Store 或运行时。调用方必须接受以下运行时边界：
 
 - 后生成的兄弟内容可能先于尚未就绪的前序区块显示，不能假设中间帧按源码顺序只追加。
 - isSourceComplete 描述源码就绪，不是运行时分支可达性；未选中的条件分支中，被解析的未定义引用也会影响它与 SDK 诊断。
@@ -332,6 +333,6 @@ makeState() 使用 OpenUI 0.1.1-rc.20 的默认创建方式，不启用本地候
 6. **状态归 OpenUI 与调用方**：解析、求值、绑定和流式继续由 OpenUI 负责；业务数据、消息生命周期、资源与动作结果由宿主负责，SDK 不另建业务状态系统。
 7. **Map 只表达地图**：点位、label 选择、分类过滤、fit 与展开由明确规则处理，不接收任意卡片投影，不为地图联动新增身份、筛选或路线方言。
 8. **契约同源**：spec、Prompt、manifest 必须从实际 writer 组件目录生成，不用字符串补丁掩盖实现差异，不让模型学习 SDK 内部运行时细节。
-9. **依赖可复现**：OpenUI 只使用远程固定 revision，不能引用本机路径、未提交工作区或本地候选实现。
+9. **依赖可复现**：通用底座与组件库在同一提交验收；上游源码、构建工具和本地兼容补丁分别锁定。不得引入本机未提交 SDK、重复远端同名产品或浮动上游分支。
 10. **验收真实行为**：组件契约、构建、测试、Gallery 和真实界面分别验证。不得通过修改文档、删除断言或隐藏失败把未接受的行为写成通过。
 11. **文档只写当前体系**：本文维护当前设计和约束，不写版本流水、变更说明或试验过程。后续修改必须同步更新本文，不得另起一套互相冲突的架构说明。

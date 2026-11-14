@@ -2,9 +2,9 @@ name: Native SDK and lang compatibility
 
 on:
   push:
-    branches: [codex/sdk-baseline]
+    branches: [codex/sdk-baseline, codex/swift-sdk-consolidation-rc21]
   pull_request:
-    branches: [codex/sdk-baseline]
+    branches: [codex/sdk-baseline, codex/intelligentui-design-revamp]
   workflow_dispatch:
 
 permissions:
@@ -15,34 +15,234 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  reproducible-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Import ownership and localization
+        run: |
+          set -euo pipefail
+          python3 Tools/check_openui_integration.py
+          python3 Tools/check_localization.py
+      - name: Rebuild the exact bundled official core
+        run: |
+          set -euo pipefail
+          npm ci --prefix OpenUI/Tools/Core --ignore-scripts
+          node OpenUI/Tools/Core/build.mjs
+          git diff --exit-code -- OpenUI/Sources/OpenUILang/Resources
+          node OpenUI/Tools/Core/verify-compatibility.mjs
+          node --test OpenUI/Tools/Core/schema-emission.test.mjs
+          node --test OpenUI/Validation/validation.test.mjs
+      - name: Rebuild presentation resources from public registries
+        run: |
+          set -euo pipefail
+          for feature in rich-text code-highlighting icons; do
+            npm ci --prefix "OpenUI/Tools/Presentation/$feature" --ignore-scripts
+          done
+          node OpenUI/Tools/Presentation/rich-text/build.mjs
+          node OpenUI/Tools/Presentation/code-highlighting/build.mjs
+          node OpenUI/Tools/Presentation/icons/generate.mjs --check
+          node OpenUI/Tools/Presentation/catalog.mjs --check
+          git diff --exit-code -- OpenUI/Sources/OpenUISwiftUI/Resources
+      - name: Retain input diagnostics
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/native-input-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/native-input-evidence/checkout-sha.txt"
+          git diff -- OpenUI/Sources > "$RUNNER_TEMP/native-input-evidence/generated-diff.patch"
+          cp OpenUI/Sources/OpenUILang/Resources/core-manifest.json "$RUNNER_TEMP/native-input-evidence/"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-inputs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-input-evidence/
+          retention-days: 7
+
+  dependency-security:
+    # Independent of functional tests: preserve inherited findings, never waive
+    # them to get a green relocation or publish an unreviewed candidate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit every bundled generator dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/native-security"
+          failed=0
+          for dependency_dir in OpenUI/Tools/Core OpenUI/Tools/Presentation/rich-text OpenUI/Tools/Presentation/code-highlighting OpenUI/Tools/Presentation/icons Tools/Functions; do
+            label="${dependency_dir#OpenUI/Tools/}"
+            label="${label//\//-}"
+            npm ci --prefix "$dependency_dir" --ignore-scripts --registry=https://registry.npmjs.org \
+              2>&1 | tee "$RUNNER_TEMP/native-security/$label-install.log"
+            if npm audit --prefix "$dependency_dir" --audit-level=high --registry=https://registry.npmjs.org --json \
+                > "$RUNNER_TEMP/native-security/$label-audit.json"; then
+              printf '0\n' > "$RUNNER_TEMP/native-security/$label-exit.txt"
+            else
+              status=$?
+              printf '%s\n' "$status" > "$RUNNER_TEMP/native-security/$label-exit.txt"
+              cat "$RUNNER_TEMP/native-security/$label-audit.json"
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-security/
+          retention-days: 7
+
   native-sdk:
-    # Pin the supported image and toolchain for repeatable compatibility checks.
+    needs: reproducible-inputs
+    # Preserve the existing design branch's supported toolchain.
     runs-on: macos-15
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-    timeout-minutes: 45
+      OPENUI_SNAPSHOT_DIR: ${{ github.workspace }}/outputs/verification/visual
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Toolchain
+      - name: Record toolchain and exact checkout
+        shell: bash
         run: |
-          swift --version
-          xcodebuild -version
-      - name: Localization resources
-        run: python3 Tools/check_localization.py
-      - name: Swift package tests
-        run: swift test
+          set -euo pipefail
+          mkdir -p outputs/verification
+          { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
+            2>&1 | tee outputs/verification/provenance.log
+      - name: All native package tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test 2>&1 | tee outputs/verification/sdk-tests.log
+      - name: Release native fitting
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test -c release --filter HostSizingIsolationTests \
+            2>&1 | tee outputs/verification/release-fitting.log
       - name: Gallery fixture programs
-        run: swift run IntelligentUIGallery --validate-fixtures
-      - name: Historical lang compatibility
-        run: python3 Tools/check_lang_compatibility.py
-      - name: iOS Simulator build
+        shell: bash
         run: |
+          set -euo pipefail
+          swift run IntelligentUIGallery --validate-fixtures \
+            2>&1 | tee outputs/verification/gallery-fixtures.log
+      - name: Preserve historical Intelligent UI contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Tools/check_lang_compatibility.py \
+            2>&1 | tee outputs/verification/historical-contracts.log
+      - name: Native language AddressSanitizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --scratch-path "$RUNNER_TEMP/openui-asan" --sanitize=address --filter OpenUILangTests \
+            2>&1 | tee outputs/verification/asan.log
+      - name: Standard-library standalone macOS example
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --package-path OpenUI/Examples/macOS \
+            2>&1 | tee outputs/verification/standard-macos.log
+      - name: All library products for iOS 16 Simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --target SwiftIntelligentUI --scratch-path "$RUNNER_TEMP/native-ios" \
+            --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+            2>&1 | tee outputs/verification/libraries-ios.log
+      - name: iOS Gallery using the same local package
+        shell: bash
+        run: |
+          set -euo pipefail
           xcodebuild -project Examples/Gallery/IntelligentUIGallery.xcodeproj \
-            -scheme IntelligentUIGallery \
-            -destination 'generic/platform=iOS Simulator' \
+            -scheme IntelligentUIGallery -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/IntelligentUIGallery-build" \
-            CODE_SIGNING_ALLOWED=NO build
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee outputs/verification/gallery-ios.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/
+          if-no-files-found: warn
+          retention-days: 7
 
+  source-rc21-gate:
+    # Independently test the public candidate at its exact original manifest.
+    # This job is evidence only; it never creates a tag or publishes a release.
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: zyfn/openui
+          ref: f3dfa1d0b479c131b6d4268e81961186f22ff09c
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Original source provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/source-rc21-evidence"
+          printf 'OPENUI_SNAPSHOT_DIR=%s/source-rc21-evidence/visual\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          test "$(git rev-parse HEAD)" = f3dfa1d0b479c131b6d4268e81961186f22ff09c
+          { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
+            2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/provenance.log"
+      - name: Original distribution tests and fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test 2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/sdk-tests.log"
+          swift test -c release --filter HostSizingIsolationTests \
+            2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/release-fitting.log"
+          node --test packages/swift-lang/validation/validation.test.mjs \
+            2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/authoring.log"
+      - name: Original core regeneration and ASan
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --prefix packages/swift-lang/scripts --ignore-scripts
+          node packages/swift-lang/scripts/build.mjs
+          git diff --exit-code -- packages/swift-lang/Sources/OpenUILang/Resources
+          swift test --package-path packages/swift-lang --scratch-path "$RUNNER_TEMP/source-asan" --sanitize=address \
+            2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/asan.log"
+      - name: Original platform builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --package-path examples/app-frameworks/swiftui-macos \
+            2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/macos-build.log"
+          swift build --scratch-path "$RUNNER_TEMP/source-ios" \
+            --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+            2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/ios-build.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-rc21-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/source-rc21-evidence/
+          if-no-files-found: warn
+          retention-days: 7

@@ -6,18 +6,30 @@ let package = Package(
     defaultLocalization: "en",
     platforms: [.iOS(.v16), .macOS(.v13)],
     products: [
+        .library(name: "OpenUILang", targets: ["OpenUILang"]),
+        .library(name: "OpenUISwiftUI", targets: ["OpenUISwiftUI"]),
         .library(name: "SwiftIntelligentUI", targets: ["SwiftIntelligentUI"]),
         .executable(name: "IntelligentUIGallery", targets: ["IntelligentUIGallery"]),
         .executable(name: "ContractExport", targets: ["ContractExport"])
     ],
     dependencies: [
-        .package(url: "https://github.com/zyfn/openui.git", revision: "b8ea283916b9630ce8590338c8f8dc5b71fd75e4"),
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", exact: "2.4.1")
     ],
     targets: [
+        .target(name: "COpenUIRegExp", path: "OpenUI/Sources/COpenUIRegExp",
+            exclude: ["README.md", "VENDOR.json", "vendor/LICENSE"],
+            sources: ["Bridge.c", "RegExpEngine.c", "UnicodeEngine.c"], publicHeadersPath: "include"),
+        .target(name: "OpenUILang", dependencies: ["COpenUIRegExp"], path: "OpenUI/Sources/OpenUILang",
+            resources: [.copy("Resources/lang-core.js"), .copy("Resources/core-manifest.json"), .copy("Resources/THIRD-PARTY-NOTICES.txt")],
+            swiftSettings: [.swiftLanguageMode(.v5)]),
+        .target(name: "OpenUISwiftUI", dependencies: ["OpenUILang", .product(name: "MarkdownUI", package: "swift-markdown-ui")],
+            path: "OpenUI/Sources/OpenUISwiftUI", resources: [.process("Resources")], swiftSettings: [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "OpenUILangTests", dependencies: ["OpenUILang"], path: "OpenUI/Tests/OpenUILangTests",
+            resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "OpenUISwiftUITests", dependencies: ["OpenUISwiftUI"], path: "OpenUI/Tests/OpenUISwiftUITests",
+            swiftSettings: [.swiftLanguageMode(.v5)]),
         .target(name: "SwiftIntelligentUI", dependencies: [
-            .product(name: "OpenUILang", package: "openui"),
-            .product(name: "OpenUISwiftUI", package: "openui"),
+            "OpenUILang", "OpenUISwiftUI",
             .product(name: "MarkdownUI", package: "swift-markdown-ui")
         ], resources: [.process("Resources")], swiftSettings: [.swiftLanguageMode(.v5)]),
         .executableTarget(name: "IntelligentUIGallery", dependencies: ["SwiftIntelligentUI"],

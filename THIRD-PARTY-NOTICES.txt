@@ -102,3 +102,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+Imported native OpenUI support
+Source: zyfn/openui at f3dfa1d0b479c131b6d4268e81961186f22ff09c (fork of thesysdev/openui).
+Upstream OpenUI MIT license: OpenUI/LICENSE.
+Native dependencies and generated-resource licenses are retained under OpenUI/Sources and recorded by OpenUI/IMPORT.json.

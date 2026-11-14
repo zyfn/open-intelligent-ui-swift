@@ -63,8 +63,10 @@ private struct CelebrationView: View {
                         for index in 0..<50 {
                             let phase = max(0, (elapsed - Double(index % 10) * 0.04) / 1.6)
                             guard phase > 0, phase < 1 else { continue }
-                            let x = size.width * CGFloat((index * 37) % 100) / 100 + CGFloat((index * 71) % 100 - 50) * phase
-                            let y = size.height * phase
+                            let progress = CGFloat(phase)
+                            let x = size.width * (CGFloat((index * 37) % 100) / 100)
+                                + CGFloat((index * 71) % 100 - 50) * progress
+                            let y = size.height * progress
                             let colors = theme.chartColors.isEmpty ? [theme.primaryText] : theme.chartColors
                             canvas.fill(Path(roundedRect: .init(x: x, y: y, width: 6, height: 9), cornerRadius: 2), with: .color(colors[index % colors.count].opacity(1 - phase * 0.3)))
                         }

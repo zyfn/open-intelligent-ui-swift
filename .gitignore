@@ -5,3 +5,4 @@ outputs/
 .swiftpm/
 xcuserdata/
 __pycache__/
+node_modules/

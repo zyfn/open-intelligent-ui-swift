@@ -19,13 +19,13 @@ public struct IntelligentUIManifest: Codable, Sendable {
 extension IntelligentUILibrary {
     public var manifest: IntelligentUIManifest {
         let web: Set<String> = ["HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "Math"]
-        return IntelligentUIManifest(version: "0.1.0-preview.29-design-revamp", profile: components.library.id ?? "swift-intelligent-ui.v0.1",
-            upstreamCommit: "16ef26475999e3a021a50b1607a03717c0721255", runtimeCommit: "b8ea283916b9630ce8590338c8f8dc5b71fd75e4",
+        return IntelligentUIManifest(version: "0.1.1-rc.21", profile: components.library.id ?? "swift-intelligent-ui.v0.1",
+            upstreamCommit: "16ef26475999e3a021a50b1607a03717c0721255", runtimeCommit: "f3dfa1d0b479c131b6d4268e81961186f22ff09c",
             components: specification.components.map { .init(name: $0.name, rendering: web.contains($0.name) ? "local-webkit-or-embedded-media" : $0.name == "Map" ? "mapkit" : "swiftui", contract: $0.description) },
             functions: specification.functions.map(\.name), actions: specification.actions.map(\.name),
             requirements: [
                 "iOS 16+ / macOS 13+; system text, controls and dynamic appearance.",
-                "OpenUI Swift is pinned to the remote 0.1.1-rc.20 revision; makeState uses the upstream default runtime configuration.",
+                "OpenUI Swift is included as workspace targets under OpenUI; runtimeCommit records imported source provenance. The official core is pinned for build-time generation; no external fork package is resolved.",
                 "SearchImage is registered only with an explicit caller service.",
                 "Content and citations present caller-supplied facts; this library does not retrieve or invent them.",
                 "TransportCard displays supplied local clock/date/zone and fare text; no inferred elapsed duration, through-ticket or total price.",

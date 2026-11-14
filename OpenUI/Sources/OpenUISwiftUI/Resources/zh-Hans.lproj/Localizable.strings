@@ -1,0 +1,114 @@
+"Select" = "请选择";
+"Start date" = "开始日期";
+"End date" = "结束日期";
+"Clear" = "清除";
+"Value unavailable" = "数值暂不可用";
+"Sections" = "内容分组";
+"Select date" = "选择日期";
+"Cancel" = "取消";
+"Done" = "完成";
+"In progress" = "处理中";
+"On" = "开启";
+"Off" = "关闭";
+"Selected" = "已选择";
+"Not selected" = "未选择";
+
+"Close" = "关闭";
+
+"Changed cells" = "处修改";
+
+"Reset" = "重置";
+
+"Save Changes" = "保存修改";
+"Map" = "地图";
+"Expand map" = "展开地图";
+"Open place" = "打开地点";
+"Swipe to change place" = "左右滑动切换地点";
+"Loading image" = "图片加载中";
+"Image unavailable" = "图片暂不可用";
+"Retry" = "重试";
+"Open original image" = "打开原图";
+"%lld images unavailable" = "%lld 张图片暂不可用";
+"Image descriptions" = "图片说明";
+"All photos" = "全部图片";
+"Show all photos" = "查看全部图片";
+"Close gallery" = "关闭图库";
+"View image" = "查看图片";
+
+"Previous page" = "上一页";
+"Information" = "提示";
+"Success" = "已完成";
+"Warning" = "注意";
+"Error" = "错误";
+"Next page" = "下一页";
+"Copy code" = "复制代码";
+"Copied to clipboard" = "已复制到剪贴板";
+"Loading data" = "正在加载数据";
+"Hidden" = "已隐藏";
+"Visible" = "显示中";
+"Sources" = "来源";
+"Value" = "数值";
+
+"Previous place" = "上一个地点";
+
+"Next place" = "下一个地点";
+
+"Show all places" = "显示全部地点";
+
+"Places" = "地点列表";
+
+// Embedded SVG and WebView presentation.
+"Illustration unavailable" = "这张图暂时无法显示。";
+"Content unavailable" = "这部分内容暂时无法显示。";
+"Reload" = "重新加载";
+"Scroll horizontally to see all columns" = "左右滑动查看全部列";
+"More tabs" = "更多标签";
+"No data" = "暂无数据";
+"Chart is incomplete" = "图表尚未完整生成";
+"Unable to load chart" = "图表数据暂时无法加载";
+"Unable to refresh chart" = "图表刷新未完成，当前保留上次数据";
+"Unable to load data" = "数据暂时无法加载";
+"Unable to refresh data" = "数据刷新未完成，当前保留上次内容";
+"Table is incomplete" = "表格尚未完整生成";
+"Content unavailable" = "内容暂不可用";
+"Loading" = "加载中";
+"Content is incomplete" = "内容尚未完整";
+
+"This field is required" = "请填写或选择此项";
+
+"Unable to load graphic" = "图形加载失败";
+"Graphic requires a valid SVG viewBox" = "图形需要有效的 SVG viewBox";
+"Map requires iOS 17 or macOS 14" = "地图需要 iOS 17 或 macOS 14";
+"Show all places" = "显示全部地点";
+"Choose a place" = "跳转到地点";
+"Close map" = "关闭地图";
+"Previous place" = "上一个地点";
+"Next place" = "下一个地点";
+"Recenter on selection" = "回到选中地点";
+"Expand map" = "展开地图";
+"Selected" = "已选择";
+"Not selected" = "未选择";
+"Details for %@" = "查看%@详情";
+
+"Tap image to retry" = "点击图片重新加载";
+
+"Tap to preview" = "点击查看大图";
+
+"Touch and hold to preview" = "长按查看大图";
+
+"Close image preview" = "关闭图片预览";
+
+"Image" = "图片";
+"Image preview" = "图片预览";
+"Swipe to change image" = "左右滑动切换图片";
+"Drag to move image" = "拖动查看放大的图片";
+
+"Chart data is invalid" = "图表数据不完整或无效";
+
+"No valid locations" = "暂无有效地点";
+
+"Source data changed. Review your edits before saving." = "来源数据已更新，请确认如何处理当前修改。";
+
+"Use updated data" = "使用更新的数据";
+
+"Keep my edits" = "保留我的修改";
