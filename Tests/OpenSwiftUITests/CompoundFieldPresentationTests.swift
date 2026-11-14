@@ -3,7 +3,7 @@ import AppKit
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class CompoundFieldPresentationTests: XCTestCase {
   @MainActor private func height(_ source: String, library: OpenUIComponentLibrary) throws -> CGFloat {

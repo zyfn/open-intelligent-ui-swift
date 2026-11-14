@@ -3,7 +3,7 @@ import AppKit
 import XCTest
 import SwiftUI
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class CardTextClippingTests: XCTestCase {
   /// Compare visible glyph coverage, excluding color-space/antialias rounding.

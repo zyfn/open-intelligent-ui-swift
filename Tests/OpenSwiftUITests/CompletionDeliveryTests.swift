@@ -1,7 +1,7 @@
 import Combine
 import XCTest
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class CompletionDeliveryTests: XCTestCase {
   @MainActor func testDuplicateFinalDeliveryAndEmptyChunksNeverClearTheRenderedRoot() throws {

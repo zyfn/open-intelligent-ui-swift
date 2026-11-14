@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ComponentLibraryTests: XCTestCase {
     func testPublicPresentationMetadataUsesOnlyDeclaredFieldsAndSurvivesRegistration() throws {
