@@ -45,6 +45,12 @@ def main() -> None:
     core = json.loads((resource / "core-manifest.json").read_text())
     if core["sha256"] != sha(resource / "lang-core.js") or core["sourceTree"] != lock["core"]["adaptedTree"]:
         problems.append("Generated core does not match its pinned provenance")
+    for key, expected in (("upstream", lock["core"]["revision"]),
+                          ("dependencyRepository", lock["repository"]),
+                          ("dependencyPackage", lock["core"]["package"]),
+                          ("dependencyVersion", lock["core"]["version"])):
+        if core.get(key) != expected:
+            problems.append(f"Generated core {key} differs from the reviewed source lock")
     files = ["entry.ts", "captures.ts", "authoring.ts", "compat.mjs", "readiness.ts", "readiness-compat.mjs", "adaptations.json", "patches/serializer-roundtrip.patch", "build.mjs", "../upstream.mjs", "../upstream.json", "patches/positional-omittability.patch"]
     adapter = "\n".join((ROOT / "Tools/Core" / name).read_text() for name in files)
     if hashlib.sha256(adapter.encode()).hexdigest() != core["adapterSha256"]:

@@ -48,6 +48,7 @@ jobs:
           node Tools/Core/build.mjs
           git diff --exit-code -- Sources/OpenUILang/Resources
           node Tools/Core/verify-compatibility.mjs
+          node --test Tools/Core/native-readiness.test.mjs
           node --test Validation/validation.test.mjs
           node --test Tools/Presentation/catalog-compatibility.test.mjs
       - name: Rebuild presentation resources from public registries
@@ -160,7 +161,7 @@ jobs:
           path: outputs/verification/sdk-tests.log
           if-no-files-found: warn
           retention-days: 7
-      - name: Independent public UI product consumers
+      - name: Independent public Lang, Core and UI product consumers
         if: ${{ !cancelled() }}
         shell: bash
         run: |
@@ -247,6 +248,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: candidate-tools
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v4
         with:

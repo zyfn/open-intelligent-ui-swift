@@ -2,8 +2,10 @@
 """Apply or verify the reviewed RC21 source candidate without moving its base HEAD.
 
 The candidate is the immutable source revision plus the exact changes declared in
-Validation/source-rc21/manifest.json. It is not the unmodified RC21 source.
-Both modes verify the complete candidate tree, including after core regeneration.
+Validation/source-rc21/manifest.json. Copy payloads come from the manifest's
+immutable SDK commit, not the evolving current SDK resources. It is not the
+unmodified RC21 source. Both modes verify the complete candidate tree, including
+after core regeneration.
 """
 from __future__ import annotations
 
@@ -52,15 +54,21 @@ def regular_file(root: Path, relative: str) -> Path:
     return path
 
 
-def load_manifest() -> tuple[dict, bytes, Path]:
+def load_manifest() -> tuple[dict, bytes, Path, dict[str, bytes]]:
     raw = MANIFEST.read_bytes()
     manifest = json.loads(raw)
     if manifest.get("schema_version") != 1:
         fail("Unsupported source repair manifest version")
+    payload_revision = manifest["sdk_payload_revision"]
+    if not isinstance(payload_revision, str) or not re.fullmatch(r"[0-9a-f]{40}", payload_revision):
+        fail("Expected an exact Git commit ID for sdk_payload_revision")
+    if git(ROOT, "cat-file", "-t", payload_revision).strip() != b"commit":
+        fail("sdk_payload_revision must identify an available SDK commit")
     files = manifest["files"]
     paths = [relative_path(item["path"]) for item in files]
     if not paths or len(set(paths)) != len(paths):
         fail("Source repair manifest must declare a nonempty, unique file set")
+    payloads: dict[str, bytes] = {}
     for item in files:
         if item["operation"] not in {"patch", "copy"}:
             fail(f"Unknown repair operation for {item['path']}")
@@ -70,9 +78,11 @@ def load_manifest() -> tuple[dict, bytes, Path]:
         if item["before_sha256"] == item["after_sha256"]:
             fail(f"Unchanged file must not be declared as a repair: {item['path']}")
         if item["operation"] == "copy":
-            payload = regular_file(ROOT, item["copy_from"])
-            if sha256(payload.read_bytes()) != item["after_sha256"]:
-                fail(f"Reviewed copy payload differs: {item['copy_from']}")
+            payload_path = relative_path(item["copy_from"])
+            payload = git(ROOT, "show", f"{payload_revision}:{payload_path}")
+            if sha256(payload) != item["after_sha256"]:
+                fail(f"Reviewed copy payload differs: {payload_revision}:{payload_path}")
+            payloads[item["path"]] = payload
     for value in (manifest["base"]["revision"], manifest["base"]["tree"],
                   manifest["candidate_tree"]):
         if not re.fullmatch(r"[0-9a-f]{40}", value):
@@ -80,7 +90,7 @@ def load_manifest() -> tuple[dict, bytes, Path]:
     patch = regular_file(MANIFEST.parent, manifest["patch"]["path"])
     if sha256(patch.read_bytes()) != manifest["patch"]["sha256"]:
         fail("Reviewed source repair patch SHA-256 does not match its manifest")
-    return manifest, raw, patch
+    return manifest, raw, patch, payloads
 
 
 def check_base(source: Path, manifest: dict) -> None:
@@ -135,7 +145,8 @@ def verify_candidate(source: Path, manifest: dict) -> tuple[str, list[dict]]:
     return tree, files
 
 
-def apply_candidate(source: Path, manifest: dict, patch: Path) -> tuple[str, list[dict]]:
+def apply_candidate(source: Path, manifest: dict, patch: Path,
+                    payloads: dict[str, bytes]) -> tuple[str, list[dict]]:
     check_base(source, manifest)
     if status(source):
         fail("Source repair requires a clean checkout, including untracked files")
@@ -158,7 +169,7 @@ def apply_candidate(source: Path, manifest: dict, patch: Path) -> tuple[str, lis
         git(source, "apply", "--whitespace=error", str(patch))
         for item in manifest["files"]:
             if item["operation"] == "copy":
-                (source / item["path"]).write_bytes(regular_file(ROOT, item["copy_from"]).read_bytes())
+                (source / item["path"]).write_bytes(payloads[item["path"]])
         return verify_candidate(source, manifest)
     except Exception:
         for relative, data in originals.items():
@@ -178,6 +189,7 @@ def record_evidence(source: Path, evidence: Path, manifest: dict, raw: bytes,
         "base": manifest["base"],
         "candidate_tree": tree,
         "controller_revision": git(ROOT, "rev-parse", "HEAD").decode().strip(),
+        "sdk_payload_revision": manifest["sdk_payload_revision"],
         "repair_manifest_sha256": sha256(raw),
         "repair_patch_sha256": manifest["patch"]["sha256"],
         "files": files,
@@ -201,9 +213,9 @@ def main() -> None:
     source, evidence = args.source.resolve(), args.evidence.resolve()
     if source == evidence or source in evidence.parents:
         fail("--evidence must be outside the source checkout")
-    manifest, raw, patch = load_manifest()
+    manifest, raw, patch, payloads = load_manifest()
     tree, files = (verify_candidate(source, manifest) if args.verify
-                   else apply_candidate(source, manifest, patch))
+                   else apply_candidate(source, manifest, patch, payloads))
     record = record_evidence(source, evidence, manifest, raw, patch, tree, files, args.verify)
     print(json.dumps(record, indent=2))
 

@@ -1,4 +1,4 @@
-import { prepareCoreSource, upstreamFile } from '../upstream.mjs';
+import { lock, prepareCoreSource, upstreamFile, upstreamFiles } from '../upstream.mjs';
 // Independent oracle: no Swift compatibility/readiness plugin is applied to it.
 import {build, transform} from 'esbuild';
 import {readFileSync,writeFileSync,mkdtempSync,mkdirSync,rmSync} from 'node:fs';
@@ -10,15 +10,29 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {serializer} from './compat.mjs';
+import {verifyLang111} from './lang-1.1-regressions.mjs';
 
-const here=dirname(fileURLToPath(import.meta.url)),root=prepareCoreSource();
+const here=dirname(fileURLToPath(import.meta.url)),preparedRoot=prepareCoreSource();
 const manifest=JSON.parse(readFileSync(join(here,'../../Sources/OpenUILang/Resources/core-manifest.json')));
-assert.equal(execFileSync('git',['rev-parse','HEAD:packages/lang-core'],{cwd:root,encoding:'utf8'}).trim(),manifest.sourceTree);
-execFileSync('git',['diff','--quiet','HEAD','--','packages/lang-core'],{cwd:root});
+assert.equal(execFileSync('git',['rev-parse','HEAD:packages/lang-core'],{cwd:preparedRoot,encoding:'utf8'}).trim(),manifest.sourceTree);
+execFileSync('git',['diff','--quiet','HEAD','--','packages/lang-core'],{cwd:preparedRoot});
 const temporary=mkdtempSync(join(tmpdir(),'openui-oracle-'));
+const root=join(temporary,'official-source');
 const sha=value=>createHash('sha256').update(value).digest('hex');
 process.env.OPENUI_RUNTIME_TELEMETRY_ENABLED='0';
 try {
+  // Read the original pinned blobs, independently of prepareCoreSource()'s
+  // positional-signature patch. No native source or build adaptation is used.
+  for(const path of upstreamFiles(manifest.upstream,'packages/lang-core')) {
+    mkdirSync(dirname(join(root,path)),{recursive:true});
+    writeFileSync(join(root,path),upstreamFile(manifest.upstream,path));
+  }
+  writeFileSync(join(root,'tsconfig.json'),upstreamFile(manifest.upstream,'tsconfig.json'));
+  execFileSync('git',['init','--quiet'],{cwd:root});
+  execFileSync('git',['add','-f','packages/lang-core'],{cwd:root});
+  const pristineTree=execFileSync('git',['write-tree'],{cwd:root,encoding:'utf8'}).trim();
+  assert.equal(execFileSync('git',['rev-parse',pristineTree+':packages/lang-core'],{cwd:root,encoding:'utf8'}).trim(),manifest.originalSourceTree,'Oracle source must be the unmodified official package tree');
+  assert.equal(JSON.parse(readFileSync(join(root,'packages/lang-core/package.json'))).version,lock.core.version);
   const modulePath=join(temporary,'official.mjs');
   await build({absWorkingDir:root,entryPoints:['packages/lang-core/src/index.ts'],outfile:modulePath,bundle:true,platform:'node',format:'esm',minifyWhitespace:true,legalComments:'none',nodePaths:[join(here,'node_modules')],external:['ci-info'],logLevel:'silent'});
   const official=await import(pathToFileURL(modulePath));
@@ -122,6 +136,7 @@ try {
     return {history:digest(history),snapshots};
   }
   const queries=await queryTrace(official);assert.deepEqual(await queryTrace(native),queries);
+  const lang111=await verifyLang111({official,native,bridge:realm.SwiftCore,schema,digest});
   const patchRoot=join(temporary,'patch-check'),serializerPath='packages/lang-core/src/parser/serialize.ts';
   mkdirSync(dirname(join(patchRoot,serializerPath)),{recursive:true});
   const serializerSource=readFileSync(join(root,serializerPath),'utf8');
@@ -129,9 +144,13 @@ try {
   execFileSync('git',['apply',join(here,'patches/serializer-roundtrip.patch')],{cwd:patchRoot});
   assert.equal(readFileSync(join(patchRoot,serializerPath),'utf8'),serializer(serializerSource),'Standalone patch must match the shipped build correction');
   assert.deepEqual(manifest.adaptations,JSON.parse(readFileSync(join(here,'adaptations.json'))));
-  const contract={upstream:manifest.upstream,sourceTree:manifest.sourceTree,oracleSHA256:sha(readFileSync(modulePath)),officialActionSHA256:sha(section),canonicalSource,schema,fixtures,actions,queries,roundtrips};
+  const contract={upstream:manifest.upstream,sourceTree:manifest.originalSourceTree,oracleVersion:lock.core.version,oracleSHA256:sha(readFileSync(modulePath)),officialActionSHA256:sha(section),canonicalSource,schema,fixtures,actions,queries,roundtrips};
   const fixtureFile=join(here,'../../Tests/OpenUILangTests/Fixtures/strict-compatibility.json');
   if(process.argv.includes('--write'))writeFileSync(fixtureFile,JSON.stringify(contract)+'\n');
   else assert.deepEqual(JSON.parse(readFileSync(fixtureFile)),contract,'Oracle fixture drift: inspect source changes before regenerating');
-  console.log(JSON.stringify({strictParserComparisons:comparisons,officialActionTraces:actions.length,controlledQuerySnapshots:queries.snapshots.length,serializerRoundtrips:roundtrips.length,unexplainedDifferences:0}));
+  const lang111Contract={upstream:manifest.upstream,sourceTree:manifest.originalSourceTree,version:lock.core.version,oracleSHA256:contract.oracleSHA256,cases:lang111};
+  const lang111File=join(here,'../../Tests/OpenUILangTests/Fixtures/lang-1.1-compatibility.json');
+  if(process.argv.includes('--write'))writeFileSync(lang111File,JSON.stringify(lang111Contract,null,2)+'\n');
+  else assert.deepEqual(JSON.parse(readFileSync(lang111File)),lang111Contract,'Lang 1.1 fixture drift: inspect official behavior before regenerating');
+  console.log(JSON.stringify({strictParserComparisons:comparisons,officialActionTraces:actions.length,controlledQuerySnapshots:queries.snapshots.length,serializerRoundtrips:roundtrips.length,lang111Cases:lang111.length,unexplainedDifferences:0}));
 } finally {rmSync(temporary,{recursive:true,force:true});}

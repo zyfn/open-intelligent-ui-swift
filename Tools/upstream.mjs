@@ -67,6 +67,10 @@ export function prepareCoreSource() {
   const root = mkdtempSync(join(temporary, 'source-'));
   const archive = exec(repo, ['archive', '--format=tar', lock.core.revision, 'LICENSE', 'tsconfig.json', 'packages/lang-core']);
   execFileSync('tar', ['-xf', '-', '-C', root], { input: archive, timeout: 30_000 });
+  const metadata = JSON.parse(readFileSync(join(root, 'packages/lang-core/package.json'), 'utf8'));
+  if (metadata.name !== lock.core.package || metadata.version !== lock.core.version) {
+    throw Error('Official package identity/version does not match the reviewed source lock');
+  }
   exec(root, ['init', '--quiet']);
   exec(root, ['apply', '--check', patchPath]);
   exec(root, ['apply', patchPath]);

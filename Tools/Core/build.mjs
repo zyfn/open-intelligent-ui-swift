@@ -18,7 +18,7 @@ const here = dirname(fileURLToPath(import.meta.url)),
 // The pinned checkout adds the positional-omittability rule to the signature
 // printer plus its regression test; parser/runtime sources are unchanged.
 // The tree pin also records the repository-formatted regression test.
-const pin = '92152ac52c9d8effdebbe734bedca3c8016b6bac';
+const pin = lock.core.adaptedTree;
 if (
   execFileSync('git', ['rev-parse', 'HEAD:packages/lang-core'], {
     cwd: root,
@@ -103,12 +103,6 @@ const result = await build({
             '\nexport {preprocess as nativePreprocess};',
           loader: 'ts',
         }));
-        b.onLoad({ filter: /\/parser\/merge\.ts$/ }, (args) => ({
-          contents:
-            readFileSync(args.path, 'utf8') +
-            '\nexport {splitStatementSource as nativeSplitSource};',
-          loader: 'ts',
-        }));
       },
     },
     {
@@ -178,6 +172,8 @@ writeFileSync(
     {
       upstream: lock.core.revision,
       dependencyRepository: lock.repository,
+      dependencyPackage: lock.core.package,
+      dependencyVersion: lock.core.version,
       originalSourceTree: lock.core.originalTree,
       sourcePatchSHA256: lock.core.sourcePatchSHA256,
       sourceTree: pin,

@@ -2,19 +2,60 @@
 
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择标准 UI 或 Intelligent UI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
-## 客户端只添加一个包
+## Lang 与 UI 独立引入
 
-通过 Swift Package Manager 添加本仓库 `https://github.com/zyfn/open-intelligent-ui-swift.git`；使用当前开发分支时选择 `refactor/openui-four-module-foundation`。
+通过 Swift Package Manager 添加本仓库 `https://github.com/zyfn/open-intelligent-ui-swift.git`；使用当前开发分支时选择 `refactor/openui-four-module-foundation`。Lang、Core 和两套 UI 是独立的库产品与 Swift 模块，在同一个包中共同发布。
 
 | 客户端需要 | 给应用 target 添加的库产品 | 自动带入的公共模块 |
 |---|---|---|
+| 只解析、执行或校验语言 | `OpenUILang` | 无 UI 模块 |
+| 自建原生组件库 | `OpenUICore` | `OpenUILang` |
 | 标准 UI | `OpenSwiftUI` | `OpenUICore`、`OpenUILang` |
 | Intelligent UI | `OpenIntelligentSwiftUI` | `OpenUICore`、`OpenUILang` |
 | 同一应用同时支持两套 UI | `OpenSwiftUI` 和 `OpenIntelligentSwiftUI` | 共享一份 `OpenUICore`、`OpenUILang` |
 
-只使用一套 UI 时，选一个 UI 产品即可。Core 与 Lang 是同包内自动解析的依赖，无需分别安装 SDK。Swift 源文件中的 `import` 用于选择可见模块，与添加几个 Swift Package 是不同的操作。
+Lang 不依赖 Core 或 UI，也不导入 SwiftUI。只使用一套 UI 时，选一个 UI 产品即可，Core 与 Lang 会作为依赖带入。客户端若直接使用 Lang API，也可以显式声明 `OpenUILang` 和所选 UI 产品；它们共享同一份语言运行时。Swift 源文件中的 `import` 用于选择可见模块，与添加几个 Swift Package 是不同的操作。
 
-## 一套客户端接口
+例如，两个不同用途的消费者 target 可以分别只选择自己的产品：
+
+~~~swift
+.target(name: "LanguageClient", dependencies: [
+    .product(name: "OpenUILang", package: "open-intelligent-ui-swift")
+]),
+.target(name: "UIClient", dependencies: [
+    .product(name: "OpenIntelligentSwiftUI", package: "open-intelligent-ui-swift")
+])
+~~~
+
+### 只使用 Lang
+
+当前语言核心固定为官方 `@openuidev/lang-core` **1.1.1**，源码提交为 [`39a4e3f`](https://github.com/thesysdev/openui/tree/39a4e3f6493673fdf2de04681240374c8d6f6be8/packages/lang-core)。它经过明确记录的 Apple 平台桥接与兼容适配，构建为随 SDK 分发的 JavaScriptCore 资源。实际版本、源码树与资源哈希由 [upstream.json](Tools/upstream.json) 和 [资源清单](Sources/OpenUILang/Resources/core-manifest.json) 固定；客户端不在运行时下载脚本，也不会自动跟随上游 `latest`。
+
+语言客户端自行提供组件的语言契约，无需提供 SwiftUI renderer：
+
+~~~swift
+import OpenUILang
+
+let library = try createLibrary(
+    components: [
+        defineComponent(
+            name: "Notice",
+            description: "Text supplied by the caller",
+            params: [ParamDef(
+                name: "text", required: true,
+                schema: .object([("type", .string("string"))])
+            )]
+        )
+    ],
+    root: "Notice"
+)
+let parser = createParser(schema: library.toSchema())
+let result = parser.parse(#"root = Notice("只解析，不展示")"#)
+~~~
+
+需要展示时，再使用下面的 UI 接口；同一份语言实现支持不同组件目录。
+
+## 一套 UI 客户端接口
 
 根 `Package.swift` 定义四个可选库产品，最低平台为 iOS 16 / macOS 13；下面是包内分层，不要求客户端全部添加。
 
@@ -153,7 +194,7 @@ python3 Tools/check_localization.py
 python3 Tools/check_lang_compatibility.py
 ~~~
 
-iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 `IntelligentUIGallery`，使用同一个根 Swift Package。独立消费者检查使用同一段客户端代码接入两套 UI，并验证只选择其中一个产品时不会链接另一套库。
+iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 `IntelligentUIGallery`，使用同一个根 Swift Package。独立消费者检查为 Lang、Core、标准 UI 和 Intelligent UI 各建一个只声明单产品的外部包：Lang 禁止导入 Core/UI，Core 禁止导入两套 UI，两套 UI 分别禁止导入另一套库。Core 和两套 UI 共用相同的宿主接入模板；Lang 消费者直接调用 authoring、解析和流式 API。Lang 不导入 SwiftUI 由源码边界检查负责，不能用系统 SDK 中天然存在的 `canImport(SwiftUI)` 判断包依赖。
 
 `ContractExport` 默认输出 Intelligent UI 新生成所用的 `spec.json`、`prompt.txt` 和 `manifest.json`。历史读取契约使用 `--reader-contract`，历史程序验证使用 `--historical`。
 

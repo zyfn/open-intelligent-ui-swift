@@ -8,6 +8,7 @@ public enum ValidationIssue {
     case inlineReserved
     case excessArgs(declared: Int, got: Int)
     case unknownFunction
+    case queryCycle(cycle: [String])
     case noRoot(reason: NoRootReason)
 }
 
@@ -47,6 +48,7 @@ public func pushValidationIssue(_ ctx: MaterializeContext, component: String, pa
         case .inlineReserved: add("code", .string("inline-reserved"))
         case .excessArgs(let declared, let got): add("code", .string("excess-args"));add("declared", .number(Double(declared)));add("got", .number(Double(got)))
         case .unknownFunction: add("code", .string("unknown-function"))
+        case .queryCycle(let cycle): add("code", .string("query-cycle")); add("cycle", .array(cycle.map { .string($0) }))
         case .noRoot(let reason): add("code", .string("no-root"));add("reason", .string(reason == .missing ? "missing" : reason == .fallback ? "fallback" : "not-component"))
         }
         _ = core.lower("issue", core.encode(.object(fields)), ctx, component: component, path: path)

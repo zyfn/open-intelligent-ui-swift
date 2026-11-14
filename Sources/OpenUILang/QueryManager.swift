@@ -82,6 +82,9 @@ public final class QueryManager {
     private var mutations: [String: JSValue] = [:]
     private var mutationTools: [String: OpenUIString] = [:]
     private var requests: [String: QueryRequest] = [:]
+    private var statements: [QueryStatementInfo] = []
+    private var statementIDs: Set<String> = []
+    private var statementEvaluator: Evaluator?
     private var listeners: [UUID: @Sendable () -> Void] = [:]
     private var pending: [UUID: (Task<Void, Never>, JSValue)] = [:]
     private var settled: [String: [@Sendable () -> Void]] = [:]
@@ -155,9 +158,38 @@ public final class QueryManager {
     }
     public func synchronizeQueries(_ requests: [QueryRequest]) { core.sync {
         guard !disposed else { return }
+        statements = []; statementIDs = []; statementEvaluator = nil
         self.requests = Dictionary(requests.filter(\.complete).map { ($0.statementId, $0) }, uniquingKeysWith: { _, new in new })
         evaluateQueries()
     } }
+    /// Execute parsed declarations through the official dependency-aware
+    /// manager. The evaluator's state and reference callbacks must read live
+    /// values; capture this manager weakly in those callbacks.
+    public func evaluateStatements(_ statements: [QueryStatementInfo], evaluator: Evaluator) { core.sync {
+        guard !disposed else { return }
+        requests = [:]
+        self.statements = statements
+        statementIDs = Set(statements.filter(\.complete).map(\.statementId))
+        statementEvaluator = evaluator
+        evaluateStatementQueries()
+    } }
+    private func evaluateStatementQueries() {
+        guard let evaluator = statementEvaluator else { return }
+        let nodes = statements.map { statement -> JSValue in
+            let node = core.object([
+                ("statementId", core.string(OpenUIString(statement.statementId))),
+                ("toolAST", statement.toolAST.map(core.ast) ?? JSValue(nullIn: core.context)!),
+                ("argsAST", statement.argsAST.map(core.ast) ?? JSValue(nullIn: core.context)!),
+                ("defaultsAST", statement.defaultsAST.map(core.ast) ?? JSValue(nullIn: core.context)!),
+                ("refreshAST", statement.refreshAST.map(core.ast) ?? JSValue(nullIn: core.context)!),
+                ("complete", JSValue(bool: statement.complete, in: core.context)!)
+            ])
+            if let deps = statement.deps { node.setValue(deps, forProperty: "deps") }
+            if let waitFor = statement.waitFor { node.setValue(waitFor, forProperty: "waitFor") }
+            return node
+        }
+        _ = core.call("evaluateQueryStatements", [manager!, core.array(nodes), evaluator.jsContext()])
+    }
     private func evaluateQueries() {
         let nodes = requests.values.sorted { $0.statementId < $1.statementId }.map { r -> JSValue in
             core.call("queryNode", [r.statementId, core.string(r.tool), core.encode(r.args), core.encode(r.defaults), core.encode(r.deps ?? .null), r.refreshInterval ?? 0, r.complete])
@@ -165,11 +197,46 @@ public final class QueryManager {
         _ = manager.invokeMethod("evaluateQueries", withArguments: [core.array(nodes)])
     }
     public func invalidateQuery(statementId: String) { core.sync {
-        guard !disposed, requests[statementId] != nil else { return }
+        guard !disposed, requests[statementId] != nil || statementIDs.contains(statementId) else { return }
         _ = manager.invokeMethod("invalidate", withArguments: [[statementId]])
     } }
     public func runQuery(statementId: String, tool: OpenUIString, args: Value, defaults: Value, onSettled: (@Sendable () -> Void)? = nil) { core.sync {
         guard !disposed else { return }
+        if let evaluator = statementEvaluator {
+            if let onSettled { settled[statementId, default: []].append(onSettled) }
+            if let index = statements.firstIndex(where: { $0.statementId == statementId }) {
+                let previous = statements[index]
+                let sameRequest = previous.toolAST.map(evaluator.evaluate) == .string(tool)
+                    && previous.argsAST.map(evaluator.evaluate) == args
+                if sameRequest {
+                    // An explicit retry must not replace a parsed query with its
+                    // current values: doing so would lose future dependency reads.
+                    if (previous.defaultsAST.map(evaluator.evaluate) ?? .null) != defaults {
+                        statements[index].defaultsAST = .runtimeValue(defaults)
+                        evaluateStatementQueries()
+                    }
+                    invalidateQuery(statementId: statementId)
+                    return
+                }
+                statements[index].toolAST = .str(tool)
+                statements[index].argsAST = .runtimeValue(args)
+                statements[index].defaultsAST = .runtimeValue(defaults)
+                statements[index].waitFor = nil
+                statements[index].complete = true
+            } else {
+                // Adding an ad hoc request must not switch the official manager
+                // out of statement mode and discard the active dependency graph.
+                statements.append(QueryStatementInfo(statementId: statementId, toolAST: .str(tool),
+                    argsAST: .runtimeValue(args), defaultsAST: .runtimeValue(defaults),
+                    refreshAST: nil, deps: nil, complete: true))
+            }
+            statementIDs.insert(statementId)
+            evaluateStatementQueries()
+            if manager.invokeMethod("isLoading", withArguments: [statementId]).toBool() == false {
+                invalidateQuery(statementId: statementId)
+            }
+            return
+        }
         let previous = requests[statementId]
         requests[statementId] = QueryRequest(statementId: statementId, tool: tool, args: args, defaults: defaults, deps: previous?.deps, refreshInterval: previous?.refreshInterval)
         if let onSettled { settled[statementId, default: []].append(onSettled) }
@@ -189,7 +256,7 @@ public final class QueryManager {
         }
     } }
     public func queryState(for id: String) -> QueryState? { core.sync {
-        guard requests[id] != nil else { return nil }
+        guard requests[id] != nil || statementIDs.contains(id) else { return nil }
         let snapshot = manager.invokeMethod("getSnapshot", withArguments: [])!
         let error = core.items(snapshot.forProperty("__openui_errors")).first { $0.forProperty("statementId").toString() == id }.map(core.error)
         let loading = manager.invokeMethod("isLoading", withArguments: [id]).toBool()
@@ -246,6 +313,8 @@ public final class QueryManager {
         _ = manager?.invokeMethod("dispose", withArguments: [])
         mutations.values.forEach { _ = $0.invokeMethod("dispose", withArguments: []) }
         listeners.removeAll();settled.removeAll();requests.removeAll();mutations.removeAll()
+        statements = []; statementIDs = []; statementEvaluator = nil
+        manager = nil; providerObject = nil
         let tasks = pending;pending.removeAll()
         for (_, (task, reject)) in tasks { task.cancel();reject.call(withArguments: [core.call("error", ["Disposed"])]) }
     } }

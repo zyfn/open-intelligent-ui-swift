@@ -5,6 +5,10 @@ import are `OpenUILang`, built by the repository-root `OpenUISwiftSDK` package.
 Swift 6 tools build in Swift 5 language mode on iOS 16+ and macOS 13+.
 JavaScriptCore is required.
 
+The bundled language implementation is based on official
+`@openuidev/lang-core` **1.1.1**, pinned to an exact source commit and combined
+with the recorded Apple-platform bridge and compatibility adaptations.
+
 Parsing, streaming completion, expression evaluation, library extension, Schema,
 Prompt generation, Store, query lifecycle and message handling delegate to the
 pinned shared core. Native code supplies typed values, lossless UTF-16 transport,
@@ -14,7 +18,10 @@ async tools, cancellation and host action execution. There is no Linux fallback.
 
 The repository-root `Package.swift` exports `OpenUILang`, `OpenUICore`,
 `OpenSwiftUI` and `OpenIntelligentSwiftUI`. A language-only consumer selects
-`OpenUILang`. Both UI libraries use it through the shared Core foundation.
+`OpenUILang`; it does not depend on Core or either UI library and does not import
+SwiftUI. Both UI libraries use the same language module through the shared Core
+foundation. A consumer that directly uses language APIs and native UI can
+explicitly declare both products without creating a second language runtime.
 See the [SDK installation and common integration guide](../../README.md).
 
 This directory contains documentation; there is one SDK package at the root.
@@ -61,10 +68,14 @@ node Tools/Core/build.mjs
 node Tools/Core/verify-compatibility.mjs
 ```
 
-Ordinary SwiftPM consumers use the checked-in resource without Node or downloads.
-The fixed upstream is `f08a660535e55b5b2a24a0eb68568edaf9e4fe4b`, core tree
-`bf6be546007f96c87689c7b47c29e1f09175f6f6`. Exact dependency, source and resource
-hashes live in [core-manifest.json](../../Sources/OpenUILang/Resources/core-manifest.json).
+Ordinary SwiftPM consumers use the checked-in resource without Node or runtime
+downloads. Official `@openuidev/lang-core` 1.1.1 is pinned to commit
+`39a4e3f6493673fdf2de04681240374c8d6f6be8`, original core tree
+`5c689b8a110471267d35fa40a0f850936c259107` and source-patched tree
+`52484f44960dceb33aab0daac8bdf97a5ada1d4b`. The build uses the pinned official
+source rather than the npm package's public entry alone. Exact dependency
+version, source and shipped-resource hashes live in
+[core-manifest.json](../../Sources/OpenUILang/Resources/core-manifest.json).
 
 Compatibility adaptations remain explicit: serializer round-trip grouping and
 keys, positional omittability, materialization limits, bounded ECMAScript pattern
@@ -76,6 +87,20 @@ for strict oracle checks, native projection rules and resource exceptions. Raw m
 legacy output-format compatibility have been removed. A source upgrade must
 revalidate the explicit source/build adaptations and reference fixtures.
 Third-party licenses ship with the bundle and bounded regex backend.
+
+The 1.1.1 upgrade requires comparison with that pinned version's official parser
+and runtime, including expression-based initial state, list/math functions,
+query dependencies and retries, streaming, actions and serialization. Older
+expected results are not evidence of compatibility when upstream intentionally
+changes behavior. Version-specific regressions record those changes separately
+from native bridge defects. Generating fixtures or parsing Swift syntax does not
+establish successful Apple-platform compilation or test execution.
+
+`Tools/check_product_consumers.py` also builds a separate external consumer that
+declares only the `OpenUILang` product and calls authoring, parser and streaming
+APIs. It rejects importing Core or either UI library. The source/module-boundary
+check independently rejects UI framework imports in Lang; the macOS SDK's
+availability of SwiftUI is not itself a package dependency.
 
 A serialized JavaScript realm owns separate parser/Store/query objects. Host
 async transport does not hold the realm lock across `await`. Cancellation and

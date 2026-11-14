@@ -94,8 +94,8 @@
       "Sources/OpenUILang/NativeSourceReadiness.swift"
     ],
     "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness",
-    "observable": "Existing syntax marks remain private; new per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs",
-    "verification": "Strict intermediate snapshots, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
+    "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs, and survive official memoized statement-alias copies",
+    "verification": "Strict intermediate snapshots, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
     "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
   },
   {
@@ -152,9 +152,9 @@
       "Sources/OpenUILang/SharedCore.swift",
       "Sources/OpenUILang/QueryManager.swift"
     ],
-    "reason": "Native timers, controlled tools and disposal",
+    "reason": "Native timers, controlled tools and disposal; raw query statements and live evaluation context delegate dependency scheduling to the official QueryManager",
     "observable": "Callbacks, in-flight replacement and cancellation",
-    "verification": "Controlled official manager traces and Swift lifecycle tests",
+    "verification": "Controlled official manager traces, actual native bridge capture/state tests and Swift lifecycle/query-chain tests",
     "removal": "Equivalent Apple async execution integration"
   },
   {
@@ -172,11 +172,12 @@
     "id": "helper-exports",
     "category": "platform-bridge",
     "locations": [
-      "Tools/Core/build.mjs"
+      "Tools/Core/build.mjs",
+      "Tools/Core/entry.ts"
     ],
-    "reason": "Expose official preprocess and source-split helpers",
+    "reason": "Expose official preprocess; source splitting delegates to public tokenize/split with the official UTF-16 statement spans",
     "observable": "Visibility only, no algorithm substitution",
-    "verification": "Pinned replace-once checks",
+    "verification": "Pinned preprocess export check and multiline/Unicode statement splitting regressions",
     "removal": "Equivalent public upstream exports"
   },
   {

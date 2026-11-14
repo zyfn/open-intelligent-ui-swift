@@ -8,6 +8,7 @@
     "tree": "3e2704beeb571bb99f7de41abe4484340a3ce03d"
   },
   "candidate_tree": "51eedac918540b31206b9f613e3ac7566da025a3",
+  "sdk_payload_revision": "cbd57808d1fe3f086ed261c602874d16a0ee14f9",
   "repairs": [
     {
       "id": "supported-motion-fixture",

@@ -1,9 +1,11 @@
 {
-  "upstream": "f08a660535e55b5b2a24a0eb68568edaf9e4fe4b",
+  "upstream": "39a4e3f6493673fdf2de04681240374c8d6f6be8",
   "dependencyRepository": "https://github.com/thesysdev/openui.git",
-  "originalSourceTree": "bf6be546007f96c87689c7b47c29e1f09175f6f6",
+  "dependencyPackage": "@openuidev/lang-core",
+  "dependencyVersion": "1.1.1",
+  "originalSourceTree": "5c689b8a110471267d35fa40a0f850936c259107",
   "sourcePatchSHA256": "46c23e4a17a94f00c5c97b9f2dfa4257321794bbb44d981f8f7ed697dd4794a5",
-  "sourceTree": "92152ac52c9d8effdebbe734bedca3c8016b6bac",
+  "sourceTree": "52484f44960dceb33aab0daac8bdf97a5ada1d4b",
   "dependencyTransforms": [
     {
       "package": "zod",
@@ -14,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "84619d09343570632de25963c153e67e4d13f1cf51d05dbf7cea13237f88bf5b",
-  "bytes": 853116,
+  "sha256": "3bc8411a5c4948627592d3557eb438161cbf0df9dadb06d5f3d39e1de92336f5",
+  "bytes": 855338,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "b701fabde9072bc3b8aa8cd91ffffb1748af80b7d4ce41196df3a7af607d778e",
+  "adapterSha256": "6a3d521a1a1f4ded86af317a431ac6de93b9976d87901bdb329197104e72b1ee",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -142,8 +144,8 @@
         "Sources/OpenUILang/NativeSourceReadiness.swift"
       ],
       "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness",
-      "observable": "Existing syntax marks remain private; new per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs",
-      "verification": "Strict intermediate snapshots, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
+      "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs, and survive official memoized statement-alias copies",
+      "verification": "Strict intermediate snapshots, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
       "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
     },
     {
@@ -200,9 +202,9 @@
         "Sources/OpenUILang/SharedCore.swift",
         "Sources/OpenUILang/QueryManager.swift"
       ],
-      "reason": "Native timers, controlled tools and disposal",
+      "reason": "Native timers, controlled tools and disposal; raw query statements and live evaluation context delegate dependency scheduling to the official QueryManager",
       "observable": "Callbacks, in-flight replacement and cancellation",
-      "verification": "Controlled official manager traces and Swift lifecycle tests",
+      "verification": "Controlled official manager traces, actual native bridge capture/state tests and Swift lifecycle/query-chain tests",
       "removal": "Equivalent Apple async execution integration"
     },
     {
@@ -220,11 +222,12 @@
       "id": "helper-exports",
       "category": "platform-bridge",
       "locations": [
-        "Tools/Core/build.mjs"
+        "Tools/Core/build.mjs",
+        "Tools/Core/entry.ts"
       ],
-      "reason": "Expose official preprocess and source-split helpers",
+      "reason": "Expose official preprocess; source splitting delegates to public tokenize/split with the official UTF-16 statement spans",
       "observable": "Visibility only, no algorithm substitution",
-      "verification": "Pinned replace-once checks",
+      "verification": "Pinned preprocess export check and multiline/Unicode statement splitting regressions",
       "removal": "Equivalent public upstream exports"
     },
     {

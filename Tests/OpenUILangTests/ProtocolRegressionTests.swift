@@ -138,10 +138,9 @@ extension ProtocolRegressionTests {
 }
 
 extension ProtocolRegressionTests {
-    func testMergeKeepsPinnedUpstreamDuplicateBehavior() {
+    func testMergeKeepsOneUpdatedStatementForDuplicateSourceIDs() {
         let merged = mergeStatements("root = Text(item)\nitem = \"old\"\nitem = \"new\"", "item = \"patched\"")
-        XCTAssertEqual(merged.components(separatedBy: "\n").filter { $0.hasPrefix("item =") }.count, 2)
-        XCTAssertTrue(merged.contains("patched"))
+        XCTAssertEqual(merged, "root = Text(item)\nitem = \"patched\"")
     }
     func testStreamingAtEveryScalarBoundaryAndSetReconciliation() throws {
         let programs = [

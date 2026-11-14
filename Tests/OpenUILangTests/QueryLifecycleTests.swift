@@ -45,7 +45,7 @@ final class QueryLifecycleTests: XCTestCase {
         }
         wait(for: [finished], timeout: 3)
     }
-    func testExplicitSynchronizationRetriesFailureWithLastGoodData() {
+    func testFailedFetchNeedsExplicitInvalidationAndKeepsLastGoodData() {
         let finished = expectation(description: "Query error")
         Task {
             defer { finished.fulfill() }
@@ -57,6 +57,12 @@ final class QueryLifecycleTests: XCTestCase {
             XCTAssertEqual(queries.queryState(for: "q")?.data, .string("good"))
             await eventually { queries.queryState(for: "q")?.status == .error }
             queries.synchronizeQueries([request("fail")])
+            queries.synchronizeQueries([request("fail")])
+            try? await Task.sleep(nanoseconds: 20_000_000)
+            XCTAssertEqual(provider.calls.filter { $0 == "fail" }.count, 1,
+                           "Lang 1.1 does not retry a failed key during ordinary reevaluation")
+            XCTAssertEqual(queries.queryState(for: "q")?.data, .string("good"))
+            queries.invalidateQuery(statementId: "q")
             await eventually { provider.calls.filter { $0 == "fail" }.count == 2 && queries.queryState(for: "q")?.status == .error }
             XCTAssertEqual(queries.queryState(for: "q")?.data, .string("good"))
             XCTAssertEqual(provider.calls.filter { $0 == "fail" }.count, 2)

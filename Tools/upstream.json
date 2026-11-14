@@ -2,10 +2,10 @@
   "repository": "https://github.com/thesysdev/openui.git",
   "core": {
     "package": "@openuidev/lang-core",
-    "version": "1.0.2",
-    "revision": "f08a660535e55b5b2a24a0eb68568edaf9e4fe4b",
-    "originalTree": "bf6be546007f96c87689c7b47c29e1f09175f6f6",
-    "adaptedTree": "92152ac52c9d8effdebbe734bedca3c8016b6bac",
+    "version": "1.1.1",
+    "revision": "39a4e3f6493673fdf2de04681240374c8d6f6be8",
+    "originalTree": "5c689b8a110471267d35fa40a0f850936c259107",
+    "adaptedTree": "52484f44960dceb33aab0daac8bdf97a5ada1d4b",
     "sourcePatch": "Core/patches/positional-omittability.patch",
     "sourcePatchSHA256": "46c23e4a17a94f00c5c97b9f2dfa4257321794bbb44d981f8f7ed697dd4794a5"
   },

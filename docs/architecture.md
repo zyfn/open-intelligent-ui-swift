@@ -1,6 +1,6 @@
 # 四模块架构
 
-本文描述当前 `refactor/openui-four-module-foundation` 分支的实际源码边界。本仓库是一个 Swift Package，根 `Package.swift` 导出四个库产品。客户端只用一套 UI 时选择对应的一个产品，同时使用两套 UI 时选择两个 UI 产品；Core 和 Lang 由依赖关系自动带入。客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 接入，两个 UI 库各自提供组件与视觉体系。接入示例见 [README](../README.md)。
+本文描述当前 `refactor/openui-four-module-foundation` 分支的实际源码边界。本仓库是一个 Swift Package，根 `Package.swift` 导出四个独立库产品。语言客户端可只选择 `OpenUILang`；自建原生组件选择 `OpenUICore`；使用现成 UI 时选择对应的 UI 产品。UI 依赖 Core 和 Lang，同时支持两套 UI 时也共享同一份语言实现。UI 客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 接入，两个 UI 库各自提供组件与视觉体系。接入示例见 [README](../README.md)。
 
 ## 1. 依赖关系
 
@@ -29,6 +29,14 @@ flowchart TB
 | `OpenIntelligentSwiftUI` | `Sources/OpenIntelligentSwiftUI` | Intelligent UI 目录、设计系统、组件/交互视觉、媒体呈现、函数及 reader/writer 生成契约 |
 
 `COpenUIRegExp` 是语言层内部使用的 C target，不是新增的公开 UI 产品。两个 UI 库均可单独链接；不要求宿主安装另一套组件库。
+
+### Lang 的官方来源与原生适配
+
+当前语言核心为官方 `@openuidev/lang-core` **1.1.1**，固定源码提交 `39a4e3f6493673fdf2de04681240374c8d6f6be8`。构建工具从官方 Git 源码提取 `packages/lang-core`，核对原始 tree、显式 patch 和适配后的 tree，再生成 JavaScriptCore bundle；版本和输入记录在 [upstream.json](../Tools/upstream.json)，实际资源和构建指纹记录在 [core-manifest.json](../Sources/OpenUILang/Resources/core-manifest.json)。这是固定官方源码加 Apple 适配，不是运行时安装 npm 包或持续追踪 `latest`。
+
+tokenizer、parser、流式 parser、求值、Store、查询管理与 schema/签名规则由共享语言核心执行。Swift 层提供类型与值传输、宿主动作执行、异步工具与生命周期，并保留记录在 [适配清单](../Tools/Core/adaptations.json) 中的平台能力、兼容修复和执行预算。具体组件、颜色、字体、间距和布局规则由 Core 之上的组件库提供。
+
+Lang 是独立产品，源码不导入 SwiftUI、UIKit 或 AppKit；它目前通过 Apple JavaScriptCore 执行共享核心。客户端可以显式列出 `OpenUILang` 与所选 UI 产品，也可以只选择 UI 产品并由依赖关系带入 Lang。这两种接入方式都保持相同的模块边界。
 
 ## 2. 同一个客户端接口，一条语义更新链
 
@@ -156,6 +164,6 @@ Swift import 使用 `OpenSwiftUI`、`OpenIntelligentSwiftUI` 及按需的 `OpenU
 
 ## 8. 验证边界
 
-[原生流水线](../.github/workflows/native-sdk.yml) 对当前提交运行模块图/源码边界、独立产品消费者、原生测试、Release fitting、历史契约、固定 Gallery、资源重建和 iOS 编译。独立消费者通过编译器检查只链接一套 UI 产品时不会导入另一套库。
+[原生流水线](../.github/workflows/native-sdk.yml) 对当前提交运行模块图/源码边界、独立产品消费者、原生测试、Release fitting、历史契约、固定 Gallery、资源重建和 iOS 编译。独立消费者分别只声明 Lang、Core、标准 UI 或 Intelligent UI 一个产品：Lang 不得导入 Core/UI，Core 不得导入两套 UI，各 UI 不得导入另一套组件库。Lang 与 SwiftUI 的边界由源码检查验证，系统框架本身的可导入性不能代表产品依赖。
 
 架构检查或源码搬迁完成不代表 Apple SDK 编译、真机界面或全部交互已通过。验收状态绑定实际提交及其流水线结果；安全依赖更新、源码候选修复及验证方式见[验证与安全修复](validation-and-security.md)。重构分支上的提交也不等于发布、打 tag 或合并主分支。

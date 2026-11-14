@@ -7,9 +7,6 @@ import {
   stripFences,
   nativePreprocess,
 } from '@openui/core-source/parser/parser';
-import {
-  nativeSplitSource,
-} from '@openui/core-source/parser/merge';
 import { URL, URLSearchParams } from 'whatwg-url';
 Object.assign(globalThis, { URL, URLSearchParams });
 const ids = new WeakMap<object, number>();
@@ -75,6 +72,8 @@ export const regexp = (pattern: string, text: string) => {
   }
 };
 export const queryManager = core.createQueryManager;
+export const evaluateQueryStatements = (manager: any, statements: any, ctx: any) =>
+  manager.evaluateStatements(statements, evaluationContext(ctx));
 export const queryNode = (
   id: string,
   tool: string,
@@ -165,7 +164,11 @@ export function signature(name: string, params: any) {
 }
 
 export const preprocess = nativePreprocess;
-export const splitSource = nativeSplitSource;
+// Lang 1.1 uses the parser's statement spans for merging. Keep native editing
+// on that same algorithm, including multiline ternaries and comments.
+export const splitSource = (source: string) =>
+  core.split(core.tokenize(source)).map(statement =>
+    source.slice(statement.start, statement.end).trimEnd());
 
 export const merge = core.mergeStatements;
 export const object = () => ({});

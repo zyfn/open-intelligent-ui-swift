@@ -175,7 +175,6 @@ public final class OpenUIState: ObservableObject {
     private var persistedState: [OpenUIString: Value]
     private var unsubscribe: (() -> Void)?
     private var source = ""
-    private var queryRequests: [String: QueryRequest] = [:]
     private var querySourceGeneration = -1
     private var queryStoreSnapshot: [OpenUIString: Value] = [:]
     private var idleMutations: [String: Value] = [:]
@@ -263,7 +262,7 @@ public final class OpenUIState: ObservableObject {
         parser = createStreamingParser(schema: schema); store = createStore()
         latestResult = nil; source = ""; persistedState = [:]
         indexLiveElements(nil)
-        queryRequests = [:]; querySourceGeneration = -1; queryStoreSnapshot = [:]; idleMutations = [:]
+        querySourceGeneration = -1; queryStoreSnapshot = [:]; idleMutations = [:]
         root = nil; presentationRoot = nil; errors = []; queryStates = [:]; mutationStates = [:]; isComplete = false; isInterrupted = false
         errorRevision = nil
         observeQueries()
@@ -318,11 +317,19 @@ public final class OpenUIState: ObservableObject {
 
     private func replaceSource(_ text: String, streaming: Bool, replacesPresentation: Bool) {
         streamGeneration += 1
+        unsubscribe?()
         if replacesPresentation {
             presentationRevision += 1; mediaCache.removeAll(); resourceStore.removeAll(); editingRecords.removeAll()
+            // A retired document must not launch new downstream queries when
+            // an old upstream fetch settles during the replacement's stream.
+            queryManager.dispose()
+            queryManager = QueryManager(provider: toolProvider)
+            querySourceGeneration = -1; queryStoreSnapshot = [:]
+        } else {
+            queryManager.invalidateMutations()
         }
-        unsubscribe?(); observeQueries()
-        queryManager.invalidateMutations(); idleMutations = [:]
+        idleMutations = [:]
+        observeQueries()
         source = text; isComplete = !streaming; isInterrupted = false
         acceptSource(parser.set(text, complete: !streaming))
     }
@@ -521,9 +528,6 @@ public final class OpenUIState: ObservableObject {
     public func runQuery(statementId: String, tool: OpenUIString, args: Value, defaults: Value = .null) {
         guard isComplete, let result = latestResult,
               result.queryStatements.contains(where: { $0.statementId == statementId }) else { return }
-        let previous = queryRequests[statementId]
-        queryRequests[statementId] = QueryRequest(statementId: statementId, tool: tool, args: transport(args), defaults: defaults,
-                                                deps: previous?.deps, refreshInterval: previous?.refreshInterval)
         queryManager.runQuery(statementId: statementId, tool: tool, args: transport(args), defaults: defaults)
         update(from: result)
     }
@@ -551,8 +555,8 @@ public final class OpenUIState: ObservableObject {
         let idleValues = idleMutations
         let ctx = EvaluationContext(
             getState: { [store] name in store.get(name) ?? .null },
-            resolveRef: { name in
-                if let state = manager.queryState(for: name), let data = state.data { return data }
+            resolveRef: { [weak manager] name in
+                if let state = manager?.queryState(for: name), let data = state.data { return data }
                 if let query = result.queryStatements.first(where: { $0.statementId == name }) {
                     if let value = box.defaults[name] { return value }
                     guard box.resolving.insert(name).inserted else { return .null }
@@ -562,7 +566,7 @@ public final class OpenUIState: ObservableObject {
                     return value
                 }
                 if result.mutationStatements.contains(where: { $0.statementId == name }) {
-                    if let state = manager.mutationState(for: name) { return state.value }
+                    if let state = manager?.mutationState(for: name) { return state.value }
                     return idleValues[name] ?? .null
                 }
                 return .null
@@ -612,26 +616,11 @@ public final class OpenUIState: ObservableObject {
             let snapshot = store.getSnapshot()
             let stateChanged = snapshot.count != queryStoreSnapshot.count || snapshot.contains { queryStoreSnapshot[$0.key]?.isSameValue(as: $0.value) != true }
             queryStoreSnapshot = snapshot
-            let requests = result.queryStatements.map { query -> QueryRequest in
-                let deps = query.deps.map { names in Value.object(names.map { ObjectField(key: $0, value: store.get($0) ?? .null) }) }
-                let previous = queryRequests[query.statementId]
-                // As in the reference adapter, Store changes reevaluate query
-                // arguments; query result notifications only redraw the tree.
-                let reevaluate = sourceChanged || stateChanged || previous == nil
-                let name: OpenUIString
-                let args: Value
-                if !reevaluate, let previous { name = previous.tool; args = previous.args }
-                else {
-                    if case .string(let value) = query.toolAST.map({ evaluator.evaluate($0) }) { name = value } else { name = "" }
-                    args = query.argsAST.map { transport(evaluator.evaluate($0)) } ?? .object([])
-                }
-                return QueryRequest(statementId: query.statementId, tool: name, args: args,
-                    defaults: (sourceChanged || stateChanged || previous == nil) ? (query.defaultsAST.map { evaluator.evaluate($0) } ?? .null) : (previous?.defaults ?? .null),
-                    deps: deps, refreshInterval: query.refreshAST.map { toNumber(evaluator.evaluate($0)) }, complete: query.complete)
-            }
-            queryRequests = Dictionary(requests.map { ($0.statementId, $0) }, uniquingKeysWith: { _, new in new })
             if sourceChanged || stateChanged {
-                queryManager.synchronizeQueries(requests)
+                // Preserve raw query dependencies. The official 1.1 manager
+                // waits for upstream results and reevaluates only their readers;
+                // query notifications still only redraw this native host.
+                queryManager.evaluateStatements(result.queryStatements, evaluator: evaluator)
             }
         }
         let evaluatedRoot = evaluator.evaluateRoot(result)

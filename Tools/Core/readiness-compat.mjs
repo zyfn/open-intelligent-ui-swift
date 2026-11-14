@@ -28,6 +28,9 @@ export function readiness(source, kind, path) {
   } else if (kind === 'materialize') {
     source = replaceOnce(source, 'return nativeBudget(ctx,()=>nativeMaterializeValue(node,ctx),null);', 'return nativeFinishMaterialization(node,ctx,nativeBudget(ctx,()=>nativeMaterializeValue(node,ctx),null));');
     source = replaceOnce(source, 'return nativeBudget(ctx,()=>nativeMaterializeExpr(node,ctx,scopedRefs),{k:"Null"});', 'return nativeFinishMaterialization(node,ctx,nativeBudget(ctx,()=>nativeMaterializeExpr(node,ctx,scopedRefs),{k:"Null"}),scopedRefs);');
+    // Lang 1.1 copies a memoized element when an alias gives it a different
+    // statement ID. Preserve host-only readiness across that official copy.
+    source = replaceOnce(source, '  return { ...el, statementId: id };', '  return nativeCopyPresentation(el, { ...el, statementId: id });');
   } else if (kind === 'evaluator') {
     source = replaceOnce(source, '): unknown {\n  switch (node.k) {', '): unknown {\n  const observation = nativeObserveQueries(node,context);\n  return nativeFinishEvaluation(node, nativeSourceEvaluate(node,observation.context,schemaCtx),observation.queries);\n}\nfunction nativeSourceEvaluate(node:ASTNode,context:EvaluationContext,schemaCtx?:SchemaContext):unknown {\n  switch (node.k) {');
     source = replaceOnce(source, '  if (el.hasDynamicProps === false) return el;', '  if (el.hasDynamicProps === false) return el;\n  const observation = nativeObserveQueries(el,context);\n  context = observation.context;');

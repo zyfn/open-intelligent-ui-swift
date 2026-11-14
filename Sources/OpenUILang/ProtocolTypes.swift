@@ -296,6 +296,7 @@ public enum OpenUIErrorCode: String, Sendable {
     case excessArgs = "excess-args"
     case typeMismatch = "type-mismatch"
     case unknownFunction = "unknown-function"
+    case queryCycle = "query-cycle"
     case noRoot = "no-root"
     case parseFailed = "parse-failed"
     case parseException = "parse-exception"
@@ -361,6 +362,9 @@ public struct QueryStatementInfo: Sendable {
     public var defaultsAST: ASTNode?
     public var refreshAST: ASTNode?
     public var deps: [String]?
+    /// Query results read by the tool name or arguments. The official manager
+    /// waits for these inputs and reevaluates readers when they change.
+    public var waitFor: [String]? = nil
     public var complete: Bool
 }
 

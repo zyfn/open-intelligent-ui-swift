@@ -458,8 +458,11 @@ extension SharedCore {
             meta: ParseMeta(incomplete: meta.forProperty("incomplete").toBool(), unresolved: items(meta.forProperty("unresolved")).map { $0.toString() }, orphaned: items(meta.forProperty("orphaned")).map { $0.toString() }, statementCount: Int(meta.forProperty("statementCount").toInt32()), errors: items(meta.forProperty("errors")).map(error)),
             stateDeclarations: entries(js.forProperty("stateDeclarations")).map { ($0.0.displayString, .stateDefault(StateDefault(materialized($0.1)))) },
             queryStatements: items(js.forProperty("queryStatements")).map { q in
-                func node(_ name: String) -> ASTNode? { q.forProperty(name).isUndefined ? nil : decodeAST(q.forProperty(name)) }
-                return QueryStatementInfo(statementId: q.forProperty("statementId").toString(), toolAST: node("toolAST"), argsAST: node("argsAST"), defaultsAST: node("defaultsAST"), refreshAST: node("refreshAST"), deps: q.forProperty("deps").isUndefined ? nil : items(q.forProperty("deps")).map { $0.toString() }, complete: q.forProperty("complete").toBool())
+                func node(_ name: String) -> ASTNode? {
+                    let value = q.forProperty(name)!
+                    return value.isUndefined || value.isNull ? nil : decodeAST(value)
+                }
+                return QueryStatementInfo(statementId: q.forProperty("statementId").toString(), toolAST: node("toolAST"), argsAST: node("argsAST"), defaultsAST: node("defaultsAST"), refreshAST: node("refreshAST"), deps: q.forProperty("deps").isUndefined ? nil : items(q.forProperty("deps")).map { $0.toString() }, waitFor: q.forProperty("waitFor").isUndefined ? nil : items(q.forProperty("waitFor")).map { $0.toString() }, complete: q.forProperty("complete").toBool())
             }, mutationStatements: items(js.forProperty("mutationStatements")).map { m in
                 MutationStatementInfo(statementId: m.forProperty("statementId").toString(), toolAST: m.forProperty("toolAST").isUndefined ? nil : decodeAST(m.forProperty("toolAST")), argsAST: m.forProperty("argsAST").isUndefined ? nil : decodeAST(m.forProperty("argsAST")))
             })

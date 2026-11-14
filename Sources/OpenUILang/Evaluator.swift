@@ -11,7 +11,9 @@ public final class Evaluator {
     public init(context: EvaluationContext, store: Store, schema: LibrarySchema) {
         self.context = context; self.store = store; self.schema = schema
     }
-    private func jsContext() -> JSValue {
+    // Also used by QueryManager's statement evaluation; the manager retains
+    // this evaluator while upstream may read its live context asynchronously.
+    func jsContext() -> JSValue {
         let ctx = context, runtime = core
         let getState: @convention(block) (String) -> JSValue = { name in runtime.encode(ctx.getState(name)) }
         let resolveRef: @convention(block) (String) -> JSValue = { name in runtime.encode(ctx.resolveRef(name)) }
