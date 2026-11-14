@@ -37,7 +37,7 @@ jobs:
           set -euo pipefail
           npm ci --prefix OpenUI/Tools/Core --ignore-scripts
           node OpenUI/Tools/Core/build.mjs
-          git diff --exit-code -- OpenUI/Sources/OpenUILang/Resources
+          git diff --exit-code -- Sources/OpenUILang/Resources
           node OpenUI/Tools/Core/verify-compatibility.mjs
           node --test OpenUI/Validation/validation.test.mjs
       - name: Rebuild presentation resources from public registries
@@ -50,7 +50,7 @@ jobs:
           node OpenUI/Tools/Presentation/code-highlighting/build.mjs
           node OpenUI/Tools/Presentation/icons/generate.mjs --check
           node OpenUI/Tools/Presentation/catalog.mjs --check
-          git diff --exit-code -- OpenUI/Sources/OpenUISwiftUI/Resources
+          git diff --exit-code -- Sources/OpenSwiftUI/Resources
       - name: Retain input diagnostics
         if: always()
         shell: bash
@@ -58,7 +58,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/native-input-evidence"
           git rev-parse HEAD > "$RUNNER_TEMP/native-input-evidence/checkout-sha.txt"
           git diff -- OpenUI/Sources > "$RUNNER_TEMP/native-input-evidence/generated-diff.patch"
-          cp OpenUI/Sources/OpenUILang/Resources/core-manifest.json "$RUNNER_TEMP/native-input-evidence/"
+          cp Sources/OpenUILang/Resources/core-manifest.json "$RUNNER_TEMP/native-input-evidence/"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -166,7 +166,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift build --target SwiftIntelligentUI --scratch-path "$RUNNER_TEMP/native-ios" \
+          swift build --target OpenIntelligentSwiftUI --scratch-path "$RUNNER_TEMP/native-ios" \
             --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
             2>&1 | tee outputs/verification/libraries-ios.log
       - name: iOS Gallery using the same local package

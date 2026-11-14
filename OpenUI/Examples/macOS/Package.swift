@@ -6,10 +6,10 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [.executable(name: "OpenUIDemo", targets: ["OpenUIDemo"])],
     dependencies: [
-        .package(name: "NativeWorkspace", path: "../../.."),
+        .package(name: "OpenUISwiftSDK", path: "../../.."),
     ],
     targets: [.executableTarget(name: "OpenUIDemo", dependencies: [
-        .product(name: "OpenUILang", package: "NativeWorkspace"),
-        .product(name: "OpenSwiftUI", package: "NativeWorkspace"),
+        .product(name: "OpenUILang", package: "OpenUISwiftSDK"),
+        .product(name: "OpenSwiftUI", package: "OpenUISwiftSDK"),
     ], swiftSettings: [.swiftLanguageMode(.v5)])]
 )

@@ -102,7 +102,7 @@ for(const [i,[existing,patch]]of [
  ['a = Text("a")','b = Text("b")'],
  ['root = Stack([])\n$x = 1','root = Stack([])\n$x = null'],
 ].entries())vectors.push({kind:'merge',id:'merge-'+i,existing,patch,expected:core.mergeStatements(existing,patch)});
-const target=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../Tests/OpenUILangTests/Fixtures');fs.mkdirSync(target,{recursive:true});
+const target=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../Tests/OpenUILangTests/Fixtures');fs.mkdirSync(target,{recursive:true});
 fs.writeFileSync(path.join(target,'reference-vectors.json'),JSON.stringify({reference:'8d9c4c3b108a7b5352192a6a9d7327bdf7ea19b5',vectors},null,2)+'\n');
 
 {
