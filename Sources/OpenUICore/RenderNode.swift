@@ -10,8 +10,8 @@ import OpenUILang
 ///
 /// The renderer has NO built-in components (like react-ui is separate from
 /// react-lang). Apps register their own components here.
-public struct ComponentRegistry: ExpressibleByDictionaryLiteral {
-    public typealias Builder = (EvaluatedElement, ComponentRegistry) -> AnyView
+public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
+    public typealias Builder = (EvaluatedElement, OpenUIComponentRegistry) -> AnyView
     private var builders: [String: Builder]
     private var presentationPlaceholders = Set<String>()
     private var layoutFields: [String: [String]] = [:]
@@ -42,9 +42,9 @@ public struct ComponentRegistry: ExpressibleByDictionaryLiteral {
 /// Recursively renders an `EvaluatedElement` tree.
 public struct RenderNode: View {
     private let element: EvaluatedElement
-    private let registry: ComponentRegistry
+    private let registry: OpenUIComponentRegistry
 
-    public init(element: EvaluatedElement, registry: ComponentRegistry) {
+    public init(element: EvaluatedElement, registry: OpenUIComponentRegistry) {
         self.element = element
         self.registry = registry
     }
@@ -105,8 +105,8 @@ extension PropValue {
 /// child value here, including a scalar or nested array returned by @Each.
 public struct RenderValue: View {
     private let value: Value
-    private let registry: ComponentRegistry
-    public init(_ value: Value, registry: ComponentRegistry) {
+    private let registry: OpenUIComponentRegistry
+    public init(_ value: Value, registry: OpenUIComponentRegistry) {
         self.value = value; self.registry = registry
     }
     public var body: some View {
