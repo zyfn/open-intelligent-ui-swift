@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 private enum TransportCardMetrics {
     static let routeWidth: CGFloat = 88
