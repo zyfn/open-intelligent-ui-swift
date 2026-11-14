@@ -27,7 +27,7 @@ flowchart TB
 - 最低平台为 iOS 16 / macOS 13。
 - OpenUI Swift 在本仓 `OpenUI/` 中作为正式源码共同版本化，首次来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`。根包导出 `OpenUILang` / `OpenUISwiftUI`，不再依赖整个远程 fork。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。来源和边界见 `OpenUI/README.md` 与 `OpenUI/IMPORT.json`。
 - 组件及计算参考固定为 `16ef26475999e3a021a50b1607a03717c0721255` 的 55 组件库，不是 OpenUI 运行时内置的 ReferenceCatalog。
-- swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.16.47。
+- swift-markdown-ui 2.4.1；组件计算使用 Zod 4.6.7、KaTeX 0.16.47；OpenUI Core 构建固定 Zod 4.6.6。
 
 ## 2. 模块与目录
 

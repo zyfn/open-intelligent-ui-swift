@@ -17,7 +17,7 @@ OpenUI 运行时自带的 **ReferenceCatalog 不是本项目的组件基线**，
 
 根 Swift Package 保持 `SwiftIntelligentUI` 产品，并独立导出 `OpenUILang`、`OpenUISwiftUI`。通用库位于 [`OpenUI/`](OpenUI/README.md)，原有 `Sources/SwiftIntelligentUI` 目录及组件参数不合并、不改名。普通 Intelligent UI 使用者仍只链接 `SwiftIntelligentUI`。
 
-`OpenUIStandardComponents` 的 87 项库与这里的 Intelligent UI reader/writer 是两套独立目录，不能混用它们的 spec/Prompt。当前合并为迁移候选；不得把源码集成当成 RC21 发布或真机验收。
+`OpenUIStandardComponents` 的 87 项库与这里的 Intelligent UI reader/writer 是两套独立目录，不能混用它们的 spec/Prompt。当前预发布版本为 `0.1.1-rc.21`，发布范围及限制见 [RC21 说明](docs/releases/0.1.1-rc.21.md)；预发布不等于全部组件或真机验收。
 
 ## 体系
 

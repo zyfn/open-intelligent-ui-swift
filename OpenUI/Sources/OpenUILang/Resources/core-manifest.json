@@ -4,10 +4,10 @@
   "originalSourceTree": "bf6be546007f96c87689c7b47c29e1f09175f6f6",
   "sourcePatchSHA256": "46c23e4a17a94f00c5c97b9f2dfa4257321794bbb44d981f8f7ed697dd4794a5",
   "sourceTree": "92152ac52c9d8effdebbe734bedca3c8016b6bac",
-  "sha256": "10227f1773ec35d0cadee6937cb5f1ca93eb04461d3885cd78d9074c9cbb24af",
-  "bytes": 726095,
-  "lockSha256": "4a826728de5da159c2a378864527abb2400807dcfaf32128406109aa5139f983",
-  "adapterSha256": "8e9e8fa0142f9f6ea3c4a9f5c9c0bc1fea4557fa35053ba804867b6785baf8ba",
+  "sha256": "339bd90f6b8d92c3bfb553955b81eea35fa3404ecd2b751ca7b378ff2b30dfbf",
+  "bytes": 854155,
+  "lockSha256": "3c03b27b6a7551a8cdf6433bfdd6476d4c31ed08188a05efb44891c9527c1d32",
+  "adapterSha256": "d23475e7cf10cfee0a04f9d8228461f22336f4cfb007d79d26c0633880f6a3c6",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -86,6 +86,19 @@
       "observable": "Definitions, constraints, positional fields and native binding metadata",
       "verification": "Authoring oracle and compiled schema mutation tests",
       "removal": "Equivalent upstream native authoring interface; mutable public setters require a migration"
+    },
+    {
+      "id": "zod-schema-emission",
+      "category": "dependency-compatibility",
+      "locations": [
+        "Tools/Core/authoring.ts",
+        "Tools/Core/schema-emission.mjs",
+        "Tools/Presentation/catalog.mjs"
+      ],
+      "reason": "Use patched Zod while retaining the established native JSON Schema wire spelling and string-key record identity",
+      "observable": "Bare type-array unions emit equivalent anyOf branches; record transport remains a record before the shared signature builder runs. Defaults, source data and validation constraints are unchanged.",
+      "verification": "Schema emission unit tests, unchanged native contracts and all 61 historical reader entries",
+      "removal": "A separately reviewed wire-contract migration accepts the new dependency emission"
     },
     {
       "id": "serializer",

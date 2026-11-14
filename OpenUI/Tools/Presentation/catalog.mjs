@@ -1,4 +1,5 @@
 import { prepareCoreSource, upstreamFile, upstreamFiles } from "../upstream.mjs";
+import { preserveSchemaEmission } from "../Core/schema-emission.mjs";
 // Export the pinned upstream library's schemas. Rendering functions are erased
 // only in this build-time projection; lang-core and Zod execute unchanged.
 import { build } from '../Core/node_modules/esbuild/lib/main.js';
@@ -71,6 +72,9 @@ const result=await build({stdin:{contents:entry,resolveDir:root,loader:'ts'},bun
 }}]});
 const modulePath=join(tmp,'reference.mjs');writeFileSync(modulePath,result.outputFiles[0].text);
 const {catalog}=await import(modulePath+'?'+Date.now());
+catalog.spec.schema = preserveSchemaEmission(catalog.spec.schema);
+for (const component of catalog.components)
+  for (const parameter of component.params) parameter.schema = preserveSchemaEmission(parameter.schema);
 // 82 pinned general-library components plus FollowUpBlock/FollowUpItem, which
 // upstream registers only in the chat preset; the native SDK adopts them too.
 if(catalog.components.length!==84)throw Error('Expected 84 default components');

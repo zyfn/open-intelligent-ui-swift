@@ -39,6 +39,7 @@ jobs:
           node OpenUI/Tools/Core/build.mjs
           git diff --exit-code -- OpenUI/Sources/OpenUILang/Resources
           node OpenUI/Tools/Core/verify-compatibility.mjs
+          node --test OpenUI/Tools/Core/schema-emission.test.mjs
           node --test OpenUI/Validation/validation.test.mjs
       - name: Rebuild presentation resources from public registries
         run: |
@@ -84,11 +85,12 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/native-security"
           failed=0
-          for feature in Core Presentation/rich-text Presentation/code-highlighting Presentation/icons; do
-            label="${feature//\//-}"
-            npm ci --prefix "OpenUI/Tools/$feature" --ignore-scripts \
+          for dependency_dir in OpenUI/Tools/Core OpenUI/Tools/Presentation/rich-text OpenUI/Tools/Presentation/code-highlighting OpenUI/Tools/Presentation/icons Tools/Functions; do
+            label="${dependency_dir#OpenUI/Tools/}"
+            label="${label//\//-}"
+            npm ci --prefix "$dependency_dir" --ignore-scripts --registry=https://registry.npmjs.org \
               2>&1 | tee "$RUNNER_TEMP/native-security/$label-install.log"
-            if npm audit --prefix "OpenUI/Tools/$feature" --audit-level=high --json \
+            if npm audit --prefix "$dependency_dir" --audit-level=high --registry=https://registry.npmjs.org --json \
                 > "$RUNNER_TEMP/native-security/$label-audit.json"; then
               printf '0\n' > "$RUNNER_TEMP/native-security/$label-exit.txt"
             else

@@ -5,6 +5,7 @@ import * as z from 'zod/v4';
 import { ACTION_DEFS } from '@openui/core-source/parser/builtins';
 import { compileSchema } from '@openui/core-source/parser/parser';
 import { copySchemaTags } from '@openui/core-source/signature';
+import { preserveSchemaEmission } from './schema-emission.mjs';
 
 const own = (value: any, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 const clone = (value: any) => JSON.parse(JSON.stringify(value));
@@ -54,13 +55,15 @@ function converterInput(value: any): any {
   if (next.type === 'object' && !own(next, 'properties') && !own(next, 'propertyNames')) next.propertyNames = { type: 'string' };
   return next;
 }
-function copySchema(schema: any, patch: any): any {
-  const result = z.core.clone(schema, { ...schema._zod.def, ...patch });
+function inheritSchemaMetadata(schema: any, result: any): any {
   copySchemaTags(schema, result);
   if (core.isReactiveSchema(schema)) core.markReactive(result);
   const metadata = z.globalRegistry.get(schema);
   if (metadata) z.globalRegistry.add(result, metadata);
   return result;
+}
+function copySchema(schema: any, patch: any): any {
+  return inheritSchemaMetadata(schema, z.core.clone(schema, { ...schema._zod.def, ...patch }));
 }
 function parts(input: any, previous?: any, changed = new Set<string>()): any {
   const template = wireTemplate(input);
@@ -85,9 +88,19 @@ function parts(input: any, previous?: any, changed = new Set<string>()): any {
     const def = schema._zod.def;
     if (['optional', 'default', 'nullable', 'readonly'].includes(def.type))
       return copySchema(schema, { innerType: link(raw, def.innerType) });
+    // Patched Zod imports an open object as object({}).catchall(...), whereas
+    // this transport explicitly represents string-key records. Restore its
+    // schema type before the shared core's own signature builder observes it.
+    if (['object', 'pipe'].includes(def.type) && raw.type === 'object' && !own(raw, 'properties')
+      && raw.additionalProperties !== false) {
+      const key = raw.propertyNames ? z.fromJSONSchema(raw.propertyNames) : z.string();
+      const catchall = def.type === 'pipe' ? def.out?._zod?.def?.catchall : def.catchall;
+      const value = link(raw.additionalProperties ?? {}, catchall ?? z.unknown());
+      return inheritSchemaMetadata(schema, z.record(key as any, value));
+    }
     // Zod's JSON importer adds safe-integer bounds that JSON Schema did not
     // declare. Carry the actual input range as schema metadata before the core
-    // generates its spec; no output spelling/order/signature projection follows.
+    // generates its spec; the shared core still owns signature construction.
     if (raw.type === 'integer' && def.type === 'number') {
       const checks = (def.checks ?? []).filter((check: any) => check._zod?.def?.format !== 'safeint');
       const result = copySchema(schema, { checks }).refine(Number.isInteger);
@@ -132,7 +145,7 @@ function create(input: any): any {
 }
 function describe(lib: any): any {
   const spec = lib.toSpec();
-  const schema = spec.schema;
+  const schema = preserveSchemaEmission(spec.schema);
   const reg = z.registry();
   for (const [name, c] of Object.entries(lib.components) as any) reg.add(c.props, { id: name });
   for (const [name, ref] of Object.entries(ACTION_DEFS)) if (!lib.components[name]) reg.add(ref as any, { id: name });

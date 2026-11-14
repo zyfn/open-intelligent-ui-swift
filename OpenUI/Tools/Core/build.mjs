@@ -35,7 +35,7 @@ execFileSync('git', ['diff', '--quiet', 'HEAD', '--', 'packages/lang-core'], {
 const bridge = join(root, 'packages/swift-lang/scripts');
 mkdirSync(bridge, { recursive: true });
 cpSync(join(here, 'package.json'), join(bridge, 'package.json'));
-for (const file of ['entry.ts', 'captures.ts', 'authoring.ts', 'readiness.ts']) {
+for (const file of ['entry.ts', 'captures.ts', 'authoring.ts', 'readiness.ts', 'schema-emission.mjs']) {
   const source = readFileSync(join(here, file), 'utf8')
     .replaceAll("'@openui/core-source'", "'../../lang-core/src/index'")
     .replaceAll("'@openui/core-source/", "'../../lang-core/src/");
@@ -185,7 +185,7 @@ writeFileSync(
         .digest('hex'),
       adapterSha256: createHash('sha256')
         .update(
-          ['entry.ts', 'captures.ts', 'authoring.ts', 'compat.mjs', 'readiness.ts', 'readiness-compat.mjs', 'adaptations.json', 'patches/serializer-roundtrip.patch', 'build.mjs', '../upstream.mjs', '../upstream.json', 'patches/positional-omittability.patch']
+          ['entry.ts', 'captures.ts', 'authoring.ts', 'schema-emission.mjs', 'compat.mjs', 'readiness.ts', 'readiness-compat.mjs', 'adaptations.json', 'patches/serializer-roundtrip.patch', 'build.mjs', '../upstream.mjs', '../upstream.json', 'patches/positional-omittability.patch']
             .map((name) => readFileSync(join(here, name), 'utf8'))
             .join('\n'),
         )

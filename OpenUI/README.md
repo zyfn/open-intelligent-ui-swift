@@ -51,7 +51,7 @@ npm ci --prefix OpenUI/Tools/Core --ignore-scripts
 node OpenUI/Tools/Core/build.mjs
 node OpenUI/Tools/Core/verify-compatibility.mjs
 node --test OpenUI/Validation/validation.test.mjs
-# Bundle content must remain exactly the imported hash for this migration.
+# Regeneration must match the committed artifacts for this revision.
 git diff --exit-code -- OpenUI/Sources/OpenUILang/Resources
 swift test
 swift test -c release --filter HostSizingIsolationTests
@@ -61,7 +61,7 @@ python3 Tools/check_lang_compatibility.py
 
 `OpenUI/Tools/Core/verify-native.sh` retains general-library golden-contract checks, language ASan and platform compilation using the root package. Historical Intelligent UI contracts still compare against `ed3f6f82abf6f7cc9e307e9bb2eb21073a1f7d79`; source relocation is not an excuse to replace that baseline.
 
-`OPENUI_SNAPSHOT_DIR` enables native visual/measurement exports. A generated PNG, syntax check or successful compile is not an iOS runtime/interaction sign-off. The migration has no automatic release step. The existing public `0.1.1-rc.20` and source integration branch remain intact; RC21 is a separate gate on an explicitly reviewed SHA.
+`OPENUI_SNAPSHOT_DIR` enables native visual/measurement exports. A generated PNG, syntax check or successful compile is not an iOS runtime/interaction sign-off. The migration has no automatic release step. The existing public fork release and source integration branch remain intact. This native workspace has its own 0.1.1-rc.21 prerelease; see ../docs/releases/0.1.1-rc.21.md for the dependency repair and validation limits.
 
 ## Maintenance rules
 

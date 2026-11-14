@@ -98,6 +98,19 @@ final class ObjectCardCompositionTests: XCTestCase {
     func bitmap(_ source: String, width: CGFloat = 320) throws -> NSBitmapImageRep {
       let state = OpenUIState(schema: library.library.toSchema()); state.setSource(source)
       XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      // This checks loaded-image geometry. Failed photos intentionally fade
+      // clear, so a missing source cannot serve as a red layout marker.
+      let pixels = try XCTUnwrap(CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8,
+        bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+      pixels.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+      pixels.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+      let resources = state.resourceStore.scoped(OpenUIResourceContext())
+      let request = try XCTUnwrap(resources.request(for: "https://image.test/layout-red"))
+      let key = NativeResourceRequestID(request: request, loader: ObjectIdentifier(resources.loader), attempt: 0,
+        authorizationScope: resources.loader.authorizationScopeID)
+      state.mediaCache.insert(.init(image: Image(decorative: try XCTUnwrap(pixels.makeImage()), scale: 1),
+        size: CGSize(width: 1, height: 1), cost: 4, resourceOwner: resources.loader, wasPresented: true), for: key)
       let renderer = ImageRenderer(content: OpenUIRenderer(state: state, registry: library.registry)
         .openUITheme(theme).frame(width: width).background(.white).environment(\.colorScheme, .light))
       renderer.scale = 1
@@ -108,15 +121,15 @@ final class ObjectCardCompositionTests: XCTestCase {
       return color.redComponent > 0.8 && color.greenComponent < 0.5 && color.blueComponent < 0.5
     }
     for source in [
-      "root=Card([Image(\"photo\"),CardHeader(\"Title\")],\"card\")",
-      "root=Card([Stack([ImageTextLarge(\"\",\"photo\",\"Title\")])],\"card\")",
-      "root=CompositeCardBlock([CompositeCardItem(\"a\",ImageTextLarge(\"\",\"photo\",\"Title\"),[]),CompositeCardItem(\"b\",ImageTextLarge(\"\",\"photo\",\"Title\"),[])],\"grid\",false)"
+      "root=Card([Image(\"photo\",\"https://image.test/layout-red\"),CardHeader(\"Title\")],\"card\")",
+      "root=Card([Stack([ImageTextLarge(\"https://image.test/layout-red\",\"photo\",\"Title\")])],\"card\")",
+      "root=CompositeCardBlock([CompositeCardItem(\"a\",ImageTextLarge(\"https://image.test/layout-red\",\"photo\",\"Title\"),[]),CompositeCardItem(\"b\",ImageTextLarge(\"https://image.test/layout-red\",\"photo\",\"Title\"),[])],\"grid\",false)"
     ] {
       let image = try bitmap(source, width: source.contains("CompositeCardBlock") ? 652 : 320)
       XCTAssertTrue(try isRed(image, x: 5, y: 60), "Leading image must reach the card's left edge")
       XCTAssertTrue(try isRed(image, x: 60, y: 5), "Leading image must reach the card's top edge")
     }
-    let body = try bitmap("root=Card([CardHeader(\"Title\"),Image(\"body\")],\"card\")")
+    let body = try bitmap("root=Card([CardHeader(\"Title\"),Image(\"body\",\"https://image.test/layout-red\")],\"card\")")
     XCTAssertFalse(try isRed(body, x: 5, y: 100), "Body image must not extend through its surrounding content inset")
     XCTAssertTrue(try isRed(body, x: 40, y: 100))
   }

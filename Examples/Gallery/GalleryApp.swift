@@ -197,7 +197,7 @@ private enum GalleryFixture: String, CaseIterable, Identifiable {
           Slider($range, 0, 100, 1, "越界源值", "", [{value:48,label:"临近的较长标记 A"},{value:50,label:"临近的较长标记 B"},{value:52,label:"临近的较长标记 C"}]),
           DatePicker($date, "非法源日期", "2026-01-01", "2026-12-31"),
           Chart("line", [{x:"A",v:0.004},{x:"B",v:null},{x:"C",v:1.23456}], "x", ["v"]),
-          Row([Text("首项"), Spacer(1), Text("尾项")]),
+          Row([Text("首项"), Spacer(), Text("尾项")]),
           Popover("打开并编辑内容", Col([Input($note,"弹层草稿"),Disclosure("详情",[Text("关闭后重开，确认草稿与展开行为。")])])),
           Flashcard("正面来源内容", "背面来源内容"),
           Timer($seconds),

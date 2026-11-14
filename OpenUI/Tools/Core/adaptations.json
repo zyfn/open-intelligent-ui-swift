@@ -50,6 +50,19 @@
     "removal": "Equivalent upstream native authoring interface; mutable public setters require a migration"
   },
   {
+    "id": "zod-schema-emission",
+    "category": "dependency-compatibility",
+    "locations": [
+      "Tools/Core/authoring.ts",
+      "Tools/Core/schema-emission.mjs",
+      "Tools/Presentation/catalog.mjs"
+    ],
+    "reason": "Use patched Zod while retaining the established native JSON Schema wire spelling and string-key record identity",
+    "observable": "Bare type-array unions emit equivalent anyOf branches; record transport remains a record before the shared signature builder runs. Defaults, source data and validation constraints are unchanged.",
+    "verification": "Schema emission unit tests, unchanged native contracts and all 61 historical reader entries",
+    "removal": "A separately reviewed wire-contract migration accepts the new dependency emission"
+  },
+  {
     "id": "serializer",
     "category": "upstream-defect-fix",
     "locations": [
