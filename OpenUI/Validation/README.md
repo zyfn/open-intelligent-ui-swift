@@ -3,7 +3,9 @@
 This SDK-owned Node API/CLI invokes the exact JavaScript core shipped with the
 Apple SDK. It is a static author-delivery check, not a Swift Linux runtime or a
 second parser. It requires Node 18+ and no npm install, renderer or network.
-The bundle and its documented compatibility corrections remain unchanged.
+It loads the same committed bundle as the Apple SDK; the documented language
+compatibility corrections are verified by the shared oracle. Reviewed dependency
+security updates regenerate that shared bundle and its provenance together.
 
 ```sh
 node OpenUI/Validation/cli.mjs --contract /path/to/contracts source.openui

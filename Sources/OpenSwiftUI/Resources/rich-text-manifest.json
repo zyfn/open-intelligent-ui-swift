@@ -13,7 +13,7 @@
     "escape-string-regexp": "5.0.0",
     "extend": "3.0.2",
     "is-plain-obj": "4.1.0",
-    "katex": "0.16.44",
+    "katex": "0.18.2",
     "longest-streak": "3.1.0",
     "markdown-table": "3.0.4",
     "mdast-util-find-and-replace": "3.0.3",
@@ -81,8 +81,8 @@
       "reason": "The npm tarball omits the repository license."
     }
   },
-  "scriptSHA256": "68e97d52e63dc2a2297cfa695f76396deb076b10e901c6f92ba0b86d1ca08a09",
-  "cssSHA256": "0efdf5e34969f4a7792335fa5e6b84a30f4d55270fa5f773877bd3c3ec4a010a",
+  "scriptSHA256": "910325e1087fa69bcf9b835fa40d4e1678dda4ec449c9220c8c99c96b75cb36b",
+  "cssSHA256": "17fbaf13bbd8d721c1f2564ad589718719ec500d3dc6f7b364ea21da8c98c7d5",
   "offlineFonts": true,
   "embeddedFontCount": 20
 }

@@ -3,5 +3,5 @@
   "private": true,
   "type": "module",
   "scripts": {"build": "node build.mjs"},
-  "dependencies": {"esbuild": "0.28.2", "zod": "4.4.3", "whatwg-url": "14.2.0"}
+  "dependencies": {"esbuild": "0.28.2", "zod": "4.6.7", "whatwg-url": "14.2.0"}
 }

@@ -60,6 +60,13 @@ jobs:
           node OpenUI/Tools/Presentation/icons/generate.mjs --check
           node OpenUI/Tools/Presentation/catalog.mjs --check
           git diff --exit-code -- Sources/OpenSwiftUI/Resources
+      - name: Rebuild and verify Intelligent UI math resources
+        run: |
+          set -euo pipefail
+          npm ci --prefix Tools/Functions --ignore-scripts
+          node Tools/Functions/build-math.cjs
+          node --test Tools/Functions/math-resources.test.cjs
+          git diff --exit-code -- Sources/OpenIntelligentSwiftUI/Resources
       - name: Retain input diagnostics
         if: always()
         shell: bash
@@ -76,8 +83,8 @@ jobs:
           retention-days: 7
 
   dependency-security:
-    # Independent of functional tests: preserve inherited findings, never waive
-    # them to get a green relocation or publish an unreviewed candidate.
+    # Independent of functional tests: audit the real pinned build inputs.
+    # Security fixes must regenerate the committed resources and pass contracts.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -94,11 +101,12 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/native-security"
           failed=0
-          for feature in Core Presentation/rich-text Presentation/code-highlighting Presentation/icons; do
+          for feature in OpenUI/Tools/Core OpenUI/Tools/Presentation/rich-text \
+              OpenUI/Tools/Presentation/code-highlighting OpenUI/Tools/Presentation/icons Tools/Functions; do
             label="${feature//\//-}"
-            npm ci --prefix "OpenUI/Tools/$feature" --ignore-scripts \
+            npm ci --prefix "$feature" --ignore-scripts \
               2>&1 | tee "$RUNNER_TEMP/native-security/$label-install.log"
-            if npm audit --prefix "OpenUI/Tools/$feature" --audit-level=high --json \
+            if npm audit --prefix "$feature" --audit-level=high --json \
                 > "$RUNNER_TEMP/native-security/$label-audit.json"; then
               printf '0\n' > "$RUNNER_TEMP/native-security/$label-exit.txt"
             else
@@ -213,57 +221,142 @@ jobs:
           retention-days: 7
 
   source-rc21-gate:
-    # Independently test the public candidate at its exact original manifest.
-    # This job is evidence only; it never creates a tag or publishes a release.
+    # Test the frozen RC21 source plus the reviewed repairs owned by this branch.
+    # The manifest records both the untouched base and the exact candidate tree.
+    # This job never changes the source repository or publishes a release.
     runs-on: macos-15
     timeout-minutes: 60
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_SNAPSHOT_DIR: ${{ runner.temp }}/source-rc21-evidence/visual
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    defaults:
+      run:
+        working-directory: source-rc21
     steps:
+      - name: Check out this branch's repair tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate-tools
+          persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: zyfn/openui
           ref: f3dfa1d0b479c131b6d4268e81961186f22ff09c
+          fetch-depth: 0
+          path: source-rc21
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Original source provenance
+      - name: Frozen source and repair provenance
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/source-rc21-evidence"
-          printf 'OPENUI_SNAPSHOT_DIR=%s/source-rc21-evidence/visual\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           test "$(git rev-parse HEAD)" = f3dfa1d0b479c131b6d4268e81961186f22ff09c
-          { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
+          { git rev-parse HEAD; git -C "$GITHUB_WORKSPACE/candidate-tools" rev-parse HEAD; \
+            swift --version; xcodebuild -version; sw_vers; } \
             2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/provenance.log"
-      - name: Original distribution tests and fixtures
+      - name: Apply and verify the reviewed source repairs
+        id: repair-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/candidate-tools/Tools/repair_rc21_source.py" \
+            --source "$GITHUB_WORKSPACE/source-rc21" \
+            --evidence "$RUNNER_TEMP/source-rc21-evidence"
+      - name: Source candidate distribution tests
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
           swift test 2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/sdk-tests.log"
+      - name: Source candidate Release fitting
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
           swift test -c release --filter HostSizingIsolationTests \
             2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/release-fitting.log"
+      - name: Source candidate authoring fixtures
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
           node --test packages/swift-lang/validation/validation.test.mjs \
             2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/authoring.log"
-      - name: Original core regeneration and ASan
+      - name: Source candidate dependency audit
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          for feature in packages/swift-lang/scripts packages/swift-ui/scripts/rich-text \
+              packages/swift-ui/scripts/code-highlighting packages/swift-ui/scripts/icons; do
+            label="${feature//\//-}"
+            npm ci --prefix "$feature" --ignore-scripts \
+              2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/$label-install.log"
+            if ! npm audit --prefix "$feature" --audit-level=high --json \
+                > "$RUNNER_TEMP/source-rc21-evidence/$label-audit.json"; then
+              cat "$RUNNER_TEMP/source-rc21-evidence/$label-audit.json"
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - name: Source candidate core regeneration
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
           npm ci --prefix packages/swift-lang/scripts --ignore-scripts
           node packages/swift-lang/scripts/build.mjs
-          git diff --exit-code -- packages/swift-lang/Sources/OpenUILang/Resources
+          node packages/swift-lang/scripts/verify-compatibility.mjs \
+            2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/core-compatibility.log"
+          python3 "$GITHUB_WORKSPACE/candidate-tools/Tools/repair_rc21_source.py" \
+            --source "$GITHUB_WORKSPACE/source-rc21" \
+            --evidence "$RUNNER_TEMP/source-rc21-evidence" --verify
+      - name: Source candidate rich-text regeneration
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --prefix packages/swift-ui/scripts/rich-text --ignore-scripts
+          node packages/swift-ui/scripts/rich-text/build.mjs
+          python3 "$GITHUB_WORKSPACE/candidate-tools/Tools/repair_rc21_source.py" \
+            --source "$GITHUB_WORKSPACE/source-rc21" \
+            --evidence "$RUNNER_TEMP/source-rc21-evidence" --verify
+      - name: Source candidate language AddressSanitizer
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
           swift test --package-path packages/swift-lang --scratch-path "$RUNNER_TEMP/source-asan" --sanitize=address \
             2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/asan.log"
-      - name: Original platform builds
+      - name: Source candidate standalone macOS example
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
           swift build --package-path examples/app-frameworks/swiftui-macos \
             2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/macos-build.log"
+      - name: Source candidate iOS 16 Simulator
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
           swift build --scratch-path "$RUNNER_TEMP/source-ios" \
             --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
             2>&1 | tee "$RUNNER_TEMP/source-rc21-evidence/ios-build.log"
+      - name: Verify the final source candidate tree
+        if: ${{ !cancelled() && steps.repair-source.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/candidate-tools/Tools/repair_rc21_source.py" \
+            --source "$GITHUB_WORKSPACE/source-rc21" \
+            --evidence "$RUNNER_TEMP/source-rc21-evidence" --verify
       - uses: actions/upload-artifact@v4
         if: always()
         with:

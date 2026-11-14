@@ -55,7 +55,7 @@ npm ci --prefix OpenUI/Tools/Core --ignore-scripts
 node OpenUI/Tools/Core/build.mjs
 node OpenUI/Tools/Core/verify-compatibility.mjs
 node --test OpenUI/Validation/validation.test.mjs
-# Bundle content must remain exactly the imported hash for this migration.
+# Rebuilding must reproduce the resources committed for this reviewed candidate.
 git diff --exit-code -- Sources/OpenUILang/Resources
 swift test
 python3 Tools/check_product_consumers.py --scratch-root /tmp/openui-consumers
@@ -66,9 +66,9 @@ python3 Tools/check_lang_compatibility.py
 
 `OpenUI/Tools/Core/verify-native.sh` retains general-library golden-contract checks, language ASan and platform compilation using the root package. Historical Intelligent UI contracts still compare against `ed3f6f82abf6f7cc9e307e9bb2eb21073a1f7d79`; source relocation is not an excuse to replace that baseline.
 
-The current branch refactors Swift ownership without changing the Lang contract. The [native workflow](../.github/workflows/native-sdk.yml) records checks for each commit; these commands and the module graph do not imply that every Apple-native gate has passed.
+The current branch refactors Swift ownership without changing the Lang contract. The subsequent Zod and KaTeX security updates regenerate the actual bundled resources and retain the existing compatibility checks; see [validation and security repairs](../docs/validation-and-security.md). The [native workflow](../.github/workflows/native-sdk.yml) records checks for each commit; these commands and the module graph do not imply that every Apple-native gate has passed.
 
-`OPENUI_SNAPSHOT_DIR` enables native visual/measurement exports. A generated PNG, syntax check or successful compile is not an iOS runtime/interaction sign-off. The migration has no automatic release step. The existing public `0.1.1-rc.20` and source integration branch remain intact; RC21 is a separate gate on an explicitly reviewed SHA.
+`OPENUI_SNAPSHOT_DIR` enables native visual/measurement exports. A generated PNG, syntax check or successful compile is not an iOS runtime/interaction sign-off. The migration has no automatic release step. The existing public `0.1.1-rc.20` and source integration branch remain intact; the RC21 source gate tests a repair candidate defined by a frozen base SHA and an exact repair manifest owned by this branch.
 
 ## Maintenance rules
 
