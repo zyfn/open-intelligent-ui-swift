@@ -28,7 +28,7 @@ def main() -> None:
     package = (ROOT / "Package.swift").read_text()
     if "https://github.com/zyfn/openui.git" in package:
         problems.append("Old fork SwiftPM dependency remains")
-    for name in ["OpenUILang", "OpenSwiftUI", "OpenIntelligentSwiftUI"]:
+    for name in ["OpenUILang", "OpenUICore", "OpenSwiftUI", "OpenIntelligentSwiftUI"]:
         if len(re.findall(r'\.target\(name:\s*"' + name + r'"', package)) != 1:
             problems.append(f"Target must have exactly one owner: {name}")
     for path in [ROOT / "Package.resolved", ROOT / "Examples/Gallery/IntelligentUIGallery.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"]:
@@ -61,7 +61,7 @@ def main() -> None:
             problems.append(f"Upstream monorepo content imported into native workspace: {forbidden}")
     if problems:
         raise SystemExit("\n".join(problems))
-    print(json.dumps({"historicalImportFiles": len(manifest["runtimeFiles"]), "verifiedImportFiles": len(manifest["runtimeFiles"]) if args.verify_import else 0, "source": manifest.get("sourceRevision", manifest.get("source")), "coreSHA256": core["sha256"], "products": 3, "result": "PASS (source/ownership only; not native acceptance)"}, ensure_ascii=False, indent=2))
+    print(json.dumps({"historicalImportFiles": len(manifest["runtimeFiles"]), "verifiedImportFiles": len(manifest["runtimeFiles"]) if args.verify_import else 0, "source": manifest.get("sourceRevision", manifest.get("source")), "coreSHA256": core["sha256"], "products": 4, "result": "PASS (source/ownership only; not native acceptance)"}, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
     main()
