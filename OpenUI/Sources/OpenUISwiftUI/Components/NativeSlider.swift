@@ -208,6 +208,7 @@ struct NativeSliderField: View {
     .onAppear { configure(target); draft.receive(external); registerPendingWrite() }
     .onChange(of: target) { configure($0); registerPendingWrite() }
     .onChange(of: external) { draft.receive($0) }
+    .onChange(of: draft.text) { _ in refreshPresentedValidation() }
     .onReceive(validation?.$focusRequest.eraseToAnyPublisher() ?? Empty<NativeFormValidation.FocusRequest?, Never>().eraseToAnyPublisher()) { request in
       guard request?.name == field.name, draft.validationError() != nil, !configuration.discrete else { return }
       focusedValue = draft.text.indices.first { index in
@@ -239,6 +240,11 @@ struct NativeSliderField: View {
           }
       }
     }
+  }
+  private func refreshPresentedValidation() {
+    guard context.canInteract, let validation, presentedError != nil else { return }
+    validation.changed(field.name, value: draft.values.first.map(Value.number) ?? .null,
+      rules: field.rules, draftError: draft.validationError(configuration: configuration))
   }
   private func registerPendingWrite() {
     guard let validation else { return }

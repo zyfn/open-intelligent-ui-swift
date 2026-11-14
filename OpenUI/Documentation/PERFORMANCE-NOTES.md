@@ -83,3 +83,19 @@ Five native tests were added to `VisualPolishTests`: map missing-artwork visibil
 ```sh
 swift test --filter 'VisualPolishTests|StreamingMediaRetentionTests|GeographicGraphicTests|ResourceStoreTests'
 ```
+
+### Slider feedback follow-up
+
+After a rejected numeric submission, changing an out-of-range draft to empty or
+incomplete text must refresh the existing field error without another submit.
+Slider now sends its current draft error and numeric projection through the
+existing validation channel. It does not flush pending writes, commit malformed
+text, request focus, or modify another document's validation.
+
+The mounted-field regression covers 150 -> empty / 1e / minus -> valid 37,
+retaining the last committed Store value until validation flushes the valid
+draft. A separate regression routes in-process AppKit mouse-down/drag/up events
+through the real SwiftUI range control in LTR and RTL for both thumbs. This is
+native event routing, not AX value assignment, desktop hardware input, or iOS
+gesture acceptance. The offscreen full-form capture discrepancy remains a
+separate observation; no renderer workaround is added for an unconfirmed cause.

@@ -139,8 +139,10 @@ final class NativeFormValidation: ObservableObject {
         updateFirstInvalid()
         return next.isEmpty
     }
-    func changed(_ name: OpenUIString, value: Value, rules: [ParsedRule]) {
-        let error = OpenUILang.validate(value, rules: rules)
+    func changed(_ name: OpenUIString, value: Value, rules: [ParsedRule], draftError: String? = nil) {
+        // Numeric editing text may be unrepresentable in the Store. Feedback
+        // follows that draft without committing an invalid or pending value.
+        let error = draftError ?? OpenUILang.validate(value, rules: rules)
         if errors[name] != error { errors[name] = error }
         updateFirstInvalid()
     }

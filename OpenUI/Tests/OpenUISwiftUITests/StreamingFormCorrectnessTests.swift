@@ -296,4 +296,31 @@ extension StreamingFormCorrectnessTests {
     draft.edit("30", at: 0); draft.edit("70", at: 1); draft.flush()
     XCTAssertNil(draft.inlineValidationError(presentedError: nil, configuration: config))
   }
+
+  @MainActor func testDraftFeedbackRefreshDoesNotFlushWritesOrRequestFocus() {
+    let draft = NativeSliderDraft(), validation = NativeFormValidation()
+    draft.configuration = .init(minimum: 0, maximum: 100, step: 1, discrete: false)
+    draft.receive([10])
+    var writes: [[Double]] = []
+    draft.commit = { writes.append($0) }
+    validation.register("budget", rules: [], value: { .number(10) })
+    validation.registerPendingWrite("budget", owner: UUID(), flush: { draft.flush() },
+      error: { draft.validationError() })
+    draft.edit("150", at: 0)
+    XCTAssertFalse(validation.validateAll())
+    draft.edit("", at: 0)
+    validation.changed("budget", value: .number(150), rules: [], draftError: draft.validationError())
+    XCTAssertEqual(validation.errors["budget"], "Invalid number")
+    XCTAssertEqual(validation.firstInvalid, "budget")
+    XCTAssertNil(validation.focusRequest)
+    XCTAssertTrue(writes.isEmpty)
+    draft.edit("37", at: 0)
+    validation.changed("budget", value: .number(37), rules: [], draftError: draft.validationError())
+    XCTAssertNil(validation.errors["budget"])
+    XCTAssertNil(validation.firstInvalid)
+    XCTAssertNil(validation.focusRequest)
+    XCTAssertTrue(writes.isEmpty, "Feedback must not bypass the pending-write boundary")
+    XCTAssertTrue(validation.validateAll())
+    XCTAssertEqual(writes, [[37]])
+  }
 }
