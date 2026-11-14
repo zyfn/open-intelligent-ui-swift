@@ -19,6 +19,9 @@ import tempfile
 BASELINE = "ed3f6f82abf6f7cc9e307e9bb2eb21073a1f7d79"
 BASELINE_LOCK_SHA256 = "d4798e33b262c773f839e5740114c31c54f5d117cbb78468afcc85e88cf36c4f"
 BASELINE_OPENUI_REVISION = "b8ea283916b9630ce8590338c8f8dc5b71fd75e4"
+BASELINE_EXPORT_PATH = "Tools/ContractExport/Export.swift"
+BASELINE_EXPORT_SHA256 = "965c6279cc7ad5fc4acbf9000e8f9378aa0df7779c70b60cf1c7f319dea36a60"
+BASELINE_EXPORT_PATCHED_SHA256 = "9df0f90cf9d568b6ec06b8271d4f6e3071356443cb1be1616533d6797513ea0b"
 BASELINE_SLIDER_PATH = "packages/swift-ui/Sources/OpenUISwiftUI/Components/NativeSlider.swift"
 BASELINE_SLIDER_SHA256 = "03c587e2ddf459f980d55c96e00dcfad13e5b7d264344a4badde124f711f5ca6"
 BASELINE_SLIDER_PATCHED_SHA256 = "f2512377b174fbae0ea7686b709299beeff4a3232967269991a39eea6df83ee6"
@@ -41,6 +44,19 @@ BASELINE_SLIDER_REPLACEMENT = """    let index: Int
       index = closest ?? 0
     }
 """
+BASELINE_CELEBRATION_PATH = "Sources/SwiftIntelligentUI/Components/Content/InteractiveContent.swift"
+BASELINE_CELEBRATION_SHA256 = "0c499cb17c2eb4d41384009cfb6da54fb6b82a6ccc79cd0d5a5777b7c93d14ee"
+BASELINE_CELEBRATION_PATCHED_SHA256 = "5e1f26fe3b30409466335bd3c4cc6159b293d7216a0af2188654622cae563b51"
+BASELINE_CELEBRATION_EXPRESSION = """                            let x = size.width * CGFloat((index * 37) % 100) / 100 + CGFloat((index * 71) % 100 - 50) * phase
+                            let y = size.height * phase
+"""
+BASELINE_CELEBRATION_REPLACEMENT = """                            let progress: CGFloat = CGFloat(phase)
+                            let scaledX: CGFloat = size.width * CGFloat((index * 37) % 100)
+                            let initialX: CGFloat = scaledX / CGFloat(100)
+                            let driftX: CGFloat = CGFloat((index * 71) % 100 - 50) * progress
+                            let x: CGFloat = initialX + driftX
+                            let y: CGFloat = size.height * progress
+"""
 
 
 def sha256(data):
@@ -51,8 +67,17 @@ def git_output(checkout, *arguments):
     return subprocess.check_output(["git", *arguments], cwd=checkout, text=True).strip()
 
 
-def verify_baseline_compile_shim(checkout, pins):
+def verify_baseline_compile_shims(checkout, pins):
     dependency = checkout / ".build/checkouts/openui"
+    if git_output(checkout, "rev-parse", "HEAD") != BASELINE:
+        raise SystemExit("Historical baseline checkout changed revision")
+    allowed_root_changes = {BASELINE_EXPORT_PATH, BASELINE_CELEBRATION_PATH}
+    if set(git_output(checkout, "diff", "HEAD", "--name-only").splitlines()) != allowed_root_changes:
+        raise SystemExit("Baseline changed files beyond the export hook and reviewed Celebration UI shim")
+    if sha256((checkout / BASELINE_EXPORT_PATH).read_bytes()) != BASELINE_EXPORT_PATCHED_SHA256:
+        raise SystemExit("Baseline export hook differs from the reviewed SearchImage-only hook")
+    if sha256((checkout / BASELINE_CELEBRATION_PATH).read_bytes()) != BASELINE_CELEBRATION_PATCHED_SHA256:
+        raise SystemExit("Baseline Celebration source differs from the reviewed compile shim")
     if json.loads((checkout / "Package.resolved").read_bytes())["pins"] != pins:
         raise SystemExit("Baseline dependency pins changed; the historical comparison is invalid")
     if git_output(dependency, "rev-parse", "HEAD") != BASELINE_OPENUI_REVISION:
@@ -63,18 +88,24 @@ def verify_baseline_compile_shim(checkout, pins):
         raise SystemExit("Baseline slider differs from the reviewed compile shim")
 
 
-def prepare_baseline_compile_shim(root, checkout):
-    """Decompose one old UI expression only in the pinned temporary checkout.
+def prepare_baseline_compile_shims(root, checkout):
+    """Apply two exact UI compile shims only in the pinned temporary checkout.
 
-    Current Swift toolchains time out checking this RC20 slider expression. The
-    same min comparator, arithmetic order and dragging short circuit remain;
-    no Lang/Core source or exported contract is patched. Other baseline refs
-    retain the original tool behavior and receive no third-party source shim.
+    The old dependency's slider expression times out during type checking; the
+    baseline's Celebration coordinates mix CGFloat and Double ambiguously.
+    Preserve slider selection and short circuiting, and all arithmetic order.
+    Celebration phase/opacity remain Double; only coordinates use CGFloat.
+    No Lang/Core source or component definition is patched. Other baseline refs
+    retain the original tool behavior and receive neither compile shim.
     """
     revision = git_output(checkout, "rev-parse", "HEAD")
     if revision != BASELINE:
-        print(f"No baseline compile shim for {revision}; compiling the requested baseline unchanged")
+        print(f"No baseline compile shims for {revision}; compiling the requested baseline unchanged")
         return None
+    if git_output(checkout, "diff", "HEAD", "--name-only") != BASELINE_EXPORT_PATH:
+        raise SystemExit("Pinned baseline must contain only the existing export hook before UI shims")
+    if sha256((checkout / BASELINE_EXPORT_PATH).read_bytes()) != BASELINE_EXPORT_PATCHED_SHA256:
+        raise SystemExit("Pinned baseline export hook changed; review before applying UI shims")
     lock = checkout / "Package.resolved"
     original_lock = lock.read_bytes()
     if sha256(original_lock) != BASELINE_LOCK_SHA256:
@@ -100,11 +131,24 @@ def prepare_baseline_compile_shim(root, checkout):
     patched = text.replace(BASELINE_SLIDER_EXPRESSION, BASELINE_SLIDER_REPLACEMENT).encode("utf-8")
     if sha256(patched) != BASELINE_SLIDER_PATCHED_SHA256:
         raise SystemExit("Baseline slider compile shim does not match its reviewed result")
-    # SwiftPM may protect resolved source files; only this temporary UI file
-    # receives owner-write permission. The dependency revision stays pinned.
+    celebration = checkout / BASELINE_CELEBRATION_PATH
+    celebration_original = celebration.read_bytes()
+    celebration_text = celebration_original.decode("utf-8")
+    if (sha256(celebration_original) != BASELINE_CELEBRATION_SHA256
+            or celebration_text.count(BASELINE_CELEBRATION_EXPRESSION) != 1):
+        raise SystemExit("Pinned RC20 Celebration source changed; review instead of broadening the shim")
+    celebration_patched = celebration_text.replace(
+        BASELINE_CELEBRATION_EXPRESSION, BASELINE_CELEBRATION_REPLACEMENT
+    ).encode("utf-8")
+    if sha256(celebration_patched) != BASELINE_CELEBRATION_PATCHED_SHA256:
+        raise SystemExit("Baseline Celebration compile shim does not match its reviewed result")
+    # SwiftPM may protect resolved source files; only the temporary UI files
+    # receive owner-write permission. Both repository revisions stay pinned.
     slider.chmod(slider.stat().st_mode | stat.S_IWUSR)
     slider.write_bytes(patched)
-    verify_baseline_compile_shim(checkout, pins)
+    celebration.chmod(celebration.stat().st_mode | stat.S_IWUSR)
+    celebration.write_bytes(celebration_patched)
+    verify_baseline_compile_shims(checkout, pins)
     evidence = root / "outputs/verification"
     evidence.mkdir(parents=True, exist_ok=True)
     patch = "".join(difflib.unified_diff(
@@ -124,13 +168,42 @@ def prepare_baseline_compile_shim(root, checkout):
         "dependency_pins_unchanged": True,
         "dependency_pins": pins,
         "patch_sha256": sha256(patch.encode("utf-8")),
-        "scope": "Temporary RC20 UI compile shim only; Lang/Core and contract comparison are unchanged",
+        "scope": "Temporary pinned OpenUI dependency slider UI shim; Lang/Core and contracts are unchanged",
     }
     (evidence / "historical-baseline-slider-shim.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n"
     )
+    celebration_patch = "".join(difflib.unified_diff(
+        celebration_text.splitlines(keepends=True), celebration_patched.decode("utf-8").splitlines(keepends=True),
+        fromfile="a/" + BASELINE_CELEBRATION_PATH, tofile="b/" + BASELINE_CELEBRATION_PATH,
+    ))
+    (evidence / "historical-baseline-celebration-shim.patch").write_text(celebration_patch)
+    root_patch = subprocess.check_output(
+        ["git", "diff", "HEAD", "--", BASELINE_EXPORT_PATH, BASELINE_CELEBRATION_PATH], cwd=checkout
+    )
+    (evidence / "historical-baseline-worktree.patch").write_bytes(root_patch)
+    celebration_report = {
+        "baseline_repository": "https://github.com/zyfn/open-intelligent-ui-swift",
+        "baseline_commit": revision,
+        "source_path": BASELINE_CELEBRATION_PATH,
+        "source_before_sha256": sha256(celebration_original),
+        "source_after_sha256": sha256(celebration_patched),
+        "patch_sha256": sha256(celebration_patch.encode("utf-8")),
+        "baseline_worktree_patch_sha256": sha256(root_patch),
+        "allowed_baseline_changes": sorted([BASELINE_EXPORT_PATH, BASELINE_CELEBRATION_PATH]),
+        "export_hook_before_sha256": BASELINE_EXPORT_SHA256,
+        "export_hook_after_sha256": sha256((checkout / BASELINE_EXPORT_PATH).read_bytes()),
+        "dependency_revision": BASELINE_OPENUI_REVISION,
+        "dependency_pins_unchanged": True,
+        "dependency_provenance": "historical-baseline-slider-shim.json",
+        "scope": "Temporary RC20 baseline Celebration coordinates only; definitions and contracts are unchanged",
+    }
+    (evidence / "historical-baseline-celebration-shim.json").write_text(
+        json.dumps(celebration_report, indent=2, sort_keys=True) + "\n"
+    )
     print(f"Baseline-only NativeSlider compile shim: {sha256(original)} -> {sha256(patched)}")
-    print(f"Baseline compile shim patch and provenance: {evidence}")
+    print(f"Baseline-only Celebration compile shim: {sha256(celebration_original)} -> {sha256(celebration_patched)}")
+    print(f"Two baseline UI compile shims, complete patches and provenance: {evidence}")
     return pins
 
 
@@ -189,7 +262,7 @@ def verify_native(root, baseline):
         checkout = temporary / "baseline"
         run(["git", "worktree", "add", "--detach", str(checkout), baseline], root)
         try:
-            export = checkout / "Tools/ContractExport/Export.swift"
+            export = checkout / BASELINE_EXPORT_PATH
             text = export.read_text()
             original = "let library = try IntelligentUILibrary(excludingComponents: excluded)"
             replacement = (
@@ -199,11 +272,11 @@ def verify_native(root, baseline):
             if text.count(original) != 1:
                 raise SystemExit("Baseline export hook changed; review the pinned baseline instead of regenerating it")
             export.write_text(text.replace(original, replacement))
-            shim_pins = prepare_baseline_compile_shim(root, checkout)
+            shim_pins = prepare_baseline_compile_shims(root, checkout)
             before, after = temporary / "before", temporary / "after"
             run(["swift", "run", "--package-path", str(checkout), "ContractExport", str(before)], root)
             if shim_pins is not None:
-                verify_baseline_compile_shim(checkout, shim_pins)
+                verify_baseline_compile_shims(checkout, shim_pins)
             evidence = root / "outputs/verification"
             evidence.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(before / "spec.json", evidence / "historical-reader-before.json")
