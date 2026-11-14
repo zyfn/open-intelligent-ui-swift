@@ -54,13 +54,15 @@ function converterInput(value: any): any {
   if (next.type === 'object' && !own(next, 'properties') && !own(next, 'propertyNames')) next.propertyNames = { type: 'string' };
   return next;
 }
-function copySchema(schema: any, patch: any): any {
-  const result = z.core.clone(schema, { ...schema._zod.def, ...patch });
+function carrySchemaMetadata(schema: any, result: any): any {
   copySchemaTags(schema, result);
   if (core.isReactiveSchema(schema)) core.markReactive(result);
   const metadata = z.globalRegistry.get(schema);
   if (metadata) z.globalRegistry.add(result, metadata);
   return result;
+}
+function copySchema(schema: any, patch: any): any {
+  return carrySchemaMetadata(schema, z.core.clone(schema, { ...schema._zod.def, ...patch }));
 }
 function parts(input: any, previous?: any, changed = new Set<string>()): any {
   const template = wireTemplate(input);
@@ -101,6 +103,27 @@ function parts(input: any, previous?: any, changed = new Set<string>()): any {
       if (actions[name]) return actions[name].ref;
       if (ACTION_DEFS[name]) return ACTION_DEFS[name];
       return schema;
+    }
+    // 4.6.7 imports even a plain string-key record as guard.pipe(object).
+    // The pinned core introspects records, but not pipes, for its signatures.
+    // Restore only the historical unconstrained native record representation.
+    // Its sole guard checks string key names and is retained on the new record;
+    // it cannot distinguish pre/post-parse keys, since every key is a string.
+    // Any object/key constraint or explicit properties retain the original pipe
+    // and its pre-parse guards, including property counts and restricted names.
+    const recordKeys = ['type', 'propertyNames', 'additionalProperties', 'default', 'description'];
+    const plainStringKeys = !own(raw, 'propertyNames') ||
+      (raw.propertyNames?.type === 'string' && Object.keys(raw.propertyNames).length === 1);
+    const guardedObject = def.type === 'pipe' && def.in?._zod?.def?.type === 'transform' &&
+      def.out?._zod?.def?.type === 'object' && Object.keys(def.out.shape).length === 0;
+    if (raw.type === 'object' && plainStringKeys && raw.additionalProperties !== false &&
+        Object.keys(raw).every(key => recordKeys.includes(key)) && guardedObject) {
+      const checks = def.in._zod.def.checks;
+      if (Array.isArray(checks) && checks.length === 1) {
+        const value = raw.additionalProperties && typeof raw.additionalProperties === 'object'
+          ? def.out._zod.def.catchall : z.any();
+        if (value) return carrySchemaMetadata(schema, z.record(z.string(), value).check(...checks));
+      }
     }
     if (def.type === 'array' && raw.items) return copySchema(schema, { element: link(raw.items, def.element) });
     if (['union', 'xor'].includes(def.type) && (raw.anyOf || raw.oneOf)) {

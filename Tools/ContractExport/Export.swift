@@ -1,7 +1,7 @@
 import Foundation
 import OpenUILang
-import OpenUISwiftUI
-import SwiftIntelligentUI
+import OpenUICore
+import OpenIntelligentSwiftUI
 
 @main enum ContractExport {
     @MainActor static func main() async throws {

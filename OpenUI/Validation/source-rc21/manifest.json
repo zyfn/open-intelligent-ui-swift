@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "candidate": "RC21 source repair candidate",
+  "description": "The pinned RC21 source plus reviewed test and dependency fixes, maintained on the SDK branch. The original source commit is not modified or relabeled as passing.",
+  "base": {
+    "repository": "https://github.com/zyfn/openui",
+    "revision": "f3dfa1d0b479c131b6d4268e81961186f22ff09c",
+    "tree": "3e2704beeb571bb99f7de41abe4484340a3ce03d"
+  },
+  "candidate_tree": "51eedac918540b31206b9f613e3ac7566da025a3",
+  "repairs": [
+    {
+      "id": "supported-motion-fixture",
+      "reason": "accessibilityReduceMotion is read-only. Use the existing presentation motion setting and a disabled-animation transaction for final-artwork snapshots; preserve every pixel assertion."
+    },
+    {
+      "id": "loaded-card-artwork-fixture",
+      "reason": "A missing image is transparent and cannot establish loaded image geometry. Load a deterministic red PNG through the real resource and hosting lifecycle, preserve all original edge/inset coordinates and color thresholds, and additionally assert that missing artwork leaves the white surface visible."
+    },
+    {
+      "id": "zod-security",
+      "reason": "Pin Zod 4.6.7 and independently regenerate the source core with explicitly reviewed schema-export and native-record compatibility adjustments. Record the source-specific builder/adapter digest and exact dependency transform hashes. The strict oracle digest changes with its dependency; all semantic expectations remain unchanged.",
+      "advisory": "GHSA-mrhx-c7xc-m3w5"
+    },
+    {
+      "id": "katex-security",
+      "reason": "Pin and override KaTeX 0.18.2 for the direct and transitive dependency, then independently regenerate original rich-text resources with its unchanged builder.",
+      "advisory": "GHSA-238p-pmpm-9mq7"
+    },
+    {
+      "id": "zod-schema-format",
+      "reason": "Share the exact-version and exact-source-hash checked Zod JSON Schema compatibility plugin between the source core and catalog builders. Disable only the new compactTypeUnion export-format pass, preserving the existing anyOf representation, nesting and key order. Keep Zod 4.6.7 parsing, validators and collection security fixes unchanged; retain the original catalog bytes."
+    },
+    {
+      "id": "public-generator-registries",
+      "reason": "Replace Alibaba registry tarball origins in the three source presentation locks with registry.npmjs.org. Package versions, integrity digests and all other package metadata stay identical; verify fresh installation using a new cache and zero-vulnerability audits."
+    },
+    {
+      "id": "native-record-authoring",
+      "reason": "Restore only the established unconstrained string-key record representation after the Zod 4.6.7 JSON Schema import, retaining its original string-key check object, defaults, descriptions and binding/reference identity. Constrained objects, property-count restrictions, fixed/pattern properties and restricted keys retain their original guarded pipeline. Preserve the original CheckBoxGroup/SwitchGroup schema and binding signatures; do not change their assertions or catalog expectations."
+    }
+  ],
+  "patch": {
+    "path": "source-rc21-fixes.patch",
+    "sha256": "1d8924a5e799a3526372772922bd667d94c1996e6d45ca3605bcedec1d736a3b"
+  },
+  "files": [
+    {
+      "path": "packages/swift-lang/Sources/OpenUILang/Resources/core-manifest.json",
+      "operation": "patch",
+      "before_sha256": "aa71142b2ad7a71d26ec27a9ece3aed1ab2db4b760ed2d7bcf3bb7bde70760fc",
+      "after_sha256": "bc1115d61f085b8dc163d961b7982e6e9caaf71f5168369cce73faaea3350c49",
+      "before_blob": "b5e2ace0d0974315e99bf91516cfa2da523569b9",
+      "after_blob": "aa0e84359f61bc244cffdea30c0e7250fd2aad30"
+    },
+    {
+      "path": "packages/swift-lang/Sources/OpenUILang/Resources/lang-core.js",
+      "operation": "copy",
+      "before_sha256": "10227f1773ec35d0cadee6937cb5f1ca93eb04461d3885cd78d9074c9cbb24af",
+      "after_sha256": "84619d09343570632de25963c153e67e4d13f1cf51d05dbf7cea13237f88bf5b",
+      "before_blob": "97b072a68de93946cbb67a8d8ca3364d90b1bf1b",
+      "after_blob": "75c7d73ed9f8844e1123ba519f29fa43dd5c9e62",
+      "copy_from": "Sources/OpenUILang/Resources/lang-core.js"
+    },
+    {
+      "path": "packages/swift-lang/Tests/OpenUILangTests/Fixtures/strict-compatibility.json",
+      "operation": "copy",
+      "before_sha256": "dada25db3a3893e94eead3cf98d0214764da1e6bc405e75c9c4d993ad67fb5c1",
+      "after_sha256": "362e9ccc1606057ee743c2946d156018341e9e66a3ff214930989b5d8e58aa47",
+      "before_blob": "7a94eec33173308b3a51b9aaa7b6b0648aeca9fc",
+      "after_blob": "503fe60935aed31b6a6c3f9763ec1967c1d43bcf",
+      "copy_from": "Tests/OpenUILangTests/Fixtures/strict-compatibility.json"
+    },
+    {
+      "path": "packages/swift-lang/scripts/adaptations.json",
+      "operation": "patch",
+      "before_sha256": "7a5faa6b55bd43f48fa5036ad36dae2ec60c6c2a652f6b786785c69d5b0ee196",
+      "after_sha256": "67e4c4ec6edbac37ea4bf39d5ea3fb942ef22bddce5e44072a1e178d51ca478c",
+      "before_blob": "e4f7ba33da11f7f7de7af50cd796ea840bb8c497",
+      "after_blob": "9a1cd4bcd40ef8e197751afe7248b1099412f35a"
+    },
+    {
+      "path": "packages/swift-lang/scripts/authoring.ts",
+      "operation": "patch",
+      "before_sha256": "9b235ed905ac7e437f885133b0b844ffeec31467111f8a5133aee721f2604aa2",
+      "after_sha256": "6c4104f1d1dc71524c235ae0fea1b09b8836560d65ed29f3d5eaefa9853d7692",
+      "before_blob": "96c30e7433526cf765e73befbca37926c73627af",
+      "after_blob": "24bbd0b38b937df5f06ebeb1b89fecfd85d88684"
+    },
+    {
+      "path": "packages/swift-lang/scripts/build.mjs",
+      "operation": "patch",
+      "before_sha256": "ca8bbf2aff4bb555291bbdd14ade37e684a5375b5438aa9ed7c0fc7c4f2540f7",
+      "after_sha256": "018e3467d3a2c5fab9de34fed45b62f42841bd7ffebfdb2ea412938b616dde48",
+      "before_blob": "544c723095220d7955ccb1291f76ec5a53695096",
+      "after_blob": "b45fa5b7f4b0f5c84657e978511ccbf978bc9c73"
+    },
+    {
+      "path": "packages/swift-lang/scripts/compat.mjs",
+      "operation": "patch",
+      "before_sha256": "70c105c48a2e09aa357ce15d0017a7070ec76ac35b48d41f9ab5791e0d9d4cc0",
+      "after_sha256": "3170cff66ccbbb36c0cbb3c93e70f452ebb7691319a75df14374e8560c887935",
+      "before_blob": "0b535ea7b2b142a95e43eb8f149305b2c4dc2e8e",
+      "after_blob": "a08584840247e1e280b48a7219bfe0141f873a63"
+    },
+    {
+      "path": "packages/swift-lang/scripts/package-lock.json",
+      "operation": "patch",
+      "before_sha256": "4a826728de5da159c2a378864527abb2400807dcfaf32128406109aa5139f983",
+      "after_sha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
+      "before_blob": "59ad796631f5b40e9692d810e9a6fedb3527d24a",
+      "after_blob": "33305e0e9e791ed52ecb196a9b2f7e8fb4554054"
+    },
+    {
+      "path": "packages/swift-lang/scripts/package.json",
+      "operation": "patch",
+      "before_sha256": "f3e74753f81e8fb1e1ad1fd173cfcf795ba5407f75149695297e97e459d41946",
+      "after_sha256": "765612573cbaef340dcd501375f5ae6ccbeca370aea9924bc9278eec451b1a4f",
+      "before_blob": "8b874d2b4c9791074a0331f094c2e34e6d070baa",
+      "after_blob": "f1505ab2b0e3c0de30ed72023aa14f43d8412431"
+    },
+    {
+      "path": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/RichText-LICENSES.txt",
+      "operation": "copy",
+      "before_sha256": "0af15011d2a948111d36e3b7b07e0127bfef4a206b1e761c463a7fb3f5a87cd2",
+      "after_sha256": "f5995ba63dfdf5e577f159838bff94305f58c8a59608851027b43f71d21a48f7",
+      "before_blob": "86590ff89962524e5020f5ae85b8ab84c233fa2f",
+      "after_blob": "f0eabe18c15be6e6a40e9a3a1aba08cd8c02f819",
+      "copy_from": "Sources/OpenSwiftUI/Resources/RichText-LICENSES.txt"
+    },
+    {
+      "path": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/rich-math.css",
+      "operation": "copy",
+      "before_sha256": "0efdf5e34969f4a7792335fa5e6b84a30f4d55270fa5f773877bd3c3ec4a010a",
+      "after_sha256": "17fbaf13bbd8d721c1f2564ad589718719ec500d3dc6f7b364ea21da8c98c7d5",
+      "before_blob": "5e2f44a7d12142a492f02323ef7fd6bd4f0e0a2f",
+      "after_blob": "05a951a74a1708bba04370db48541596b1e73f77",
+      "copy_from": "Sources/OpenSwiftUI/Resources/rich-math.css"
+    },
+    {
+      "path": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/rich-text-manifest.json",
+      "operation": "copy",
+      "before_sha256": "905350aa48e98257933ef011c6900100eedae3756c7fee34d43e96c719eb11f6",
+      "after_sha256": "26ea8e7c252ef3e341dcb478faabb4463667eb3b5fcf669c8829aa534b28c518",
+      "before_blob": "b18b4e43fa1f164e464d3df2242b817f61197fac",
+      "after_blob": "bc14380069549bf8d260c3d311a35cd93e3117f6",
+      "copy_from": "Sources/OpenSwiftUI/Resources/rich-text-manifest.json"
+    },
+    {
+      "path": "packages/swift-ui/Sources/OpenUISwiftUI/Resources/rich-text.js",
+      "operation": "copy",
+      "before_sha256": "68e97d52e63dc2a2297cfa695f76396deb076b10e901c6f92ba0b86d1ca08a09",
+      "after_sha256": "910325e1087fa69bcf9b835fa40d4e1678dda4ec449c9220c8c99c96b75cb36b",
+      "before_blob": "99b1428a782016f5184df7aaa22b9c1af7c0c33c",
+      "after_blob": "e43b6277930d31edb744b9950b2ddc84471c234f",
+      "copy_from": "Sources/OpenSwiftUI/Resources/rich-text.js"
+    },
+    {
+      "path": "packages/swift-ui/Tests/OpenUISwiftUITests/ObjectCardCompositionTests.swift",
+      "operation": "patch",
+      "before_sha256": "d1a472761b49e7e2dee6bb4cdedcd88d860e1c7471c36c3abdbd40a7a17e7f5b",
+      "after_sha256": "7a4af3c132859a2c99619b94603332c5df4334f7a3c4f5b747f50f0ce56f668f",
+      "before_blob": "0ec36b55e310f1af9775283d42b7ff14c7f9418c",
+      "after_blob": "50e2f1a8ddea57315b37b471e17a29a7ecad2b4f"
+    },
+    {
+      "path": "packages/swift-ui/Tests/OpenUISwiftUITests/VisualPolishTests.swift",
+      "operation": "patch",
+      "before_sha256": "0785575bc8cf8ecd73c53049c4b30ac5c6b52012dc3ba161b11737ccb9738eaf",
+      "after_sha256": "3286fbd88b247ff411fb93c280a45c37419051ef8397cfdee361380a8524d622",
+      "before_blob": "3e52ae58907ebc431379841be09d23ace7608fed",
+      "after_blob": "0a3e2248ddffd0efe6ead8a3838cf32c5cd861ec"
+    },
+    {
+      "path": "packages/swift-ui/scripts/catalog.mjs",
+      "operation": "patch",
+      "before_sha256": "7afe9a429dfe309cf8f4453cac86a151b62de8f9867bd15366535ab5a500cb6d",
+      "after_sha256": "cc916990334965f8684cb13aa72bca2b179d38421a78466714927a30b9ac2880",
+      "before_blob": "56b63dcfc286054b398448426ba0929e9204dfb0",
+      "after_blob": "1a8b47836c0eea626c39cd286ce85fc81f488593"
+    },
+    {
+      "path": "packages/swift-ui/scripts/code-highlighting/package-lock.json",
+      "operation": "patch",
+      "before_sha256": "b2afdd686ee8c3b264072fd6b479503f008be1834ff422f3b6fdbea2677a7a2c",
+      "after_sha256": "15fed28ed53eef80eecbe71795ca21f71cbb8d8c6303a3bdcf8d648345ca2fbd",
+      "before_blob": "bb082dda9e28037bf35345f6f1ba15c20d91588a",
+      "after_blob": "cd3febc0e9ee84b08f310c3a1d5a4c418adb43e1"
+    },
+    {
+      "path": "packages/swift-ui/scripts/icons/package-lock.json",
+      "operation": "patch",
+      "before_sha256": "db3b2e53ee1ee4dd38ddf2229823cd37fac5ba1dbc5acbdfd59e4bf76418f698",
+      "after_sha256": "5fc9c8db0bdf877953c03e051247465f31c30e10b0ad85b7937dc139624afaf7",
+      "before_blob": "2e093098bbfeefc8633e70b5ea20557310dad196",
+      "after_blob": "33286d61f4c991616c9e09f10a215d9118495218"
+    },
+    {
+      "path": "packages/swift-ui/scripts/rich-text/package-lock.json",
+      "operation": "patch",
+      "before_sha256": "7da4bbc0c0489b160bf9cca2c9463b36c71d65bf22e03131236077784a821ef5",
+      "after_sha256": "87d600354934618bae5b60afb3a2a5887625d329a905f0f1cb0b2f119c8e2a7e",
+      "before_blob": "f78fa7f8b94607f4b78e661fcb71b8f1d2e3fe1d",
+      "after_blob": "c98ebf251c160b9a3cb0b2469cad53eab2315cdc"
+    },
+    {
+      "path": "packages/swift-ui/scripts/rich-text/package.json",
+      "operation": "patch",
+      "before_sha256": "95b4579af81ba719c8a1c1aa40fc181ec1aad6b5e714494f11b25a8cf448e83a",
+      "after_sha256": "27a1edd26d5c5dead0583786ad498507f883daaa134b8c99602cb4f56b94385a",
+      "before_blob": "3b729eb7b6f9a7a437efb519673b304087bb179d",
+      "after_blob": "74061b3f92b0f3addd96a165d1bec71e252bd393"
+    }
+  ]
+}

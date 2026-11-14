@@ -31,11 +31,11 @@ if latest.exists():
 manifest_text = json.dumps({"version": version, "files": manifest}, indent=2)
 latest.write_text(manifest_text)
 (output / ("source-manifest-" + version + ".json")).write_text(manifest_text)
-archive = output / ("SwiftIntelligentUI-" + version + ".tar.gz")
+archive = output / ("OpenUISwiftSDK-" + version + ".tar.gz")
 with archive.open("wb") as stream, gzip.GzipFile(filename="", mode="wb", fileobj=stream, mtime=0) as compressed:
     with tarfile.open(fileobj=compressed, mode="w") as tar:
         for path, relative in files:
-            info = tar.gettarinfo(str(path), arcname="SwiftIntelligentUI-" + version + "/" + str(relative))
+            info = tar.gettarinfo(str(path), arcname="OpenUISwiftSDK-" + version + "/" + str(relative))
             info.mtime = 0; info.uid = 0; info.gid = 0; info.uname = ""; info.gname = ""
             with path.open("rb") as source: tar.addfile(info, source)
 checksum = hashlib.sha256(archive.read_bytes()).hexdigest()

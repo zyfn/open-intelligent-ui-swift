@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {

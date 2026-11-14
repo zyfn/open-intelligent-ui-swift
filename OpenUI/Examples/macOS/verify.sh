@@ -1,5 +1,5 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-swift test --package-path ../../.. --filter OpenUISwiftUITests
+swift test --package-path ../../.. --filter OpenSwiftUITests
 ./build-app.sh

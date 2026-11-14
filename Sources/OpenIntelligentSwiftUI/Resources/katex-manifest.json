@@ -1,0 +1,20 @@
+{
+  "package": "katex",
+  "version": "0.18.2",
+  "resolved": "https://registry.npmjs.org/katex/-/katex-0.18.2.tgz",
+  "integrity": "sha512-3snve4y0SXTMequLim1FMiPvLGElySam0blN5xQZBqEY3lOJz1TnuaaiugnBZBqHzlSAGmFTYL7MCQkORuLKCA==",
+  "packageSHA256": "76980d80171e8a69baa102debe963a5e952edb2a8b936cc687382c21a24987fe",
+  "lockSHA256": "8c73345026233208454b7160c467561351895ba11468e39a94e26edf7c244735",
+  "builderSHA256": "c178ac9973f6cbecf5b816526444e5696c0415e3cd5a1fe80749799a218036fb",
+  "sourceScript": "dist/katex.min.js",
+  "resource": "katex.min.js",
+  "scriptSHA256": "90354db602936d813daadda391a4376d071f5d1241d8cfddf091df4c2e38730d",
+  "scriptBytes": 271989,
+  "sourceLicense": "LICENSE",
+  "licenseSHA256": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3",
+  "notice": "THIRD-PARTY-NOTICES.txt",
+  "noticeSection": "KaTeX 0.18.2",
+  "noticesSHA256": "05c2f24216e066534acfd92d59ab4c92b438ee73faee79df7f352d59db1eb3e4",
+  "output": "mathml",
+  "stylesheetAndFonts": "not required by the native MathML renderer"
+}

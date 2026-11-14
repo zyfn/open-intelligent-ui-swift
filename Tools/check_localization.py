@@ -7,7 +7,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-RESOURCES = ROOT / "Sources/SwiftIntelligentUI/Resources"
+RESOURCES = ROOT / "Sources/OpenIntelligentSwiftUI/Resources"
 LANGUAGES = ("en", "zh-Hans", "ar")
 ENTRY = re.compile(r'^\s*("(?:[^"\\]|\\.)*")\s*=\s*("(?:[^"\\]|\\.)*")\s*;\s*$')
 PLACEHOLDER = re.compile(r'%(?!%)(?:(\d+)\$)?(?:[-+ #0]*)(?:\d+)?(?:\.\d+)?(ll|l|hh|h)?([@diufFeEgGsc])')
@@ -47,7 +47,7 @@ def main() -> int:
     # Include literal keys in conditional first arguments. Computed key families
     # are covered by native tests and explicit resource review.
     used: set[str] = set()
-    for path in (ROOT / "Sources/SwiftIntelligentUI").rglob("*.swift"):
+    for path in (ROOT / "Sources/OpenIntelligentSwiftUI").rglob("*.swift"):
         source = path.read_text()
         for call in re.finditer(r"SDKStrings\.text\((.*?)\blocale\s*:", source, re.S):
             for key in re.findall(r'"([A-Za-z][A-Za-z0-9]*\.[A-Za-z0-9._]+)"', call[1]):

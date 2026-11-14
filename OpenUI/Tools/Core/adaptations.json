@@ -50,6 +50,30 @@
     "removal": "Equivalent upstream native authoring interface; mutable public setters require a migration"
   },
   {
+    "id": "native-record-representation",
+    "category": "dependency-compatibility",
+    "locations": [
+      "Tools/Core/authoring.ts"
+    ],
+    "reason": "Zod 4.6.7 imports plain string-key records as guarded pipes, which the pinned core cannot introspect as records; retain the historical native record schema and signature",
+    "observable": "Only records without explicit properties, pattern properties, property counts or restricted keys are restored; default/description, binding/ref identity and the original string-key check are retained",
+    "verification": "All 84 catalog components and 304 parameters round-trip against the original contract; native record/binding cases and actual Zod guard validation cover constrained objects",
+    "removal": "Equivalent upstream record introspection or an explicitly reviewed native schema/signature migration"
+  },
+  {
+    "id": "zod-schema-unions",
+    "category": "dependency-compatibility",
+    "locations": [
+      "Tools/Core/compat.mjs",
+      "Tools/Core/build.mjs",
+      "Tools/Presentation/catalog.mjs"
+    ],
+    "reason": "Zod 4.6.7 compacts pure anyOf type unions; preserve the established exported schema representation while retaining its security-fixed validators",
+    "observable": "Union and nullable nesting, branch order and schema key order; parsing, validation and collection security limits are unchanged",
+    "verification": "Exact dependency version and source/transform SHA-256 pins, unchanged reference catalog and native authoring regression cases",
+    "removal": "An explicitly reviewed schema-format migration or an equivalent upstream compatibility option"
+  },
+  {
     "id": "serializer",
     "category": "upstream-defect-fix",
     "locations": [

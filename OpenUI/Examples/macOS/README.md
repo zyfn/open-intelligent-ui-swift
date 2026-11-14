@@ -14,7 +14,7 @@ Edit source to render immediately, use 流式播放 to watch incremental parsing
 
 ## Architecture and extension points
 
-- `Package.swift` depends on the root package by relative path and links its `OpenUILang` and `OpenUISwiftUI` products. SwiftUI renders the views; `OpenUILang` executes the bundled shared core in JavaScriptCore, without a WebView.
+- `Package.swift` depends on the root package by relative path and links its `OpenUILang` and `OpenSwiftUI` products. SwiftUI renders the views; `OpenUILang` executes the bundled shared core in JavaScriptCore, without a WebView.
 - `Sources/OpenUIDemo/OpenUIDemo.swift` defines the component schema, native view registry, editor, stream playback, and mock `ToolProvider`. Replace the registry to use app-specific views or the provider to call an app-owned backend.
 - `build-app.sh` builds and ad-hoc signs a local `.app` bundle under `.build`; it does not launch or distribute the app.
 - The language core contains no UI imports; the renderer contains no demo components, travel content, credentials, or backend clients.

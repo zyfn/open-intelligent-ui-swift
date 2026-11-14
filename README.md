@@ -1,86 +1,130 @@
-# Swift Intelligent UI
+# OpenUI Swift SDK
 
-独立维护的 Apple 平台 Swift SDK 工作区：OpenUI 通用底座与 Intelligent UI 组件库共仓，把模型生成的 OpenUI Lang 渲染为 SwiftUI 内容，并从实际组件目录导出 spec、Prompt 和 manifest。
+把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。工作区提供一个语言运行时、一个共享的原生运行时，以及两套平级组件库；两套组件库各自维护目录、设计系统与生成契约。
 
-## 开始之前
+当前结构与接入规则见 [四模块架构](docs/architecture.md)。本次重构在 `refactor/openui-four-module-foundation` 分支推进，现有 Lang 契约保持不变。原生编译、交互和发布状态以具体提交的验证记录为准。
 
-**修改代码、组件、主题、生成契约或文档前，必须先阅读 `docs/swift-intelligent-ui-design.md`。**
+## 选择产品
 
-本项目有两条基线，不能混用：
+所有产品由根 [Package.swift](Package.swift) 定义，最低平台为 iOS 16 / macOS 13。
 
-- **运行时**：`OpenUI/` 中的 `OpenUILang` / `OpenUISwiftUI`，负责 DSL 语法、解析、求值、状态、绑定和流式。来源及逐文件哈希由 `OpenUI/IMPORT.json` 固定，不再拉取整个 OpenUI fork。
-- **组件契约**：`thesysdev/open-intelligent-ui` 固定提交 `16ef26475999e3a021a50b1607a03717c0721255` 的 **55 组件参考库**。
+| 产品 / import | 用途 | 原生渲染入口 |
+|---|---|---|
+| `OpenUILang` | 语言解析、求值、Store、动作与查询语义；不依赖 SwiftUI | 无 |
+| `OpenUICore` | 自建组件库；复用状态、注册、上下文、树渲染、绑定与资源基础设施 | `OpenUICoreView` |
+| `OpenSwiftUI` | 标准 OpenUI 组件目录与原生主题、布局、媒体呈现 | `OpenUIRenderer` |
+| `OpenIntelligentSwiftUI` | Intelligent UI 组件目录、设计系统、reader/writer 生成契约 | `IntelligentUIView` |
 
-OpenUI 运行时自带的 **ReferenceCatalog 不是本项目的组件基线**，不要用它替换或“修正”现有组件。
+应用根据内容选择组件库，并只链接所需产品。两套 UI 库都依赖 `OpenUICore`，互不依赖；它们公开的是同一个 `OpenUIState` 类型。标准库和 Intelligent UI 的组件名、参数含义与生成规则必须分别匹配对应 schema、registry、Prompt 和 spec。
 
-## 工作区与产品
+## 快速接入
 
-根 Swift Package 保持 `SwiftIntelligentUI` 产品，并独立导出 `OpenUILang`、`OpenUISwiftUI`。通用库位于 [`OpenUI/`](OpenUI/README.md)，原有 `Sources/SwiftIntelligentUI` 目录及组件参数不合并、不改名。普通 Intelligent UI 使用者仍只链接 `SwiftIntelligentUI`。
+### Intelligent UI
 
-`OpenUIStandardComponents` 的 87 项库与这里的 Intelligent UI reader/writer 是两套独立目录，不能混用它们的 spec/Prompt。当前合并为迁移候选；不得把源码集成当成 RC21 发布或真机验收。
+~~~swift
+import SwiftUI
+import OpenIntelligentSwiftUI
 
-## 体系
+@MainActor
+struct AnswerView: View {
+    private let library: IntelligentUILibrary
+    @StateObject private var state: OpenUIState
 
-```text
-宿主：业务数据、消息生命周期、资源、动作结果
-                 ↓
-Swift Intelligent UI：组件、设计规则、语义 token、生成契约、诊断
-                 ↓
-OpenUI Swift：解析、求值、状态、绑定、流式、渲染遍历
-                 ↓
-SwiftUI / MapKit / WebKit / JavaScriptCore
-```
+    init() throws {
+        let library = try IntelligentUILibrary()
+        self.library = library
+        _state = StateObject(wrappedValue: library.makeState())
+    }
 
-| 层 | 职责 |
-|---|---|
-| Catalog | 注册组件、创建状态、维护读取目录与生成目录 |
-| Components | 官方组件的原始参数与语义、少量独立业务组件 |
-| DesignSystem | 阅读节奏、图注与卡片关系、控件状态、平台行为 |
-| IntelligentUITheme | 可复用的语义颜色、字体、间距、圆角和通用默认值 |
-| 组件 Metrics | 表格、商品、地图、图表等组件内部规格 |
-| Generation | 从真实 writer 目录生成 spec、Prompt、manifest 和诊断 |
-| Functions | 固定计算函数与 JSON 数据桥接 |
+    var body: some View {
+        IntelligentUIView(state: state, library: library)
+            .task {
+                state.setSource(
+                    #"root = Col([Title("原生界面"), Text("可组合的内容")])"#
+                )
+            }
+    }
+}
+~~~
 
-**公共主题不是组件参数仓库。** 表格列宽、商品缩略图、地图高度等留在组件内部；共享图文尺寸归 `EditorialMetrics`。间距与圆角独立，`chartColors` 不复用业务状态色。
+`makeState()` 配置匹配的 reader schema 与函数，生命周期仍由宿主持有。新生成内容使用 `library.systemPrompt` 及同一实例导出的 writer 契约；组件排除只缩小新输出能力，历史 reader 仍保留。
+
+### 标准组件库
+
+在主线程创建一次匹配的 library 与 state，再将 state 保存在宿主的展示模型或 `@StateObject` 中：
+
+~~~swift
+import OpenSwiftUI
+
+let library = try OpenUIStandardComponents.library()
+let state = OpenUIState(schema: library.library.toSchema())
+state.setSource(#"root = Stack([TextContent("共享运行时，标准组件呈现")])"#)
+let content = OpenUIRenderer(state: state, registry: library.registry)
+~~~
+
+### 自建组件库
+
+只依赖 `OpenUICore` 即可注册自己的组件，Core 不会自动安装任一 UI 库：
+
+~~~swift
+import SwiftUI
+import OpenUICore
+
+let library = try OpenUIComponentLibrary(
+    components: [
+        OpenUIComponent(
+            name: "Notice",
+            description: "Application-owned notice",
+            params: [OpenUIParameter.string("text")]
+        ) { context in
+            Text(context.string("text") ?? "").padding()
+        }
+    ],
+    root: "Notice"
+)
+let state = OpenUIState(schema: library.library.toSchema())
+state.setSource(#"root = Notice("自定义组件")"#)
+let content = OpenUICoreView(state: state, registry: library.registry)
+~~~
+
+上述状态初始化与更新在主线程执行。不要在 `body`、布局测量或尺寸拟合中反复创建 state、提交源码或写入业务状态。
+
+## 输入、动作与宿主职责
+
+完整内容使用 `setSource(_:streaming:)`；增量内容使用 `push(_:)`，正常结束调用 `complete()`，用户中断调用 `interrupt()`。开启独立文档时使用新 state 或显式 `reset()`。相同流式快照的重复提交不会重新解析或推进文档身份。
+
+组件通过共享 context 读取值、绑定状态、执行动作；宿主通过 `state.onAction` 接收事件。业务数据、会话/消息列表、滚动位置、网络权限与交易结果由宿主管理。资源加载可以通过 `OpenUIResourceContext` 注入；各组件库继续负责自己的图片布局、预览、失败呈现与交互视觉。
 
 ## 构建与验证
 
-```sh
+在带受支持 Xcode 的 Mac 上，从仓库根目录运行：
+
+~~~sh
 swift test
-swift run IntelligentUIGallery
+python3 Tools/check_module_boundaries.py
+python3 Tools/check_product_consumers.py --scratch-root /tmp/openui-consumers
+swift test -c release --filter 'HostSizingIsolationTests|CoreHostIsolationTests'
 swift run IntelligentUIGallery --validate-fixtures
 swift run ContractExport outputs/contracts
 python3 Tools/check_localization.py
 python3 Tools/check_lang_compatibility.py
-```
+~~~
 
-iOS Gallery 使用 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 `IntelligentUIGallery`。在 Xcode 中选择模拟器并运行即可，修改 Swift 代码或资源后需要重新构建、安装并启动。
+iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 `IntelligentUIGallery`，使用同一个根 Swift Package。完整验证流水线见 [native-sdk.yml](.github/workflows/native-sdk.yml)，包含独立产品消费者、原生测试、Release 尺寸拟合、历史契约、资源重建与 iOS 编译；流水线配置本身不构成通过证据。
 
-`outputs/contracts` 包含：
+`ContractExport` 输出 `spec.json`、`prompt.txt`、`manifest.json`。默认 `--validate` 检查新生成契约；历史程序使用：
 
-- `spec.json`：组件签名、函数与 schema。
-- `prompt.txt`：供模型使用的生成约束。
-- `manifest.json`：组件、函数、动作及运行要求。
+~~~sh
+swift run ContractExport --validate path/to/program.lang --historical
+swift run ContractExport --reader-contract --include-search outputs/reader-contract
+~~~
 
-历史 Lang 的读取契约与生成契约分开：原有组件名、位置参数、字段和绑定保持 reader 兼容；新生成按 writer 校验。用 `swift run ContractExport --validate program.lang --historical` 检查历史记录，用 `--reader-contract --include-search` 导出完整 reader。默认 `--validate` 检查新生成契约。
+## 源码与维护
 
-本轮组件与设计系统改造记录见 [设计改造状态](docs/design-revamp-status.md)。Gallery 新增“设计改造验收”案例与语言/RTL 切换；可用 `swift run IntelligentUIGallery --fixture 设计改造验收 --locale ar --accessibility --dark` 打开指定环境。代码、构建、契约、界面与真实模型评测分别报告结果。
+当前实现均位于根 `Sources/OpenUILang`、`Sources/OpenUICore`、`Sources/OpenSwiftUI`、`Sources/OpenIntelligentSwiftUI`；对应测试位于根 `Tests/`。`OpenUI/Sources`、`OpenUI/Tests` 的历史软链接已移除。
 
-## 修改时必须遵守
+`OpenUI/` 保留导入来源、工具、fixtures、验证器、示例与历史文档。[IMPORT.json](OpenUI/IMPORT.json) 记录原始导入证据，[upstream.json](OpenUI/Tools/upstream.json) 固定重建输入；重构不改写这些来源记录。应用只依赖根包，避免重复引入定义同名模块的旧 fork。
 
-1. **官方组件不追加私有 DSL 参数。** 先证明官方变量、绑定、Each 和布局组合无法表达，再讨论是否需要独立业务组件。
-2. **视觉差异不要进入 DSL。** 图片预览、滚动、地图展开、图表内部选择等原生行为由 SDK 内部决定。
-3. **Map 只负责地图。** 不接收任意卡片投影，不增加私有身份、筛选或路线协议；地点卡片放 Map 外组合。
-4. **DesignSystem 管规则，token 管参数。** 不要让父容器隐式改变子组件业务语义，也不要把所有组件尺寸都塞入公共主题。
-5. **生成契约必须与实现同源。** 不得用 Prompt 正则补丁或长段说明掩盖签名和运行时差异。
-6. **运行时依赖必须可复现。** 本仓的 `OpenUI/` 是提交并共同验证的正式源码，不是本机 path override。应用只依赖根 Swift Package；禁止同时引入旧 fork 的同名产品。上游源码由 `OpenUI/Tools/upstream.json` 固定，仅在维护者重建资源时获取。
-7. **不要改偏测试来制造通过。** 失败必须保留并解释；构建通过不等于真实界面通过。
-8. **文档只写当前体系。** `docs/swift-intelligent-ui-design.md` 不记录版本流水或变更过程；历史证据另存，不在主文档展开。
+修改前先阅读 [当前架构](docs/architecture.md)。组件参数和生成契约须与实际注册实现同源；视觉规则放在各自 UI 库，布局测量不得触发语义更新，失败验证必须保留。源码组织调整不新增 Lang 参数，不重建另一份 Store，不把聊天外壳纳入 SDK。
 
-## 给 Agent 的修改流程
-
-1. 先阅读设计文档，确认修改属于 **DSL、组件行为、设计规则、token、组件规格还是宿主职责**。
-2. 检查是否已有官方机制可完成，避免新增私有协议或隐式分支。
-3. 同步修改实现、测试、生成契约和当前设计文档，不能只改其中一层。
-4. 运行构建、测试、固定 Gallery 程序及必要的真实界面操作，保留失败证据。
-5. 不自动提交、推送或发布；需要这些动作时按用户明确指令执行。
+Intelligent UI 的组件契约和视觉规则见 [Intelligent UI 设计](docs/swift-intelligent-ui-design.md)。[设计改造状态](docs/design-revamp-status.md)、[集成审查](docs/openui-integration-review.md) 与 [历史记录](docs/swift-intelligent-ui-history.md) 保留用于追溯；其中的旧模块名、旧路径和过去验证结果不作为当前分支的接入依据。

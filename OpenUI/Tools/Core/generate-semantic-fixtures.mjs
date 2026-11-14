@@ -45,6 +45,6 @@ const store=core.createStore(), first={n:1}, second={n:1};
 store.set('$first',first,false);store.set('$second',second,false);store.set('$second',first,false);
 vectors.push({kind:'stateAlias',id:'state-alias-write',expectedRef:store.get('$second')===first,specExpected:true,referenceDefect:'store.set shallow-compares plain objects; protocol object identity requires installing the supplied reference.'});
 const metadata={reference:process.argv[3]??'9823ec05d4b29bc78d101676dc16b44fe17f1830',moduleSource:process.argv[4]??process.argv[3]??'9823ec05d4b29bc78d101676dc16b44fe17f1830',moduleSha256:createHash('sha256').update(fs.readFileSync(modulePath)).digest('hex'),node:process.version,v8:process.versions.v8,unicode:process.versions.unicode,regexp:'new RegExp(pattern).test(value), no flags',vectors};
-const target=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../Tests/OpenUILangTests/Fixtures/semantic-vectors.json');
+const target=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../../Tests/OpenUILangTests/Fixtures/semantic-vectors.json');
 fs.writeFileSync(target,JSON.stringify(metadata,null,2)+'\n');
 console.log(`${expressions.length} expression, ${patterns.length*inputs.length} regexp, 1 normative state-alias vector; Node ${process.version}, V8 ${process.versions.v8}`);
