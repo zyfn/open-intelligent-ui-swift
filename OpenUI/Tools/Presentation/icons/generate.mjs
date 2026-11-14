@@ -123,7 +123,7 @@ const rounded = structuredClone(control);
 rounded.icons.pin[0].commands[0][1] = 6.1185672021470205;
 assert.equal(compareArtwork(control, rounded).roundedCoordinates, 1);
 assert.equal(compareArtwork(control, structuredClone(control)).roundedCoordinates, 0);
-const target = resolve(here,'../../../../Sources/OpenSwiftUI/Resources');
+const target = resolve(here,'../../../Sources/OpenUISwiftUI/Resources');
 for (const [name, data] of [
   ['lucide-icons.json', JSON.stringify({version,revision,fallbacks,icons})+'\n'],
   ['Lucide-LICENSE.txt', readFileSync(resolve(lucide,'LICENSE'),'utf8')],

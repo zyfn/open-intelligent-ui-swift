@@ -124,7 +124,7 @@ const imports = Object.values(result.metafile.outputs).flatMap(
   (x) => x.imports,
 );
 if (imports.length) throw Error('Unexpected external runtime imports');
-const out = join(here, '../../../Sources/OpenUILang/Resources');
+const out = join(here, '../../Sources/OpenUILang/Resources');
 mkdirSync(out, { recursive: true });
 const data = Buffer.from(
   result.outputFiles[0].text
@@ -137,7 +137,7 @@ const licenses = [
   'Upstream OpenUI (MIT)',
   readFileSync(join(root, 'LICENSE'), 'utf8'),
   'Bounded native pattern backend',
-  readFileSync(join(here, '../../../Sources/COpenUIRegExp/vendor/LICENSE'), 'utf8'),
+  readFileSync(join(here, '../../Sources/COpenUIRegExp/vendor/LICENSE'), 'utf8'),
 ];
 for (const name of [
   'zod',

@@ -12,7 +12,7 @@ import vm from 'node:vm';
 import {serializer} from './compat.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url)),root=prepareCoreSource();
-const manifest=JSON.parse(readFileSync(join(here,'../../../Sources/OpenUILang/Resources/core-manifest.json')));
+const manifest=JSON.parse(readFileSync(join(here,'../../Sources/OpenUILang/Resources/core-manifest.json')));
 assert.equal(execFileSync('git',['rev-parse','HEAD:packages/lang-core'],{cwd:root,encoding:'utf8'}).trim(),manifest.sourceTree);
 execFileSync('git',['diff','--quiet','HEAD','--','packages/lang-core'],{cwd:root});
 const temporary=mkdtempSync(join(tmpdir(),'openui-oracle-'));
@@ -23,7 +23,7 @@ try {
   await build({absWorkingDir:root,entryPoints:['packages/lang-core/src/index.ts'],outfile:modulePath,bundle:true,platform:'node',format:'esm',minifyWhitespace:true,legalComments:'none',nodePaths:[join(here,'node_modules')],external:['ci-info'],logLevel:'silent'});
   const official=await import(pathToFileURL(modulePath));
   const realm=vm.createContext({__utf8Encode:x=>[...Buffer.from(x)],__utf8Decode:x=>Buffer.from(x).toString('utf8'),setInterval,clearInterval});
-  vm.runInContext(readFileSync(join(here,'../../../Sources/OpenUILang/Resources/lang-core.js'),'utf8'),realm);
+  vm.runInContext(readFileSync(join(here,'../../Sources/OpenUILang/Resources/lang-core.js'),'utf8'),realm);
   const native=realm.SwiftCore.api;
   const canonicalSource=`function canonical(value) {
     if(value===undefined)return {undefined:true};
@@ -130,7 +130,7 @@ try {
   assert.equal(readFileSync(join(patchRoot,serializerPath),'utf8'),serializer(serializerSource),'Standalone patch must match the shipped build correction');
   assert.deepEqual(manifest.adaptations,JSON.parse(readFileSync(join(here,'adaptations.json'))));
   const contract={upstream:manifest.upstream,sourceTree:manifest.sourceTree,oracleSHA256:sha(readFileSync(modulePath)),officialActionSHA256:sha(section),canonicalSource,schema,fixtures,actions,queries,roundtrips};
-  const fixtureFile=join(here,'../../../Tests/OpenUILangTests/Fixtures/strict-compatibility.json');
+  const fixtureFile=join(here,'../../Tests/OpenUILangTests/Fixtures/strict-compatibility.json');
   if(process.argv.includes('--write'))writeFileSync(fixtureFile,JSON.stringify(contract)+'\n');
   else assert.deepEqual(JSON.parse(readFileSync(fixtureFile)),contract,'Oracle fixture drift: inspect source changes before regenerating');
   console.log(JSON.stringify({strictParserComparisons:comparisons,officialActionTraces:actions.length,controlledQuerySnapshots:queries.snapshots.length,serializerRoundtrips:roundtrips.length,unexplainedDifferences:0}));
