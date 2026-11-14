@@ -144,42 +144,49 @@ jobs:
           set -euo pipefail
           swift test 2>&1 | tee outputs/verification/sdk-tests.log
       - name: Independent public UI product consumers
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
           python3 Tools/check_product_consumers.py --scratch-root "$RUNNER_TEMP/native-consumers" \
             2>&1 | tee outputs/verification/product-consumers.log
       - name: Release native fitting
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
           swift test -c release --filter 'HostSizingIsolationTests|CoreHostIsolationTests' \
             2>&1 | tee outputs/verification/release-fitting.log
       - name: Gallery fixture programs
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
           swift run IntelligentUIGallery --validate-fixtures \
             2>&1 | tee outputs/verification/gallery-fixtures.log
       - name: Preserve historical Intelligent UI contracts
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
           python3 Tools/check_lang_compatibility.py \
             2>&1 | tee outputs/verification/historical-contracts.log
       - name: Native language AddressSanitizer
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
           swift test --scratch-path "$RUNNER_TEMP/openui-asan" --sanitize=address --filter OpenUILangTests \
             2>&1 | tee outputs/verification/asan.log
       - name: Standard-library standalone macOS example
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
           swift build --package-path OpenUI/Examples/macOS \
             2>&1 | tee outputs/verification/standard-macos.log
       - name: All library products for iOS 16 Simulator
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -189,6 +196,7 @@ jobs:
               2>&1 | tee "outputs/verification/$target-ios.log"
           done
       - name: iOS Gallery using the same local package
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail

@@ -127,4 +127,4 @@ swift run ContractExport --reader-contract --include-search outputs/reader-contr
 
 修改前先阅读 [当前架构](docs/architecture.md)。组件参数和生成契约须与实际注册实现同源；视觉规则放在各自 UI 库，布局测量不得触发语义更新，失败验证必须保留。源码组织调整不新增 Lang 参数，不重建另一份 Store，不把聊天外壳纳入 SDK。
 
-旧版 [Intelligent UI 设计](docs/swift-intelligent-ui-design.md)、[设计改造状态](docs/design-revamp-status.md)、[集成审查](docs/openui-integration-review.md) 与 [历史记录](docs/swift-intelligent-ui-history.md) 保留用于追溯。它们记录的旧模块名、旧路径和过去验证结果不作为当前分支的接入依据。
+Intelligent UI 的组件契约和视觉规则见 [Intelligent UI 设计](docs/swift-intelligent-ui-design.md)。[设计改造状态](docs/design-revamp-status.md)、[集成审查](docs/openui-integration-review.md) 与 [历史记录](docs/swift-intelligent-ui-history.md) 保留用于追溯；其中的旧模块名、旧路径和过去验证结果不作为当前分支的接入依据。
