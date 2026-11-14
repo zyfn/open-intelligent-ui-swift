@@ -1,5 +1,5 @@
 import SwiftUI
-import OpenUISwiftUI
+import OpenSwiftUI
 import OpenUILang
 
 enum ButtonComponent {

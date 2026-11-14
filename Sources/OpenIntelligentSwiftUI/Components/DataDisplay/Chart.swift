@@ -1,7 +1,7 @@
 import SwiftUI
 import Charts
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 private enum ChartMetrics {
     static let axisFont: Font = .caption

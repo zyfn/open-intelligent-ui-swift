@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum TextAreaComponent {
     static var component: OpenUIComponent {

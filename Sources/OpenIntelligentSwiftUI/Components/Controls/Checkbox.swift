@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum CheckboxComponent {
     @MainActor static func toggle(_ context: OpenUIComponentContext) {

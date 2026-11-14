@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 enum CalendarDate {
     static func parse(_ text: String?) -> Date? {

@@ -1,6 +1,6 @@
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
+import OpenSwiftUI
 
 private enum TimerMetrics {
     static let font: Font = .system(.largeTitle, design: .rounded)
