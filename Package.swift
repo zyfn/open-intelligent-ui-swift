@@ -16,7 +16,7 @@ let package = Package(
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", exact: "2.4.1")
     ],
     targets: [
-        .target(name: "COpenUIRegExp", path: "OpenUI/Sources/COpenUIRegExp",
+        .target(name: "COpenUIRegExp", path: "Sources/COpenUIRegExp",
             exclude: ["README.md", "VENDOR.json", "vendor/LICENSE"],
             sources: ["Bridge.c", "RegExpEngine.c", "UnicodeEngine.c"], publicHeadersPath: "include"),
         .target(name: "OpenUILang", dependencies: ["COpenUIRegExp"], path: "OpenUI/Sources/OpenUILang",
