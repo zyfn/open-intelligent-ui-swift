@@ -1,6 +1,6 @@
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class TableDispatchBoundaryTests: XCTestCase {
   @MainActor private func fixture(streaming: Bool = false) throws -> (OpenUIState, OpenUIComponentContext) {

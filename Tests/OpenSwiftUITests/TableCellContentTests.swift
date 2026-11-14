@@ -2,7 +2,7 @@ import OpenUILang
 import SwiftUI
 import XCTest
 
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 #if os(macOS)
 import AppKit

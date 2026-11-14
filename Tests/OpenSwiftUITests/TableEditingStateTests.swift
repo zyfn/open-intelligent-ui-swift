@@ -1,6 +1,6 @@
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class TableEditingStateTests: XCTestCase {
   private var source: Value { .array([.object([.init(key:"id",value:.string("r1")),.init(key:"values",value:.array([.string("before")]))])]) }

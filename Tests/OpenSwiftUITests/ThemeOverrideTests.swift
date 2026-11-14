@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import XCTest
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ThemeOverrideTests: XCTestCase {
   @MainActor func testListTitlesAndCompactDescriptionsUseTheirIndependentThemeFonts() throws {

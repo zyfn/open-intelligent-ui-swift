@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class TableMountedViewTests:XCTestCase {
   @MainActor func testMountedSourceObservationDoesNotClearRejectedDraft() async throws {
