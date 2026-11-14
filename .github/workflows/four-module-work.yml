@@ -1,0 +1,31 @@
+name: Four-module workspace preparation
+on:
+  push:
+    branches: [codex/four-module-work-20261114]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 736f440d128272e791f185dc53c78ff53ad5455a
+          persist-credentials: false
+      - name: Archive exact source and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/four-module-source"
+          test "$(git rev-parse HEAD)" = 736f440d128272e791f185dc53c78ff53ad5455a
+          git archive --format=tar HEAD > "$RUNNER_TEMP/four-module-source/workspace.tar"
+          git ls-tree -r HEAD > "$RUNNER_TEMP/four-module-source/tree.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/four-module-source/commit.txt"
+          sha256sum "$RUNNER_TEMP/four-module-source/workspace.tar" > "$RUNNER_TEMP/four-module-source/archive-sha256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: four-module-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/four-module-source/
+          retention-days: 7
+          if-no-files-found: error
