@@ -1,19 +1,15 @@
 # 四模块架构
 
-本文描述当前 `refactor/openui-four-module-foundation` 分支的实际源码边界。根 `Package.swift` 导出四个库产品；客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 使用它们。两个 UI 库共享运行时，各自提供组件与视觉体系。接入示例见 [README](../README.md)。
+本文描述当前 `refactor/openui-four-module-foundation` 分支的实际源码边界。本仓库是一个 Swift Package，根 `Package.swift` 导出四个库产品。客户端只用一套 UI 时选择对应的一个产品，同时使用两套 UI 时选择两个 UI 产品；Core 和 Lang 由依赖关系自动带入。客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 接入，两个 UI 库各自提供组件与视觉体系。接入示例见 [README](../README.md)。
 
 ## 1. 依赖关系
 
 ~~~mermaid
 flowchart TB
-    Host["宿主应用"]
     Standard["OpenSwiftUI"]
     Intelligent["OpenIntelligentSwiftUI"]
     Core["OpenUICore"]
     Lang["OpenUILang"]
-    Host --> Standard
-    Host --> Intelligent
-    Host --> Core
     Standard --> Core
     Intelligent --> Core
     Core --> Lang
@@ -21,7 +17,9 @@ flowchart TB
     Intelligent --> Lang
 ~~~
 
-图中箭头表示源码/产品使用方向。`OpenSwiftUI` 与 `OpenIntelligentSwiftUI` 不相互引用，也不通过对方取得状态或动作实现。SwiftUI、MapKit、WebKit 等 Apple 框架由需要它们的模块直接使用；与 UI 无关的语言层不导入 SwiftUI。
+图中箭头表示同一包内的模块依赖。`OpenSwiftUI` 与 `OpenIntelligentSwiftUI` 不相互引用，也不通过对方取得状态或动作实现。SwiftUI、MapKit、WebKit 等 Apple 框架由需要它们的模块直接使用；与 UI 无关的语言层不导入 SwiftUI。
+
+普通接入只需 `import` 所选 UI 模块，它已公开 Core 的公共类型。显式声明 `ToolProvider`、`Value`、`ActionEvent` 或 `LibrarySpec` 等 Lang 类型时，增加 `import OpenUILang`；这是使用同一包内的模块，无需添加另一个 SDK。
 
 | 模块 | 源码目录 | 所有权 |
 |---|---|---|
@@ -150,7 +148,7 @@ layout/placeholder 的结构元数据也由组件注册提供。Core 只按已�
 
 当前源码和测试只在根 `Sources/` 与 `Tests/` 各自所属模块中维护。构建工具在 `Tools/`，验证材料在 `Validation/`，公共兼容数据在 `Fixtures/`，示例在 `Examples/`，有效文档在 `docs/`。不保留旧目录软链接、重复 SDK 外壳或过时的实施状态文档。
 
-[IMPORT.json](../Provenance/OpenUI/IMPORT.json) 与上游许可证单独保存在 `Provenance/OpenUI/`。清单记录原始导入时的路径和哈希，作为来源证据保留原字节；它不是当前文件索引。[upstream.json](../Tools/upstream.json) 固定上游重建输入，当前可执行路径以根 Package 与构建工具为准。
+[upstream.json](../Tools/upstream.json) 固定当前生成输入，原始导入来源可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，由根 Package 声明为资源并随 SDK 打包。当前可执行路径以根 Package 与构建工具为准。
 
 本轮改变 Swift 模块边界与共享能力归属，保留现有 Lang 组件名、位置参数、枚举、绑定和 reader/writer 契约。标准目录与 Intelligent UI 目录继续独立生成各自 Prompt/spec，不混用两套定义或以布局改动为理由新增私有参数。
 

@@ -2,11 +2,23 @@
 
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择标准 UI 或 Intelligent UI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
+## 客户端只添加一个包
+
+通过 Swift Package Manager 添加本仓库 `https://github.com/zyfn/open-intelligent-ui-swift.git`；使用当前开发分支时选择 `refactor/openui-four-module-foundation`。
+
+| 客户端需要 | 给应用 target 添加的库产品 | 自动带入的公共模块 |
+|---|---|---|
+| 标准 UI | `OpenSwiftUI` | `OpenUICore`、`OpenUILang` |
+| Intelligent UI | `OpenIntelligentSwiftUI` | `OpenUICore`、`OpenUILang` |
+| 同一应用同时支持两套 UI | `OpenSwiftUI` 和 `OpenIntelligentSwiftUI` | 共享一份 `OpenUICore`、`OpenUILang` |
+
+只使用一套 UI 时，选一个 UI 产品即可。Core 与 Lang 是同包内自动解析的依赖，无需分别安装 SDK。Swift 源文件中的 `import` 用于选择可见模块，与添加几个 Swift Package 是不同的操作。
+
 ## 一套客户端接口
 
-根 `Package.swift` 定义四个库产品，最低平台为 iOS 16 / macOS 13。
+根 `Package.swift` 定义四个可选库产品，最低平台为 iOS 16 / macOS 13；下面是包内分层，不要求客户端全部添加。
 
-| 产品 / import | 用途 | 选择组件库 |
+| 库产品（同名 Swift 模块） | 用途 | 选择组件库 |
 |---|---|---|
 | `OpenUILang` | 语言解析、求值、Store、动作和查询语义 | 无原生 UI |
 | `OpenUICore` | 公共客户端接口、状态、注册、渲染、绑定和资源基础设施 | `OpenUILibrary(components: …)` |
@@ -50,6 +62,8 @@ let content = OpenUIView(state: state, library: library)
 ~~~
 
 同一个工厂也接受宿主的 `toolProvider:` 和 `persistedState:`，两套组件库使用完全相同的参数。持久化数据可以使用 `[OpenUIString: Value]` 或 `[String: Value]`；自定义函数来自所选库的实际 reader。
+
+普通接入只需 `import` 所选 UI 模块，它已经导出 Core 的公共接口。如果源码显式声明 `ToolProvider`、`Value`、`ActionEvent`、`LibrarySpec` 等语言层类型，再加 `import OpenUILang`；这仍然使用同一个包内的模块。
 
 完整源码和流式内容使用同一状态接口：
 
@@ -157,8 +171,9 @@ iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme
 | `Fixtures/` | 语言兼容验证数据 |
 | `Validation/` | 验收说明、源码修复候选与核验材料 |
 | `docs/` | 当前架构、组件、语言与设计文档 |
-| `Provenance/OpenUI/` | 原始导入清单和上游许可证 |
 
 源码只在根 `Sources/` 维护，没有嵌套 SDK 或旧目录软链接。客户端只依赖根包，避免同时解析另外一个定义同名模块的旧 fork。
 
-维护入口：[当前架构](docs/architecture.md)、[Intelligent UI 设计](docs/swift-intelligent-ui-design.md)、[验证与安全修复](docs/validation-and-security.md)。[原始导入清单](Provenance/OpenUI/IMPORT.json) 保留历史来源和当时的文件映射；当前生成输入由 [upstream.json](Tools/upstream.json) 固定。
+本仓库直接维护整合后的 Swift 源码，未通过 SwiftPM 再依赖旧 OpenUI Swift SDK。历史迁移记录保留在 Git 历史；当前生成输入由 [upstream.json](Tools/upstream.json) 固定，上游许可保留在根 [第三方声明](THIRD-PARTY-NOTICES.txt) 和随 SDK 打包的 [语言层第三方声明](Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt) 中。
+
+维护入口：[当前架构](docs/architecture.md)、[Intelligent UI 设计](docs/swift-intelligent-ui-design.md)、[验证与安全修复](docs/validation-and-security.md)。

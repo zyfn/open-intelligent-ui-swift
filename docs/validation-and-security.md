@@ -1,6 +1,6 @@
 # 验证与安全修复
 
-本文记录四模块重构之后的依赖与源码验证修复。当前实现和安全修复在 `refactor/openui-four-module-foundation` 分支维护；具体提交的验收结果以 [Native SDK 流水线](https://github.com/zyfn/open-intelligent-ui-swift/actions/workflows/native-sdk.yml) 和 [PR #3](https://github.com/zyfn/open-intelligent-ui-swift/pull/3) 为准。历史导入的提交、文件映射和资源哈希仍保留在 [IMPORT.json](../Provenance/OpenUI/IMPORT.json)。
+本文记录四模块重构之后的依赖与源码验证修复。当前实现和安全修复在 `refactor/openui-four-module-foundation` 分支维护；具体提交的验收结果以 [Native SDK 流水线](https://github.com/zyfn/open-intelligent-ui-swift/actions/workflows/native-sdk.yml) 和 [PR #3](https://github.com/zyfn/open-intelligent-ui-swift/pull/3) 为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，原始导入来源可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，并随 SDK 资源打包。
 
 ## 1. 实际打包依赖与可复现生成
 

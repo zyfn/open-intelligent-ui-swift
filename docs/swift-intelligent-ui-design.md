@@ -28,7 +28,8 @@ flowchart TB
 ### 依赖与边界
 
 - 最低平台为 iOS 16 / macOS 13。
-- 四个模块在根 `Sources/`、`Tests/` 中共同版本化，根包导出 `OpenUILang`、`OpenUICore`、`OpenSwiftUI` 与 `OpenIntelligentSwiftUI`。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`。开发工具、验证器、规范夹具与示例分别在根 `Tools/`、`Validation/`、`Fixtures/`、`Examples/` 维护，来源与原始许可保存在 [Provenance/OpenUI](../Provenance/OpenUI/README.md)。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。当前边界见[四模块架构](architecture.md)。
+- 四个模块在根 `Sources/`、`Tests/` 中共同版本化，根包导出 `OpenUILang`、`OpenUICore`、`OpenSwiftUI` 与 `OpenIntelligentSwiftUI`。客户端使用 Intelligent UI 时只选择 `OpenIntelligentSwiftUI` 产品，Core 与 Lang 自动作为依赖带入；同时支持标准 UI 时再选择 `OpenSwiftUI` 产品。当前边界见[四模块架构](architecture.md)。
+- 当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`，可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，并随 SDK 资源打包。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。
 - 组件及计算参考固定为 `16ef26475999e3a021a50b1607a03717c0721255` 的 55 组件库，不是 OpenUI 运行时内置的 ReferenceCatalog。
 - swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.18.2；依赖安全修复与资源来源见[验证与安全修复](validation-and-security.md)。
 
@@ -57,9 +58,9 @@ flowchart TB
 | `Generation/` | spec、Prompt、manifest 与诊断 |
 | `Resources/` | 计算、公式、本地化与许可资源 |
 
-根 `Examples/` 维护 Gallery、macOS 消费示例和 Agent 契约案例；`Tools/` 维护生成器与检查工具，`Fixtures/` 维护版本化语言规范夹具，`Validation/` 维护独立验证器及冻结源码修复清单。`Benchmarks/`、`docs/` 分别维护模型验证和文档，`outputs/` 保存本地导出与验收材料。原始导入记录与许可集中在 `Provenance/OpenUI/`，不构成第二个 SDK 包。
+根 `Examples/` 维护 Gallery、macOS 消费示例和 Agent 契约案例；`Tools/` 维护生成器与检查工具，`Fixtures/` 维护版本化语言规范夹具，`Validation/` 维护独立验证器及冻结源码修复清单。`Benchmarks/`、`docs/` 分别维护模型验证和文档，`outputs/` 保存本地导出与验收材料。
 
-组件定义与实现相邻，复杂组件在自己的文件或子目录维护辅助类型。Catalog 聚合实际实现，Generation 读取同一个注册库。消费者只需链接 `OpenIntelligentSwiftUI` 产品及其传递依赖，不依赖标准 UI 库、Gallery 或开发工具。
+组件定义与实现相邻，复杂组件在自己的文件或子目录维护辅助类型。Catalog 聚合实际实现，Generation 读取同一个注册库。消费者只需选择 `OpenIntelligentSwiftUI` 产品，其传递依赖由 SwiftPM 自动处理；标准 UI 库、Gallery 和开发工具按需使用。
 
 ## 3. 宿主接入与状态
 
@@ -78,6 +79,8 @@ state.onAction = { event in
 state.setSource(#"root = Col([Title("原生界面"), Text("可组合的内容")])"#)
 let view = OpenUIView(state: state, library: library)
 ```
+
+UI 模块已公开 Core 的公共类型。调用方显式声明 `ToolProvider`、`Value`、`ActionEvent` 或 `LibrarySpec` 等 Lang 类型时，增加 `import OpenUILang` 即可；它仍是同一个 Swift Package 内的模块。
 
 调用方应长期持有 state，例如放入 StateObject 或自己的展示模型，避免在 body 中反复创建。`library.systemPrompt` 和 `library.specificationJSON` 提供模型生成契约；宿主使用同一个 Core 状态与事件类型切换标准库或 Intelligent 库。
 
@@ -267,7 +270,7 @@ python3 Tools/check_lang_compatibility.py
 python3 Tools/package.py
 ```
 
-iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 IntelligentUIGallery；支持 iPhone/iPad，引用本包与固定远程 SDK revision。消费者不需要 Gallery 或开发工具。
+iOS Gallery 工程为 `Examples/Gallery/IntelligentUIGallery.xcodeproj`，scheme 为 IntelligentUIGallery；支持 iPhone/iPad，通过本地 Swift Package 引用当前根包。消费者不需要 Gallery 或开发工具。
 
 Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。它包含语法、60 个默认组件的签名与行为、内置及注册函数、动作、视觉与事实约束，以及同日记录、稳定任务、消费确认、基础图文、已知联程、独立去返、地图联动与表单计算八个完整示例。示例数据与链接仅用于解释语法，不作为真实推荐。
 
