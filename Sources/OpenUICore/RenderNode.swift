@@ -25,18 +25,18 @@ public struct ComponentRegistry: ExpressibleByDictionaryLiteral {
         get { builders[name] }
         set { builders[name] = newValue; presentationPlaceholders.remove(name); layoutFields.removeValue(forKey: name); formControlLabelOwners.remove(name) }
     }
-    mutating func setPresentationPlaceholder(_ name: String, enabled: Bool) {
+    package mutating func setPresentationPlaceholder(_ name: String, enabled: Bool) {
         if enabled { presentationPlaceholders.insert(name) }
         else { presentationPlaceholders.remove(name) }
     }
-    func supportsPresentationPlaceholder(_ name: String) -> Bool { presentationPlaceholders.contains(name) }
-    mutating func setLayoutFields(_ name: String, fields: [String]) { layoutFields[name] = fields }
-    func presentationLayoutFields(_ name: String) -> [String] { layoutFields[name] ?? [] }
-    mutating func setFormControlLabelOwner(_ name: String, enabled: Bool) {
+    package func supportsPresentationPlaceholder(_ name: String) -> Bool { presentationPlaceholders.contains(name) }
+    package mutating func setLayoutFields(_ name: String, fields: [String]) { layoutFields[name] = fields }
+    package func presentationLayoutFields(_ name: String) -> [String] { layoutFields[name] ?? [] }
+    package mutating func setFormControlLabelOwner(_ name: String, enabled: Bool) {
         if enabled { formControlLabelOwners.insert(name) }
         else { formControlLabelOwners.remove(name) }
     }
-    func ownsFormControlLabel(_ name: String) -> Bool { formControlLabelOwners.contains(name) }
+    package func ownsFormControlLabel(_ name: String) -> Bool { formControlLabelOwners.contains(name) }
 }
 
 /// Recursively renders an `EvaluatedElement` tree.

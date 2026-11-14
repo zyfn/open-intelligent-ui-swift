@@ -7,6 +7,7 @@ let package = Package(
     platforms: [.iOS(.v16), .macOS(.v13)],
     products: [
         .library(name: "OpenUILang", targets: ["OpenUILang"]),
+        .library(name: "OpenUICore", targets: ["OpenUICore"]),
         .library(name: "OpenSwiftUI", targets: ["OpenSwiftUI"]),
         .library(name: "OpenIntelligentSwiftUI", targets: ["OpenIntelligentSwiftUI"]),
         .executable(name: "IntelligentUIGallery", targets: ["IntelligentUIGallery"]),
@@ -22,7 +23,8 @@ let package = Package(
         .target(name: "OpenUILang", dependencies: ["COpenUIRegExp"], path: "Sources/OpenUILang",
             resources: [.copy("Resources/lang-core.js"), .copy("Resources/core-manifest.json"), .copy("Resources/THIRD-PARTY-NOTICES.txt")],
             swiftSettings: [.swiftLanguageMode(.v5)]),
-        .target(name: "OpenSwiftUI", dependencies: ["OpenUILang", .product(name: "MarkdownUI", package: "swift-markdown-ui")],
+        .target(name: "OpenUICore", dependencies: ["OpenUILang"], path: "Sources/OpenUICore", swiftSettings: [.swiftLanguageMode(.v5)]),
+        .target(name: "OpenSwiftUI", dependencies: ["OpenUILang", "OpenUICore", .product(name: "MarkdownUI", package: "swift-markdown-ui")],
             path: "Sources/OpenSwiftUI", resources: [.process("Resources")], swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "OpenUILangTests", dependencies: ["OpenUILang"], path: "Tests/OpenUILangTests",
             resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)]),
