@@ -18,8 +18,10 @@ def main() -> None:
     parser.add_argument("--verify-import", action="store_true",
                         help="Also verify the immutable original import; not a constraint on later reviewed SDK development")
     args = parser.parse_args()
-    manifest = json.loads((ROOT / "OpenUI/IMPORT.json").read_text())
+    manifest = json.loads((ROOT / "Provenance/OpenUI/IMPORT.json").read_text())
     problems: list[str] = []
+    if (ROOT / "OpenUI").exists() or (ROOT / "OpenUI").is_symlink():
+        problems.append("Obsolete nested SDK directory remains at repository root")
     if args.verify_import:
         for name, expected in manifest["runtimeFiles"].items():
             path = ROOT / name
@@ -37,13 +39,15 @@ def main() -> None:
     gallery = (ROOT / "Examples/Gallery/IntelligentUIGallery.xcodeproj/project.pbxproj").read_text()
     if "https://github.com/zyfn/openui.git" in gallery or "XCRemoteSwiftPackageReference" in gallery:
         problems.append("Gallery still resolves a separate native runtime")
-    for path in (ROOT / "OpenUI/Tools").rglob("package-lock.json"):
+    for path in (ROOT / "Tools").rglob("package-lock.json"):
+        if "node_modules" in path.parts:
+            continue
         for package_info in json.loads(path.read_text()).get("packages", {}).values():
             url = package_info.get("resolved", "")
             if url and not url.startswith("https://registry.npmjs.org/"):
                 problems.append(f"Non-public generator registry: {path.relative_to(ROOT)}")
-    lock = json.loads((ROOT / "OpenUI/Tools/upstream.json").read_text())
-    patch = ROOT / "OpenUI/Tools" / lock["core"]["sourcePatch"]
+    lock = json.loads((ROOT / "Tools/upstream.json").read_text())
+    patch = ROOT / "Tools" / lock["core"]["sourcePatch"]
     if sha(patch) != lock["core"]["sourcePatchSHA256"]:
         problems.append("Unreviewed upstream signature patch")
     resource = ROOT / "Sources/OpenUILang/Resources"
@@ -51,10 +55,10 @@ def main() -> None:
     if core["sha256"] != sha(resource / "lang-core.js") or core["sourceTree"] != lock["core"]["adaptedTree"]:
         problems.append("Generated core does not match its pinned provenance")
     files = ["entry.ts", "captures.ts", "authoring.ts", "compat.mjs", "readiness.ts", "readiness-compat.mjs", "adaptations.json", "patches/serializer-roundtrip.patch", "build.mjs", "../upstream.mjs", "../upstream.json", "patches/positional-omittability.patch"]
-    adapter = "\n".join((ROOT / "OpenUI/Tools/Core" / name).read_text() for name in files)
+    adapter = "\n".join((ROOT / "Tools/Core" / name).read_text() for name in files)
     if hashlib.sha256(adapter.encode()).hexdigest() != core["adapterSha256"]:
         problems.append("Generated manifest does not describe the current bridge builder")
-    if core["lockSha256"] != sha(ROOT / "OpenUI/Tools/Core/package-lock.json"):
+    if core["lockSha256"] != sha(ROOT / "Tools/Core/package-lock.json"):
         problems.append("Core npm lock differs from its manifest")
     for forbidden in ["packages/lang-core", "packages/react-ui", "packages/react-lang", "sites"]:
         if (ROOT / forbidden).exists():

@@ -11,7 +11,7 @@ final class ConformanceTests: XCTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
         fixturesDir = ProcessInfo.processInfo.environment["OPENUI_FIXTURES"]
-            ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("OpenUI/Fixtures/Language/1.0").path
+            ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/Language/1.0").path
         schema = try loadFixtureSchema()
     }
 

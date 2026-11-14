@@ -208,6 +208,7 @@ public struct OpenUIResourceContext {
         // Retire other epochs of this same transport instead of retaining
         // cached private responses indefinitely after an account switch.
         for old in loaders.keys.filter({ $0.identity == key.identity && $0 != key }) {
+            loaders[old]?.invalidateScope()
             loaders.removeValue(forKey: old)
             for resource in completed.keys.filter({ $0.owner == old }) {
                 if let bytes = completed.removeValue(forKey: resource) { completedBytes -= bytes.count }
@@ -294,6 +295,7 @@ public struct OpenUIResourceContext {
     }
     package func removeAll() {
         generation &+= 1
+        for loader in loaders.values { loader.invalidateScope() }
         let requests = Array(pending.values)
         pending.removeAll()
         for group in requests {
@@ -305,22 +307,56 @@ public struct OpenUIResourceContext {
     }
 }
 
+/// Resource consumers can check a frozen scope without constructing another
+/// request. A host may sign each request with a fresh nonce or timestamp.
+package func openUIResourceScopeIsCurrent(_ loader: any OpenUIResourceLoading,
+                                          authorizationScope: String) -> Bool {
+    guard loader.authorizationScopeID == authorizationScope else { return false }
+    return (loader as? ScopedResourceLoader)?.isCurrent ?? true
+}
+
+/// Admission is shared by the transport owner; cached pixels remain scoped to
+/// each document's wrapper so one document cannot reuse another document's lease.
+package func openUIResourceOwnerIdentity(_ loader: any OpenUIResourceLoading) -> ObjectIdentifier {
+    var owner = loader
+    while let scoped = owner as? ScopedResourceLoader { owner = scoped.owner }
+    return ObjectIdentifier(owner)
+}
+
+private final class ResourceScopeLifetime {
+    private let lock = NSLock()
+    private var active = true
+    var isCurrent: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return active
+    }
+    func invalidate() {
+        lock.lock(); defer { lock.unlock() }
+        active = false
+    }
+}
+
 private final class ScopedResourceLoader: OpenUIResourceLoading {
     fileprivate let owner: any OpenUIResourceLoading
     private weak var store: NativeResourceStore?
     private let epoch: Int
+    private let lifetime = ResourceScopeLifetime()
     let authorizationScopeID: String
     init(owner: any OpenUIResourceLoading, store: NativeResourceStore, epoch: Int, scope: String) {
         self.owner = owner; self.store = store; self.epoch = epoch; self.authorizationScopeID = scope
     }
     var resourceLimits: OpenUIResourceLimits { owner.resourceLimits }
+    fileprivate var isCurrent: Bool {
+        lifetime.isCurrent && store != nil && owner.authorizationScopeID == authorizationScopeID
+    }
+    fileprivate func invalidateScope() { lifetime.invalidate() }
     func request(for source: String, relativeTo baseURL: URL?) -> URLRequest? {
-        guard owner.authorizationScopeID == authorizationScopeID else { return nil }
+        guard isCurrent else { return nil }
         return owner.request(for: source, relativeTo: baseURL)
     }
     @MainActor func data(for request: URLRequest) async throws -> Data {
         try Task.checkCancellation()
-        guard let store else { throw CancellationError() }
+        guard isCurrent, let store else { throw CancellationError() }
         return try await store.data(request, owner: owner, epoch: epoch, scope: authorizationScopeID)
     }
 }

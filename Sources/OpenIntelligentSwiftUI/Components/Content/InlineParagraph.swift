@@ -32,6 +32,7 @@ struct InlineParagraph: View {
     @Environment(\.intelligentUIEditorial) private var editorial
     @Environment(\.intelligentUIImages) private var images
     @Environment(\.intelligentUIImageRevisions) private var imageRevisions
+    @Environment(\.openUIResourceContext) private var resources
     @Environment(\.intelligentUIImagePresentations) private var imagePresentations
     @Environment(\.intelligentUIMapContentInsets) private var mapInsets
     @Environment(\.intelligentUIImageAlbum) private var album
@@ -71,7 +72,7 @@ struct InlineParagraph: View {
             editorial: editorial, images: images, imageRevisions: imageRevisions,
             imagePresentations: imagePresentations, mapInsets: mapInsets, album: album,
             interactive: interactive, scrolling: scrolling, background: background, direction: direction,
-            canInteract: context.canInteract)
+            canInteract: context.canInteract, resources: ImageResourceScope(resources))
         return InlineParagraphBridge(parts: context.children("text").map { child in
             if case .string(let text) = child.value { return .text(text.displayString) }
             return .attachment(id: child.id, value: child.value, view: AnyView(context.render(child.value)
@@ -112,6 +113,7 @@ struct InlineEnvironment: Equatable {
     let background: Color?
     let direction: LayoutDirection
     let canInteract: Bool
+    let resources: ImageResourceScope
 }
 
 enum InlinePart {

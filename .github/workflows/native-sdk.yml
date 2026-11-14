@@ -44,22 +44,22 @@ jobs:
       - name: Rebuild the exact bundled official core
         run: |
           set -euo pipefail
-          npm ci --prefix OpenUI/Tools/Core --ignore-scripts
-          node OpenUI/Tools/Core/build.mjs
+          npm ci --prefix Tools/Core --ignore-scripts
+          node Tools/Core/build.mjs
           git diff --exit-code -- Sources/OpenUILang/Resources
-          node OpenUI/Tools/Core/verify-compatibility.mjs
-          node --test OpenUI/Validation/validation.test.mjs
-          node --test OpenUI/Tools/Presentation/catalog-compatibility.test.mjs
+          node Tools/Core/verify-compatibility.mjs
+          node --test Validation/validation.test.mjs
+          node --test Tools/Presentation/catalog-compatibility.test.mjs
       - name: Rebuild presentation resources from public registries
         run: |
           set -euo pipefail
           for feature in rich-text code-highlighting icons; do
-            npm ci --prefix "OpenUI/Tools/Presentation/$feature" --ignore-scripts
+            npm ci --prefix "Tools/Presentation/$feature" --ignore-scripts
           done
-          node OpenUI/Tools/Presentation/rich-text/build.mjs
-          node OpenUI/Tools/Presentation/code-highlighting/build.mjs
-          node OpenUI/Tools/Presentation/icons/generate.mjs --check
-          node OpenUI/Tools/Presentation/catalog.mjs --check
+          node Tools/Presentation/rich-text/build.mjs
+          node Tools/Presentation/code-highlighting/build.mjs
+          node Tools/Presentation/icons/generate.mjs --check
+          node Tools/Presentation/catalog.mjs --check
           git diff --exit-code -- Sources/OpenSwiftUI/Resources
       - name: Rebuild and verify Intelligent UI math resources
         run: |
@@ -102,8 +102,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/native-security"
           failed=0
-          for feature in OpenUI/Tools/Core OpenUI/Tools/Presentation/rich-text \
-              OpenUI/Tools/Presentation/code-highlighting OpenUI/Tools/Presentation/icons Tools/Functions; do
+          for feature in Tools/Core Tools/Presentation/rich-text \
+              Tools/Presentation/code-highlighting Tools/Presentation/icons Tools/Functions; do
             label="${feature//\//-}"
             npm ci --prefix "$feature" --ignore-scripts \
               2>&1 | tee "$RUNNER_TEMP/native-security/$label-install.log"
@@ -200,7 +200,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift build --package-path OpenUI/Examples/macOS \
+          swift build --package-path Examples/macOS \
             2>&1 | tee outputs/verification/standard-macos.log
       - name: All library products for iOS 16 Simulator
         if: ${{ !cancelled() }}

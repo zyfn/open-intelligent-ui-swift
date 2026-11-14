@@ -106,5 +106,5 @@ SOFTWARE.
 
 Imported native OpenUI support
 Source: zyfn/openui at f3dfa1d0b479c131b6d4268e81961186f22ff09c (fork of thesysdev/openui).
-Upstream OpenUI MIT license: OpenUI/LICENSE.
-Native dependencies and generated-resource licenses are retained under Sources/OpenUILang/Resources, Sources/OpenSwiftUI/Resources and Sources/COpenUIRegExp/vendor; the original import is recorded by OpenUI/IMPORT.json.
+Upstream OpenUI MIT license: Provenance/OpenUI/LICENSE.
+Native dependencies and generated-resource licenses are retained under Sources/OpenUILang/Resources, Sources/OpenSwiftUI/Resources and Sources/COpenUIRegExp/vendor; the original import is recorded by Provenance/OpenUI/IMPORT.json.

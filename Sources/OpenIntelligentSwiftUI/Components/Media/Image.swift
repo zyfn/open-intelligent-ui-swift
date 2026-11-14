@@ -61,38 +61,52 @@ struct SourceImage: View {
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.intelligentUIImages) private var images
     @Environment(\.intelligentUIImageRevisions) private var revisions
+    @Environment(\.openUIResourceContext) private var resources
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.intelligentUIScrolling) private var readingScroll
     @Environment(\.intelligentUIImageAlbum) private var album
     @Environment(\.intelligentUIInteractiveContent) private var interactive
     @State private var decodedImage: CGImage?
-    @State private var decodedResource: String?
-    @State private var failedResource: String?
+    @State private var decodedResource: ResourceKey?
+    @State private var failedResource: ResourceKey?
+    @State private var missingResource: ResourceKey?
     @State private var retry = 0
     @State private var localVersion = 0
     @State private var pixelTarget: Int?
     @State private var previewPresented = false
     @State private var edgeImage: CGImage?
-    @State private var edgeKey: String?
+    @State private var edgeKey: FramingKey?
+    private struct ResourceKey: Hashable { let target: ImageResourceTarget; let localVersion: Int }
+    private struct LoadKey: Hashable {
+        let resource: ResourceKey
+        let dimension: Int?
+        let retry: Int
+        let ready: Bool
+    }
+    private struct FramingKey: Hashable {
+        let resource: ResourceKey
+        let ratio: CGFloat
+        let extendsEdges: Bool
+        let dimension: Int?
+        let image: ObjectIdentifier?
+        let ready: Bool
+    }
     private var extendsEdges: Bool { fit == .fit && fillsContainBackground }
     private var revision: String { revisions[source ?? ""] ?? "" }
-    private var resourceKey: String { "\(source?.utf8.count ?? 0):\(source ?? ""):\(revision.utf8.count):\(revision):\(localVersion)" }
-    private var loadKey: String { "\(resourceKey):\(pixelTarget ?? 0):\(retry):\(sourceReady)" }
-    private var framingKey: String {
-        "\(resourceKey):\(ratio):\(extendsEdges):\(pixelTarget ?? 1600):\(decodedResource ?? ""):\(decodedImage?.width ?? 0)x\(decodedImage?.height ?? 0):\(retry):\(sourceReady)"
+    private var target: ImageResourceTarget { ImageResourceTarget(source: source, resources: resources, revision: revision) }
+    private var resourceKey: ResourceKey { ResourceKey(target: target, localVersion: localVersion) }
+    private var loadKey: LoadKey { LoadKey(resource: resourceKey, dimension: pixelTarget, retry: retry, ready: sourceReady) }
+    private var framingKey: FramingKey {
+        FramingKey(resource: resourceKey, ratio: ratio, extendsEdges: extendsEdges,
+                   dimension: pixelTarget, image: decodedImage.map { ObjectIdentifier($0) }, ready: sourceReady)
     }
     private var suppliedImage: Image? { source.flatMap { images[$0] } }
     private var previewImage: Image? {
+        guard openUIResourceScopeIsCurrent(resources.loader, authorizationScope: target.scope.authorization) else { return nil }
         if let suppliedImage { return suppliedImage }
         if let decodedImage, decodedResource == resourceKey { return Image(decorative: decodedImage, scale: 1) }
         return nil
-    }
-    private var url: URL? {
-        guard let source, let url = URL(string: source),
-              let scheme = url.scheme?.lowercased(), ["https", "http"].contains(scheme),
-              url.host != nil else { return nil }
-        return url
     }
     var body: some View {
         Rectangle().fill(theme.surface)
@@ -106,7 +120,7 @@ struct SourceImage: View {
                             let displayed = extendsEdges && edgeKey == framingKey
                                 ? edgeImage.map { Image(decorative: $0, scale: 1) } ?? image : image
                             picture(displayed, size: geometry.size)
-                        } else if url != nil {
+                        } else if source?.isEmpty == false, missingResource != resourceKey {
                             if failedResource == resourceKey {
                                 ImageFailurePlaceholder(alt: alt, status: SDKStrings.text("image.unavailable", locale: locale), retry: retryImage)
                             } else { ImageLoadingPlaceholder(alt: alt, surface: theme.surface) }
@@ -124,7 +138,8 @@ struct SourceImage: View {
             .sheet(isPresented: $previewPresented) {
                 if let image = previewImage {
                     ImagePreview(image: image, alt: alt, source: source,
-                                 album: album.contains(where: { $0.source == source }) ? album : [])
+                                 album: album.contains(where: { $0.source == source }) ? album : [],
+                                 sourceTarget: target)
                 }
             }
             .onChange(of: source) { _ in previewPresented = false }
@@ -135,11 +150,13 @@ struct SourceImage: View {
             .task(id: loadKey) {
                 guard sourceReady else { return }
                 if decodedResource != resourceKey { decodedImage = nil; decodedResource = nil }
-                failedResource = nil
-                guard suppliedImage == nil, let url, let pixelTarget else { return }
+                failedResource = nil; missingResource = nil
+                guard suppliedImage == nil, let pixelTarget else { return }
                 let key = resourceKey
                 do {
-                    let image = try await ImagePipeline.shared.load(url, maximumDimension: pixelTarget, revision: revision)
+                    let request = ImageResource(source: source, resources: resources, revision: revision, attempt: retry)
+                    guard request.id.request != nil else { missingResource = key; return }
+                    let image = try await ImagePipeline.shared.load(request, maximumDimension: pixelTarget)
                     guard !Task.isCancelled else { return }
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                         decodedImage = image; decodedResource = key
@@ -162,7 +179,7 @@ struct SourceImage: View {
                 } else { original = decodedResource == resourceKey ? decodedImage : nil }
                 guard let original else { return }
                 do {
-                    let framed = try await ImagePipeline.shared.framed(original, resource: resourceKey, ratio: ratio)
+                    let framed = try await ImagePipeline.shared.framed(original, target: target, loader: resources.loader, ratio: ratio)
                     guard !Task.isCancelled else { return }
                     edgeImage = framed; edgeKey = key
                 } catch { /* Keep the intact source over the neutral surface if framing is cancelled. */ }

@@ -1,5 +1,6 @@
 import SwiftUI
 import OpenUILang
+import OpenUICore
 
 struct ImageAlbumItem: Identifiable, Equatable {
     let source: String
@@ -33,16 +34,18 @@ struct ImagePreview: View {
     let alt: String
     var source: String? = nil
     var album: [ImageAlbumItem] = []
+    var sourceTarget: ImageResourceTarget? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.displayScale) private var displayScale
     @Environment(\.intelligentUIImages) private var images
     @Environment(\.intelligentUIImageRevisions) private var revisions
+    @Environment(\.openUIResourceContext) private var resources
     @State private var zoom: CGFloat = 1
     @State private var startingZoom: CGFloat = 1
     @State private var selectedSource: String?
     @State private var decoded: CGImage?
-    @State private var decodedResource: String?
+    @State private var decodedResource: ImageResourceTarget?
     @State private var failed = false
     @State private var retry = 0
     @State private var viewport: CGSize = .zero
@@ -50,12 +53,19 @@ struct ImagePreview: View {
     private var currentAlt: String { album.first { $0.source == currentSource }?.alt ?? alt }
     private var index: Int? { album.firstIndex { $0.source == currentSource } }
     private var revision: String { revisions[currentSource ?? ""] ?? "" }
-    private var resource: String { "\(currentSource?.utf8.count ?? 0):\(currentSource ?? ""):\(revision)" }
+    private var target: ImageResourceTarget { ImageResourceTarget(source: currentSource, resources: resources, revision: revision) }
+    private struct LoadKey: Hashable {
+        let target: ImageResourceTarget
+        let dimension: Int
+        let retry: Int
+        let viewportReady: Bool
+    }
     private var pixelTarget: Int { ImagePixelSize.target(points: viewport, scale: displayScale, zoom: zoom) }
     private var currentImage: Image? {
+        guard openUIResourceScopeIsCurrent(resources.loader, authorizationScope: target.scope.authorization) else { return nil }
         if let currentSource, let supplied = images[currentSource] { return supplied }
-        if let decoded, decodedResource == resource { return Image(decorative: decoded, scale: 1) }
-        if currentSource == source { return image }
+        if let decoded, decodedResource == target { return Image(decorative: decoded, scale: 1) }
+        if currentSource == source, sourceTarget == nil || sourceTarget == target { return image }
         return nil
     }
 
@@ -121,18 +131,19 @@ struct ImagePreview: View {
                     self.selectedSource = items.contains(where: { $0.source == source }) ? source : items.first?.source
                 }
             }
-            .task(id: "\(resource):\(pixelTarget):\(retry):\(viewport.width > 0 && viewport.height > 0)") {
+            .task(id: LoadKey(target: target, dimension: pixelTarget, retry: retry,
+                              viewportReady: viewport.width > 0 && viewport.height > 0)) {
                 failed = false
-                if decodedResource != resource { decoded = nil; decodedResource = nil }
+                if decodedResource != target { decoded = nil; decodedResource = nil }
                 guard viewport.width > 0, viewport.height > 0,
                       let currentSource, images[currentSource] == nil else { return }
-                guard let url = URL(string: currentSource), url.host != nil,
-                      ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+                let request = ImageResource(source: currentSource, resources: resources, revision: revision, attempt: retry)
+                guard request.id.request != nil else {
                     failed = currentSource != source; return
                 }
-                let key = resource
+                let key = target
                 do {
-                    let result = try await ImagePipeline.shared.load(url, maximumDimension: pixelTarget, revision: revision)
+                    let result = try await ImagePipeline.shared.load(request, maximumDimension: pixelTarget)
                     guard !Task.isCancelled else { return }
                     decoded = result; decodedResource = key
                 } catch { if !Task.isCancelled { failed = true } }

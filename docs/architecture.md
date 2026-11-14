@@ -1,6 +1,6 @@
 # 四模块架构
 
-本文描述当前 `refactor/openui-four-module-foundation` 分支的实际源码边界。根 `Package.swift` 导出四个库产品；两个 UI 库共享运行时，各自保留组件与视觉体系。接入示例见 [README](../README.md)。
+本文描述当前 `refactor/openui-four-module-foundation` 分支的实际源码边界。根 `Package.swift` 导出四个库产品；客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 使用它们。两个 UI 库共享运行时，各自提供组件与视觉体系。接入示例见 [README](../README.md)。
 
 ## 1. 依赖关系
 
@@ -26,13 +26,28 @@ flowchart TB
 | 模块 | 源码目录 | 所有权 |
 |---|---|---|
 | `OpenUILang` | `Sources/OpenUILang` | 固定语言核心的桥接、AST/Value、解析与求值、Store、动作与查询语义、协议/序列化与运行预算 |
-| `OpenUICore` | `Sources/OpenUICore` | 原生 state/session、组件注册与 schema 对接、context/host、递归渲染与身份、绑定和生命周期、通用资源通道 |
+| `OpenUICore` | `Sources/OpenUICore` | 统一 library/view 接口、原生 state/session、组件注册与 schema 对接、context/host、递归渲染与身份、绑定和生命周期、通用资源通道 |
 | `OpenSwiftUI` | `Sources/OpenSwiftUI` | 标准目录、标准主题与 presentation、布局就绪策略、表单与控件视觉、标准文本/媒体呈现 |
 | `OpenIntelligentSwiftUI` | `Sources/OpenIntelligentSwiftUI` | Intelligent UI 目录、设计系统、组件/交互视觉、媒体呈现、函数及 reader/writer 生成契约 |
 
 `COpenUIRegExp` 是语言层内部使用的 C target，不是新增的公开 UI 产品。两个 UI 库均可单独链接；不要求宿主安装另一套组件库。
 
-## 2. 一个状态实例，一条语义更新链
+## 2. 同一个客户端接口，一条语义更新链
+
+`OpenUILibrary` 是 Core 中的具体值类型，保存匹配的 reader、writer、Prompt 生成器和主线程展示入口。Core 不根据库名选择实现；`.standard()` 与 `.intelligent()` 工厂分别由各自 UI 模块提供。自建库也通过同一个类型接入。
+
+客户端选择库后统一调用：
+
+~~~swift
+let state = library.makeState(toolProvider: provider, persistedState: savedState)
+let prompt = library.systemPrompt
+let spec = library.specificationJSON
+let content = OpenUIView(state: state, library: library)
+~~~
+
+`makeState` 使用实际 reader schema 与函数实现；工具 provider 和持久化状态在两套库中由相同参数传入。`specification` 与 Prompt 始终来自 writer，`readerSpecification` 保留完整读取契约。客户端不需要重新拼装 schema、registry 或函数，也不需要自行处理 reader/writer 的内部差异。
+
+`OpenUIView` 保存宿主传入的 library/state，不创建状态或改变源码。展示在文档入口做一次类型擦除，实际样式仍由各自库实现。选择另一套库时，由宿主创建匹配的新 state；已有消息保留原配对。不会根据一个新的 library 参数隐式重置旧 state。
 
 `OpenUIState` 定义在 Core。它围绕 Lang 的 parser、Store、QueryManager 与动作执行能力，持有一份文档的运行状态：
 
@@ -43,7 +58,7 @@ flowchart TB
 
 组件库通过匹配的 schema 和注册函数创建 state，不再自建 parser 或 Store。两套 UI 库所暴露的 state 是同一个类型，但同一 state 的 schema 与用于渲染的 registry 必须匹配；共享类型不使两套组件契约互换。
 
-`OpenUICoreView` 观察 state，并渲染显式传入的 registry。`OpenUIRenderer`、`IntelligentUIView` 分别添加各自的外观与阅读宽度规则；文档语义变化由 Core 观察，视觉包装层不重复观察同一 state 来重建整棵环境。
+`OpenUICoreView` 观察 state，并渲染显式传入的 registry。统一入口委托标准或 Intelligent UI 的实际展示实现，分别应用各自的外观与阅读宽度规则。只有 Core host 观察文档语义变化，`OpenUIView` 和视觉包装层不重复观察同一 state 来重建整棵环境。
 
 宿主长期持有 state，负责消息列表、模型/工具通信、账号权限、滚动和业务结果。尺寸拟合与布局测量只读取展示输入，不向 state 再次提交源码。
 
@@ -104,7 +119,9 @@ Core 拥有 `OpenUIResourceLoading`、`OpenUIResourceLimits`、`OpenUIResourceCo
 - 同一展示可共享进行中的工作，同时保留订阅者取消与旧 epoch 隔离；
 - state 结束或替换时取消相应工作，避免过期内容回填。
 
-这些机制不决定图片比例、fallback、进度、预览、图库、地图、富文本或按钮样式。标准库的 `NativeRemoteImage` 等视觉组件仍属于标准库；Intelligent UI 保留自己的 `ImagePipeline`、图片/地图组件和呈现规则。本次没有把两套视觉图片管线合并成一个组件。
+这些机制不决定图片比例、fallback、进度、预览、图库、地图、富文本或按钮样式。标准库的 `NativeRemoteImage` 等视觉组件仍属于标准库。Intelligent UI 的原生图片、内联图片与预览也读取同一个资源 context，遵循宿主的 baseURL、loader、鉴权作用域和预算；其图片缓存、请求合并与解码仍由自身的 `ImagePipeline` 管理，图片和地图视觉保持在该库中。
+
+资源身份必须同时参与请求缓存、View task 与已解码图片的有效性判断，防止更换账号、loader 或地址后显示旧资源。图片覆盖注入仍由库保留。Markdown、WebKit 和 MapKit 内部的其它网络请求属于各自实现，不能把原生图片通道的保证扩大到所有子资源。
 
 动作同样分层：Core 提供动作计划、context 检查与实际派发；标准 `OpenUIActionSurface` 和 `IntelligentUIActionSurface` 各自管理按钮视觉、进度与组件交互。
 
@@ -131,13 +148,13 @@ layout/placeholder 的结构元数据也由组件注册提供。Core 只按已�
 
 ## 7. 目录、契约与来源
 
-当前源码和测试只在根 `Sources/` 与 `Tests/` 各自所属模块中维护。`OpenUI/Sources` 与 `OpenUI/Tests` 的历史软链接已移除，生成器和验证工具使用实际目录。
+当前源码和测试只在根 `Sources/` 与 `Tests/` 各自所属模块中维护。构建工具在 `Tools/`，验证材料在 `Validation/`，公共兼容数据在 `Fixtures/`，示例在 `Examples/`，有效文档在 `docs/`。不保留旧目录软链接、重复 SDK 外壳或过时的实施状态文档。
 
-`OpenUI/` 保留 Tools、Validation、Fixtures、Examples、Documentation 和导入来源材料。[IMPORT.json](../OpenUI/IMPORT.json) 仍记录原始导入布局与哈希，[upstream.json](../OpenUI/Tools/upstream.json) 固定上游重建输入。历史来源文档不会因当前文件迁移而改写；当前可执行路径以根 Package 与构建工具为准。
+[IMPORT.json](../Provenance/OpenUI/IMPORT.json) 与上游许可证单独保存在 `Provenance/OpenUI/`。清单记录原始导入时的路径和哈希，作为来源证据保留原字节；它不是当前文件索引。[upstream.json](../Tools/upstream.json) 固定上游重建输入，当前可执行路径以根 Package 与构建工具为准。
 
 本轮改变 Swift 模块边界与共享能力归属，保留现有 Lang 组件名、位置参数、枚举、绑定和 reader/writer 契约。标准目录与 Intelligent UI 目录继续独立生成各自 Prompt/spec，不混用两套定义或以布局改动为理由新增私有参数。
 
-旧模块名、旧目录与过去验证记录见历史文档；新的 Swift import 使用 `OpenSwiftUI`、`OpenIntelligentSwiftUI` 及按需的 `OpenUICore` / `OpenUILang`。Swift 模块重命名与 Lang 契约变更是不同事项。
+Swift import 使用 `OpenSwiftUI`、`OpenIntelligentSwiftUI` 及按需的 `OpenUICore` / `OpenUILang`。产品选择只影响可用的 library 工厂；状态、流式输入、动作回调、生成契约属性和文档 View 的客户端用法相同。旧标准程序继续使用标准 reader，历史 Intelligent UI 程序继续使用对应 reader。
 
 ## 8. 验证边界
 

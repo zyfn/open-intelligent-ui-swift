@@ -2,7 +2,7 @@
 """Apply or verify the reviewed RC21 source candidate without moving its base HEAD.
 
 The candidate is the immutable source revision plus the exact changes declared in
-OpenUI/Validation/source-rc21/manifest.json. It is not the unmodified RC21 source.
+Validation/source-rc21/manifest.json. It is not the unmodified RC21 source.
 Both modes verify the complete candidate tree, including after core regeneration.
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "OpenUI/Validation/source-rc21/manifest.json"
+MANIFEST = ROOT / "Validation/source-rc21/manifest.json"
 
 
 def fail(message: str) -> None:

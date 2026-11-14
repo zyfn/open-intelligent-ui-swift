@@ -10,7 +10,7 @@ final class ProtocolInteractionTests: XCTestCase {
     @MainActor func testOfficialInteractions() throws {
         let directory = ProcessInfo.processInfo.environment["OPENUI_FIXTURES"].map(URL.init(fileURLWithPath:))
             ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("OpenUI/Fixtures/Language/1.0")
+                .appendingPathComponent("Fixtures/Language/1.0")
         let library = try LibrarySpec(jsonString: String(contentsOf: directory.appendingPathComponent("library.json"), encoding: .utf8))
         let schema = compileLibrarySchema(library)
         let files = try FileManager.default.subpathsOfDirectory(atPath: directory.path)

@@ -17,7 +17,7 @@
   "sha256": "84619d09343570632de25963c153e67e4d13f1cf51d05dbf7cea13237f88bf5b",
   "bytes": 853116,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "24075f181acf496d2b3242377381f4f40cbe16595d81f3739753f7359510f138",
+  "adapterSha256": "b701fabde9072bc3b8aa8cd91ffffb1748af80b7d4ce41196df3a7af607d778e",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {

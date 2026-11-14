@@ -1,6 +1,6 @@
 # 验证与安全修复
 
-本文记录四模块重构之后的依赖与源码验证修复。当前实现和安全修复在 `refactor/openui-four-module-foundation` 分支维护；具体提交的验收结果以 [Native SDK 流水线](https://github.com/zyfn/open-intelligent-ui-swift/actions/workflows/native-sdk.yml) 和 [PR #3](https://github.com/zyfn/open-intelligent-ui-swift/pull/3) 为准。历史导入的提交、文件映射和资源哈希仍保留在 [IMPORT.json](../OpenUI/IMPORT.json)。
+本文记录四模块重构之后的依赖与源码验证修复。当前实现和安全修复在 `refactor/openui-four-module-foundation` 分支维护；具体提交的验收结果以 [Native SDK 流水线](https://github.com/zyfn/open-intelligent-ui-swift/actions/workflows/native-sdk.yml) 和 [PR #3](https://github.com/zyfn/open-intelligent-ui-swift/pull/3) 为准。历史导入的提交、文件映射和资源哈希仍保留在 [IMPORT.json](../Provenance/OpenUI/IMPORT.json)。
 
 ## 1. 实际打包依赖与可复现生成
 
@@ -27,7 +27,7 @@ Zod 的 JSON Schema 导入也把简单字符串键 record 包装为带校验的 
 
 ## 2. RC21 源码修复候选
 
-`source-rc21-gate` 使用 `zyfn/openui` 的固定基线 `f3dfa1d0b479c131b6d4268e81961186f22ff09c`，然后应用本分支保存的 [修复清单](../OpenUI/Validation/source-rc21/manifest.json)。该任务检验的是“固定源码 + 已审查修复”的候选，不把修补结果记成未经修改的原始源码通过。
+`source-rc21-gate` 使用 `zyfn/openui` 的固定基线 `f3dfa1d0b479c131b6d4268e81961186f22ff09c`，然后应用本分支保存的 [修复清单](../Validation/source-rc21/manifest.json)。该任务检验的是“固定源码 + 已审查修复”的候选，不把修补结果记成未经修改的原始源码通过。
 
 修复包括以下真实问题：
 

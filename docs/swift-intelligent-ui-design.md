@@ -28,7 +28,7 @@ flowchart TB
 ### 依赖与边界
 
 - 最低平台为 iOS 16 / macOS 13。
-- 四个模块在根 `Sources/`、`Tests/` 中共同版本化，根包导出 `OpenUILang`、`OpenUICore`、`OpenSwiftUI` 与 `OpenIntelligentSwiftUI`。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`，不依赖整个远程 fork。`OpenUI/` 保留生成工具、验证材料、fixtures、示例和来源记录，当前源码路径由根 Package 管理。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。历史来源见 [OpenUI/README.md](../OpenUI/README.md) 与 [IMPORT.json](../OpenUI/IMPORT.json)，当前边界见[四模块架构](architecture.md)。
+- 四个模块在根 `Sources/`、`Tests/` 中共同版本化，根包导出 `OpenUILang`、`OpenUICore`、`OpenSwiftUI` 与 `OpenIntelligentSwiftUI`。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`。开发工具、验证器、规范夹具与示例分别在根 `Tools/`、`Validation/`、`Fixtures/`、`Examples/` 维护，来源与原始许可保存在 [Provenance/OpenUI](../Provenance/OpenUI/README.md)。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。当前边界见[四模块架构](architecture.md)。
 - 组件及计算参考固定为 `16ef26475999e3a021a50b1607a03717c0721255` 的 55 组件库，不是 OpenUI 运行时内置的 ReferenceCatalog。
 - swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.18.2；依赖安全修复与资源来源见[验证与安全修复](validation-and-security.md)。
 
@@ -47,7 +47,8 @@ flowchart TB
 
 | 目录或入口 | 职责 |
 |---|---|
-| `IntelligentUIView.swift` | 以本库外观与阅读宽度包装共享 Core renderer |
+| `Library.swift` | 为共享 `OpenUILibrary` 提供 `.intelligent(...)` 工厂，配对 writer、历史 reader 与本库视图 |
+| `IntelligentUIView.swift` | 实现本库外观与阅读宽度，由统一入口组合共享 Core renderer |
 | `Catalog/` | 组件注册、状态工厂与参数读取 |
 | `DesignSystem/` | IntelligentUITheme、EditorialStyle、阅读位置规则 |
 | `Internal/` | 本地化、性能与布局调试辅助 |
@@ -56,31 +57,31 @@ flowchart TB
 | `Generation/` | spec、Prompt、manifest 与诊断 |
 | `Resources/` | 计算、公式、本地化与许可资源 |
 
-根 `Examples/Gallery/`、`Tools/`、`Benchmarks/`、`docs/` 分别维护演示、开发工具、模型验证和文档；`outputs/` 保存本地导出与验收材料。`OpenUI/` 保存通用底座的工具、验证、fixtures、示例与导入来源材料，不再以软链接承载当前源码和测试。
+根 `Examples/` 维护 Gallery、macOS 消费示例和 Agent 契约案例；`Tools/` 维护生成器与检查工具，`Fixtures/` 维护版本化语言规范夹具，`Validation/` 维护独立验证器及冻结源码修复清单。`Benchmarks/`、`docs/` 分别维护模型验证和文档，`outputs/` 保存本地导出与验收材料。原始导入记录与许可集中在 `Provenance/OpenUI/`，不构成第二个 SDK 包。
 
 组件定义与实现相邻，复杂组件在自己的文件或子目录维护辅助类型。Catalog 聚合实际实现，Generation 读取同一个注册库。消费者只需链接 `OpenIntelligentSwiftUI` 产品及其传递依赖，不依赖标准 UI 库、Gallery 或开发工具。
 
 ## 3. 宿主接入与状态
 
-IntelligentUIView 接收外部创建的状态和匹配的 IntelligentUILibrary。makeState() 是创建正确 SDK 配置的便捷入口，状态生命周期仍由调用方持有。
+宿主通过 Core 的 `OpenUILibrary` 和 `OpenUIView` 接入，选择 `.intelligent(...)` 即配对本库的生成契约、历史读取契约与视觉实现。`makeState(...)` 创建使用该库 schema 和实际函数实现的 `OpenUIState`，状态生命周期仍由调用方持有。
 
 最小接入在主线程完成：
 
 ```swift
 import OpenIntelligentSwiftUI
 
-let library = try IntelligentUILibrary()
+let library: OpenUILibrary = try .intelligent()
 let state = library.makeState()
 state.onAction = { event in
     // 调用方处理动作。
 }
 state.setSource(#"root = Col([Title("原生界面"), Text("可组合的内容")])"#)
-let view = IntelligentUIView(state: state, library: library)
+let view = OpenUIView(state: state, library: library)
 ```
 
-调用方应长期持有 state，例如放入 StateObject 或自己的展示模型，避免在 body 中反复创建。公开别名 IntelligentUIState 和 IntelligentUIActionEvent 让宿主无需直接使用 OpenUI 的类型名称。
+调用方应长期持有 state，例如放入 StateObject 或自己的展示模型，避免在 body 中反复创建。`library.systemPrompt` 和 `library.specificationJSON` 提供模型生成契约；宿主使用同一个 Core 状态与事件类型切换标准库或 Intelligent 库。
 
-同一状态实例支持完整输入、流式追加、绑定和派生计算。组件使用 SDK 上下文检查交互就绪和旧回调失效，不重复实现运行时。默认内容宽度由 IntelligentUIView 读取 theme.readingWidth，接入方可通过同一主题调整。
+同一状态实例支持完整输入、流式追加、绑定和派生计算。组件使用 SDK 上下文检查交互就绪和旧回调失效，不重复实现运行时。统一入口内部由 `IntelligentUIView` 应用本库主题与 `theme.readingWidth`，接入方可通过同一主题调整。
 
 运行时中，重复传入相同的已完成源码不会重建展示或清空用户状态，空的 push 也不启动新流。宿主需要重新播放同一程序时，应显式 reset() 后再 setSource；真正替换内容或 reset 后，原展示的回调与绑定失效。
 
@@ -91,7 +92,7 @@ let view = IntelligentUIView(state: state, library: library)
 | readerComponents / readerSpecification | 渲染既有消息，保留完整组件、参数顺序、绑定、枚举、默认值与历史字段 |
 | components / specification | 从 reader 定义结构化投影 writer，生成 spec、Prompt 与 manifest；可通过 excludingComponents 排除宿主不支持的组件 |
 
-Host 的组件排除只缩小新输出契约，不删除旧消息读取能力。ImageSearch 只有显式服务才注册。图片资源可由 `.intelligentUIImages([source: Image])` 精确提供；阅读位置接口施加在宿主自己的纵向滚动容器，不替宿主管理页面。
+Host 的组件排除只缩小新输出契约，不删除旧消息读取能力。SearchImage 只有显式服务才注册。宿主在 `OpenUIView` 上使用 `.openUIResourceContext(resources)` 注入原生图片加载所需的资源解析、鉴权和预算；内联原生附件与图片预览继承同一作用域。`.intelligentUIImages([source: Image])` 继续支持精确的 SwiftUI 图片覆盖。阅读位置接口施加在宿主自己的纵向滚动容器，不替宿主管理页面。
 
 ## 4. 组件与契约
 
@@ -199,7 +200,9 @@ Gallery 的“SDK 文案与方向”菜单可切换语言和 RTL，`--locale en|
 
 Image、ProductCard 与 SearchImage 共用图片状态视觉：等待时在固定媒体区显示循环扫光骨架与无文字进度指示；失败或缺图时只显示低强调图形占位，不显示可见状态文案。远程加载失败与图片搜索失败都保留带无障碍名称的重试图标。
 
-ImagePipeline 以来源 URL、资源 revision 和目标像素档位合并请求；内嵌按实际尺寸/displayScale 下采样，预览按视口与缩放升级，最高档位 4096。缓存采用 40 项/64 MiB 的 LRU 保留上限，共享原图和派生背景预算；该上限不包含仍由可见视图持有的图片。下载最多 4 个并发，在接收过程中拒绝超过 20 MiB 的响应，最后一个消费者取消时取消底层任务。状态说明供辅助技术朗读，减少动态效果时停用扫光。
+ImagePipeline 按注入的资源加载器、鉴权作用域、来源与解析后的请求、资源 revision 和目标像素档位区分请求与缓存。内嵌按实际尺寸/displayScale 下采样，预览按视口与缩放升级，像素尺寸同时服从宿主资源预算及最高 4096 档位。缓存采用 40 项/64 MiB 的 LRU 保留上限，共享原图和派生背景预算；该上限不包含仍由可见视图持有的图片。并发与响应大小服从注入加载器的限制，最后一个消费者取消时取消底层任务。状态说明供辅助技术朗读，减少动态效果时停用扫光。
+
+`.openUIResourceContext(resources)` 覆盖本库的原生图片、混排原生附件和原图预览；`.intelligentUIImages` 的显式图片覆盖仍优先。该注入范围不包括 swift-markdown-ui 自行请求的文档图片、WebKit 页面子资源或 MapKit 地图数据，不能把它作为这些独立实现的统一网络拦截器。
 
 宿主可用 `.intelligentUIImageRevisions` 标记同一 URL 的资源更新，用 `.intelligentUIImagePresentations` 提供比例和 fit；历史 Lang 中显式参数优先。SearchImage 合并相同查询的同时请求，下载失败后的恢复会重新检索，结果可带 revision、署名和来源 URL；这些是 Swift 服务接口能力，不增加 Lang 参数。Map 的宿主覆盖区域通过 `.intelligentUIMapContentInsets` 提供。
 

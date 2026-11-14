@@ -1,0 +1,90 @@
+# OpenUILang
+
+Apple-platform bindings for the shared OpenUI `lang-core`. The SwiftPM product and
+import are `OpenUILang`, built by the repository-root `OpenUISwiftSDK` package.
+Swift 6 tools build in Swift 5 language mode on iOS 16+ and macOS 13+.
+JavaScriptCore is required.
+
+Parsing, streaming completion, expression evaluation, library extension, Schema,
+Prompt generation, Store, query lifecycle and message handling delegate to the
+pinned shared core. Native code supplies typed values, lossless UTF-16 transport,
+async tools, cancellation and host action execution. There is no Linux fallback.
+
+## Installation
+
+The repository-root `Package.swift` exports `OpenUILang`, `OpenUICore`,
+`OpenSwiftUI` and `OpenIntelligentSwiftUI`. A language-only consumer selects
+`OpenUILang`. Both UI libraries use it through the shared Core foundation.
+See the [SDK installation and common integration guide](../../README.md).
+
+This directory contains documentation; there is one SDK package at the root.
+
+## Use an exported library
+
+```swift
+import OpenUILang
+
+let spec = try LibrarySpec(jsonString: exportedLibrary)
+let parser = createParser(schema: compileLibrarySchema(spec))
+let result = parser.parse(program)
+```
+
+`createParser` returns the `Parser` interface; `createStreamingParser` returns
+`StreamParser`. Completion and append/replacement behavior use the shared parser.
+`OpenUIString`, `OpenUIArray` and `OpenUIObject` retain JavaScript string and
+reference semantics across the native boundary. Concrete JavaScriptCore parser
+and Store implementations are internal. `createStore()` returns the core-aligned
+`Store` interface, including `getSnapshot`, `subscribe` and `dispose`.
+
+`ParsedMessage` uses the official `content`, `context`, `attributes` and `end`
+fields. `context` is parsed JSON or raw text, represented as `JSONValue`; it is
+`.null` when absent. `buildMessage` accepts those same fields. The host can retain
+its original input separately when exact source bytes are needed.
+
+## Authoring and schema
+
+`DefinedComponent`, `DefinedFunction` and `DefinedAction` follow the core authoring
+names. Validation exposes `ParsedRule(type:arg:)` and `ValidatorFn`; `Library.toJSONSchema()`
+exports the core schema. Swift definitions and callbacks enter core `defineComponent`, `defineFunction`,
+`defineAction`, `createLibrary` and `library.extend` through JSON/Zod transport.
+Component reference identity and bindable metadata are preserved. `LibrarySpec`
+and signatures come from core `toSpec()`; the adapter does not reproduce an older
+Swift schema spelling or custom signature format. JSON Schema integer ranges are
+preserved when the Zod importer would otherwise add safe-integer bounds.
+
+## Build and test
+
+```sh
+swift test --filter OpenUILangTests
+npm ci --prefix Tools/Core --ignore-scripts
+node Tools/Core/build.mjs
+node Tools/Core/verify-compatibility.mjs
+```
+
+Ordinary SwiftPM consumers use the checked-in resource without Node or downloads.
+The fixed upstream is `f08a660535e55b5b2a24a0eb68568edaf9e4fe4b`, core tree
+`bf6be546007f96c87689c7b47c29e1f09175f6f6`. Exact dependency, source and resource
+hashes live in [core-manifest.json](../../Sources/OpenUILang/Resources/core-manifest.json).
+
+Compatibility adaptations remain explicit: serializer round-trip grouping and
+keys, positional omittability, materialization limits, bounded ECMAScript pattern
+execution, native readiness source injection and dependency schema compatibility.
+The [source lock](../../Tools/upstream.json) records the official and adapted core
+trees and the exact source patch. The adaptation inventory, reasons and removal
+gates are embedded in the manifest. See [the compatibility contract](compatibility.md)
+for strict oracle checks, native projection rules and resource exceptions. Raw message-context and
+legacy output-format compatibility have been removed. A source upgrade must
+revalidate the explicit source/build adaptations and reference fixtures.
+Third-party licenses ship with the bundle and bounded regex backend.
+
+A serialized JavaScript realm owns separate parser/Store/query objects. Host
+async transport does not hold the realm lock across `await`. Cancellation and
+source epochs prevent late responses from updating replacement programs. Typed
+native ActionPlans execute at the framework boundary, matching other adapters.
+
+## Language reference
+
+- [Overview](overview.md): the language, streaming and stored UI model.
+- [Language specification](language.md): grammar, evaluation, state and actions.
+- [Prompt and message protocol](prompt.md): LibrarySpec, generation and stored responses.
+- [Conformance fixtures](../../Fixtures/Language/1.0/README.md): versioned examples and expected results.
