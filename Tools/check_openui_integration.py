@@ -28,7 +28,7 @@ def main() -> None:
     package = (ROOT / "Package.swift").read_text()
     if "https://github.com/zyfn/openui.git" in package:
         problems.append("Old fork SwiftPM dependency remains")
-    for name in ["OpenUILang", "OpenUISwiftUI", "SwiftIntelligentUI"]:
+    for name in ["OpenUILang", "OpenSwiftUI", "OpenIntelligentSwiftUI"]:
         if len(re.findall(r'\.target\(name:\s*"' + name + r'"', package)) != 1:
             problems.append(f"Target must have exactly one owner: {name}")
     for path in [ROOT / "Package.resolved", ROOT / "Examples/Gallery/IntelligentUIGallery.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"]:
@@ -46,7 +46,7 @@ def main() -> None:
     patch = ROOT / "OpenUI/Tools" / lock["core"]["sourcePatch"]
     if sha(patch) != lock["core"]["sourcePatchSHA256"]:
         problems.append("Unreviewed upstream signature patch")
-    resource = ROOT / "OpenUI/Sources/OpenUILang/Resources"
+    resource = ROOT / "Sources/OpenUILang/Resources"
     core = json.loads((resource / "core-manifest.json").read_text())
     if core["sha256"] != sha(resource / "lang-core.js") or core["sourceTree"] != lock["core"]["adaptedTree"]:
         problems.append("Generated core does not match its pinned provenance")
