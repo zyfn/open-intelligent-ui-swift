@@ -30,7 +30,7 @@ flowchart TB
 - 最低平台为 iOS 16 / macOS 13。
 - 四个模块在根 `Sources/`、`Tests/` 中共同版本化，根包导出 `OpenUILang`、`OpenUICore`、`OpenSwiftUI` 与 `OpenIntelligentSwiftUI`。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`，不依赖整个远程 fork。`OpenUI/` 保留生成工具、验证材料、fixtures、示例和来源记录，当前源码路径由根 Package 管理。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。历史来源见 [OpenUI/README.md](../OpenUI/README.md) 与 [IMPORT.json](../OpenUI/IMPORT.json)，当前边界见[四模块架构](architecture.md)。
 - 组件及计算参考固定为 `16ef26475999e3a021a50b1607a03717c0721255` 的 55 组件库，不是 OpenUI 运行时内置的 ReferenceCatalog。
-- swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.16.47。
+- swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.18.2；依赖安全修复与资源来源见[验证与安全修复](validation-and-security.md)。
 
 ## 2. 模块与目录
 
