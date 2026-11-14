@@ -1,13 +1,13 @@
 #if os(macOS)
 import Foundation
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class NativeResourceBundleTests: XCTestCase {
     func testPackagedLocalizationTakesPriorityWithoutEvaluatingSwiftPMFallback() throws {
         let (root, host) = try applicationFixture()
         defer { try? FileManager.default.removeItem(at: root) }
-        let expected = try XCTUnwrap(host.resourceURL).appendingPathComponent("swift-ui_OpenUISwiftUI.bundle")
+        let expected = try XCTUnwrap(host.resourceURL).appendingPathComponent("swift-ui_OpenSwiftUI.bundle")
         try FileManager.default.copyItem(at: NativeControlResources.bundle.bundleURL, to: expected)
         var usedFallback = false
         let selected = NativeControlResources.resolve(in: host) {
@@ -27,7 +27,7 @@ final class NativeResourceBundleTests: XCTestCase {
     func testRootPackageLocalizationTakesPriorityWithoutEvaluatingSwiftPMFallback() throws {
         let (root, host) = try applicationFixture()
         defer { try? FileManager.default.removeItem(at: root) }
-        let expected = try XCTUnwrap(host.resourceURL).appendingPathComponent("openui_OpenUISwiftUI.bundle")
+        let expected = try XCTUnwrap(host.resourceURL).appendingPathComponent("openui_OpenSwiftUI.bundle")
         try FileManager.default.copyItem(at: NativeControlResources.bundle.bundleURL, to: expected)
         var usedFallback = false
         let selected = NativeControlResources.resolve(in: host) {

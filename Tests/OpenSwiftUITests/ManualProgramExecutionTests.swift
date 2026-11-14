@@ -1,7 +1,7 @@
 import OpenUILang
 import XCTest
 
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ManualProgramExecutionTests: XCTestCase {
     @MainActor func testReplacementAndActionEvaluationStayExactUnderAllocationChurn() async throws {

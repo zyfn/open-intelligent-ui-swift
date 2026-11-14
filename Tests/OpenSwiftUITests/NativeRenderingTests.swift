@@ -3,7 +3,7 @@
     import XCTest
     import SwiftUI
     import OpenUILang
-    @testable import OpenUISwiftUI
+    @testable import OpenSwiftUI
 
     final class NativeRenderingTests: XCTestCase {
         @MainActor func testVisiblePartialTextKeepsGrowingBeforeItsParentCloses() throws {
