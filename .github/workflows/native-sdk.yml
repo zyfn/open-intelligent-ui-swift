@@ -2,7 +2,7 @@ name: Native SDK and lang compatibility
 
 on:
   push:
-    branches: [codex/sdk-baseline, codex/swift-sdk-consolidation-rc21]
+    branches: [codex/sdk-baseline, codex/swift-sdk-consolidation-rc21, refactor/openui-four-module-foundation]
   pull_request:
     branches: [codex/sdk-baseline, codex/intelligentui-design-revamp, codex/swift-sdk-consolidation-rc21]
   workflow_dispatch:
