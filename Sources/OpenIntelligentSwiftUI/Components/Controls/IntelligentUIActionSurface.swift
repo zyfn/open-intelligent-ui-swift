@@ -9,6 +9,7 @@ struct IntelligentUIActionSurface<Content: View>: View {
     private let action: ActionPlan
     private let role: ButtonRole?
     private let showsProgress: Bool
+    private let progressTint: Color?
     private let content: Content
     // Readiness may change without changing the component's evaluated props.
     @EnvironmentObject private var state: OpenUIState
@@ -17,11 +18,13 @@ struct IntelligentUIActionSurface<Content: View>: View {
     @State private var operation: UUID?
 
     init(context: OpenUIComponentContext, action: ActionPlan, role: ButtonRole? = nil,
-         showsProgress: Bool = false, @ViewBuilder content: () -> Content) {
+         showsProgress: Bool = false, progressTint: Color? = nil,
+         @ViewBuilder content: () -> Content) {
         self.context = context
         self.action = action
         self.role = role
         self.showsProgress = showsProgress
+        self.progressTint = progressTint
         self.content = content()
     }
 
@@ -43,7 +46,8 @@ struct IntelligentUIActionSurface<Content: View>: View {
         } label: {
             content.contentShape(Rectangle())
                 .environment(\.intelligentUIInteractiveContent, true)
-                .modifier(IntelligentUIActionProgress(active: showsProgress && operation != nil))
+                .modifier(IntelligentUIActionProgress(active: showsProgress && operation != nil,
+                    tint: progressTint))
         }
         .accessibilityValue(showsProgress && operation != nil
             ? SDKStrings.text("progress.processing", locale: locale) : "")
@@ -74,6 +78,7 @@ extension EnvironmentValues {
 /// This timing is a presentation detail, independent of the standard UI theme.
 private struct IntelligentUIActionProgress: ViewModifier {
     let active: Bool
+    let tint: Color?
     @Environment(\.intelligentUITheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visible = false
@@ -86,7 +91,8 @@ private struct IntelligentUIActionProgress: ViewModifier {
                         if reduceMotion { Image(systemName: "ellipsis") }
                         else { ProgressView().controlSize(.small) }
                     }
-                    .tint(theme.actionAccent)
+                    .tint(tint ?? theme.actionAccent)
+                    .foregroundStyle(tint ?? theme.actionAccent)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
                 }

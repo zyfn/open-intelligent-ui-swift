@@ -30,10 +30,12 @@ final class PhotoCardGeometryTests: XCTestCase {
     let standard = try OpenUIStandardComponents.library()
     let image = try XCTUnwrap(standard.library.components.first { $0.name == "Image" })
     let library = try standard.extending(overriding: [OpenUIComponent(image) { context in
-      NativeContentImage(context: context).background(GeometryReader { geometry in
-        Color.clear.onAppear { measured.width = geometry.size.width }
-          .onChange(of: geometry.size.width) { measured.width = $0 }
-      })
+      NativeComponentHost(context: context) { context in
+        NativeContentImage(context: context).background(GeometryReader { geometry in
+          Color.clear.onAppear { measured.width = geometry.size.width }
+            .onChange(of: geometry.size.width) { measured.width = $0 }
+        })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     let host = NSHostingView(rootView: OpenUIRenderer(state: state, registry: library.registry).frame(width: 300))

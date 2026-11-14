@@ -47,10 +47,12 @@ final class SDKVisualContractTests: XCTestCase {
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "ContextCardItem" })
     let bounds = VisualContractBounds()
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
-      NativeCardItem(context: context, kind: "Context").background(GeometryReader { geometry in
-        Color.clear.onAppear { bounds.frame = geometry.frame(in: .named("contract")) }
-          .onChange(of: geometry.frame(in: .named("contract"))) { bounds.frame = $0 }
-      })
+      NativeComponentHost(context: context) { context in
+        NativeCardItem(context: context, kind: "Context").background(GeometryReader { geometry in
+          Color.clear.onAppear { bounds.frame = geometry.frame(in: .named("contract")) }
+            .onChange(of: geometry.frame(in: .named("contract"))) { bounds.frame = $0 }
+        })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     state.setSource("root=ContextCardBlock([ContextCardItem(\"a\",\"Context\",\"One fact\")],\"grid\",true,@OpenUrl(\"https://example.com/details\"))")

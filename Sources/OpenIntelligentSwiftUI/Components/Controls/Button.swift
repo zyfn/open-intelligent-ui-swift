@@ -25,6 +25,11 @@ private struct ActionButtonView: View {
         default: return theme.actionAccent
         }
     }
+    private var foreground: Color {
+        guard (context.string("variant") ?? "solid") == "solid" else { return tint }
+        return context.string("color") == nil || context.string("color") == "primary"
+            ? theme.actionForeground : theme.onAccent
+    }
     @ViewBuilder var body: some View {
         let variant = context.string("variant") ?? "solid"
         surface.buttonStyle(UpstreamButtonStyle(variant: variant, tint: tint, size: context.string("size") ?? "md"))
@@ -36,14 +41,13 @@ private struct ActionButtonView: View {
         .disabled(context.flag("disabled") == true || context.action() == nil)
     }
     private var surface: some View {
-        IntelligentUIActionSurface(context: context, action: context.action() ?? ActionPlan(), showsProgress: true) {
+        IntelligentUIActionSurface(context: context, action: context.action() ?? ActionPlan(),
+            showsProgress: true, progressTint: foreground) {
             HStack(spacing: theme.iconSpacing) {
                 if let symbol = IconCatalog.symbol(context.string("icon")) { Image(systemName: symbol).accessibilityHidden(true) }
                 Text(context.string("label") ?? "").fixedSize(horizontal: false, vertical: true)
             }
-            .foregroundStyle((context.string("variant") ?? "solid") == "solid"
-                ? (context.string("color") == nil || context.string("color") == "primary" ? theme.actionForeground : theme.onAccent)
-                : tint)
+            .foregroundStyle(foreground)
             .frame(maxWidth: context.flag("block") == true ? .infinity : nil)
         }
     }

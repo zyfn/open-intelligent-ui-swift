@@ -12,7 +12,10 @@ enum FormComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Form", description: "Groups explicitly bound fields in a native form context. Related action data must be explicit; feedback is composed with ordinary components. Layout wrappers do not change group spacing.", params: [
             OpenUIParameter.slot("children", required: true)
-        ]) { FormGroup(context: $0) }
+        ]) { context in
+            FormGroup(context: context)
+                .environment(\.openUIInteractionScopeReady, context.canInteract)
+        }
     }
 }
 private struct FormGroup: View {

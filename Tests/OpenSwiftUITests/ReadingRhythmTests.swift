@@ -15,14 +15,16 @@ final class ReadingRhythmTests: XCTestCase {
     let overrides = try names.map { name -> OpenUIComponent in
       let definition = try XCTUnwrap(standard.library.components.first { $0.name == name })
       return OpenUIComponent(definition) { context in
-        Group {
-          if name == "IconText" { NativeMediaText(context: context, media: .icon) }
-          else { NativeMetric(context: context, inline: true) }
-        }.background(GeometryReader { geometry in
-          let key = context.string(name == "IconText" ? "title" : "value") ?? ""
-          Color.clear.onAppear { frames.values[key] = geometry.frame(in: .named("metric-starts")) }
-            .onChange(of: geometry.frame(in: .named("metric-starts"))) { frames.values[key] = $0 }
-        })
+        NativeComponentHost(context: context) { context in
+          Group {
+            if name == "IconText" { NativeMediaText(context: context, media: .icon) }
+            else { NativeMetric(context: context, inline: true) }
+          }.background(GeometryReader { geometry in
+            let key = context.string(name == "IconText" ? "title" : "value") ?? ""
+            Color.clear.onAppear { frames.values[key] = geometry.frame(in: .named("metric-starts")) }
+              .onChange(of: geometry.frame(in: .named("metric-starts"))) { frames.values[key] = $0 }
+          })
+        }
       }
     }
     let library = try standard.extending(overriding: overrides)
@@ -55,10 +57,12 @@ final class ReadingRhythmTests: XCTestCase {
     let standard = try OpenUIStandardComponents.library()
     let icon = try XCTUnwrap(standard.library.components.first { $0.name == "Icon" })
     let library = try standard.extending(overriding: [OpenUIComponent(icon) { context in
-      NativeIcon(context: context).background(GeometryReader { geometry in
-        Color.clear.onAppear { frames.values["icon"] = geometry.frame(in: .named("summary")) }
-          .onChange(of: geometry.frame(in: .named("summary"))) { frames.values["icon"] = $0 }
-      })
+      NativeComponentHost(context: context) { context in
+        NativeIcon(context: context).background(GeometryReader { geometry in
+          Color.clear.onAppear { frames.values["icon"] = geometry.frame(in: .named("summary")) }
+            .onChange(of: geometry.frame(in: .named("summary"))) { frames.values["icon"] = $0 }
+        })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     state.setSource("""
@@ -86,10 +90,12 @@ final class ReadingRhythmTests: XCTestCase {
     let standard = try OpenUIStandardComponents.library()
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "Icon" })
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
-      NativeIcon(context: context).background(GeometryReader { geometry in
-        Color.clear.onAppear { frames.values["icon"] = geometry.frame(in: .named("icon-row")) }
-          .onChange(of: geometry.frame(in: .named("icon-row"))) { frames.values["icon"] = $0 }
-      })
+      NativeComponentHost(context: context) { context in
+        NativeIcon(context: context).background(GeometryReader { geometry in
+          Color.clear.onAppear { frames.values["icon"] = geometry.frame(in: .named("icon-row")) }
+            .onChange(of: geometry.frame(in: .named("icon-row"))) { frames.values["icon"] = $0 }
+        })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     let host = NSHostingView(rootView: OpenUIRenderer(state: state, registry: library.registry)
@@ -116,10 +122,12 @@ final class ReadingRhythmTests: XCTestCase {
     let standard = try OpenUIStandardComponents.library()
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "MetricIndicatorInline" })
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
-      NativeMetric(context: context, inline: true).background(GeometryReader { geometry in
-        Color.clear.onAppear { frames.values[context.string("value") ?? ""] = geometry.frame(in: .named("metrics")) }
-          .onChange(of: geometry.frame(in: .named("metrics"))) { frames.values[context.string("value") ?? ""] = $0 }
-      })
+      NativeComponentHost(context: context) { context in
+        NativeMetric(context: context, inline: true).background(GeometryReader { geometry in
+          Color.clear.onAppear { frames.values[context.string("value") ?? ""] = geometry.frame(in: .named("metrics")) }
+            .onChange(of: geometry.frame(in: .named("metrics"))) { frames.values[context.string("value") ?? ""] = $0 }
+        })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     state.setSource("""
@@ -149,17 +157,19 @@ final class ReadingRhythmTests: XCTestCase {
     let replacements = try names.map { name -> OpenUIComponent in
       let component = try XCTUnwrap(OpenUIStandardComponents.components.first { $0.definition.name == name })
       return OpenUIComponent(component.definition) { context in
-        Group {
-          switch name {
-          case "IconText": NativeMediaText(context: context, media: .icon)
-          case "ImageText": NativeMediaText(context: context, media: .thumbnail)
-          case "Text": NativeInlineText(context: context, bold: false)
-          default: NativeMetric(context: context, inline: true)
-          }
-        }.background(GeometryReader { geometry in
-          Color.clear.onAppear { frames.values[name] = geometry.frame(in: .named("overview")) }
-            .onChange(of: geometry.frame(in: .named("overview"))) { frames.values[name] = $0 }
-        })
+        NativeComponentHost(context: context) { context in
+          Group {
+            switch name {
+            case "IconText": NativeMediaText(context: context, media: .icon)
+            case "ImageText": NativeMediaText(context: context, media: .thumbnail)
+            case "Text": NativeInlineText(context: context, bold: false)
+            default: NativeMetric(context: context, inline: true)
+            }
+          }.background(GeometryReader { geometry in
+            Color.clear.onAppear { frames.values[name] = geometry.frame(in: .named("overview")) }
+              .onChange(of: geometry.frame(in: .named("overview"))) { frames.values[name] = $0 }
+          })
+        }
       }
     }
     let library = try standard.extending(overriding: replacements)

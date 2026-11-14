@@ -24,9 +24,11 @@ final class HostSizingIsolationTests: XCTestCase {
     let standard = try OpenUIStandardComponents.library()
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "TextContent" })
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
-      Text(context.string("text") ?? "")
-        .fixedSize(horizontal: false, vertical: true)
-        .background(SizingMountMarker(log: mounts))
+      NativeComponentHost(context: context) { context in
+        Text(context.string("text") ?? "")
+          .fixedSize(horizontal: false, vertical: true)
+          .background(SizingMountMarker(log: mounts))
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     let source = "root=Stack([TextContent(\"Stable prefix\"),TextContent(\"流式内容与尺寸测量保持分离\")])"
@@ -107,7 +109,9 @@ extension HostSizingIsolationTests {
     let document = NativeMarkdownDocument()
     let definition = try XCTUnwrap(library.library.components.first { $0.name == "TextContent" })
     let measured = try library.extending(overriding: [OpenUIComponent(definition) { context in
-      MainActor.assumeIsolated { NativeMarkdownText(text: context.string("text") ?? "", document: document) }
+      NativeComponentHost(context: context) { context in
+        MainActor.assumeIsolated { NativeMarkdownText(text: context.string("text") ?? "", document: document) }
+      }
     }])
     let text = "## 原生 Markdown 测量\n\n" + String(repeating: "**强调**与普通中文保持稳定。A link is [readable](https://example.com).\n\n", count: 20)
     let literal = String(data: try JSONEncoder().encode(text), encoding: .utf8)!

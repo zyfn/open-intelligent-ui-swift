@@ -9,7 +9,10 @@ enum CardComponent {
             OpenUIParameter.string("variant", required: false, values: ["outline", "soft"]),
             Parameter.number("padding", minimum: 0, maximum: 24),
             Parameter.number("gap", minimum: 0, maximum: 24)
-        ]) { CardView(context: $0) }
+        ]) { context in
+            CardView(context: context)
+                .environment(\.openUIInteractionScopeReady, context.canInteract)
+        }
     }
 }
 

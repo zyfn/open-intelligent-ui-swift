@@ -15,7 +15,13 @@ public struct OpenUIContextValues {
     public init() {}
 
     public subscript<Key: OpenUIContextKey>(_ key: Key.Type) -> Key.Value {
-        get { storage[ObjectIdentifier(key)] as? Key.Value ?? Key.defaultValue }
+        get {
+            // A missing Any? can cast successfully to an optional Value as
+            // nil. Check membership first so absence uses the key's default,
+            // while an explicitly stored optional nil still clears it.
+            guard let stored = storage[ObjectIdentifier(key)] else { return Key.defaultValue }
+            return stored as? Key.Value ?? Key.defaultValue
+        }
         set { storage[ObjectIdentifier(key)] = newValue as Any }
     }
 }

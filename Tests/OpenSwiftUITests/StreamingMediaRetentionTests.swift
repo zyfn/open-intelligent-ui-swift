@@ -18,12 +18,18 @@ final class StreamingMediaRetentionTests: XCTestCase {
     let button = try XCTUnwrap(standard.library.components.first { $0.name == "Button" })
     let library = try standard.extending(overriding: [
       OpenUIComponent(image) { context in
-        NativeRemoteImage(src: context.string("src"), alt: "A", layout: .aspect(1.5),
-          onStatus: { status, _ in statuses.statuses["A", default: []].append(status) })
+        // The probe replaces the standard factory. Retain its host so the
+        // internal image receives this element's media readiness and stream.
+        NativeComponentHost(context: context) { context in
+          NativeRemoteImage(src: context.string("src"), alt: "A", layout: .aspect(1.5),
+            onStatus: { status, _ in statuses.statuses["A", default: []].append(status) })
+        }
       },
       OpenUIComponent(button) { context in
-        OpenUIActionSurface(context: context, message: "Open", action: context.value("action")) {
-          EachReadinessButton(log: mounts).frame(width: 120, height: 32)
+        NativeComponentHost(context: context) { context in
+          OpenUIActionSurface(context: context, message: "Open", action: context.value("action")) {
+            EachReadinessButton(log: mounts).frame(width: 120, height: 32)
+          }
         }
       },
     ])
@@ -63,9 +69,11 @@ final class StreamingMediaRetentionTests: XCTestCase {
     let standard = try OpenUIStandardComponents.library()
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "ImageText" })
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
-      NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-        layout: .thumbnail(CGSize(width: 72, height: 72)),
-        onStatus: { status, _ in log.statuses[context.string("alt") ?? "", default: []].append(status) })
+      NativeComponentHost(context: context) { context in
+        NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
+          layout: .thumbnail(CGSize(width: 72, height: 72)),
+          onStatus: { status, _ in log.statuses[context.string("alt") ?? "", default: []].append(status) })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     state.push("root=CompositeCardBlock([a,b,c],\"carousel\",true)\na=CompositeCardItem(\"a\",ImageText(\"https://images.example/a.png\",\"A\",\"First\"),[])\n")
@@ -176,9 +184,11 @@ final class StreamingMediaRetentionTests: XCTestCase {
     let standard = try OpenUIStandardComponents.library()
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "ImageText" })
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
-      NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-        layout: .thumbnail(CGSize(width: 72, height: 72)),
-        onStatus: { status, _ in log.statuses[context.string("alt") ?? "", default: []].append(status) })
+      NativeComponentHost(context: context) { context in
+        NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
+          layout: .thumbnail(CGSize(width: 72, height: 72)),
+          onStatus: { status, _ in log.statuses[context.string("alt") ?? "", default: []].append(status) })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     state.push("root=CompositeCardBlock([a,b,c],\"carousel\",true)\na=CompositeCardItem(\"a\",ImageText(\"https://images.example/a.png\",\"A\",\"First\"),[TextContent(\"A body\")])\n")

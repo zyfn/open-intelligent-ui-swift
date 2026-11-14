@@ -1,23 +1,26 @@
 # Swift Intelligent UI 设计
 
-本文描述 Swift Intelligent UI 的架构、组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。接入与修改规则概览见仓库根目录 `README.md`。
+本文描述 `OpenIntelligentSwiftUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[四模块架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
 ## 1. 定位与基线
 
-Swift Intelligent UI 是基于 OpenUI Swift 的 Apple 平台组件库，提供 DesignSystem、组件、交互绑定和生成规范。布局、文字、图片、输入、商品、交通和图表遵循同一套组件机制。
+`OpenIntelligentSwiftUI` 是基于 `OpenUILang` 与 `OpenUICore` 的 Apple 平台组件库，提供 DesignSystem、组件、交互绑定和生成规范。布局、文字、图片、输入、商品、交通和图表遵循同一套组件机制。
 
-调用方持有 OpenUIState、提供内容与资源、接收动作事件。库通过 OpenUI Swift 的公开接口复用解析、求值、状态、流式与渲染遍历。模型生成验证仅位于 Benchmarks。
+调用方持有 Core 定义的 `OpenUIState`、提供内容与资源、接收动作事件。库通过 Lang 的解析与求值接口和 Core 的状态、流式、context/host 与渲染遍历复用运行机制。模型生成验证仅位于 Benchmarks。
 
 库不负责模型服务、业务资料检索、消息生命周期、订单交易或购买结果。模型、工具和宿主提供事实；组件按来源呈现，不补造价格、库存、坐标、路线、来源或执行结果。
 
 ```mermaid
 flowchart TB
     caller["调用方"]
-    library["Swift Intelligent UI"]
-    runtime["OpenUI Swift"]
+    library["OpenIntelligentSwiftUI"]
+    runtime["OpenUICore"]
+    language["OpenUILang"]
     native["SwiftUI / Apple 平台"]
     caller -->|"内容、状态、资源与动作回调"| library
-    library -->|"公开解析、状态与渲染接口"| runtime
+    library -->|"状态、context 与渲染"| runtime
+    library -->|"语言类型与契约"| language
+    runtime -->|"解析、求值与 Store"| language
     library -->|"组件与主题"| native
     runtime -->|"渲染基础"| native
 ```
@@ -25,43 +28,37 @@ flowchart TB
 ### 依赖与边界
 
 - 最低平台为 iOS 16 / macOS 13。
-- OpenUI Swift 在本仓 `OpenUI/` 中作为正式源码共同版本化，首次来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`。根包导出 `OpenUILang` / `OpenUISwiftUI`，不再依赖整个远程 fork。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。来源和边界见 `OpenUI/README.md` 与 `OpenUI/IMPORT.json`。
+- 四个模块在根 `Sources/`、`Tests/` 中共同版本化，根包导出 `OpenUILang`、`OpenUICore`、`OpenSwiftUI` 与 `OpenIntelligentSwiftUI`。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`，不依赖整个远程 fork。`OpenUI/` 保留生成工具、验证材料、fixtures、示例和来源记录，当前源码路径由根 Package 管理。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。历史来源见 [OpenUI/README.md](../OpenUI/README.md) 与 [IMPORT.json](../OpenUI/IMPORT.json)，当前边界见[四模块架构](architecture.md)。
 - 组件及计算参考固定为 `16ef26475999e3a021a50b1607a03717c0721255` 的 55 组件库，不是 OpenUI 运行时内置的 ReferenceCatalog。
 - swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.16.47。
 
 ## 2. 模块与目录
 
-Intelligent UI 库模块仍为 `SwiftIntelligentUI`，内部按职责和 UI 能力分类；通用运行时与标准组件分别属于 `OpenUILang`、`OpenUISwiftUI`，在独立 `OpenUI/` 目录维护。三者由同一个根 Package 构建，不复制运行时状态，不合并两套组件契约。
+四个库产品由同一个根 `Package.swift` 构建。`OpenSwiftUI` 与 `OpenIntelligentSwiftUI` 是各自独立的 UI 库，都直接依赖 `OpenUICore` 和 `OpenUILang`，彼此没有依赖；共享运行时状态与机制，分别维护组件契约和视觉规则。
 
-```text
-open-intelligent-ui-swift/
-├── Package.swift
-├── Package.resolved
-├── THIRD-PARTY-NOTICES.txt
-├── OpenUI/                     # 通用 Sources / Tests / Tools / Fixtures / Documentation
-├── Sources/SwiftIntelligentUI/
-│   ├── IntelligentUIView.swift
-│   ├── Catalog/                 # 组件注册、状态工厂与参数读取
-│   ├── DesignSystem/            # IntelligentUITheme、EditorialStyle、阅读位置规则
-│   ├── Internal/                # 布局调试辅助，不属于主题或组件契约
-│   ├── Components/
-│   │   ├── Layout/
-│   │   ├── Content/
-│   │   ├── Controls/
-│   │   ├── Media/
-│   │   └── DataDisplay/
-│   ├── Functions/               # 固定计算代码的受控桥接
-│   ├── Generation/              # spec、Prompt、manifest 与诊断
-│   └── Resources/               # 计算、公式与许可资源
-├── Tests/SwiftIntelligentUITests/
-├── Examples/Gallery/
-├── Tools/
-├── Benchmarks/
-├── docs/
-└── outputs/                     # 本地导出、验收证据与交付包
-```
+| 模块 | 源码与测试 | 职责 |
+|---|---|---|
+| `OpenUILang` | `Sources/OpenUILang`、`Tests/OpenUILangTests` | 语言桥接、解析与求值、Store、动作与查询语义、序列化与预算 |
+| `OpenUICore` | `Sources/OpenUICore`、`Tests/OpenUICoreTests` | state/session、组件注册、context/host、递归渲染与身份、绑定、生命周期及通用资源机制 |
+| `OpenSwiftUI` | `Sources/OpenSwiftUI`、`Tests/OpenSwiftUITests` | 标准目录、主题、布局就绪与占位策略、标准组件和媒体视觉 |
+| `OpenIntelligentSwiftUI` | `Sources/OpenIntelligentSwiftUI`、`Tests/OpenIntelligentSwiftUITests` | Intelligent UI 目录、设计系统、交互与媒体呈现、计算及 reader/writer 生成契约 |
 
-组件定义与实现相邻，复杂组件在自己的文件或子目录维护辅助类型。Catalog 聚合实际实现，Generation 读取同一个注册库。消费者只链接 `SwiftIntelligentUI` 产品，不依赖 Gallery 或开发工具。
+`OpenIntelligentSwiftUI` 内部按职责和 UI 能力分类：
+
+| 目录或入口 | 职责 |
+|---|---|
+| `IntelligentUIView.swift` | 以本库外观与阅读宽度包装共享 Core renderer |
+| `Catalog/` | 组件注册、状态工厂与参数读取 |
+| `DesignSystem/` | IntelligentUITheme、EditorialStyle、阅读位置规则 |
+| `Internal/` | 本地化、性能与布局调试辅助 |
+| `Components/Layout/`、`Content/`、`Controls/`、`Media/`、`DataDisplay/` | 对应能力的组件定义与原生实现 |
+| `Functions/` | 固定计算代码的受控桥接 |
+| `Generation/` | spec、Prompt、manifest 与诊断 |
+| `Resources/` | 计算、公式、本地化与许可资源 |
+
+根 `Examples/Gallery/`、`Tools/`、`Benchmarks/`、`docs/` 分别维护演示、开发工具、模型验证和文档；`outputs/` 保存本地导出与验收材料。`OpenUI/` 保存通用底座的工具、验证、fixtures、示例与导入来源材料，不再以软链接承载当前源码和测试。
+
+组件定义与实现相邻，复杂组件在自己的文件或子目录维护辅助类型。Catalog 聚合实际实现，Generation 读取同一个注册库。消费者只需链接 `OpenIntelligentSwiftUI` 产品及其传递依赖，不依赖标准 UI 库、Gallery 或开发工具。
 
 ## 3. 宿主接入与状态
 
@@ -70,6 +67,8 @@ IntelligentUIView 接收外部创建的状态和匹配的 IntelligentUILibrary�
 最小接入在主线程完成：
 
 ```swift
+import OpenIntelligentSwiftUI
+
 let library = try IntelligentUILibrary()
 let state = library.makeState()
 state.onAction = { event in
@@ -307,7 +306,7 @@ CLI 保留导出、--validate 与 --case 命令结构，并提供显式历史验
 | Gallery | 固定程序的 UI 演示和离线检查，不代替真实模型输出或真实操作 |
 | 真实界面 | 指定设备、原程序与原图片的实际显示和操作，不能由编译或单元测试推断 |
 
-makeState() 使用本仓 `OpenUIState` 的默认创建方式，不另建解析器、Store 或运行时。调用方必须接受以下运行时边界：
+makeState() 使用 `OpenUICore` 中 `OpenUIState` 的默认创建方式，不另建解析器、Store 或运行时。调用方必须接受以下运行时边界：
 
 - 后生成的兄弟内容可能先于尚未就绪的前序区块显示，不能假设中间帧按源码顺序只追加。
 - isSourceComplete 描述源码就绪，不是运行时分支可达性；未选中的条件分支中，被解析的未定义引用也会影响它与 SDK 诊断。
@@ -319,7 +318,7 @@ makeState() 使用本仓 `OpenUIState` 的默认创建方式，不另建解析�
 
 `IntelligentUIPerformance.isEnabled` 默认关闭。调试时可 reset()/snapshot() 获取本库局部解析、测量、附件适配、地图、媒体、公式与 WebKit 的计数/耗时，不记录业务内容，也不代表底座运行时或整机性能。完整同内容重复测量、流式变更与取消测试应分别记录真实调用成本。
 
-`.github/workflows/native-sdk.yml` 在 macOS 运行 Swift Package 测试、Gallery 固定程序、历史 lang 导出对比与 iOS Simulator Gallery 构建。历史对比使用固定基线 ed3f6f82abf6f7cc9e307e9bb2eb21073a1f7d79，仅忽略 schema 的说明文字，不忽略业务字段名 description、默认值、类型、枚举或绑定标记。每次修改的验收记录在独立工作记录中维护，本文只陈述当前设计。
+[原生流水线](../.github/workflows/native-sdk.yml) 检查四模块依赖与源码边界，编译两个独立 UI 产品消费者，在 macOS 运行 Swift Package 测试、Release fitting、Gallery 固定程序和历史 lang 导出对比，并构建两个 UI target 与 iOS Simulator Gallery。历史对比使用固定基线 ed3f6f82abf6f7cc9e307e9bb2eb21073a1f7d79，仅忽略 schema 的说明文字，不忽略业务字段名 description、默认值、类型、枚举或绑定标记。每次修改的验收记录绑定具体提交与原生运行结果，本文只陈述当前设计，不将检查配置等同于通过结果。
 
 ## 10. 迭代规则
 
@@ -330,9 +329,9 @@ makeState() 使用本仓 `OpenUIState` 的默认创建方式，不另建解析�
 3. **DesignSystem 管呈现规则**：图注关系、阅读节奏、卡片层级、控件状态、大字号与平台适配由设计规则决定，不进入 DSL 参数，也不由父容器随意改变子组件语义。
 4. **公共主题只放语义 token**：颜色、字体角色、间距、圆角、阅读宽度和通用媒体默认值可以共享。间距与圆角独立定义，chartColors 只表示图表序列色，不复用业务状态色。
 5. **组件规格归组件**：表格列宽、商品缩略图、地图高度、图表字体等留在组件内部；共享图文尺寸归 EditorialMetrics，不重新塞进公共主题。
-6. **状态归 OpenUI 与调用方**：解析、求值、绑定和流式继续由 OpenUI 负责；业务数据、消息生命周期、资源与动作结果由宿主负责，SDK 不另建业务状态系统。
+6. **状态归 Core 与调用方**：Lang 负责解析、求值与 Store，Core 负责原生状态、绑定和流式生命周期；业务数据、消息生命周期、资源与动作结果由宿主负责，UI 库不另建业务状态系统。
 7. **Map 只表达地图**：点位、label 选择、分类过滤、fit 与展开由明确规则处理，不接收任意卡片投影，不为地图联动新增身份、筛选或路线方言。
 8. **契约同源**：spec、Prompt、manifest 必须从实际 writer 组件目录生成，不用字符串补丁掩盖实现差异，不让模型学习 SDK 内部运行时细节。
 9. **依赖可复现**：通用底座与组件库在同一提交验收；上游源码、构建工具和本地兼容补丁分别锁定。不得引入本机未提交 SDK、重复远端同名产品或浮动上游分支。
 10. **验收真实行为**：组件契约、构建、测试、Gallery 和真实界面分别验证。不得通过修改文档、删除断言或隐藏失败把未接受的行为写成通过。
-11. **文档只写当前体系**：本文维护当前设计和约束，不写版本流水、变更说明或试验过程。后续修改必须同步更新本文，不得另起一套互相冲突的架构说明。
+11. **文档只写当前体系**：本文维护当前组件库设计和约束，跨模块所有权以[四模块架构](architecture.md)为准，不写版本流水、变更说明或试验过程。后续修改必须同步更新对应文档，不得另起一套互相冲突的架构说明。

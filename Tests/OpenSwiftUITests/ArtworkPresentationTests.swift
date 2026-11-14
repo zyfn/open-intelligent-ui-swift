@@ -17,15 +17,19 @@ final class ArtworkPresentationTests: XCTestCase {
     let tag = try XCTUnwrap(standard.library.components.first { $0.name == "Tag" })
     let library = try standard.extending(overriding: [
       OpenUIComponent(title) { context in
-        MainActor.assumeIsolated { probe.titleInk = context.theme.textNeutralPrimary }
-        return NativeInlineText(context: context, bold: true)
+        NativeComponentHost(context: context) { context in
+          MainActor.assumeIsolated { probe.titleInk = context.theme.textNeutralPrimary }
+          return NativeInlineText(context: context, bold: true)
+        }
       },
       OpenUIComponent(tag) { context in
-        MainActor.assumeIsolated {
-          probe.tagInk = context.theme.textNeutralPrimary
-          probe.tagSurface = context.theme.foreground
+        NativeComponentHost(context: context) { context in
+          MainActor.assumeIsolated {
+            probe.tagInk = context.theme.textNeutralPrimary
+            probe.tagSurface = context.theme.foreground
+          }
+          return NativeTag(context: context)
         }
-        return NativeTag(context: context)
       },
     ])
     let state = OpenUIState(schema: library.library.toSchema())

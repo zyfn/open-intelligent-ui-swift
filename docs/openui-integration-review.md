@@ -1,5 +1,7 @@
 # OpenUI Swift review and workspace integration
 
+> **Historical integration review.** This record describes the initial `codex/swift-sdk-consolidation-rc21` import of `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c` onto target commit `a9099441a8b912a76bae7d4bd7eab0e50859749d`. The module names, directory ownership, runtime hash, security finding and verification results below belong to that reviewed snapshot; they are not assertions about the current branch or its release readiness. Current ownership and paths are documented in [Four-module architecture](architecture.md), and current integration examples are in the [README](../README.md). The current products are `OpenUILang`, `OpenUICore`, `OpenSwiftUI` and `OpenIntelligentSwiftUI`, with sources and tests under the root `Sources/` and `Tests/` directories. Subsequent changes must be assessed against their own commit and CI results; the historical evidence is preserved here.
+
 ## Scope and version identity
 
 Reviewed import: `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`, including the first implementation batch, integration with main, D1–D5 corrections and POI/quiet-image presentation. Target base: `zyfn/open-intelligent-ui-swift` branch `codex/intelligentui-design-revamp`, commit `a9099441a8b912a76bae7d4bd7eab0e50859749d`. Work happens only on `codex/swift-sdk-consolidation-rc21`; neither original target branch nor either repository's main is replaced.

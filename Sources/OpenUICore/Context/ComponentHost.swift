@@ -33,6 +33,7 @@ public struct OpenUIComponentHost<Content: View>: View {
         context.onUserInteraction = userInteraction
         let view = content(context)
             .environment(\.openUIInlineLinksReady, context.canInteract)
+            .allowsHitTesting(element.sourceReadiness.placeholder == nil)
         // Reset once at the tree's entry, including direct RenderNode hosts.
         // Repeating an explicit id on every descendant would merge lazy siblings.
         return Group {

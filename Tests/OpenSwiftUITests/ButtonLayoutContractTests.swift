@@ -25,12 +25,16 @@ final class ButtonLayoutContractTests: XCTestCase {
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "Button" })
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
       let key = context.string("label") ?? ""
-      return OpenUINativeButton(context: context).background(GeometryReader { geometry in
-        Color.clear.onAppear {
-          frames.rects[key] = geometry.frame(in: .global)
-          frames.mounts[key, default: 0] += 1
-        }.onChange(of: geometry.frame(in: .global)) { frames.rects[key] = $0 }
-      })
+      // This probe replaces the standard factory, so retain its host boundary
+      // when constructing the internal button implementation directly.
+      return NativeComponentHost(context: context) { context in
+        OpenUINativeButton(context: context).background(GeometryReader { geometry in
+          Color.clear.onAppear {
+            frames.rects[key] = geometry.frame(in: .global)
+            frames.mounts[key, default: 0] += 1
+          }.onChange(of: geometry.frame(in: .global)) { frames.rects[key] = $0 }
+        })
+      }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     state.setSource(source)
