@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import XCTest
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class AgentExampleContractTests: XCTestCase {
   private var directory: URL {

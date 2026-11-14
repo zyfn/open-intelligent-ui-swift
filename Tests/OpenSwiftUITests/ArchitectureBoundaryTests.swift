@@ -19,7 +19,7 @@ final class ArchitectureBoundaryTests: XCTestCase {
   func testLanguageRuntimeDoesNotDependOnNativePresentation() throws {
     let root = package
     for (file, source) in try swiftSources(root.appendingPathComponent("Sources/OpenUILang")) {
-      XCTAssertNil(source.range(of: #"(?m)^import\s+(SwiftUI|UIKit|AppKit|OpenUISwiftUI)\b"#,
+      XCTAssertNil(source.range(of: #"(?m)^import\s+(SwiftUI|UIKit|AppKit|OpenSwiftUI)\b"#,
         options: .regularExpression), file.lastPathComponent)
     }
     let manifest = try String(contentsOf: package.deletingLastPathComponent().appendingPathComponent("Package.swift"), encoding: .utf8)
@@ -28,7 +28,7 @@ final class ArchitectureBoundaryTests: XCTestCase {
   }
 
   func testComponentsCannotReachJavaScriptCoreOrLanguageBridgeInternals() throws {
-    let root = package.appendingPathComponent("Sources/OpenUISwiftUI/Components")
+    let root = package.appendingPathComponent("Sources/OpenSwiftUI/Components")
     for (file, source) in try swiftSources(root) {
       XCTAssertNil(source.range(of: #"\b(JSContext|JSValue|JSVirtualMachine|SharedCore)\b|import\s+JavaScriptCore"#,
         options: .regularExpression), file.lastPathComponent)
@@ -36,7 +36,7 @@ final class ArchitectureBoundaryTests: XCTestCase {
   }
 
   func testStandardComponentsCommitAndDispatchThroughTheirContext() throws {
-    let root = package.appendingPathComponent("Sources/OpenUISwiftUI/Components")
+    let root = package.appendingPathComponent("Sources/OpenSwiftUI/Components")
     for (file, source) in try swiftSources(root) {
       XCTAssertNil(source.range(of: #"\bstate\.(perform|triggerAction|setFieldValue|setState)\s*\("#,
         options: .regularExpression), file.lastPathComponent)
@@ -44,7 +44,7 @@ final class ArchitectureBoundaryTests: XCTestCase {
   }
 
   func testMarkdownBackendIsConfinedToTheTextFeature() throws {
-    let root = package.appendingPathComponent("Sources/OpenUISwiftUI")
+    let root = package.appendingPathComponent("Sources/OpenSwiftUI")
     for (file, source) in try swiftSources(root) {
       if source.range(of: #"(?m)^import\s+MarkdownUI\b"#, options: .regularExpression) != nil {
         XCTAssertTrue(file.path.contains("/Components/Text/"), file.path)
@@ -54,7 +54,7 @@ final class ArchitectureBoundaryTests: XCTestCase {
 
   func testPresentationBufferCannotSubmitSourceOrMutateDocumentState() throws {
     let file = package.appendingPathComponent(
-      "Sources/OpenUISwiftUI/Components/Text/NativeStreamingTextBuffer.swift")
+      "Sources/OpenSwiftUI/Components/Text/NativeStreamingTextBuffer.swift")
     let source = try String(contentsOf: file, encoding: .utf8)
     XCTAssertNil(source.range(of:
       #"(?m)^import\s+(OpenUILang|JavaScriptCore)\b|\b(OpenUIState|SharedCore)\b|\b(setSource|setState|triggerAction)\s*\("#,
@@ -62,7 +62,7 @@ final class ArchitectureBoundaryTests: XCTestCase {
   }
 
   func testRendererHelpersHaveOneOwnerWithoutCompatibilitySourceCopies() throws {
-    let root = package.appendingPathComponent("Sources/OpenUISwiftUI")
+    let root = package.appendingPathComponent("Sources/OpenSwiftUI")
     let node = try String(contentsOf: root.appendingPathComponent("RenderNode.swift"), encoding: .utf8)
     for name in ["RenderNode", "RenderValue", "OpenUIRenderChild", "ElementErrorBoundary"] {
       XCTAssertTrue(node.contains("struct " + name), name)
@@ -81,15 +81,15 @@ final class ArchitectureBoundaryTests: XCTestCase {
   func testNativePackageDoesNotAddAChatShellOrAnotherPublicRuntimeProduct() throws {
     let manifest = try String(contentsOf: package.deletingLastPathComponent().appendingPathComponent("Package.swift"), encoding: .utf8)
     XCTAssertEqual(manifest.components(separatedBy: ".library(").count - 1, 3)
-    XCTAssertTrue(manifest.contains(#"name: "OpenUISwiftUI""#))
-    XCTAssertTrue(manifest.contains(#"name: "SwiftIntelligentUI""#))
+    XCTAssertTrue(manifest.contains(#"name: "OpenSwiftUI""#))
+    XCTAssertTrue(manifest.contains(#"name: "OpenIntelligentSwiftUI""#))
     for forbidden in ["react-headless", "react-ui", "DocumentRuntime", "ChatRuntime"] {
       XCTAssertFalse(manifest.contains(forbidden), forbidden)
     }
   }
 
   func testPresentationJavaScriptIsConfinedToTypedInternalAdapters() throws {
-    let root = package.appendingPathComponent("Sources/OpenUISwiftUI")
+    let root = package.appendingPathComponent("Sources/OpenSwiftUI")
     let bridgeFiles = try swiftSources(root).filter { $0.1.contains("import JavaScriptCore") }
     XCTAssertEqual(Set(bridgeFiles.map { $0.0.lastPathComponent }),
       ["NativeRichText.swift", "NativeCodeSyntax.swift"])

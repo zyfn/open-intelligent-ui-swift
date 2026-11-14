@@ -1,6 +1,6 @@
 import XCTest
 import SwiftUI
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 #if os(macOS)
 import AppKit
 #endif

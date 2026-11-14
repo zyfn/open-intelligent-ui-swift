@@ -3,7 +3,7 @@ import AppKit
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class BoundaryIdentityTests: XCTestCase {
   @MainActor func testUnavailableUpdateKeepsTheMountedLastGoodView() throws {

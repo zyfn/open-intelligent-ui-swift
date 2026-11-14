@@ -1,7 +1,7 @@
 import Combine
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class AuxiliaryPublicationTests: XCTestCase {
   @MainActor func testPlainTextStreamingDoesNotRepublishEmptyAuxiliaryChannels() throws {

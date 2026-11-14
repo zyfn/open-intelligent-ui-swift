@@ -1,8 +1,8 @@
 import XCTest
 import SwiftUI
 import OpenUILang
-import OpenUISwiftUI
-@testable import SwiftIntelligentUI
+import OpenSwiftUI
+@testable import OpenIntelligentSwiftUI
 
 final class UpstreamParityTests: XCTestCase {
     private func node(_ name: String) -> Value { .element(EvaluatedElement(typeName: name, props: [])) }

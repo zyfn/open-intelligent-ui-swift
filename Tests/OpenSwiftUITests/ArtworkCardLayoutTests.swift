@@ -1,6 +1,6 @@
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ArtworkCardLayoutTests: XCTestCase {
   func testOverflowingCopyMovesBelowTheUnchangedPhotoInsteadOfBeingClipped() {

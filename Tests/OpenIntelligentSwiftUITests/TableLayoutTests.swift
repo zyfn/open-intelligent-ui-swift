@@ -1,6 +1,6 @@
 import XCTest
 import SwiftUI
-@testable import SwiftIntelligentUI
+@testable import OpenIntelligentSwiftUI
 
 final class TableLayoutTests: XCTestCase {
     func testDescriptionFillsSpaceWhileAmountKeepsItsIntrinsicWidth() {
