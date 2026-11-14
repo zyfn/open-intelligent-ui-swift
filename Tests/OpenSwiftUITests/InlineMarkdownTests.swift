@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class InlineMarkdownTests: XCTestCase {
   func testTextBlockInlineMarkupPreservesContentAndSemantics() {

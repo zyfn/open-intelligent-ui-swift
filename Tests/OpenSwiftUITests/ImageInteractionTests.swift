@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class ImageInteractionTests: XCTestCase {
   func testChangingThePreviewImageResetsZoomAndPan() {

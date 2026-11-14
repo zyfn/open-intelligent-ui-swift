@@ -1,7 +1,7 @@
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class FullLibraryParityTests: XCTestCase {
   func testTickAndTooltipNumbersFollowUpstreamFormatting() {

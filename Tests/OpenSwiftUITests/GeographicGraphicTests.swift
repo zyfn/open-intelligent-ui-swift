@@ -1,6 +1,6 @@
 import XCTest
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class GeographicGraphicTests: XCTestCase {
   @MainActor func testDefaultLibraryOwnsExistingHostContractsAndContainerSlots() throws {

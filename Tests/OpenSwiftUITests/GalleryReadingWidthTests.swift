@@ -3,7 +3,7 @@ import AppKit
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class GalleryReadingWidthTests: XCTestCase {
   @MainActor private func height(_ source: String, width: CGFloat, streaming: Bool = false) throws -> CGFloat {

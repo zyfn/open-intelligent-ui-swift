@@ -1,6 +1,6 @@
 import XCTest
 import OpenUILang
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class FeedbackAuditSliderProbeTests: XCTestCase {
     func testFractionalOriginRetainsStepLatticeAndRange() {

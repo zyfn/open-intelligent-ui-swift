@@ -1,7 +1,7 @@
 import Foundation
 import OpenUILang
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class HotPathReductionTests: XCTestCase {
   func testPagerHeightMatchesReferenceForDegenerateInputsAndSelection() {

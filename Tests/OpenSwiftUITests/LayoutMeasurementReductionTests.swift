@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 final class LayoutMeasurementReductionTests: XCTestCase {
     func testFlexReusesNegotiatedWidthsOnlyInsideTheCurrentCall() {

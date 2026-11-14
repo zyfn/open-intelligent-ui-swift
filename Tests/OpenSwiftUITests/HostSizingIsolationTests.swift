@@ -4,7 +4,7 @@ import Combine
 import OpenUILang
 import SwiftUI
 import XCTest
-@testable import OpenUISwiftUI
+@testable import OpenSwiftUI
 
 /// A fixed-width native host exercises fitting without network, Markdown
 /// preparation, or client chat-list callbacks. Real client profiling is separate.
