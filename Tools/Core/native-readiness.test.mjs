@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const script = readFileSync(new URL('../../Sources/OpenUILang/Resources/lang-core.js', import.meta.url), 'utf8');
+const script = readFileSync(new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
 const schema = {
   $defs: {
     Box: { type: 'object', properties: { value: {} }, required: ['value'] },

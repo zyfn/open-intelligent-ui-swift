@@ -2,7 +2,7 @@
 
 本目录目前只有一个可运行应用：[OpenUI Gallery](Gallery/README.md)。它依赖根 Swift Package 的公开产品，用于查看两套 UI、编辑案例和回放流式内容。
 
-Gallery 内分两组内容：**核心场景**展示完整任务回复，**组件诊断**集中复现布局、输入、图片和流式等问题。选择内容后，再选择 Standard UI 或 Intelligent UI；同一场景载入该库对应的程序。
+Gallery 左侧统一选择 **OpenUI / OpenIntelligentUI**，整体切换场景与组件目录。**场景**展示完整任务回复，**组件库**按类别列出实际注册组件及原生示例。画布、源码和流式工具按需展开；回归程序保留给测试和命令行。
 
 从仓库根目录启动 macOS Gallery：
 
@@ -16,9 +16,10 @@ Xcode 使用 `Gallery/OpenUIGallery.xcodeproj` 的 `OpenUIGallery` scheme，可�
 
 | 位置 | 职责 | 修改原则 |
 |---|---|---|
-| `Gallery/Sources/` | 案例浏览、库选择、预览尺寸/缩放、源码编辑、流式与诊断工具 | 通过 SDK 公开接口渲染，不建立另一套 parser 或组件实现 |
+| `Gallery/Sources/` | 产品导航、场景与组件浏览、预览和源码工具 | 通过 SDK 公开接口渲染，不建立另一套 parser 或组件实现 |
 | `Gallery/Resources/Cases/` | 精选任务案例、两套 UI 各自的 Lang 变体、来源与覆盖说明 | 同一任务共用稳定案例 ID；按真实组件契约分别编写程序 |
-| `Gallery/Resources/Diagnostics/` | 边界状态、组件专项和开发诊断程序 | 与精选案例分组，不让人工验收草稿占据默认入口 |
+| `Gallery/Resources/Components/` | 两套产品的组件示例 | 名称、签名取自真实注册库，示例覆盖逐项验证 |
+| `Gallery/Resources/Diagnostics/` | 边界状态与回归程序 | 用于测试和 CLI，不出现在浏览入口 |
 | `Gallery/Resources/Images/` | 展示 App 自己使用的离线图片 | 保留来源与许可，不将图片打进 SDK 产品 |
 
 其他任务从仓库根目录进入：[Tests](../Tests) 保存自动行为回归及固定输入；[Validation](../Validation/README.md) 提供程序静态校验和可选模型生成评测；[Benchmarks](../Benchmarks/README.md) 测量耗时与资源使用。它们各自维护输入和结果。

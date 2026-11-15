@@ -1,0 +1,379 @@
+{
+  "Stack": {
+    "category": "Layout",
+    "program": "root = Stack([Stack([Card([TextContent(\"左侧\")]),Card([TextContent(\"右侧\")])],\"row\",\"m\",\"stretch\",\"start\",true)])"
+  },
+  "Card": {
+    "category": "Layout",
+    "program": "root = Stack([Card([CardHeader(\"周末计划\",\"留出一点自由时间\"),TextContent(\"用一张卡片组织相关内容。\")])])"
+  },
+  "CardHeader": {
+    "category": "Content",
+    "program": "root = Stack([CardHeader(\"周末计划\",\"标题与副标题，给下方内容建立层次。\"),TextContent(\"这里单独展示 CardHeader 的文字层级。\")])"
+  },
+  "Tabs": {
+    "category": "Layout",
+    "program": "root = Stack([Tabs([TabItem(\"overview\",\"概览\",[TextContent(\"先看整体安排。\")]),TabItem(\"details\",\"详情\",[TextContent(\"再查看具体事项。\")])])])"
+  },
+  "TabItem": {
+    "category": "Layout",
+    "program": "root = Stack([Tabs([TabItem(\"overview\",\"概览\",[TextContent(\"先看整体安排。\")]),TabItem(\"details\",\"详情\",[TextContent(\"再查看具体事项。\")])])])",
+    "supporting": true,
+    "container": "Tabs"
+  },
+  "Accordion": {
+    "category": "Layout",
+    "program": "root = Stack([Accordion([AccordionItem(\"packing\",\"出发前准备\",[TextContent(\"证件、充电器和轻便外套。\")]),AccordionItem(\"notes\",\"交通提示\",[TextContent(\"预留转场时间。\")])])])"
+  },
+  "AccordionItem": {
+    "category": "Layout",
+    "program": "root = Stack([Accordion([AccordionItem(\"packing\",\"出发前准备\",[TextContent(\"证件、充电器和轻便外套。\")]),AccordionItem(\"notes\",\"交通提示\",[TextContent(\"预留转场时间。\")])])])",
+    "supporting": true,
+    "container": "Accordion"
+  },
+  "Steps": {
+    "category": "Layout",
+    "program": "root = Stack([Steps([StepsItem(\"选择方向\",\"从兴趣出发\"),StepsItem(\"安排时间\",\"保留弹性\"),StepsItem(\"准备出发\",\"核对必需信息\")])])"
+  },
+  "StepsItem": {
+    "category": "Layout",
+    "program": "root = Stack([Steps([StepsItem(\"选择方向\",\"从兴趣出发\"),StepsItem(\"安排时间\",\"保留弹性\"),StepsItem(\"准备出发\",\"核对必需信息\")])])",
+    "supporting": true,
+    "container": "Steps"
+  },
+  "Carousel": {
+    "category": "Layout",
+    "program": "root = Stack([Carousel([[CardHeader(\"第一站\"),TextContent(\"湖边散步\")],[CardHeader(\"第二站\"),TextContent(\"街巷漫游\")]])])"
+  },
+  "Separator": {
+    "category": "Layout",
+    "program": "root = Stack([TextContent(\"上半部分\"),Separator(),TextContent(\"下半部分\")])"
+  },
+  "Modal": {
+    "category": "Layout",
+    "program": "root = Stack([Buttons([Button(\"打开详情\",@Set($open,true))]),Modal(\"行程详情\",$open,[TextContent(\"点击关闭按钮或按 Escape 返回。\")])])\n$open = false"
+  },
+  "TextContent": {
+    "category": "Content",
+    "program": "root = Stack([TextContent(\"轻松一点的周末\",\"large-heavy\"),TextContent(\"正文保持自然的阅读节奏。\"),TextContent(\"补充说明\",\"small\")])"
+  },
+  "MarkDownRenderer": {
+    "category": "Content",
+    "program": "root = Stack([MarkDownRenderer(\"## 沿湖慢走\\n留一点时间给 **风景和休息**。\\n\\n- 选择一段喜欢的步道\\n- 随时停下来\")])"
+  },
+  "InlineHeader": {
+    "category": "Content",
+    "program": "root = Stack([InlineHeader(\"今天的安排\",\"三个地点，半天时间\")])"
+  },
+  "Text": {
+    "category": "Content",
+    "program": "root = Stack([Text(\"text\",\"湖边散步\",\"一小时左右\"),Text(\"number\",\"128\",\"预算参考\",\"text\",\"lg\")])"
+  },
+  "BoldText": {
+    "category": "Content",
+    "program": "root = Stack([BoldText(\"text\",\"先选喜欢的节奏\",\"慢慢走，不赶路\"),BoldText(\"number\",\"¥128\",\"每人参考\",\"text\",\"lg\")])"
+  },
+  "Label": {
+    "category": "Content",
+    "program": "root = Stack([Label(\"出发地点\")])"
+  },
+  "CodeBlock": {
+    "category": "Content",
+    "program": "root = Stack([CodeBlock(\"swift\",\"let library = try OpenUILibrary.standard()\")])"
+  },
+  "Callout": {
+    "category": "Content",
+    "program": "root = Stack([Callout(\"info\",\"出发前确认\",\"请核对当天的开放时间。\")])"
+  },
+  "TextCallout": {
+    "category": "Content",
+    "program": "root = Stack([TextCallout(\"success\",\"已准备好\",\"可以继续下一步。\")])"
+  },
+  "Tag": {
+    "category": "Content",
+    "program": "root = Stack([Tag(\"可步行\",null,\"md\",\"success\"),Tag(\"需要预约\",null,\"md\",\"warning\")])"
+  },
+  "TagBlock": {
+    "category": "Content",
+    "program": "root = Stack([TagBlock([\"湖边\",\"散步\",\"周末\"],\"md\")])"
+  },
+  "Icon": {
+    "category": "Media",
+    "program": "root = Stack([Icon(\"MapPin\"),Icon(\"Heart\"),Icon(\"Camera\")])"
+  },
+  "Image": {
+    "category": "Media",
+    "program": "root = Stack([Image(\"相机正面\",\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\")])"
+  },
+  "ImageBlock": {
+    "category": "Media",
+    "program": "root = Stack([ImageBlock(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机正面\")])"
+  },
+  "ImageGallery": {
+    "category": "Media",
+    "program": "root = Stack([ImageGallery([{src:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},{src:\"https://upload.wikimedia.org/wikipedia/commons/4/49/Nikon_DSLR_camera_D850_lateral_rear_view.jpg\",alt:\"相机背面\"}])])"
+  },
+  "ImageText": {
+    "category": "Content",
+    "program": "root = Stack([ImageText(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机正面\",\"Nikon D850\",\"图片与文字并排展示\",true)])"
+  },
+  "ImageTextLarge": {
+    "category": "Content",
+    "program": "root = Stack([ImageTextLarge(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机正面\",\"记录旅途\",\"宽幅图片与标题\",true)])"
+  },
+  "IconText": {
+    "category": "Content",
+    "program": "root = Stack([IconText(Icon(\"MapPin\"),\"soft\",\"md\",\"湖边慢走\",\"选择自己喜欢的一段\")])"
+  },
+  "Table": {
+    "category": "DataDisplay",
+    "program": "root = Stack([Table([Col(\"地点\",[\"苏堤\",\"孤山\"]),Col(\"停留时间\",[\"60 分钟\",\"40 分钟\"])])])"
+  },
+  "Col": {
+    "category": "DataDisplay",
+    "program": "root = Stack([Table([Col(\"地点\",[\"苏堤\",\"孤山\"]),Col(\"停留时间\",[\"60 分钟\",\"40 分钟\"])])])",
+    "supporting": true,
+    "container": "Table"
+  },
+  "EditableTable": {
+    "category": "DataDisplay",
+    "program": "root = Stack([EditableTable(\"budget\",[{type:\"text\",key:\"item\",header:\"项目\"},{type:\"number\",key:\"amount\",header:\"金额\"}],[{id:\"1\",values:[\"交通\",60]},{id:\"2\",values:[\"餐饮\",100]}])])"
+  },
+  "EntityList": {
+    "category": "DataDisplay",
+    "program": "root = Stack([EntityList([{left:\"出发\",right:\"09:00\"},{left:\"返回\",right:\"17:00\"}])])"
+  },
+  "MetricIndicatorInline": {
+    "category": "DataDisplay",
+    "program": "root = Stack([MetricIndicatorInline(\"¥328\",\"本月支出\",{direction:\"down\",value:12})])"
+  },
+  "MetricIndicatorWithStrikethrough": {
+    "category": "DataDisplay",
+    "program": "root = Stack([MetricIndicatorWithStrikethrough(\"¥299\",\"当前记录\",\"¥399\",{direction:\"down\",value:25})])"
+  },
+  "BarChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([BarChart([\"周一\",\"周二\",\"周三\"],[Series(\"步行分钟\",[30,55,40])])])"
+  },
+  "LineChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([LineChart([\"周一\",\"周二\",\"周三\"],[Series(\"步行分钟\",[30,55,40])])])"
+  },
+  "AreaChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([AreaChart([\"周一\",\"周二\",\"周三\"],[Series(\"步行分钟\",[30,55,40])])])"
+  },
+  "RadarChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([RadarChart([\"周一\",\"周二\",\"周三\"],[Series(\"步行分钟\",[30,55,40])])])"
+  },
+  "HorizontalBarChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([HorizontalBarChart([\"周一\",\"周二\",\"周三\"],[Series(\"步行分钟\",[30,55,40])])])"
+  },
+  "Series": {
+    "category": "DataDisplay",
+    "program": "root = Stack([BarChart([\"周一\",\"周二\",\"周三\"],[Series(\"步行分钟\",[30,55,40]),Series(\"骑行分钟\",[20,35,25])])])",
+    "supporting": true,
+    "container": "BarChart"
+  },
+  "PieChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([PieChart([\"交通\",\"餐饮\",\"住宿\"],[60,100,240])])"
+  },
+  "RadialChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([RadialChart([\"交通\",\"餐饮\",\"住宿\"],[60,100,240])])"
+  },
+  "SingleStackedBarChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([SingleStackedBarChart([\"交通\",\"餐饮\",\"住宿\"],[60,100,240])])"
+  },
+  "ScatterChart": {
+    "category": "DataDisplay",
+    "program": "root = Stack([ScatterChart([ScatterSeries(\"步行记录\",[Point(1,30),Point(2,55),Point(3,40)])],\"天数\",\"分钟\")])"
+  },
+  "ScatterSeries": {
+    "category": "DataDisplay",
+    "program": "root = Stack([ScatterChart([ScatterSeries(\"步行记录\",[Point(1,30),Point(2,55),Point(3,40)])],\"天数\",\"分钟\")])",
+    "supporting": true,
+    "container": "ScatterChart"
+  },
+  "Point": {
+    "category": "DataDisplay",
+    "program": "root = Stack([ScatterChart([ScatterSeries(\"步行记录\",[Point(1,30),Point(2,55),Point(3,40)])],\"天数\",\"分钟\")])",
+    "supporting": true,
+    "container": "ScatterChart"
+  },
+  "Slice": {
+    "category": "DataDisplay",
+    "program": "root = Stack([TextContent(\"Slice 是数据节点，不单独绘制。\"),CodeBlock(\"openui\",\"Slice(\\\"餐饮\\\", 100)\"),Slice(\"餐饮\",100)])",
+    "supporting": true
+  },
+  "Form": {
+    "category": "Layout",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"姓名\",Input(\"name\",\"请输入姓名\"))])])"
+  },
+  "FormControl": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"grouping\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看分组字段\"))]),[FormControl(\"姓名\",Input(\"name\",\"请输入姓名\"),\"标签、输入框与帮助说明构成一组。\")])])"
+  },
+  "Input": {
+    "category": "Controls",
+    "program": "root = Stack([Input(\"name\",\"请输入姓名\",\"text\",null,$name),TextContent($name==\"\"?\"输入后会在这里同步显示。\":\"已填写：\"+$name)])\n$name = \"\""
+  },
+  "TextArea": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"备注\",TextArea(\"notes\",\"想告诉我们的事\",4))])])"
+  },
+  "Select": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"出行方式\",Select(\"travel\",[SelectItem(\"walk\",\"步行\"),SelectItem(\"bike\",\"骑行\")],\"请选择\"))])])"
+  },
+  "SelectItem": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"出行方式\",Select(\"travel\",[SelectItem(\"walk\",\"步行\"),SelectItem(\"bike\",\"骑行\")],\"请选择\"))])])",
+    "supporting": true,
+    "container": "Select"
+  },
+  "DatePicker": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"出发日期\",DatePicker(\"departure\",\"single\"))])])"
+  },
+  "Slider": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"步行时间\",Slider(\"minutes\",\"continuous\",0,120,5,[45],\"分钟\"))])])"
+  },
+  "CheckBoxGroup": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"兴趣\",CheckBoxGroup(\"interests\",[CheckBoxItem(\"自然\",\"湖山与绿意\",\"nature\",true),CheckBoxItem(\"历史\",\"建筑与街巷\",\"history\")]))])])"
+  },
+  "CheckBoxItem": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"兴趣\",CheckBoxGroup(\"interests\",[CheckBoxItem(\"自然\",\"湖山与绿意\",\"nature\",true),CheckBoxItem(\"历史\",\"建筑与街巷\",\"history\")]))])])",
+    "supporting": true,
+    "container": "CheckBoxGroup"
+  },
+  "RadioGroup": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"节奏\",RadioGroup(\"pace\",[RadioItem(\"轻松\",\"少走一点\",\"easy\"),RadioItem(\"充实\",\"多看几处\",\"full\")],\"easy\"))])])"
+  },
+  "RadioItem": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"节奏\",RadioGroup(\"pace\",[RadioItem(\"轻松\",\"少走一点\",\"easy\"),RadioItem(\"充实\",\"多看几处\",\"full\")],\"easy\"))])])",
+    "supporting": true,
+    "container": "RadioGroup"
+  },
+  "SwitchGroup": {
+    "category": "Controls",
+    "program": "root = Stack([SwitchGroup(\"settings\",[SwitchItem(\"行程提醒\",\"出发前提醒我\",\"reminders\",true),SwitchItem(\"离线资料\",\"保留必要信息\",\"offline\")])])"
+  },
+  "SwitchItem": {
+    "category": "Controls",
+    "program": "root = Stack([SwitchGroup(\"settings\",[SwitchItem(\"行程提醒\",\"出发前提醒我\",\"reminders\",true),SwitchItem(\"离线资料\",\"保留必要信息\",\"offline\")])])",
+    "supporting": true,
+    "container": "SwitchGroup"
+  },
+  "Chips": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"偏好\",Chips(\"moods\",\"multiple\",[ChipItem(\"lake\",\"湖边\"),ChipItem(\"forest\",\"山林\"),ChipItem(\"town\",\"老城\")]))])])"
+  },
+  "ChipItem": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"偏好\",Chips(\"moods\",\"multiple\",[ChipItem(\"lake\",\"湖边\"),ChipItem(\"forest\",\"山林\"),ChipItem(\"town\",\"老城\")]))])])",
+    "supporting": true,
+    "container": "Chips"
+  },
+  "OptionCards": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"半日方向\",OptionCards(\"route\",\"single\",[OptionCard(\"lake\",\"湖边散步\",\"轻松停留\"),OptionCard(\"town\",\"街巷闲逛\",\"看老城烟火\")]))])])"
+  },
+  "OptionCard": {
+    "category": "Controls",
+    "program": "root = Stack([Form(\"example\",Buttons([Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\"))]),[FormControl(\"半日方向\",OptionCards(\"route\",\"single\",[OptionCard(\"lake\",\"湖边散步\",\"轻松停留\"),OptionCard(\"town\",\"街巷闲逛\",\"看老城烟火\")]))])])",
+    "supporting": true,
+    "container": "OptionCards"
+  },
+  "Button": {
+    "category": "Controls",
+    "program": "root = Stack([Button(\"继续安排\",@ToAssistant(\"继续安排\"))])"
+  },
+  "Buttons": {
+    "category": "Controls",
+    "program": "root = Stack([Buttons([Button(\"继续\",@ToAssistant(\"继续安排\")),Button(\"稍后再看\",@ToAssistant(\"稍后再看\"),\"secondary\"),Button(\"取消\",@ToAssistant(\"取消\"),\"tertiary\")])])"
+  },
+  "IconButton": {
+    "category": "Controls",
+    "program": "root = Stack([IconButton(\"收藏\",Icon(\"Heart\"),@ToAssistant(\"收藏这个方向\"),\"secondary\",\"medium\",\"circle\")])"
+  },
+  "FollowUpBlock": {
+    "category": "Content",
+    "program": "root = Stack([FollowUpBlock([FollowUpItem(\"安排一个轻松的半日行程\"),FollowUpItem(\"还有哪些适合散步的地方？\")])])"
+  },
+  "FollowUpItem": {
+    "category": "Content",
+    "program": "root = Stack([FollowUpItem(\"帮我把湖边散步安排成轻松的半日行程\")])"
+  },
+  "SnippetCardBlock": {
+    "category": "DataDisplay",
+    "program": "root = Stack([SnippetCardBlock([SnippetCardItem(\"walk\",IconText(Icon(\"MapPin\"),\"soft\",\"md\",\"沿湖散步\",\"不赶时间\"),BoldText(\"text\",\"60 分钟\"))])])"
+  },
+  "SnippetCardItem": {
+    "category": "DataDisplay",
+    "program": "root = Stack([SnippetCardBlock([SnippetCardItem(\"walk\",IconText(Icon(\"MapPin\"),\"soft\",\"md\",\"沿湖散步\",\"不赶时间\"),BoldText(\"text\",\"60 分钟\"))])])"
+  },
+  "OverviewCardBlock": {
+    "category": "DataDisplay",
+    "program": "root = Stack([OverviewCardBlock([OverviewCardItem(\"time\",Text(\"text\",\"预计步行\"),MetricIndicatorInline(\"60 分钟\",\"按体力调整\")),OverviewCardItem(\"cost\",Text(\"text\",\"参考预算\"),MetricIndicatorInline(\"¥100\",\"仅作示例\"))])])"
+  },
+  "OverviewCardItem": {
+    "category": "DataDisplay",
+    "program": "root = Stack([OverviewCardBlock([OverviewCardItem(\"time\",Text(\"text\",\"预计步行\"),MetricIndicatorInline(\"60 分钟\",\"按体力调整\")),OverviewCardItem(\"cost\",Text(\"text\",\"参考预算\"),MetricIndicatorInline(\"¥100\",\"仅作示例\"))])])"
+  },
+  "ContextCardBlock": {
+    "category": "DataDisplay",
+    "program": "root = Stack([ContextCardBlock([ContextCardItem(\"easy\",\"想轻松一点\",\"选择一段湖岸，随时休息。\",\"gray\"),ContextCardItem(\"deep\",\"想深入一点\",\"围绕一座场馆安排半天。\",\"gray\")])])"
+  },
+  "ContextCardItem": {
+    "category": "DataDisplay",
+    "program": "root = Stack([ContextCardBlock([ContextCardItem(\"easy\",\"想轻松一点\",\"选择一段湖岸，随时休息。\",\"gray\"),ContextCardItem(\"deep\",\"想深入一点\",\"围绕一座场馆安排半天。\",\"gray\")])])"
+  },
+  "CompositeCardBlock": {
+    "category": "DataDisplay",
+    "program": "root = Stack([CompositeCardBlock([CompositeCardItem(\"camera\",ImageTextLarge(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机\",\"旅行摄影\",\"记录沿途\",true),[TagBlock([\"照片\",\"示例\"])],{button:Button(\"了解更多\",@ToAssistant(\"了解旅行摄影\"))})],\"carousel\",true)])"
+  },
+  "CompositeCardItem": {
+    "category": "DataDisplay",
+    "program": "root = Stack([CompositeCardBlock([CompositeCardItem(\"camera\",ImageTextLarge(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机\",\"旅行摄影\",\"记录沿途\",true),[TagBlock([\"照片\",\"示例\"])],{button:Button(\"了解更多\",@ToAssistant(\"了解旅行摄影\"))})],\"carousel\",true)])"
+  },
+  "VisualCardBlock": {
+    "category": "DataDisplay",
+    "program": "root = Stack([VisualCardBlock([VisualCardItem(BoldText(\"text\",\"旅行摄影\",\"留住喜欢的瞬间\"),\"photo\",\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",Tag(\"摄影\"),\"相机正面\")],\"carousel\",true)])"
+  },
+  "VisualCardItem": {
+    "category": "DataDisplay",
+    "program": "root = Stack([VisualCardBlock([VisualCardItem(BoldText(\"text\",\"旅行摄影\",\"留住喜欢的瞬间\"),\"photo\",\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",Tag(\"摄影\"),\"相机正面\")],\"carousel\",true)])"
+  },
+  "Map": {
+    "category": "Media",
+    "program": "root = Stack([Map([MapPoint(\"西湖\",30.242637,120.134544,null,null,\"湖边散步\"),MapPoint(\"德寿宫\",30.2412,120.16862,null,null,\"历史建筑\")],\"wgs84\")])"
+  },
+  "MapPoint": {
+    "category": "Media",
+    "program": "root = Stack([Map([MapPoint(\"西湖\",30.242637,120.134544,null,null,\"湖边散步\"),MapPoint(\"德寿宫\",30.2412,120.16862,null,null,\"历史建筑\")],\"wgs84\")])",
+    "supporting": true,
+    "container": "Map"
+  },
+  "ListBlock": {
+    "category": "Content",
+    "program": "root = Stack([ListBlock([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留弹性\")],\"number\")])"
+  },
+  "ListItem": {
+    "category": "Content",
+    "program": "root = Stack([ListBlock([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留弹性\")],\"number\")])"
+  },
+  "SVG": {
+    "category": "Media",
+    "program": "root = Stack([SVG(\"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 160'><rect x='10' y='10' width='300' height='140' rx='16' fill='#e8f1fb'/><circle cx='80' cy='80' r='36' fill='#3478f6'/><text x='144' y='88' font-size='24' fill='#222'>Hello SVG</text></svg>\",null,\"圆形与文字示例\",160)])"
+  }
+}

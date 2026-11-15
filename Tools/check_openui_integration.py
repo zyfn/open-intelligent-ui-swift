@@ -16,12 +16,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()
     problems: list[str] = []
-    if (ROOT / "OpenUI").exists() or (ROOT / "OpenUI").is_symlink():
+    if (ROOT / "SwiftOpenUI").exists() or (ROOT / "SwiftOpenUI").is_symlink():
         problems.append("Obsolete nested SDK directory remains at repository root")
     package = (ROOT / "Package.swift").read_text()
     if "https://github.com/zyfn/openui.git" in package:
         problems.append("Old fork SwiftPM dependency remains")
-    for name in ["OpenUILang", "OpenUICore", "OpenSwiftUI", "OpenIntelligentSwiftUI"]:
+    for name in ["SwiftLang", "SwiftOpenUI", "SwiftIntelligentUI"]:
         if len(re.findall(r'\.target\(name:\s*"' + name + r'"', package)) != 1:
             problems.append(f"Target must have exactly one owner: {name}")
     if ".executable(" in package or ".executableTarget(" in package:
@@ -46,7 +46,7 @@ def main() -> None:
     patch = ROOT / "Tools" / lock["core"]["sourcePatch"]
     if sha(patch) != lock["core"]["sourcePatchSHA256"]:
         problems.append("Unreviewed upstream signature patch")
-    resource = ROOT / "Sources/OpenUILang/Resources"
+    resource = ROOT / "Sources/SwiftLang/Resources"
     core = json.loads((resource / "core-manifest.json").read_text())
     if core["sha256"] != sha(resource / "lang-core.js") or core["sourceTree"] != lock["core"]["adaptedTree"]:
         problems.append("Generated core does not match its pinned provenance")
@@ -67,7 +67,7 @@ def main() -> None:
             problems.append(f"Upstream monorepo content imported into native workspace: {forbidden}")
     if problems:
         raise SystemExit("\n".join(problems))
-    print(json.dumps({"coreRevision": lock["core"]["revision"], "coreSHA256": core["sha256"], "products": 4, "result": "PASS (source/ownership only; not native acceptance)"}, ensure_ascii=False, indent=2))
+    print(json.dumps({"coreRevision": lock["core"]["revision"], "coreSHA256": core["sha256"], "products": 3, "result": "PASS (source/ownership only; not native acceptance)"}, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
     main()

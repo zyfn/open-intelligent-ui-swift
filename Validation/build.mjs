@@ -15,7 +15,7 @@ for (let i = 0; i < args.length; i += 2) {
 }
 if (!options['--output']) throw new Error('--output is required');
 const dirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--',
-  'Validation', 'Sources/OpenUILang/Resources'],
+  'Validation', 'Sources/SwiftLang/Resources'],
   { cwd: repository, encoding: 'utf8' });
 if (dirty.trim()) throw new Error('Commit the SDK validator and core resources before packaging');
 const sdkCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
@@ -24,7 +24,7 @@ if (existsSync(output + '.tgz')) throw new Error('Preserve the existing archive;
 mkdirSync(output, { recursive: false });
 mkdirSync(join(output, 'runtime'));
 for (const name of ['api.mjs', 'api.d.mts', 'cli.mjs', 'README.md']) copyFileSync(join(here, name), join(output, name));
-const resources = resolve(here, '../Sources/OpenUILang/Resources');
+const resources = resolve(here, '../Sources/SwiftLang/Resources');
 for (const name of ['lang-core.js', 'core-manifest.json', 'THIRD-PARTY-NOTICES.txt']) copyFileSync(join(resources, name), join(output, 'runtime', name));
 let contract = null;
 if (options['--contract']) {

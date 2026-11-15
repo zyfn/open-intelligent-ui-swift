@@ -1,7 +1,7 @@
 import Foundation
 
 struct GalleryOptions {
-    var library: GalleryLibrary = .intelligent
+    var library: GalleryLibrary = .openIntelligentUI
     var caseID: String?
     var program: String?
     var streamSuffix: String?
@@ -30,8 +30,9 @@ struct GalleryOptions {
             let flag = arguments[index]
             switch flag {
             case "--library":
-                guard let kind = GalleryLibrary(rawValue: try value(for: flag)) else {
-                    throw GalleryFailure("--library 必须是 standard 或 intelligent。")
+                let name = try value(for: flag)
+                guard let kind = GalleryLibrary(rawValue: name.lowercased()) else {
+                    throw GalleryFailure("--library 必须是 openui 或 openintelligentui。")
                 }
                 options.library = kind; explicitLibrary = true
             case "--case": options.caseID = try value(for: flag)
@@ -64,7 +65,7 @@ struct GalleryOptions {
             index += 1
         }
         if options.program != nil && !explicitLibrary {
-            throw GalleryFailure("打开外部程序必须显式指定 --library standard 或 intelligent。")
+            throw GalleryFailure("打开外部程序必须显式指定 --library openui 或 openintelligentui。")
         }
         if options.streamSuffix != nil && options.program == nil {
             throw GalleryFailure("--stream-suffix 必须和 --program 一起使用。")
@@ -76,8 +77,8 @@ struct GalleryOptions {
     }
 
     static let usage = """
-    OpenUIGallery — Standard UI / Intelligent UI SDK gallery
-      --library standard|intelligent      Select a matching component library
+    OpenUIGallery — OpenUI / OpenIntelligentUI
+      --library openui|openintelligentui  Select a product
       --case <id>                         Select a catalog case
       --program <file.openui|file.json>    Import a program (requires --library)
       --stream-suffix <file.openui>        Keep prefix incomplete; append on demand

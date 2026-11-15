@@ -1,7 +1,7 @@
 import Darwin
 import Dispatch
 import Foundation
-import OpenUILang
+import SwiftLang
 
 private enum BenchmarkError: Error {
     case usage(String)

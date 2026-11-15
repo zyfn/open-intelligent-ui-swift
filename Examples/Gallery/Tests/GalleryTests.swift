@@ -1,6 +1,5 @@
 import Foundation
-import OpenUICore
-import OpenUILang
+import SwiftLang
 import SwiftUI
 import XCTest
 @testable import OpenUIGallery
@@ -10,6 +9,35 @@ import AppKit
 #endif
 
 final class GalleryTests: XCTestCase {
+    func testScenesUseConcreteUserTaskTypesForBothProducts() throws {
+        let scenes = try GalleryCatalog(resourceRoot: GalleryResources.root()).entries.filter { $0.section == .cases }
+        XCTAssertEqual(scenes.count, 10)
+        XCTAssertEqual(Set(scenes.map { $0.item.category }),
+                       Set(["旅行出行", "家居设计", "购物选购", "学习理解", "账单分析", "信息填写"]))
+        XCTAssertEqual(scenes.filter { $0.item.category == "旅行出行" }.count, 4)
+        XCTAssertEqual(scenes.first { $0.item.id == "transport-comparison" }?.item.category, "旅行出行")
+        XCTAssertEqual(scenes.first { $0.item.id == "bedroom-style" }?.item.category, "家居设计")
+        XCTAssertEqual(scenes.first { $0.item.id == "desk-lamp" }?.item.category, "购物选购")
+        for product in GalleryLibrary.allCases {
+            XCTAssertEqual(scenes.filter { $0.supports(product) }.count, scenes.count)
+        }
+    }
+
+    func testSidebarExpansionIsIndependentPerProductAndSurvivesRepeatedToggles() {
+        var navigation = GallerySidebarState()
+        navigation.toggle("Controls", in: .openUI)
+        XCTAssertTrue(navigation.isExpanded("Controls", in: .openUI))
+        XCTAssertFalse(navigation.isExpanded("Controls", in: .openIntelligentUI))
+        navigation.toggle("Controls", in: .openIntelligentUI)
+        for _ in 0..<3 {
+            navigation.toggle("Controls", in: .openUI)
+            XCTAssertFalse(navigation.isExpanded("Controls", in: .openUI))
+            XCTAssertTrue(navigation.isExpanded("Controls", in: .openIntelligentUI))
+            navigation.toggle("Controls", in: .openUI)
+            XCTAssertTrue(navigation.isExpanded("Controls", in: .openUI))
+        }
+    }
+
     private func catalogData(programs: [String: String], duplicate: Bool = false) throws -> Data {
         let item: [String: Any] = ["id": "case", "title": "Case", "summary": "Summary", "category": "Test",
                                   "tags": [], "programs": programs]
@@ -17,45 +45,50 @@ final class GalleryTests: XCTestCase {
     }
 
     func testCatalogRejectsMixedLibrariesEscapedPathsAndDuplicateIDs() throws {
-        let valid = ["standard": "standard/case.openui", "intelligent": "intelligent/case.openui"]
+        let valid = ["openui": "openui/case.openui", "openintelligentui": "openintelligentui/case.openui"]
         XCTAssertEqual(try GalleryCatalog.decode(catalogData(programs: valid), requiringBothLibraries: true).count, 1)
         XCTAssertThrowsError(try GalleryCatalog.decode(catalogData(programs: ["future": "future/case.openui"]), requiringBothLibraries: false))
-        XCTAssertThrowsError(try GalleryCatalog.decode(catalogData(programs: ["standard": "standard/case.openui"]), requiringBothLibraries: true))
+        XCTAssertThrowsError(try GalleryCatalog.decode(catalogData(programs: ["openui": "openui/case.openui"]), requiringBothLibraries: true))
         XCTAssertThrowsError(try GalleryCatalog.decode(catalogData(programs: valid, duplicate: true), requiringBothLibraries: true))
-        for path in ["../case.openui", "/case.openui", "standard/../case.openui", "standard\\case.openui"] {
-            XCTAssertThrowsError(try GalleryCatalog.decode(catalogData(programs: ["standard": path]), requiringBothLibraries: false))
+        for path in ["../case.openui", "/case.openui", "openui/../case.openui", "standard\\case.openui"] {
+            XCTAssertThrowsError(try GalleryCatalog.decode(catalogData(programs: ["openui": path]), requiringBothLibraries: false))
         }
     }
 
     func testExternalProgramRequiresExplicitLibraryAndValidViewport() throws {
+        for removedName in ["standard", "intelligent"] {
+            XCTAssertThrowsError(try GalleryOptions.parse(["--library", removedName]))
+        }
         XCTAssertThrowsError(try GalleryOptions.parse(["--program", "example.openui"]))
         XCTAssertThrowsError(try GalleryOptions.parse(["--library", "unknown"]))
         XCTAssertThrowsError(try GalleryOptions.parse(["--unknown"]))
         XCTAssertThrowsError(try GalleryOptions.parse(["--stream-suffix", "tail.openui"]))
         XCTAssertThrowsError(try GalleryOptions.parse(["--zoom", "nan"]))
         XCTAssertThrowsError(try GalleryOptions.parse(["--width", "40"]))
-        let options = try GalleryOptions.parse(["--program", "example.json", "--library", "standard", "--width", "768", "--height", "1024", "--zoom", "0.75"])
-        XCTAssertEqual(options.library, .standard)
+        let options = try GalleryOptions.parse(["--program", "example.json", "--library", "openui", "--width", "768", "--height", "1024", "--zoom", "0.75"])
+        XCTAssertEqual(options.library, .openUI)
         XCTAssertEqual(options.width, 768)
         XCTAssertEqual(options.height, 1024)
         XCTAssertEqual(options.zoom, 0.75)
+        XCTAssertEqual(try GalleryOptions.parse(["--library", "openui"]).library, .openUI)
+        XCTAssertEqual(try GalleryOptions.parse(["--library", "openintelligentui"]).library, .openIntelligentUI)
     }
 
     func testJSONImportChecksLibraryAndPreservesUTF8Source() throws {
         let source = #"root = Col([Text("原始内容 🧭")])"#
-        let json = try JSONSerialization.data(withJSONObject: ["program": source, "library": "intelligent"])
+        let json = try JSONSerialization.data(withJSONObject: ["program": source, "library": "openintelligentui"])
         let text = try XCTUnwrap(String(data: json, encoding: .utf8))
-        XCTAssertEqual(try GalleryImportedProgram.decode(text, isJSON: true, library: .intelligent), source)
-        XCTAssertThrowsError(try GalleryImportedProgram.decode(text, isJSON: true, library: .standard))
-        XCTAssertThrowsError(try GalleryImportedProgram.decode("{}", isJSON: true, library: .intelligent))
+        XCTAssertEqual(try GalleryImportedProgram.decode(text, isJSON: true, library: .openIntelligentUI), source)
+        XCTAssertThrowsError(try GalleryImportedProgram.decode(text, isJSON: true, library: .openUI))
+        XCTAssertThrowsError(try GalleryImportedProgram.decode("{}", isJSON: true, library: .openIntelligentUI))
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent("record.txt")
         try json.write(to: file)
-        XCTAssertEqual(try GalleryImportedProgram.read(url: file, library: .intelligent), source)
+        XCTAssertEqual(try GalleryImportedProgram.read(url: file, library: .openIntelligentUI), source)
         try Data([0xff]).write(to: file)
-        XCTAssertThrowsError(try GalleryImportedProgram.read(url: file, library: .intelligent))
+        XCTAssertThrowsError(try GalleryImportedProgram.read(url: file, library: .openIntelligentUI))
     }
 
     @MainActor func testChangingCaseOrLibraryRetiresTheOldDocumentAndItsState() throws {
@@ -71,19 +104,19 @@ final class GalleryTests: XCTestCase {
         XCTAssertFalse(first.state === second.state)
         XCTAssertNil(first.state.root)
         XCTAssertNil(second.state.snapshotState()["$gallerySentinel"])
-        model.selectLibrary(.standard)
+        model.selectLibrary(.openUI)
         let standard = try XCTUnwrap(model.session)
         XCTAssertEqual(model.selectedID, entries[1].id)
         XCTAssertFalse(second.state === standard.state)
         XCTAssertNil(second.state.root)
-        XCTAssertEqual(standard.kind, .standard)
+        XCTAssertEqual(standard.kind, .openUI)
         XCTAssertEqual(standard.state.root?.typeName, "Stack")
         standard.retire()
     }
 
     @MainActor func testPauseResumeAndRetirementDoNotAllowLateStreamingWrites() async throws {
         let source = "root = Col([Text(\"" + String(repeating: "流式文字", count: 100) + "\")])"
-        let session = try GalleryDocumentSession(kind: .intelligent, source: source, title: "Stream")
+        let session = try GalleryDocumentSession(kind: .openIntelligentUI, source: source, title: "Stream")
         var updates = 0
         session.state.onParseResult = { _ in updates += 1 }
         session.stream(chunkSize: 24, intervalNanoseconds: 2_000_000)
@@ -107,11 +140,126 @@ final class GalleryTests: XCTestCase {
         XCTAssertNil(session.state.root)
     }
 
+    @MainActor func testProductSwitchReplacesComponentCatalogAndRestoresEachSelection() throws {
+        let model = GalleryModel()
+        XCTAssertNil(model.failure)
+        let intelligent = try XCTUnwrap(model.components.first { $0.name == "ProductCard" })
+        model.select(intelligent.id)
+        let previous = try XCTUnwrap(model.session)
+        model.selectLibrary(.openUI)
+        XCTAssertNil(model.failure)
+        XCTAssertFalse(model.components.contains { $0.name == "ProductCard" })
+        XCTAssertNil(previous.state.root)
+        let openUI = try XCTUnwrap(model.components.first { $0.name == "VisualCardBlock" })
+        model.select(openUI.id)
+        model.selectLibrary(.openIntelligentUI)
+        XCTAssertEqual(model.selectedID, intelligent.id)
+        XCTAssertEqual(model.session?.kind, .openIntelligentUI)
+        model.selectLibrary(.openUI)
+        XCTAssertEqual(model.selectedID, openUI.id)
+        XCTAssertEqual(model.session?.kind, .openUI)
+        model.session?.retire()
+        let direct = GalleryModel(options: try GalleryOptions.parse(["--library", "openui", "--case", "Components/Button"]))
+        XCTAssertNil(direct.failure)
+        XCTAssertEqual(direct.selectedComponent?.name, "Button")
+        direct.session?.retire()
+    }
+
+    @MainActor func testEveryRegisteredComponentHasAMatchingExampleAndEvaluates() throws {
+        let root = try GalleryResources.root()
+        for kind in GalleryLibrary.allCases {
+            let library = try kind.makeLibrary()
+            let items = try GalleryComponent.load(kind, resourceRoot: root)
+            XCTAssertEqual(Set(items.map(\.name)), Set(library.specification.components.map(\.name)))
+            if kind == .openUI {
+                XCTAssertEqual(items.count, 87)
+                XCTAssertEqual(items.filter(\.supporting).count, 15)
+                XCTAssertEqual(items.first { $0.name == "SelectItem" }?.container, "Select")
+            }
+            for item in items {
+                let state = library.makeState()
+                state.setSource(item.source)
+                XCTAssertTrue(item.source.contains(item.name + "("), item.id)
+                XCTAssertNotNil(state.root, item.id)
+                XCTAssertTrue(state.errors.isEmpty, item.id + ": " + state.errors.map(\.message).joined(separator: "; "))
+                state.reset()
+            }
+        }
+    }
+
+    func testIntelligentScenesKeepOriginalMediaLinksAndEssentialReadingSections() throws {
+        let catalog = try GalleryCatalog(resourceRoot: GalleryResources.root())
+        let urlPattern = try NSRegularExpression(pattern: #""(https://[^"\s]+)""#)
+        let anchors = [
+            "scene-discovery": ["四种周末，各有自己的节奏", "先选一种喜欢的感觉"],
+            "hangzhou-weekend": ["Day 01｜南宋临安", "Day 02｜西湖文脉", "门票与预约", "现场氛围，一眼对比"],
+            "heat-pump": ["0℃", "−15℃", "室内放热", "COP", "一句话总结"],
+            "bedroom-style": ["可多选", "舒服，不一定需要重新装修", "preferences:selected"],
+            "desk-lamp": ["三款台灯候选", "971628097659", "1014479690931", "1087331917809", "2026-11-10"],
+            "code-isolation": ["125ms", "Guest Kernel", "Warm Pool", "runtimeClassName", "按现有条件选型"],
+            "suzhou-family": ["Day 01｜园林与平江水巷", "Day 02｜留园与山塘旧街", "¥1,180", "15:00", "父母"],
+            "transport-comparison": ["2 小时 55 分", "arrivalDayOffset:1", "changeStation:true", "历史记录"],
+            "monthly-spending": ["¥18,000", "¥6,600", "¥6,000", "$period"],
+            "contact-form": ["$reviewed==snapshot", "内容已修改，请重新核对", "姓名 · 必填", "邮箱 · 必填"]
+        ]
+        for entry in catalog.entries where entry.section == .cases {
+            let original = try entry.source(for: .openUI)
+            let intelligent = try entry.source(for: .openIntelligentUI)
+            for match in urlPattern.matches(in: original, range: NSRange(original.startIndex..., in: original)) {
+                let range = try XCTUnwrap(Range(match.range(at: 1), in: original))
+                XCTAssertTrue(intelligent.contains(original[range]), entry.id + " dropped a source media/link URL")
+            }
+            for anchor in try XCTUnwrap(anchors[entry.item.id]) {
+                XCTAssertTrue(intelligent.contains(anchor), entry.id + " lost section or source fact: " + anchor)
+            }
+        }
+    }
+
+    @MainActor func testHangzhouMapKeepsAllCategorizedMarkersWithoutSceneLevelFiltering() throws {
+        let catalog = try GalleryCatalog(resourceRoot: GalleryResources.root())
+        let entry = try XCTUnwrap(catalog.entries.first { $0.item.id == "hangzhou-weekend" })
+        let source = try entry.source(for: .openIntelligentUI)
+        XCTAssertFalse(source.contains("$mapDay"), "Filtering belongs to the map component")
+        let state = try GalleryLibrary.openIntelligentUI.makeLibrary().makeState()
+        state.setSource(source)
+        func maps(in value: Value) -> [EvaluatedElement] {
+            switch value {
+            case .element(let element):
+                if element.typeName == "Map" { return [element] }
+                return element.props.flatMap { maps(in: $0.1) }
+            case .array(let values): return values.flatMap { maps(in: $0) }
+            default: return []
+            }
+        }
+        let map = try XCTUnwrap(maps(in: .element(try XCTUnwrap(state.root))).first)
+        guard case .array(let markers) = map.props.first(where: { $0.0 == "markers" })?.1 else {
+            return XCTFail("Map markers must remain a native element array")
+        }
+        XCTAssertEqual(markers.count, 7)
+        var categories: [String: Int] = [:]
+        for marker in markers {
+            guard case .element(let point) = marker else { return XCTFail("MapMarker was converted into plain data") }
+            XCTAssertEqual(point.typeName, "MapMarker")
+            guard case .string(let category) = point.props.first(where: { $0.0 == "category" })?.1 else {
+                return XCTFail("The map needs original category data")
+            }
+            categories[category.displayString, default: 0] += 1
+            for field: OpenUIString in ["lat", "lng"] {
+                guard case .number(let coordinate) = point.props.first(where: { $0.0 == field })?.1 else {
+                    return XCTFail("Missing coordinate")
+                }
+                XCTAssertTrue(coordinate.isFinite)
+            }
+        }
+        XCTAssertEqual(categories, ["第一天": 3, "第二天": 3, "补充地点": 1])
+        state.reset()
+    }
+
     @MainActor func testSuffixRestoreInterruptAndCompleteAlwaysKeepTheWholeProgram() throws {
         let prefix = "root = Stack([TextContent(\"未闭合"
         let suffix = "字符串\")])"
         let whole = prefix + suffix
-        let restored = try GalleryDocumentSession(kind: .standard, source: prefix, title: "Suffix", suffix: suffix)
+        let restored = try GalleryDocumentSession(kind: .openUI, source: prefix, title: "Suffix", suffix: suffix)
         XCTAssertEqual(restored.draft, whole)
         XCTAssertFalse(restored.state.isComplete)
         restored.restore()
@@ -120,7 +268,7 @@ final class GalleryTests: XCTestCase {
         XCTAssertEqual(restored.draft, whole)
         restored.retire()
 
-        let interrupted = try GalleryDocumentSession(kind: .standard, source: prefix, title: "Suffix", suffix: suffix)
+        let interrupted = try GalleryDocumentSession(kind: .openUI, source: prefix, title: "Suffix", suffix: suffix)
         interrupted.interrupt()
         XCTAssertTrue(interrupted.state.isInterrupted)
         XCTAssertNil(interrupted.pendingSuffix)
@@ -130,7 +278,7 @@ final class GalleryTests: XCTestCase {
         XCTAssertTrue(interrupted.state.errors.isEmpty)
         interrupted.retire()
 
-        let appended = try GalleryDocumentSession(kind: .standard, source: prefix, title: "Suffix", suffix: suffix)
+        let appended = try GalleryDocumentSession(kind: .openUI, source: prefix, title: "Suffix", suffix: suffix)
         appended.appendSuffix()
         XCTAssertEqual(appended.draft, whole, "Appending the preview suffix must not duplicate it in the editor")
         XCTAssertTrue(appended.state.errors.isEmpty)
@@ -146,7 +294,7 @@ final class GalleryTests: XCTestCase {
         try suffix.write(to: url, atomically: true, encoding: .utf8)
         let raw = try GalleryImportedProgram.readRaw(url: url)
         XCTAssertEqual(raw, suffix)
-        let session = try GalleryDocumentSession(kind: .standard, source: "items = [", title: "Raw suffix", suffix: raw)
+        let session = try GalleryDocumentSession(kind: .openUI, source: "items = [", title: "Raw suffix", suffix: raw)
         session.appendSuffix()
         XCTAssertTrue(session.state.errors.isEmpty)
         XCTAssertNotNil(session.state.root)
@@ -181,7 +329,7 @@ final class GalleryTests: XCTestCase {
     #if os(macOS)
     @MainActor func testNativePreviewResizingAndZoomingKeepEditedStateAndSourceRevision() throws {
         _ = NSApplication.shared
-        let session = try GalleryDocumentSession(kind: .standard,
+        let session = try GalleryDocumentSession(kind: .openUI,
             source: "root = Stack([TextContent($value)])\n$value = \"original\"", title: "Viewport")
         session.state.setState("$value", value: .string("edited"))
         let revision = session.state.sourceRevision

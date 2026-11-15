@@ -1,0 +1,246 @@
+{
+  "Col": {
+    "category": "Layout",
+    "program": "root = Col([Col([Title(\"轻松一点的周末\",\"lg\"),Text(\"标题、正文和补充内容自然排列。\"),Caption(\"按内容分组，保持阅读节奏。\")])])"
+  },
+  "Row": {
+    "category": "Layout",
+    "program": "root = Col([Row([Badge(\"湖边\"),Badge(\"散步\"),Badge(\"周末\")],3,\"center\",\"start\",true)])"
+  },
+  "Grid": {
+    "category": "Layout",
+    "program": "root = Col([Grid([Card([Title(\"湖边\",\"sm\"),Text(\"轻松散步\")]),Card([Title(\"老城\",\"sm\"),Text(\"街巷闲逛\")])],2,140,4)])"
+  },
+  "Box": {
+    "category": "Layout",
+    "program": "root = Col([Box([Title(\"相关内容\",\"sm\"),Text(\"用留白和背景组织一个区域。\")],\"col\",3,4,\"surface\",\"lg\",true)])"
+  },
+  "Card": {
+    "category": "Layout",
+    "program": "root = Col([Card([Title(\"周末计划\",\"sm\"),Text(\"留一点时间给风景和休息。\")]),Card([Text(\"柔和表面\")],\"soft\")])"
+  },
+  "Divider": {
+    "category": "Layout",
+    "program": "root = Col([Text(\"上半部分\"),Divider(),Text(\"下半部分\")])"
+  },
+  "Spacer": {
+    "category": "Layout",
+    "program": "root = Col([Row([Text(\"起点\"),Spacer(),Text(\"终点\")])])"
+  },
+  "Carousel": {
+    "category": "Layout",
+    "program": "root = Col([Carousel([Card([Title(\"第一站\",\"sm\"),Text(\"湖边慢走\")]),Card([Title(\"第二站\",\"sm\"),Text(\"街巷漫游\")])],260,4)])"
+  },
+  "Text": {
+    "category": "Content",
+    "program": "root = Col([Text(\"正文保持自然的阅读节奏。\"),Text(\"强调内容\",\"lg\",\"ink\",\"semibold\"),Text(\"补充说明\",\"sm\",\"muted\")])"
+  },
+  "Title": {
+    "category": "Content",
+    "program": "root = Col([Title(\"一级标题\",\"xl\"),Title(\"章节标题\",\"lg\"),Title(\"组内标题\",\"sm\")])"
+  },
+  "Caption": {
+    "category": "Content",
+    "program": "root = Col([Text(\"照片记录沿途的风景。\"),Caption(\"摄于一次普通的周末散步。\")])"
+  },
+  "Label": {
+    "category": "Content",
+    "program": "root = Col([Label(\"出发地点\")])"
+  },
+  "Markdown": {
+    "category": "Content",
+    "program": "root = Col([Markdown(\"## 沿湖慢走\\n留一点时间给 **风景和休息**。\\n\\n- 选择一段喜欢的步道\\n- 随时停下来\")])"
+  },
+  "Quote": {
+    "category": "Content",
+    "program": "root = Col([Quote(\"生活中不缺少美，而是缺少发现。\",\"阅读摘记\")])"
+  },
+  "Code": {
+    "category": "Content",
+    "program": "root = Col([Code(\"let library = try OpenUILibrary.intelligent()\",\"swift\")])"
+  },
+  "Link": {
+    "category": "Content",
+    "program": "root = Col([Link(\"查看 Apple 开发文档\",\"https://developer.apple.com/documentation/swiftui\")])"
+  },
+  "Citation": {
+    "category": "Content",
+    "program": "root = Col([Text(\"更多信息可以继续阅读：\"),Citation([{title:\"SwiftUI 文档\",url:\"https://developer.apple.com/documentation/swiftui\"},{title:\"Apple 设计指南\",url:\"https://developer.apple.com/design/human-interface-guidelines/\"}])])"
+  },
+  "Math": {
+    "category": "Media",
+    "program": "root = Col([Math(\"E = mc^2\"),Math(\"\\\\frac{1}{n} \\\\sum_{i=1}^{n} x_i\")])"
+  },
+  "List": {
+    "category": "Content",
+    "program": "root = Col([List([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留一点弹性\"),ListItem(\"准备出发\",\"核对必需信息\")],\"number\",true)])"
+  },
+  "ListItem": {
+    "category": "Content",
+    "program": "root = Col([List([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留一点弹性\"),ListItem(\"准备出发\",\"核对必需信息\")],\"number\",true)])"
+  },
+  "Badge": {
+    "category": "Content",
+    "program": "root = Col([Row([Badge(\"信息\",\"info\"),Badge(\"已完成\",\"success\",\"check\"),Badge(\"待确认\",\"warning\")],3,\"center\",\"start\",true)])"
+  },
+  "Icon": {
+    "category": "Media",
+    "program": "root = Col([Row([Icon(\"map-pin\",\"lg\"),Icon(\"camera\",\"lg\"),Icon(\"heart\",\"lg\"),Icon(\"star\",\"lg\")])])"
+  },
+  "Progress": {
+    "category": "DataDisplay",
+    "program": "root = Col([Progress(65,100,\"准备进度\"),Caption(\"65 / 100\")])"
+  },
+  "Celebration": {
+    "category": "Content",
+    "program": "root = Col([Checkbox($done,\"标记为完成\"),Celebration($done),Text($done?\"已完成！\":\"完成后显示庆祝效果\")])\n$done = false"
+  },
+  "Image": {
+    "category": "Media",
+    "program": "root = Col([Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机正面\")])"
+  },
+  "ImageText": {
+    "category": "Content",
+    "program": "root = Col([ImageText({title:\"旅行摄影\",image:{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},body:\"留住喜欢的瞬间，记录沿途的风景。\",badge:\"摄影\"},\"top\")])"
+  },
+  "SearchImage": {
+    "category": "Media",
+    "program": "root = Col([SearchImage(\"gallery-camera\"),Caption(\"本地模拟图片搜索，使用随 Gallery 打包的相机照片。\")])"
+  },
+  "Map": {
+    "category": "Media",
+    "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"散步\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],false)])"
+  },
+  "MapMarker": {
+    "category": "Media",
+    "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"散步\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],false)])"
+  },
+  "HtmlView": {
+    "category": "Media",
+    "program": "root = Col([HtmlView(\"<html><body style='font:17px -apple-system;padding:16px'><h2>Hello HTML</h2><p>本地内容预览。</p><button onclick='this.textContent=\\\"已点击\\\"'>试一试</button></body></html>\",240,\"HTML 示例\")])"
+  },
+  "YouTube": {
+    "category": "Media",
+    "program": "root = Col([YouTube(\"aqz-KE-bpKQ\",\"Big Buck Bunny · 需要网络及点击播放\")])"
+  },
+  "Input": {
+    "category": "Controls",
+    "program": "root = Col([Input($name,\"姓名\",\"text\",\"请输入姓名\"),Text(\"已填写：\"+$name)])\n$name = \"\""
+  },
+  "TextArea": {
+    "category": "Controls",
+    "program": "root = Col([TextArea($note,\"备注\",\"想告诉我们的事\",4),Caption(\"填写内容：\"+$note)])\n$note = \"\""
+  },
+  "Checkbox": {
+    "category": "Controls",
+    "program": "root = Col([Checkbox($checked,\"喜欢湖边散步\"),Text($checked?\"已选择\":\"尚未选择\")])\n$checked = false"
+  },
+  "Slider": {
+    "category": "Controls",
+    "program": "root = Col([Slider($minutes,0,120,5,\"步行时间\",\"分钟\"),Text(\"当前：\"+$minutes+\" 分钟\")])\n$minutes = 45"
+  },
+  "Select": {
+    "category": "Controls",
+    "program": "root = Col([Select($route,[{value:\"lake\",label:\"湖边\"},{value:\"town\",label:\"老城\"}],\"出行方向\",\"请选择\"),Text(\"已选择：\"+$route)])\n$route = \"lake\""
+  },
+  "SegmentedControl": {
+    "category": "Controls",
+    "program": "root = Col([SegmentedControl($pace,[{value:\"easy\",label:\"轻松\"},{value:\"full\",label:\"充实\"}],true),Text($pace==\"easy\"?\"少走一点，慢慢看。\":\"多看几处，留足时间。\")])\n$pace = \"easy\""
+  },
+  "RadioGroup": {
+    "category": "Controls",
+    "program": "root = Col([RadioGroup($route,[{value:\"lake\",label:\"湖边散步\",description:\"轻松停留\"},{value:\"town\",label:\"街巷漫游\",description:\"看老城烟火\"}],\"半日方向\",\"cards\")])\n$route = \"lake\""
+  },
+  "DatePicker": {
+    "category": "Controls",
+    "program": "root = Col([DatePicker($date,\"出发日期\"),Caption(\"当前：\"+$date)])\n$date = \"2026-11-15\""
+  },
+  "Timer": {
+    "category": "Controls",
+    "program": "root = Col([Timer($seconds,\"休息倒计时\")])\n$seconds = 60"
+  },
+  "Form": {
+    "category": "Layout",
+    "program": "root = Col([Form([Input($name,\"姓名\",\"text\",\"请输入姓名\"),TextArea($note,\"备注\",\"可选\",3),Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\",{name:$name,note:$note}))])])\n$name = \"\"\n$note = \"\""
+  },
+  "Button": {
+    "category": "Controls",
+    "program": "root = Col([Button(\"继续安排\",@ToAssistant(\"继续安排\")),Button(\"查看详情\",@ToAssistant(\"查看详情\"),\"outline\"),Button(\"稍后再看\",@ToAssistant(\"稍后再看\"),\"ghost\")])"
+  },
+  "IconButton": {
+    "category": "Controls",
+    "program": "root = Col([IconButton(\"heart\",@ToAssistant(\"收藏这个方向\"),\"收藏\",\"outline\")])"
+  },
+  "Pressable": {
+    "category": "Controls",
+    "program": "root = Col([Pressable([Title(\"湖边散步\",\"sm\"),Text(\"点击选择这个方向\")],@Set($selected,!$selected),$selected,4,\"surface\",\"lg\"),Text($selected?\"已选择\":\"未选择\")])\n$selected = false"
+  },
+  "Popover": {
+    "category": "Layout",
+    "program": "root = Col([Popover(\"查看出行提示\",[Text(\"穿舒适的鞋，预留休息时间。\")])])"
+  },
+  "Disclosure": {
+    "category": "Layout",
+    "program": "root = Col([Disclosure(\"出发前准备\",[Text(\"证件、充电器和轻便外套。\")],$expanded)])\n$expanded = false"
+  },
+  "Flashcard": {
+    "category": "Content",
+    "program": "root = Col([Flashcard(\"热泵怎样让屋里变暖？\",\"用电驱动压缩机，把室外热量搬到室内。\",\"点击翻面查看答案\")])"
+  },
+  "Table": {
+    "category": "DataDisplay",
+    "program": "root = Col([Table([\"地点\",\"停留时间\"],[[\"苏堤\",\"60 分钟\"],[\"孤山\",\"40 分钟\"]])])"
+  },
+  "Chart": {
+    "category": "DataDisplay",
+    "program": "root = Col([Chart(\"bar\",[{day:\"周一\",walk:30,ride:20},{day:\"周二\",walk:55,ride:35},{day:\"周三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",null,false,240)])"
+  },
+  "ProductCard": {
+    "category": "DataDisplay",
+    "program": "root = Col([ProductCard({id:\"camera-example\",title:\"Nikon D850\",images:[{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"}],specification:\"商品信息布局示例\",priceNote:\"仅展示组件，不提供报价\",actionLabel:\"了解更多\",purchaseURL:\"https://www.nikon.com/\"},\"vertical\",\"contain\")])"
+  },
+  "TransportCard": {
+    "category": "DataDisplay",
+    "program": "root = Col([TransportCard({id:\"rail-example\",legs:[{mode:\"train\",from:\"杭州东\",to:\"苏州\",departureDate:\"2026-11-15\",arrivalDate:\"2026-11-15\",departureTime:\"09:00\",arrivalTime:\"10:40\",durationText:\"1 小时 40 分钟\",serviceNumber:\"演示班次\"}],priceNote:\"行程布局示例，不是实时班次\"})])"
+  },
+  "Circle": {
+    "category": "Media",
+    "program": "root = Col([Svg([Circle(160,80,48,\"info\")],\"0 0 320 160\",320,160)])"
+  },
+  "Ellipse": {
+    "category": "Media",
+    "program": "root = Col([Svg([Ellipse(160,80,90,45,\"info\")],\"0 0 320 160\",320,160)])"
+  },
+  "Rect": {
+    "category": "Media",
+    "program": "root = Col([Svg([Rect(60,30,200,100,\"info\",null,null,null,16)],\"0 0 320 160\",320,160)])"
+  },
+  "Line": {
+    "category": "Media",
+    "program": "root = Col([Svg([Line(40,120,280,40,\"info\",4)],\"0 0 320 160\",320,160)])"
+  },
+  "Path": {
+    "category": "Media",
+    "program": "root = Col([Svg([Path(\"M40 120 C100 10 220 10 280 120\",\"none\",\"info\",4)],\"0 0 320 160\",320,160)])"
+  },
+  "Polyline": {
+    "category": "Media",
+    "program": "root = Col([Svg([Polyline(\"30,120 100,40 180,100 280,30\",\"info\",4,\"none\")],\"0 0 320 160\",320,160)])"
+  },
+  "Polygon": {
+    "category": "Media",
+    "program": "root = Col([Svg([Polygon(\"160,20 280,130 40,130\",\"info\")],\"0 0 320 160\",320,160)])"
+  },
+  "G": {
+    "category": "Media",
+    "program": "root = Col([Svg([G([Circle(80,80,40,\"info\"),Rect(150,40,100,80,\"success\")])],\"0 0 320 160\",320,160)])"
+  },
+  "SvgText": {
+    "category": "Media",
+    "program": "root = Col([Svg([SvgText(\"Hello SVG\",160,90,28,\"ink\",\"middle\",\"semibold\")],\"0 0 320 160\",320,160)])"
+  },
+  "Svg": {
+    "category": "Media",
+    "program": "root = Col([Svg([Rect(10,10,300,140,\"surface\",null,null,null,16),Circle(80,80,36,\"info\"),SvgText(\"Hello SVG\",144,88,24,\"ink\")],\"0 0 320 160\",320,160)])"
+  }
+}

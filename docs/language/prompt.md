@@ -3,7 +3,7 @@
 **1.0**
 
 > This is the retained 1.0 reference specification. The SDK runs language core
-> 1.1.1; see [current compatibility behavior](compatibility.md#current-language-version-and-reference-documents)
+> 1.1.1; see [current compatibility behavior](../architecture.md#语言版本与参考规范)
 > for the version scope and runtime differences. Export model input from the
 > selected library's current `systemPrompt` and `specificationJSON`.
 

@@ -1,0 +1,185 @@
+import SwiftUI
+
+/// Associates one ordered language definition with its native renderer.
+/// Definitions stay Foundation-only; native views are registered at this layer.
+public struct OpenUIComponent {
+    public let definition: DefinedComponent
+    fileprivate let builder: OpenUIComponentRegistry.Builder
+    package var supportsPresentationPlaceholder = false
+    package var presentationLayoutFields: [String] = []
+    package var ownsFormControlLabel = false
+    package var presentationIdentityFields: [String]?
+    package var presentationPlaceholderFields: [String] = []
+
+    public init<Content: View>(name: String, description: String, params: [ParamDef],
+                               @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
+        self.init(defineComponent(name: name, description: description, params: params), content: content)
+    }
+
+    /// Configure the existing native presentation contract without exposing
+    /// parser internals or inventing new model-facing parameters. Unknown field
+    /// names are ignored so metadata cannot add a second undeclared schema.
+    public func presentation(
+        layoutFields: [String] = [],
+        supportsPlaceholder: Bool = false,
+        ownsFormControlLabel: Bool = false,
+        identityFields: [String]? = nil,
+        placeholderFields: [String] = []
+    ) -> OpenUIComponent {
+        var result = self
+        let declared = Set(definition.params.map(\.name))
+        var seen = Set<String>()
+        result.presentationLayoutFields = layoutFields.filter {
+            declared.contains($0) && seen.insert($0).inserted
+        }
+        result.supportsPresentationPlaceholder = supportsPlaceholder
+        result.ownsFormControlLabel = ownsFormControlLabel
+        var identityNames = Set<String>()
+        result.presentationIdentityFields = identityFields.map {
+            $0.filter { declared.contains($0) && identityNames.insert($0).inserted }
+        }
+        var placeholderNames = Set<String>()
+        result.presentationPlaceholderFields = placeholderFields.filter {
+            declared.contains($0) && placeholderNames.insert($0).inserted
+        }
+        return result
+    }
+
+    /// Replace a typed contract while retaining the original native renderer.
+    /// The builder still receives the final extended registry and shared state.
+    public func replacingDefinition(_ definition: DefinedComponent) -> OpenUIComponent {
+        var result = OpenUIComponent(definition: definition, builder: builder)
+        let declared = Set(definition.params.map(\.name))
+        result.supportsPresentationPlaceholder = supportsPresentationPlaceholder
+        result.ownsFormControlLabel = ownsFormControlLabel
+        result.presentationLayoutFields = presentationLayoutFields.filter { declared.contains($0) }
+        result.presentationIdentityFields = presentationIdentityFields.map { $0.filter { declared.contains($0) } }
+        result.presentationPlaceholderFields = presentationPlaceholderFields.filter { declared.contains($0) }
+        return result
+    }
+
+    private init(definition: DefinedComponent, builder: @escaping OpenUIComponentRegistry.Builder) {
+        self.definition = definition
+        self.builder = builder
+    }
+
+    public init<Content: View>(
+        _ definition: DefinedComponent,
+        @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content
+    ) {
+        self.definition = definition
+        self.builder = { element, registry in
+            AnyView(OpenUIComponentHost(element: element, registry: registry, content: content))
+        }
+    }
+}
+
+/// A matched language library and native registry. A library only advertises
+/// the components whose implementations were supplied by its author.
+public struct OpenUIComponentLibrary {
+    public let library: Library
+    public let registry: OpenUIComponentRegistry
+
+    public init(
+        components: [OpenUIComponent],
+        functions: [DefinedFunction] = [],
+        actions: [DefinedAction] = [],
+        root: String? = nil,
+        id: String? = nil,
+        componentGroups: [ComponentGroup]? = nil
+    ) throws {
+        let library = try createLibrary(components: components.map(\.definition), functions: functions,
+                                        actions: actions, root: root, id: id, componentGroups: componentGroups)
+        var registry = OpenUIComponentRegistry()
+        for component in components {
+            registry[component.definition.name] = component.builder
+            registry.setPresentationPlaceholder(component.definition.name, enabled: component.supportsPresentationPlaceholder)
+            registry.setLayoutFields(component.definition.name, fields: component.presentationLayoutFields)
+            registry.setFormControlLabelOwner(component.definition.name, enabled: component.ownsFormControlLabel)
+            registry.setIdentityFields(component.definition.name, fields: component.presentationIdentityFields)
+            registry.setPlaceholderFields(component.definition.name, fields: component.presentationPlaceholderFields)
+        }
+        self.library = library
+        self.registry = registry
+    }
+
+    private init(library: Library, registry: OpenUIComponentRegistry) {
+        self.library = library
+        self.registry = registry
+    }
+
+    public func extending(
+        adding: [OpenUIComponent] = [],
+        overriding: [OpenUIComponent] = [],
+        removing: [String] = [],
+        functions: [DefinedFunction] = [],
+        actions: [DefinedAction] = [],
+        slots: [String: [String]] = [:]
+    ) throws -> OpenUIComponentLibrary {
+        let extended = try library.extend(LibraryExtension(
+            addComponents: adding.map(\.definition), overrideComponents: overriding.map(\.definition),
+            removeComponents: removing, addFunctions: functions, addActions: actions,
+            addComponentSlots: slots))
+        var next = registry
+        for name in removing { next[name] = nil }
+        for component in adding + overriding {
+            next[component.definition.name] = component.builder
+            next.setPresentationPlaceholder(component.definition.name, enabled: component.supportsPresentationPlaceholder)
+            next.setLayoutFields(component.definition.name, fields: component.presentationLayoutFields)
+            next.setFormControlLabelOwner(component.definition.name, enabled: component.ownsFormControlLabel)
+            next.setIdentityFields(component.definition.name, fields: component.presentationIdentityFields)
+            next.setPlaceholderFields(component.definition.name, fields: component.presentationPlaceholderFields)
+        }
+        return OpenUIComponentLibrary(library: extended, registry: next)
+    }
+
+    /// Generate the prompt using the shared-core library and caller options.
+    public func prompt(_ options: PromptOptions = PromptOptions()) -> String {
+        library.prompt(options)
+    }
+    public func toSpec() -> LibrarySpec { library.toSpec() }
+
+}
+
+/// Helpers construct ordinary JSON Schema; argument order remains explicit.
+public enum OpenUIParameter {
+    /// A local selection shared by any components bound to the same $variable.
+    public static func selection(_ name: String, required: Bool = true) -> ParamDef {
+        var parameter = string(name, required: required)
+        parameter.isBindable = true
+        return parameter
+    }
+
+    public static func string(_ name: String, required: Bool = true, values: [String]? = nil) -> ParamDef {
+        var fields = [JSONField(key: "type", value: .string("string"))]
+        if let values { fields.append(JSONField(key: "enum", value: .array(values.map(JSONValue.string)))) }
+        return ParamDef(name: name, required: required, schema: .object(fields))
+    }
+
+    public static func number(_ name: String, required: Bool = false) -> ParamDef {
+        ParamDef(name: name, required: required,
+                 schema: .object([JSONField(key: "type", value: .string("number"))]))
+    }
+
+    public static func flag(_ name: String, required: Bool = false) -> ParamDef {
+        ParamDef(name: name, required: required, schema: .object([JSONField(key: "type", value: .string("boolean"))]))
+    }
+
+    public static func action(_ name: String = "action", required: Bool = false) -> ParamDef {
+        ParamDef(name: name, required: required,
+                 schema: .object([JSONField(key: "$ref", value: .string("#/$defs/ActionExpression"))]))
+    }
+
+    /// Empty `accepting` permits any registered component/value, like Stack.
+    /// An explicit list produces $refs that Library.extend can update.
+    public static func slot(_ name: String, multiple: Bool = true, required: Bool = false,
+                            accepting names: [String] = []) -> ParamDef {
+        let refs = names.map { JSONValue.object([JSONField(key: "$ref", value: .string("#/$defs/" + $0))]) }
+        let item: JSONValue = refs.isEmpty ? .object([])
+            : .object([JSONField(key: "anyOf", value: .array(refs))])
+        let schema = multiple ? JSONValue.object([
+            JSONField(key: "type", value: .string("array")), JSONField(key: "items", value: item)
+        ]) : item
+        return ParamDef(name: name, required: required, schema: schema)
+    }
+}

@@ -13,7 +13,7 @@ import re
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-LIBRARIES = {"standard", "intelligent"}
+LIBRARIES = {"openui", "openintelligentui"}
 IDENTIFIER = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
@@ -65,7 +65,7 @@ def check_catalogs(resources: Path) -> dict:
                 problems.append(f"{label}: tags must be an array of nonempty strings")
             programs = item.get("programs")
             if not isinstance(programs, dict) or not programs or set(programs) - LIBRARIES:
-                problems.append(f"{label}: programs must name standard and/or intelligent")
+                problems.append(f"{label}: programs must name openui and/or openintelligentui")
                 continue
             if group == "Cases" and set(programs) != LIBRARIES:
                 problems.append(f"{label}: every curated scene must provide both libraries")
@@ -109,6 +109,32 @@ def check_catalogs(resources: Path) -> dict:
         actual = {path.resolve() for path in directory.rglob("*.openui")}
         for unused in sorted(actual - referenced):
             problems.append(f"{group}: unreferenced program {unused.relative_to(directory.resolve())}")
+    component_counts: dict[str, int] = {}
+    component_directories = {"Layout", "Content", "Controls", "DataDisplay", "Media"}
+    intelligent_directories: dict[str, str] = {}
+    source_directory = ROOT / "Sources/SwiftIntelligentUI/Components"
+    for source_file in source_directory.rglob("*.swift"):
+        for component_name in re.findall(r'OpenUIComponent\(name: "([A-Za-z0-9]+)"', source_file.read_text()):
+            intelligent_directories[component_name] = source_file.parent.name
+    for component_name in re.findall(r'\("([A-Z][A-Za-z0-9]*)",', (source_directory / "Media/SVG.swift").read_text()):
+        intelligent_directories[component_name] = "Media"
+    for library in sorted(LIBRARIES):
+        try:
+            samples = json.loads((resources / "Components" / f"{library}.json").read_text(encoding="utf-8"))
+            if not isinstance(samples, dict) or not samples:
+                raise ValueError("expected a nonempty component example object")
+            component_counts[library] = len(samples)
+            for name, sample in samples.items():
+                if not isinstance(sample, dict) or not sample.get("category") or not sample.get("program"):
+                    problems.append(f"Components/{library}/{name}: missing category or program")
+                elif sample["category"] not in component_directories:
+                    problems.append(f"Components/{library}/{name}: unknown source directory {sample['category']}")
+                elif library == "openintelligentui" and sample["category"] != intelligent_directories.get(name):
+                    problems.append(f"Components/{library}/{name}: directory does not match its SDK source")
+                elif f"{name}(" not in sample["program"]:
+                    problems.append(f"Components/{library}/{name}: example does not use its component")
+        except (ValueError, OSError) as error:
+            problems.append(f"Components/{library}: {error}")
     image_count = 0
     image_directory = resources / "Images"
     image_manifest = image_directory / "catalog.json"
@@ -152,6 +178,7 @@ def check_catalogs(resources: Path) -> dict:
         "catalogs": counts,
         "programs": total_programs,
         "programsByLibrary": by_library,
+        "componentExamples": component_counts,
         "bundledImages": image_count,
         "result": "PASS (catalog and resource integrity; not native rendering)",
     }

@@ -1,6 +1,6 @@
 # Gallery 核心案例
 
-这里维护 Gallery 的十个核心场景。`catalog.json` 是场景、标题、分类、来源和两份程序路径的唯一索引；宿主按所选库读取 `standard/` 或 `intelligent/`。程序路径相对本目录，避免把源码嵌在 Swift 菜单中再维护一份。
+这里维护 Gallery 的十个核心场景。`catalog.json` 是场景、标题、分类、来源和两份程序路径的唯一索引；宿主按所选库读取 `openui/` 或 `openintelligentui/`。程序路径相对本目录，避免把源码嵌在 Swift 菜单中再维护一份。
 
 ## 内容范围
 
@@ -24,14 +24,16 @@
 选取来源为 [zyfn/openui-case-lab](https://github.com/zyfn/openui-case-lab/tree/903c6ebaa0611bd228b19962e324524175492437)，固定提交为 `903c6ebaa0611bd228b19962e324524175492437`。每项的准确来源路径写在 `catalog.json`。
 
 - 前八份标准程序从本仓库原 `Examples/AgentCases/` 移入，文件名与字节均保持不变；它们与上述 CaseLab 提交的 `Review/Fixtures/SimpleCases/` 逐字一致。CaseLab 原先也是从 SDK 同步这八份内容，因此本次移动没有再导入第二份副本。
-- `standard/scene-spending.openui` 和 `standard/behavior-form.openui` 分别提取自 `Review/Catalog/Programs/ReviewExamplePrograms.swift` 的 `scene-spending`、`behavior-form` 中文 `zh-Hans` 分支。仅移除 Swift 原始字符串与源码缩进，DSL 未改写。
-- 十份 Intelligent 程序在本仓库按现有 Intelligent 组件契约重新编写。它们保留同一任务、关键事实与交互意图，使用该库的 `Col`、`ImageText`、`Chart`、`ProductCard`、`TransportCard` 等能力；不把标准 DSL 当作可以直接换库的同一份程序。
+- `openui/scene-spending.openui` 和 `openui/behavior-form.openui` 分别提取自 `Review/Catalog/Programs/ReviewExamplePrograms.swift` 的 `scene-spending`、`behavior-form` 中文 `zh-Hans` 分支。仅移除 Swift 原始字符串与源码缩进，DSL 未改写。
+- 十份 OpenIntelligentUI 程序按自身组件契约编排，保留 OpenUI 场景的完整内容、阅读层次、来源图片及任务意图。通过 `Col`、`Title`、`Carousel`、`ImageText`、`Chart`、`ProductCard`、`TransportCard` 等组件组织解释、比较、选择与后续行动。
 
 后续修改在这里维护。需要向 CaseLab 同步时，应由其消费这些源文件；不要在两个仓库各改一份后再人工挑选。源项目采用 Thesys MIT 许可，本仓库现有第三方声明保留对应许可。
 
-## 两套程序的刻意差异
+## 内容完整性与产品表达
 
-标准的前八份原文是既有行为回归素材，不在这次整理中重新排版。Intelligent 版本按任务重新组织内容：长篇补充信息可以折叠，商品、住宿和多段交通用专门组件，SVG 用结构化图元表达。部分重复照片或叙述压缩到核心信息，但商品身份、来源链接、关键价格、日期、地点坐标和演示边界保留。
+OpenUI 的前八份原文继续作为既有行为回归素材。OpenIntelligentUI 保留完整开篇、章节、解释、比较、结论与后续行动；不能为了让示例短小而删去主要内容。探索与候选选择使用横向集合，行程保留逐站照片和说明，商品与交通使用自身业务组件，图解用结构化图元或原生分组表达。补充信息可以折叠，主要解释与结论保持可读；两套产品不要求使用相同的视觉组件。
+
+商品身份、来源链接、价格口径、日期、时区、地点坐标与演示边界保持一致。Gallery 回归检查两套程序的原始媒体/链接保留，以及十个场景的关键章节、数据与交互入口；这些检查不能替代原生画面的视觉验收。
 
 卧室场景用三个显式布尔状态收集多选，并随 `ToAssistant` 动作传递实际选择。账单场景在两套程序中保持相同金额与统计范围。联系人场景中，标准 `Form` 使用其现有字段校验；Intelligent `Form` 负责分组，示例显式绑定字段、检查姓名非空和邮箱基本形态，再把当前字段快照与上次核对比较。这个基础检查不验证邮箱存在，也不是完整的邮箱地址规范实现。
 

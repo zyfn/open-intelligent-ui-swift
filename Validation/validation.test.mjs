@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createValidator, loadValidator, sha256 } from './api.mjs';
 
-const catalog = JSON.parse(readFileSync(new URL('../Sources/OpenSwiftUI/Resources/upstream-catalog.json', import.meta.url), 'utf8'));
+const catalog = JSON.parse(readFileSync(new URL('../Sources/SwiftOpenUI/Resources/upstream-catalog.json', import.meta.url), 'utf8'));
 const snapshot = () => JSON.parse(JSON.stringify(catalog.spec));
 const make = () => { const library = snapshot(); return createValidator({ library, schema: library.schema }); };
 const good = 'root=Stack([Card([TextContent("A supplied fact")])])';

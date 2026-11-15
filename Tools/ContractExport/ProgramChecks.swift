@@ -1,10 +1,9 @@
 import Foundation
-import OpenUILang
-import OpenUICore
-import OpenIntelligentSwiftUI
+import SwiftLang
+import SwiftIntelligentUI
 
 @MainActor enum ProgramChecks {
-    static func run(_ name: String?, state: OpenUIState, library: IntelligentUILibrary) async -> [String: Bool] {
+    static func run(_ name: String?, state: OpenUIState, library: OpenIntelligentUIComponents) async -> [String: Bool] {
         guard let name, let root = state.root else { return [:] }
         let nodes = elements(.element(root))
         // Free composition is checked against the writer schema here.

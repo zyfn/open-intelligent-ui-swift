@@ -2,9 +2,9 @@ name: Native SDK and lang compatibility
 
 on:
   push:
-    branches: [codex/sdk-baseline, codex/swift-sdk-consolidation-rc21, refactor/openui-four-module-foundation]
+    branches: [main, codex/sdk-baseline, codex/swift-sdk-consolidation-rc21, refactor/openui-four-module-foundation]
   pull_request:
-    branches: [codex/sdk-baseline, codex/intelligentui-design-revamp, codex/swift-sdk-consolidation-rc21]
+    branches: [main, codex/sdk-baseline, codex/intelligentui-design-revamp, codex/swift-sdk-consolidation-rc21]
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 Tools/check_module_boundaries.py
-          if grep -R -nE '(^|[[:space:]])(@testable[[:space:]]+)?import[[:space:]]+(OpenUISwiftUI|SwiftIntelligentUI)([[:space:]]|$)' Sources Tests Examples Tools --include='*.swift'; then
+          if grep -R -nE '(^|[[:space:]])(@testable[[:space:]]+)?import[[:space:]]+(OpenUILang|OpenUI|OpenIntelligentUI|OpenUICore|OpenSwiftUI|OpenIntelligentSwiftUI|OpenUISwiftUI)([[:space:]]|$)' Sources Tests Examples Tools --include='*.swift'; then
             echo 'Obsolete Swift module imports remain'
             exit 1
           fi
@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           npm ci --prefix Tools/Core --ignore-scripts
           node Tools/Core/build.mjs
-          git diff --exit-code -- Sources/OpenUILang/Resources
+          git diff --exit-code -- Sources/SwiftLang/Resources
           node Tools/Core/verify-compatibility.mjs
           node --test Tools/Core/native-readiness.test.mjs
           node --test Validation/validation.test.mjs
@@ -62,14 +62,14 @@ jobs:
           node Tools/Presentation/code-highlighting/build.mjs
           node Tools/Presentation/icons/generate.mjs --check
           node Tools/Presentation/catalog.mjs --check
-          git diff --exit-code -- Sources/OpenSwiftUI/Resources
+          git diff --exit-code -- Sources/SwiftOpenUI/Resources
       - name: Rebuild and verify Intelligent UI math resources
         run: |
           set -euo pipefail
           npm ci --prefix Tools/Functions --ignore-scripts
           node Tools/Functions/build-math.cjs
           node --test Tools/Functions/math-resources.test.cjs
-          git diff --exit-code -- Sources/OpenIntelligentSwiftUI/Resources
+          git diff --exit-code -- Sources/SwiftIntelligentUI/Resources
       - name: Retain input diagnostics
         if: always()
         shell: bash
@@ -77,7 +77,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/native-input-evidence"
           git rev-parse HEAD > "$RUNNER_TEMP/native-input-evidence/checkout-sha.txt"
           git diff -- Sources > "$RUNNER_TEMP/native-input-evidence/generated-diff.patch"
-          cp Sources/OpenUILang/Resources/core-manifest.json "$RUNNER_TEMP/native-input-evidence/"
+          cp Sources/SwiftLang/Resources/core-manifest.json "$RUNNER_TEMP/native-input-evidence/"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -162,7 +162,7 @@ jobs:
           path: outputs/verification/sdk-tests.log
           if-no-files-found: warn
           retention-days: 7
-      - name: Independent public Lang, Core and UI product consumers
+      - name: Independent swift-lang, swift-ui and swift-intelligent-ui consumers
         if: ${{ !cancelled() }}
         shell: bash
         run: |
@@ -174,7 +174,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test -c release --filter 'HostSizingIsolationTests|CoreHostIsolationTests' \
+          swift test -c release --filter 'HostSizingIsolationTests|RuntimeHostIsolationTests' \
             2>&1 | tee outputs/verification/release-fitting.log
       - name: Standalone Gallery tests
         if: ${{ !cancelled() }}
@@ -205,7 +205,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test --scratch-path "$RUNNER_TEMP/openui-asan" --sanitize=address --filter OpenUILangTests \
+          swift test --scratch-path "$RUNNER_TEMP/openui-asan" --sanitize=address --filter SwiftLangTests \
             2>&1 | tee outputs/verification/asan.log
       - name: Independent contract and performance tools
         if: ${{ !cancelled() }}
@@ -221,7 +221,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for target in OpenSwiftUI OpenIntelligentSwiftUI; do
+          for target in SwiftOpenUI SwiftIntelligentUI; do
             swift build --target "$target" --scratch-path "$RUNNER_TEMP/native-ios" \
               --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
               2>&1 | tee "outputs/verification/$target-ios.log"

@@ -12,8 +12,8 @@
         "text"
       ],
       "programs": {
-        "standard": "standard/layout.openui",
-        "intelligent": "intelligent/layout.openui"
+        "openui": "openui/layout.openui",
+        "openintelligentui": "openintelligentui/layout.openui"
       }
     },
     {
@@ -27,8 +27,8 @@
         "state"
       ],
       "programs": {
-        "standard": "standard/input-state.openui",
-        "intelligent": "intelligent/input-state.openui"
+        "openui": "openui/input-state.openui",
+        "openintelligentui": "openintelligentui/input-state.openui"
       }
     },
     {
@@ -42,8 +42,8 @@
         "failure"
       ],
       "programs": {
-        "standard": "standard/images.openui",
-        "intelligent": "intelligent/images.openui"
+        "openui": "openui/images.openui",
+        "openintelligentui": "openintelligentui/images.openui"
       }
     },
     {
@@ -56,8 +56,8 @@
         "unknown"
       ],
       "programs": {
-        "standard": "standard/empty-data.openui",
-        "intelligent": "intelligent/empty-data.openui"
+        "openui": "openui/empty-data.openui",
+        "openintelligentui": "openintelligentui/empty-data.openui"
       }
     },
     {
@@ -70,8 +70,8 @@
         "reading"
       ],
       "programs": {
-        "standard": "standard/streaming.openui",
-        "intelligent": "intelligent/streaming.openui"
+        "openui": "openui/streaming.openui",
+        "openintelligentui": "openintelligentui/streaming.openui"
       }
     },
     {
@@ -85,8 +85,8 @@
         "mock"
       ],
       "programs": {
-        "standard": "standard/query-chain.openui",
-        "intelligent": "intelligent/query-chain.openui"
+        "openui": "openui/query-chain.openui",
+        "openintelligentui": "openintelligentui/query-chain.openui"
       }
     },
     {
@@ -99,7 +99,7 @@
         "binding"
       ],
       "programs": {
-        "intelligent": "intelligent/drawing.openui"
+        "openintelligentui": "openintelligentui/drawing.openui"
       }
     },
     {
@@ -112,7 +112,7 @@
         "calculation"
       ],
       "programs": {
-        "intelligent": "intelligent/functions.openui"
+        "openintelligentui": "openintelligentui/functions.openui"
       }
     },
     {
@@ -126,7 +126,7 @@
         "loading"
       ],
       "programs": {
-        "intelligent": "intelligent/image-search-states.openui"
+        "openintelligentui": "openintelligentui/image-search-states.openui"
       }
     }
   ]

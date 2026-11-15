@@ -1,10 +1,10 @@
 // Generate oracle data from the compiled TypeScript reference, never from Swift.
-// Usage: node Tools/Core/generate-reference-fixtures.mjs /path/to/pinned/lang-core/dist/index.mjs /path/to/pinned/spec/fixtures/1.0
-// Build that module from thesysdev/openui 8d9c4c3b108a7b5352192a6a9d7327bdf7ea19b5.
+// Called by verify-compatibility with its pristine pinned official oracle.
+// Arguments: official module, input fixture directory, output directory, revision.
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
-if (!process.argv[2] || !process.argv[3]) throw new Error('Supply the pinned TypeScript module and fixture directory.');
+if (!process.argv[2] || !process.argv[3] || !process.argv[4] || !/^[0-9a-f]{40}$/.test(process.argv[5] ?? '')) throw new Error('Supply the pinned module, input/output directories and exact revision.');
 const core=await import(pathToFileURL(path.resolve(process.argv[2])).href);
 const fixtureRoot=path.resolve(process.argv[3]);
 const spec=JSON.parse(fs.readFileSync(path.join(fixtureRoot,'library.json'),'utf8'));
@@ -40,13 +40,16 @@ function canonical(v){
  if(v&&typeof v==='object')return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,canonical(x)]));
  return v;
 }
-function program(source,chunks){
+function program(source,chunks,includeDiagnostics=false){
  const parser=chunks?core.createStreamingParser(schema,spec.root):core.createParser(schema,spec.root);
  const result=chunks?(chunks.forEach((c,i)=>parser.push(c,i===chunks.length-1)),parser.getResult(true)):parser.parse(source);
  const store=core.createStore();store.initialize(result.stateDeclarations??{},{});
  const ctx={getState:n=>store.get(n)??null,resolveRef:n=>{const q=result.queryStatements.find(s=>s.statementId===n);if(q)return q.defaultsAST?core.evaluate(q.defaultsAST,ctx):null;return result.mutationStatements.some(s=>s.statementId===n)?{status:'idle',data:null,error:null}:null},functions,actions:schema.actions};
  const errors=[];const tree=core.evaluateRoot(result,{ctx,library,store,errors});
- return{root:summary(tree,ast=>core.evaluate(ast,ctx)),errors:[...result.meta.errors,...errors].map(({code,statementId})=>({code,...statementId?{statementId}:{}})),unresolved:result.meta.unresolved,orphans:result.meta.orphaned,incomplete:result.meta.incomplete,state:result.stateDeclarations??{}};
+ const diagnostics=[...result.meta.errors,...errors];
+ const fields=['source','code','statementId','component','path','toolName','hint','severity'];
+ return{root:summary(tree,ast=>core.evaluate(ast,ctx)),errors:diagnostics.map(({code,statementId})=>({code,...statementId?{statementId}:{}})),unresolved:result.meta.unresolved,orphans:result.meta.orphaned,incomplete:result.meta.incomplete,state:result.stateDeclarations??{},
+  ...(includeDiagnostics?{errorObjects:diagnostics.map(error=>Object.fromEntries(fields.filter(key=>error[key]!==undefined).map(key=>[key,error[key]])))}:{})};
 }
 const vectors=[];
 function addProgram(id,source){vectors.push({kind:'program',id,source,expected:JSON.parse(JSON.stringify(program(source)))});}
@@ -102,8 +105,8 @@ for(const [i,[existing,patch]]of [
  ['a = Text("a")','b = Text("b")'],
  ['root = Stack([])\n$x = 1','root = Stack([])\n$x = null'],
 ].entries())vectors.push({kind:'merge',id:'merge-'+i,existing,patch,expected:core.mergeStatements(existing,patch)});
-const target=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../Tests/OpenUILangTests/Fixtures');fs.mkdirSync(target,{recursive:true});
-fs.writeFileSync(path.join(target,'reference-vectors.json'),JSON.stringify({reference:'8d9c4c3b108a7b5352192a6a9d7327bdf7ea19b5',vectors},null,2)+'\n');
+const target=path.resolve(process.argv[4]);fs.mkdirSync(target,{recursive:true});
+fs.writeFileSync(path.join(target,'reference-vectors.json'),JSON.stringify({reference:process.argv[5],vectors},null,2)+'\n');
 
 {
 const file=path.join(target,"reference-vectors.json");
@@ -142,10 +145,6 @@ for(const raw of [']]>openui:content?x=%FF+foo\nroot = Stack([])',']]>openui:con
  data.vectors.push({kind:'message',id:'message-extra-'+id++,raw,expected:core.parseMessage(raw)});
 for(const value of [1,'abc','😀'])for(const rules of [{min:true},{max:'bad'},{minLength:[]},{maxLength:{}},{min:'0x10'}])
  data.vectors.push({kind:'validation',id:'rules-extra-'+id++,value,rules,expected:core.validate(value,core.parseStructuredRules(rules))??null});
-// The protocol takes precedence over this confirmed defect in the pinned TS merge.
-const duplicate=data.vectors.find(v=>v.id==='merge-2');
-duplicate.specExpected='root = Stack([a])\na = Text("last")';
-duplicate.referenceDefect='language.md section 7 requires each name once; the pinned TS merge repeats an existing duplicate.';
 // Share repeated library documents and prompt strings to keep the fixture reviewable.
 const libraries={}, promptExpectations={};
 const libraryKeys=new Map(), promptKeys=new Map();
@@ -159,7 +158,23 @@ for(const vector of data.vectors)if(vector.kind==='prompt'){
  vector.expectedRef=expectedKey;delete vector.expected;
 }
 data.libraries=libraries;data.promptExpectations=promptExpectations;
+data.diagnosticExpectations={};
+function diagnosticsIn(directory) {
+ for(const entry of fs.readdirSync(directory,{withFileTypes:true})) {
+  const current=path.join(directory,entry.name);
+  if(entry.isDirectory())diagnosticsIn(current);
+  else if(entry.name==='expected.json') {
+   const expected=JSON.parse(fs.readFileSync(current,'utf8'));
+   const input=path.join(directory,'input.oui');
+   if(expected.errorObjects&&fs.existsSync(input)) {
+    const label=path.relative(fixtureRoot,directory).split(path.sep).join('/');
+    data.diagnosticExpectations[label]=program(fs.readFileSync(input,'utf8'),undefined,true).errorObjects;
+   }
+  }
+ }
+}
+diagnosticsIn(fixtureRoot);
 fs.writeFileSync(file,JSON.stringify(data,null,2)+'\n');
-console.log('Pinned TypeScript oracle vectors:',data.vectors.length,'including one explicit normative exception.');
+console.log('Pinned TypeScript oracle vectors:',data.vectors.length,'from the supplied official module.');
 
 }

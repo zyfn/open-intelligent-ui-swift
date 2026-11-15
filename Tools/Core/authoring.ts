@@ -189,19 +189,3 @@ export function nativeCompileSchema(schema: any, spec?: any, nativeBindings?: an
   return { components: Object.fromEntries([...compiled].map(([name, def]) => [name, def.params.map(p => ({ ...project(p), isBindable: bindings[name]?.includes(p.name) ?? false }))])),
     calls: Object.fromEntries([...compiled.callDefs!].map(([name, def]) => [name, { kind: def.kind, params: def.params.map(project), builtin: def.builtin ?? false, lazy: def.lazy ?? false }])) };
 }
-
-export function nativeSignature(name: string, params: any[], actionNames: string[]): string {
-  const names = new Set<string>();
-  const visit = (value: any) => {
-    if (!value || typeof value !== 'object') return;
-    if (value.$ref?.startsWith('#/$defs/')) names.add(value.$ref.slice(8));
-    Object.values(value).forEach(visit);
-  };
-  params.forEach(p => visit(p.schema));
-  const actions = actionNames.filter(n => names.has(n) && !ACTION_DEFS[n]).map(n => ({ name: n, description: '', params: [] }));
-  const components = [{ name, description: '', params }, ...[...names].filter(n => n !== name && !ACTION_DEFS[n] && !actionNames.includes(n)).map(n => ({ name: n, description: '', params: [] }))];
-  const input = { components, functions: [], actions };
-  const result = nativeAuthoring(input);
-  if (result.error) throw new Error(result.error);
-  return result.value.spec.components[name].signature;
-}

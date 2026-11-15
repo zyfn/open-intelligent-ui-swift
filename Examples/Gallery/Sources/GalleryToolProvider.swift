@@ -1,5 +1,5 @@
 import Foundation
-import OpenUILang
+import SwiftLang
 
 /// Deterministic local transport for the query-chain diagnostic. No Agent,
 /// credentials, remote requests or commerce operation is connected here.

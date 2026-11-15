@@ -1,7 +1,6 @@
 import Foundation
-import OpenUILang
-import OpenUICore
-import OpenIntelligentSwiftUI
+import SwiftLang
+import SwiftIntelligentUI
 
 @main enum ContractExport {
     @MainActor static func main() async throws {
@@ -19,10 +18,10 @@ import OpenIntelligentSwiftUI
             args.removeSubrange(index...index + 1)
         }
         // The provider is never called during contract export or validation.
-        let imageSearch: IntelligentUIImageSearch? = includeSearch ? IntelligentUIImageSearch { query in
+        let imageSearch: OpenIntelligentUIImageSearch? = includeSearch ? OpenIntelligentUIImageSearch { query in
             .init(url: "https://example.invalid/contract-only.jpg", alt: query)
         } : nil
-        let library = try IntelligentUILibrary(imageSearch: imageSearch, excludingComponents: excluded)
+        let library = try OpenIntelligentUIComponents(imageSearch: imageSearch, excludingComponents: excluded)
         if args.first == "--validate", args.count >= 2 {
             let text = try String(contentsOfFile: args[1], encoding: .utf8)
             let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]

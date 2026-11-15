@@ -4,7 +4,7 @@ QuickJS-NG v0.17.0, commit `6d46d07d04041b40f4f49eaa7fdebe44c314c699`.
 Only libregexp, libunicode, and their required headers are included. No JavaScript VM or host bindings.
 Vendor sources are unmodified; see vendor/LICENSE.
 
-The SwiftPM product remains OpenUILang. The target compiles only Bridge.c,
+The SwiftPM product remains SwiftLang. The target compiles only Bridge.c,
 RegExpEngine.c, and UnicodeEngine.c. Prefix.h namespaces vendor exports to
 `openui_`, allowing a host to embed its own QuickJS copy. The public C header
 exports only the test bridge; source files contain no host I/O or JavaScript VM.

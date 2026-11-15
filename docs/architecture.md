@@ -1,173 +1,116 @@
-# 四模块架构
+# 架构
 
-本文描述 SDK 的实际源码边界。本仓库是一个 Swift Package，根 `Package.swift` 导出四个独立库产品。语言客户端可只选择 `OpenUILang`；自建原生组件选择 `OpenUICore`；使用现成 UI 时选择对应的 UI 产品。UI 依赖 Core 和 Lang，同时支持两套 UI 时也共享同一份语言实现。UI 客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 接入，两个 UI 库各自提供组件与视觉体系。接入示例见 [README](../README.md)。
+本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
-## 1. 依赖关系
+## 1. 与官方分层对应
+
+官方以 [lang-core](https://github.com/thesysdev/openui/tree/main/packages/lang-core)、[react-lang](https://github.com/thesysdev/openui/tree/main/packages/react-lang) 和 [react-ui](https://github.com/thesysdev/openui/tree/main/packages/react-ui) 分工：通用语言内核、框架适配、组件库。react-lang 包含组件定义、Renderer、Context、字段与动作入口，并公开所需的内核契约；它不只是 TypeScript 类型包装。react/vue 指框架，而不是另一套 DSL。
+
+本 SDK 采用同样的三层职责：
+
+| 层 | 本项目名称 | 职责 |
+| --- | --- | --- |
+| 官方内核 | 官方 lang-core 1.1.1，随包分发的 lang-core.js | 词法、解析、流式补全、求值、Store、Query 依赖调度、Schema、签名与 Prompt 规则 |
+| Swift/SwiftUI 适配 | SwiftLang | 官方内核桥接、Swift 数据契约、文档状态、组件注册、Context、原生递归渲染、绑定、动作与异步生命周期 |
+| 组件库 | SwiftOpenUI、SwiftIntelligentUI | OpenUI 与 OpenIntelligentUI 各自的组件目录、设计系统、布局、媒体呈现、特有函数及模型生成契约 |
+
+根 Swift Package 名为 openui-swift-sdk。库产品使用短横线，Swift 模块使用标识符；名称映射只维护这一份，不提供旧名转发：
+
+| 库产品 | import / target | 源码与测试目录 |
+| --- | --- | --- |
+| swift-lang | SwiftLang | Sources/SwiftLang、Tests/SwiftLangTests |
+| swift-ui | SwiftOpenUI | Sources/SwiftOpenUI、Tests/SwiftOpenUITests |
+| swift-intelligent-ui | SwiftIntelligentUI | Sources/SwiftIntelligentUI、Tests/SwiftIntelligentUITests |
+
+SwiftUI 始终指 Apple 系统框架，不能作为本项目模块名。Gallery 中的产品仍称 OpenUI / OpenIntelligentUI；OpenUILibrary、OpenUIState、OpenUIView 是共享的 OpenUI 协议 API，不是另外三个包。COpenUIRegExp 是内部 C target。
 
 ~~~mermaid
 flowchart TB
-    Standard["OpenSwiftUI"]
-    Intelligent["OpenIntelligentSwiftUI"]
-    Core["OpenUICore"]
-    Lang["OpenUILang"]
-    Standard --> Core
-    Intelligent --> Core
-    Core --> Lang
-    Standard --> Lang
-    Intelligent --> Lang
+    App["宿主 App / Agent 通信"]
+    UI["SwiftOpenUI · OpenUI 组件"]
+    IUI["SwiftIntelligentUI · OpenIntelligentUI 组件"]
+    Lang["SwiftLang · Swift/SwiftUI 适配"]
+    Engine["官方 lang-core · JavaScriptCore"]
+    App --> UI
+    App --> IUI
+    App --> Lang
+    UI --> Lang
+    IUI --> Lang
+    Lang --> Engine
 ~~~
 
-图中箭头表示同一包内的模块依赖。`OpenSwiftUI` 与 `OpenIntelligentSwiftUI` 不相互引用，也不通过对方取得状态或动作实现。SwiftUI、MapKit、WebKit 等 Apple 框架由需要它们的模块直接使用；与 UI 无关的语言层不导入 SwiftUI。
+两套 UI 只依赖 SwiftLang，互不依赖。SwiftLang 不导入任一组件库，不按具体组件名选择实现。宿主可以只使用适配层注册自己的组件，也可以只调用解析/契约 API；SwiftLang 本身是 Apple 平台适配产品，包含 SwiftUI 宿主，不承诺无 UI 框架的独立 Swift 模块。
 
-普通接入只需 `import` 所选 UI 模块，它已公开 Core 的公共类型。显式声明 `ToolProvider`、`Value`、`ActionEvent` 或 `LibrarySpec` 等 Lang 类型时，增加 `import OpenUILang`；这是使用同一包内的模块，无需添加另一个 SDK。
+## 2. 源码与目录所有权
 
-| 模块 | 源码目录 | 所有权 |
-|---|---|---|
-| `OpenUILang` | `Sources/OpenUILang` | 固定语言核心的桥接、AST/Value、解析与求值、Store、动作与查询语义、协议/序列化与运行预算 |
-| `OpenUICore` | `Sources/OpenUICore` | 统一 library/view 接口、原生 state/session、组件注册与 schema 对接、context/host、递归渲染与身份、绑定和生命周期、通用资源通道 |
-| `OpenSwiftUI` | `Sources/OpenSwiftUI` | 标准目录、标准主题与 presentation、布局就绪策略、表单与控件视觉、标准文本/媒体呈现 |
-| `OpenIntelligentSwiftUI` | `Sources/OpenIntelligentSwiftUI` | Intelligent UI 目录、设计系统、组件/交互视觉、媒体呈现、函数及 reader/writer 生成契约 |
+| 目录 | 职责与边界 |
+| --- | --- |
+| Sources/SwiftLang/Language/ | 官方核心的类型与桥接、解析/求值门面、Store/Query 适配、原生动作执行、UTF-16 与对象身份、序列化和执行预算；此目录不导入 SwiftUI/UIKit/AppKit |
+| Sources/SwiftLang/Runtime/ | OpenUILibrary、OpenUIState、OpenUIView、无主题的 SwiftLangView、注册表、递归渲染、Context、绑定、身份与生命周期，以及通用资源/媒体基础设施 |
+| Sources/SwiftLang/Resources/ | 固定官方 JS bundle、manifest 和许可；应用运行时不下载代码 |
+| Sources/SwiftOpenUI/Catalog/ | OpenUI 组件注册、固定上游目录与原生绑定，从实际定义导出契约 |
+| Sources/SwiftOpenUI/Components/、Theme/、Context/、Internal/ | OpenUI 的视觉、控件、布局、文本/媒体、主题与呈现策略 |
+| Sources/SwiftIntelligentUI/Catalog/、Generation/ | OpenIntelligentUIComponents、组件参数、reader/writer、Prompt、manifest 和组件生成诊断 |
+| Sources/SwiftIntelligentUI/Components/ | Layout、Content、Controls、DataDisplay、Media 五类组件定义与原生实现 |
+| Sources/SwiftIntelligentUI/DesignSystem/、Functions/、Internal/、Resources/ | 该库的设计 token、阅读规则、固定计算函数、媒体/公式适配、本地化与许可 |
+| Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
+| Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
+| Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
+| Benchmarks/、Validation/、Fixtures/ | 性能工作负载、静态/模型评测、固定语言输入与参考预期 |
+| docs/、outputs/ | 文档；已忽略的本地生成及验收材料 |
 
-`COpenUIRegExp` 是语言层内部使用的 C target，不是新增的公开 UI 产品。两个 UI 库均可单独链接；不要求宿主安装另一套组件库。
+源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport、LanguageRuntime 各自持有开发包，通过根 SDK 的公开产品接入。
 
-### Lang 的官方来源与原生适配
+### Swift 适配层的内部职责
 
-当前语言核心为官方 `@openuidev/lang-core` **1.1.1**，固定源码提交 `39a4e3f6493673fdf2de04681240374c8d6f6be8`。构建工具从官方 Git 源码提取 `packages/lang-core`，核对原始 tree、显式 patch 和适配后的 tree，再生成 JavaScriptCore bundle；版本和输入记录在 [upstream.json](../Tools/upstream.json)，实际资源和构建指纹记录在 [core-manifest.json](../Sources/OpenUILang/Resources/core-manifest.json)。这是固定官方源码加 Apple 适配，不是运行时安装 npm 包或持续追踪 `latest`。
+Language 中的文件按调用职责保留，不再镜像一套官方算法：
 
-tokenizer、parser、流式 parser、求值、Store、查询管理与 schema/签名规则由共享语言核心执行。Swift 层提供类型与值传输、宿主动作执行、异步工具与生命周期，并保留记录在 [适配清单](../Tools/Core/adaptations.json) 中的平台能力、兼容修复和执行预算。具体组件、颜色、字体、间距和布局规则由 Core 之上的组件库提供。
+- ProtocolTypes、OpenUIString、ReferenceValues、ValueConversion、JSSemantics：公开数据契约、顺序、UTF-16、引用身份与类型投影。
+- SharedCore、LibraryBridge：串行 JavaScriptCore 环境、JS 对象/回调、资源加载与官方 authoring 传输。
+- API、Lexer、Parser、StreamingParser、Evaluator、Store、Library、Prompt、Serialize、Merge、Message、Forms、MCP：对固定官方实现的类型化调用。
+- QueryManager、Actions：Swift async 工具、取消与原生动作步骤执行；调度与状态语义继续由官方实现负责。
+- NativeSourceReadiness：源数据闭合、依赖、数组位置和占位提示；不进入 Lang 值、AST 字段或持久化协议。
+- RuntimeLimits、RegExp：原生输入、深度和正则执行预算。
 
-Lang 是独立产品，源码不导入 SwiftUI、UIKit 或 AppKit；它目前通过 Apple JavaScriptCore 执行共享核心。客户端可以显式列出 `OpenUILang` 与所选 UI 产品，也可以只选择 UI 产品并由依赖关系带入 Lang。这两种接入方式都保持相同的模块边界。
+编译后的 LibrarySchema 是只读快照；结构修改通过官方 Library.extend 后重新编译。Query 只接受声明 AST，由官方管理依赖。JSON 语法和转义使用 JavaScriptCore 的 JSON.parse/stringify。Evaluator 通过 EvaluationContext 读取状态，不额外持有 Store。签名来自实际 LibrarySpec，不维护独立签名生成器、原生 materializer 上下文、可变 schema 编辑器或另一条 Query 请求调度链。
 
-## 2. 同一个客户端接口，一条语义更新链
+## 3. 唯一的客户端运行链路
 
-`OpenUILibrary` 是 Core 中的具体值类型，保存匹配的 reader、writer、Prompt 生成器和主线程展示入口。Core 不根据库名选择实现；`.standard()` 与 `.intelligent()` 工厂分别由各自 UI 模块提供。自建库也通过同一个类型接入。
+1. 宿主选择 OpenUILibrary.openUI() 或 .openIntelligentUI()；自建组件使用 OpenUILibrary(components:)。
+2. 同一个 library 提供 systemPrompt、specificationJSON 和 makeState(toolProvider:persistedState:)。
+3. 宿主长期持有每份文档的 OpenUIState，输入完整源码或 push 增量，并明确 complete、interrupt、reset 或替换。
+4. State 调用官方 parser/Store/evaluator，并同步声明 Query；工具、取消和定时器通过 Swift 桥接。
+5. OpenUIView(state:library:) 交给同一适配层 renderer，按选定库的注册表构建原生组件。
+6. 组件通过 OpenUIComponentContext 读取值、渲染子项、编辑字段和触发动作；业务结果经宿主回填。
 
-客户端选择库后统一调用：
+每份文档拥有独立的 parser、Store、查询和 revision/epoch。共享官方代码及 JS 执行环境不代表共享用户状态。旧文档回调、工具结果和资源结果不得写回替换后的文档。
 
-~~~swift
-let state = library.makeState(toolProvider: provider, persistedState: savedState)
-let prompt = library.systemPrompt
-let spec = library.specificationJSON
-let content = OpenUIView(state: state, library: library)
-~~~
+两套库始终使用同一个 OpenUILibrary、OpenUIState、OpenUIView、ActionEvent 和组件 Context。产品特有主题、服务和呈现参数使用 OpenUI / OpenIntelligentUI 前缀；不再提供产品专属 State/Event 别名或旧工厂转发入口。
 
-`makeState` 使用实际 reader schema 与函数实现；工具 provider 和持久化状态在两套库中由相同参数传入。`specification` 与 Prompt 始终来自 writer，`readerSpecification` 保留完整读取契约。客户端不需要重新拼装 schema、registry 或函数，也不需要自行处理 reader/writer 的内部差异。
+## 4. 适配层、组件与宿主的边界
 
-`OpenUIView` 保存宿主传入的 library/state，不创建状态或改变源码。展示在文档入口做一次类型擦除，实际样式仍由各自库实现。选择另一套库时，由宿主创建匹配的新 state；已有消息保留原配对。不会根据一个新的 library 参数隐式重置旧 state。
+- 适配层统一拥有运行机制。组件不另建 parser/Store/state，不重复观察整份文档，不绕过 Context 直接派发动作或写入业务状态。
+- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。文档语义只在公共 host 观察一次。
+- 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
+- typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
+- 通用资源 Context 管理地址、宿主 loader、鉴权作用域、预算和文档生命周期。各 UI 的图片缓存/解码、占位、重试、预览和地图交互保持在所属组件库。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。
+- OpenIntelligentUI 的地图筛选、内部点位卡片、选中、全览与原生展开由 Map 自身管理；场景不补建另一套基本交互，组件不虚构导航或业务结果。
+- 宿主负责模型/Agent/工具通信、账号权限、消息列表、滚动、业务数据、交易与真实操作结果。Gallery 的模拟工具与动作记录不代表远程业务成功。
 
-`OpenUIState` 定义在 Core。它围绕 Lang 的 parser、Store、QueryManager 与动作执行能力，持有一份文档的运行状态：
+reader 提供读取契约，writer 提供当前生成范围。两者从同一注册来源派生，不能维护第二份手写权威 schema。组件名、参数顺序、枚举与绑定属于输入契约；收敛 Swift 包/API 名称不等于改写已存 Lang 程序。两套产品的组件语法分别维护，不通过替换组件名假定互换。
 
-- 接收完整源码或增量流，区分完成、中断、替换与 patch。
-- 保存求值树、诊断、查询与 mutation 状态，执行绑定和用户状态写入。
-- 维护 source revision 与 presentation revision，拒绝被替换文档的旧回调。
-- 保留同一展示中的编辑草稿、资源通道与媒体缓存；独立重置/替换时清理相应生命周期。
+## 5. 官方来源、原生适配与语言版本
 
-组件库通过匹配的 schema 和注册函数创建 state，不再自建 parser 或 Store。两套 UI 库所暴露的 state 是同一个类型，但同一 state 的 schema 与用于渲染的 registry 必须匹配；共享类型不使两套组件契约互换。
+实际来源以 [Tools/upstream.json](../Tools/upstream.json)、[资源 manifest](../Sources/SwiftLang/Resources/core-manifest.json) 和 [适配清单](../Tools/Core/adaptations.json) 为准。构建提取固定官方源码，核对原始源码树、显式补丁及生成指纹；客户端不安装 npm 包或追踪 latest。
 
-`OpenUICoreView` 观察 state，并渲染显式传入的 registry。统一入口委托标准或 Intelligent UI 的实际展示实现，分别应用各自的外观与阅读宽度规则。只有 Core host 观察文档语义变化，`OpenUIView` 和视觉包装层不重复观察同一 state 来重建整棵环境。
+Swift 负责 lossless 数据传输、原生 async 与动作执行。当前还保留有来源记录的 readiness 注入、serializer 修复、依赖 schema 表示适配与执行预算。这是官方核心加显式 Apple 适配，不能宣称官方代码零修改或任意输入下完全等价。
 
-宿主长期持有 state，负责消息列表、模型/工具通信、账号权限、滚动和业务结果。尺寸拟合与布局测量只读取展示输入，不向 state 再次提交源码。
+### 语言版本与参考规范
 
-## 3. 注册、context 与 host
+运行资源为官方 lang-core 1.1.1。docs/language 下 Overview、Language、Prompt 标注的 1.0 是保留的规范参考，与版本化 fixtures 对应，不是当前运行版本。模型生成使用所选库当前导出的 Prompt/spec。1.1.1 的 Query 依赖、失败重试、表达式默认值和数组数学行为，以及原生预算和对照验证范围，统一记录在 [验证说明](validation-and-security.md#3-语言版本与验证边界)。
 
-`OpenUIComponent` 将有序语言定义与原生 renderer 配对，`OpenUIComponentLibrary` 从实际注册内容产生 Library/schema、registry 和 Prompt。Core 不自带标准组件的默认注册。
+## 6. 文档与验证维护
 
-`OpenUIComponentContext` 提供：
+架构、目录、职责和依赖只在本文维护。README 负责安装与公共接入；两套组件指南负责本库 API/视觉规则；验证文档负责命令、资源来源、安全与证据边界。AGENTS.md 仅保存工作规则和这些入口，不复制职责表。生成资源、版本和哈希由工具/锁文件负责，不在多处手填。
 
-- 当前 element、资源、form/exact-form 名称与流式状态；
-- 值读取、slot/child 渲染、绑定、字段和动作入口；
-- 元素就绪与文档 epoch 检查；
-- 供组件库扩展的 `values`。
-
-Context 不包含标准主题、标准布局规则或具体组件名判断。标准表格单元格策略、布局参数就绪、文本/图片占位和 atomic card/form 行为留在 `OpenSwiftUI`。
-
-`OpenUIComponentHost` 负责把 context 接到当前 state 和环境：解析保留节点的最新 readiness，绑定资源/form/交互环境，并在文档入口建立一次 program identity。后代不会重复安装相同显式 identity，流式追加也不会主动重置整棵展示。
-
-标准库的 `NativeComponentHost` 包装 Core 提供的 context，应用标准组件的主题、布局、占位和媒体/流式视觉规则。当前节点的 stretch/fill proposal 在该边界消费，通过既有环境重置后不向下一层泄漏。Intelligent UI 组件与动作表面使用同一 Core context，继续读取自己的设计系统。
-
-## 4. typed context values 与主题
-
-Core 的扩展点只有 typed key/value 容器：
-
-~~~swift
-import SwiftUI
-import OpenUICore
-
-private enum ReadingInsetKey: OpenUIContextKey {
-    static let defaultValue: CGFloat = 16
-}
-
-extension OpenUIContextValues {
-    var readingInset: CGFloat {
-        get { self[ReadingInsetKey.self] }
-        set { self[ReadingInsetKey.self] = newValue }
-    }
-}
-
-var values = OpenUIContextValues()
-values.readingInset = 20
-// 在宿主视图上使用 .openUIContextValues(values)
-// 自定义组件读取 context.values.readingInset
-~~~
-
-key 由类型身份区分，避免字符串碰撞；默认值保持稳定，未设置与显式 optional nil 可区分。容器按值复制，保留其它组件库/宿主 key。不要把高频几何值、计时器 tick 或业务会话状态放入这个容器。
-
-标准库扩展 `standardTheme` / `standardPresentation`，保留原 `context.theme` / `context.presentation` 与带主题的初始化入口。标准 `EnvironmentValues.openUITheme` / `openUIPresentation` 直接读写同一份 typed storage，因此嵌套主题、直接环境覆盖和自定义 Core 组件读取一致。组件 host 不重复把相同 typed values 下发到整棵子树。
-
-Intelligent UI 的 `IntelligentUITheme`、editorial 规则和媒体视觉继续独立存在。Core 不理解任一套主题 token，也不把标准主题强制套到 Intelligent UI。
-
-## 5. 共享资源机制与独立媒体呈现
-
-Core 拥有 `OpenUIResourceLoading`、`OpenUIResourceLimits`、`OpenUIResourceContext` 及文档作用域内的资源/媒体基础设施：
-
-- 宿主注入相对地址、请求与鉴权范围；
-- 传输、并发、重定向、响应大小和解码预算继续受限；
-- 同一展示可共享进行中的工作，同时保留订阅者取消与旧 epoch 隔离；
-- state 结束或替换时取消相应工作，避免过期内容回填。
-
-这些机制不决定图片比例、fallback、进度、预览、图库、地图、富文本或按钮样式。标准库的 `NativeRemoteImage` 等视觉组件仍属于标准库。Intelligent UI 的原生图片、内联图片与预览也读取同一个资源 context，遵循宿主的 baseURL、loader、鉴权作用域和预算；其图片缓存、请求合并与解码仍由自身的 `ImagePipeline` 管理，图片和地图视觉保持在该库中。
-
-资源身份必须同时参与请求缓存、View task 与已解码图片的有效性判断，防止更换账号、loader 或地址后显示旧资源。图片覆盖注入仍由库保留。Markdown、WebKit 和 MapKit 内部的其它网络请求属于各自实现，不能把原生图片通道的保证扩大到所有子资源。
-
-动作同样分层：Core 提供动作计划、context 检查与实际派发；标准 `OpenUIActionSurface` 和 `IntelligentUIActionSurface` 各自管理按钮视觉、进度与组件交互。
-
-## 6. 渲染身份来自注册元数据
-
-Core 不根据 `TabItem` 等组件名字猜测身份字段。组件库在注册时声明已经存在的 identity fields：
-
-~~~swift
-let item = OpenUIComponent(
-    name: "ResultItem",
-    description: "Application result",
-    params: [
-        OpenUIParameter.string("resultKey"),
-        OpenUIParameter.string("title")
-    ]
-) { context in
-    Text(context.string("title") ?? "")
-}.presentation(identityFields: ["resultKey"])
-~~~
-
-该配置只使用组件已声明的参数，不增加 Lang 字段。注册表向递归 child renderer 提供 identity fields；未配置时沿用通用 `key` / `id` / `resourceId`、声明身份及位置回退。标准库自行注册 `TabItem` 的 `key` / `value` 规则，Core 无需识别这个组件。
-
-layout/placeholder 的结构元数据也由组件注册提供。Core 只按已注册结构保留流式槽位；是否显示骨架、等待提示、何时等待布局参数等视觉策略由相应 UI 库决定。历史 statement identity、UTF-16 key 区分和重复身份处理继续保持原有语义。
-
-## 7. 目录、契约与来源
-
-当前源码和测试只在根 `Sources/` 与 `Tests/` 各自所属模块中维护。构建工具在 `Tools/`，验证材料在 `Validation/`，公共兼容数据在 `Fixtures/`，示例在 `Examples/`，有效文档在 `docs/`。不保留旧目录软链接、重复 SDK 外壳或过时的实施状态文档。
-
-根 Swift Package 导出四个 SDK 库产品，并维护 SDK 测试。开发入口各自是依赖根 SDK 的独立包：`Examples/Gallery` 负责双库人工调试，`Tools/ContractExport` 负责契约导出，`Benchmarks/LanguageRuntime` 只用 Lang 公开 API 测量语言工作负载。开发 App 的图片、案例和编辑状态不进入 SDK 产品。
-
-Gallery 的精选任务有稳定 ID 和两套 UI 各自的源码变体，专项边界案例单列为 Diagnostics。完整案例源码只保存在 Gallery 资源目录；固定的标准历史 schema/摘要和原始模型输出归各自 XCTest fixtures。真实模型生成任务位于 `Validation/Generation`，结果写入忽略的 `outputs/generation`；性能结果写入 `outputs/benchmarks`。旧独立 macOS 编辑器的职责已并入 Gallery，独立产品依赖仍由四个消费者检查验证。后续 Agent 后端与真实 iOS 客户端按独立集成项目接入，见 [Examples 指南](../Examples/README.md)。
-
-[upstream.json](../Tools/upstream.json) 固定当前生成输入，原始导入来源保留在 Git 历史中。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，由根 Package 声明为资源并随 SDK 打包。开发执行命令显式指定对应 `--package-path`，不向 SDK 增加 executable 产品。
-
-Swift 模块按上述边界维护共享能力，并保留已支持的组件名、位置参数、枚举、绑定和 reader/writer 契约。标准目录与 Intelligent UI 目录继续独立生成各自 Prompt/spec，不混用两套定义或以布局改动为理由新增私有参数。
-
-Swift import 使用 `OpenSwiftUI`、`OpenIntelligentSwiftUI` 及按需的 `OpenUICore` / `OpenUILang`。产品选择只影响可用的 library 工厂；状态、流式输入、动作回调、生成契约属性和文档 View 的客户端用法相同。旧标准程序继续使用标准 reader，历史 Intelligent UI 程序继续使用对应 reader。
-
-## 8. 验证边界
-
-[原生流水线](../.github/workflows/native-sdk.yml) 对当前提交运行模块图/源码边界、独立产品消费者、原生测试、Release fitting、历史契约、固定 Gallery、资源重建和 iOS 编译。独立消费者分别只声明 Lang、Core、标准 UI 或 Intelligent UI 一个产品：Lang 不得导入 Core/UI，Core 不得导入两套 UI，各 UI 不得导入另一套组件库。Lang 与 SwiftUI 的边界由源码检查验证，系统框架本身的可导入性不能代表产品依赖。
-
-架构检查或源码搬迁完成不代表 Apple SDK 编译、真机界面或全部交互已通过。验收状态绑定实际提交及其流水线结果；依赖版本、安全修复与验证方式见[验证与依赖安全](validation-and-security.md)。重构分支上的提交也不等于发布、打 tag 或合并主分支。
+架构变化需同步 Package、真实源码、独立消费者、目录检查、工具、Gallery 和文档引用。源码检查、Swift 编译、XCTest、原生交互、性能及真实模型评测分别报告；任一项通过都不能替代其他项。验收命令和依赖审计以 [验证说明](validation-and-security.md) 与 [CI](../.github/workflows/native-sdk.yml) 为入口。

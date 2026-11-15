@@ -13,7 +13,7 @@ import {serializer} from './compat.mjs';
 import {verifyLang111} from './lang-1.1-regressions.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url)),preparedRoot=prepareCoreSource();
-const manifest=JSON.parse(readFileSync(join(here,'../../Sources/OpenUILang/Resources/core-manifest.json')));
+const manifest=JSON.parse(readFileSync(join(here,'../../Sources/SwiftLang/Resources/core-manifest.json')));
 assert.equal(execFileSync('git',['rev-parse','HEAD:packages/lang-core'],{cwd:preparedRoot,encoding:'utf8'}).trim(),manifest.sourceTree);
 execFileSync('git',['diff','--quiet','HEAD','--','packages/lang-core'],{cwd:preparedRoot});
 const temporary=mkdtempSync(join(tmpdir(),'openui-oracle-'));
@@ -37,7 +37,7 @@ try {
   await build({absWorkingDir:root,entryPoints:['packages/lang-core/src/index.ts'],outfile:modulePath,bundle:true,platform:'node',format:'esm',minifyWhitespace:true,legalComments:'none',nodePaths:[join(here,'node_modules')],external:['ci-info'],logLevel:'silent'});
   const official=await import(pathToFileURL(modulePath));
   const realm=vm.createContext({__utf8Encode:x=>[...Buffer.from(x)],__utf8Decode:x=>Buffer.from(x).toString('utf8'),setInterval,clearInterval});
-  vm.runInContext(readFileSync(join(here,'../../Sources/OpenUILang/Resources/lang-core.js'),'utf8'),realm);
+  vm.runInContext(readFileSync(join(here,'../../Sources/SwiftLang/Resources/lang-core.js'),'utf8'),realm);
   const native=realm.SwiftCore.api;
   const canonicalSource=`function canonical(value) {
     if(value===undefined)return {undefined:true};
@@ -145,12 +145,29 @@ try {
   assert.equal(readFileSync(join(patchRoot,serializerPath),'utf8'),serializer(serializerSource),'Standalone patch must match the shipped build correction');
   assert.deepEqual(manifest.adaptations,JSON.parse(readFileSync(join(here,'adaptations.json'))));
   const contract={upstream:manifest.upstream,sourceTree:manifest.originalSourceTree,oracleVersion:lock.core.version,oracleSHA256:sha(readFileSync(modulePath)),officialActionSHA256:sha(section),canonicalSource,schema,fixtures,actions,queries,roundtrips};
-  const fixtureFile=join(here,'../../Tests/OpenUILangTests/Fixtures/strict-compatibility.json');
+  const fixtureFile=join(here,'../../Tests/SwiftLangTests/Fixtures/strict-compatibility.json');
   if(process.argv.includes('--write'))writeFileSync(fixtureFile,JSON.stringify(contract)+'\n');
   else assert.deepEqual(JSON.parse(readFileSync(fixtureFile)),contract,'Oracle fixture drift: inspect source changes before regenerating');
   const lang111Contract={upstream:manifest.upstream,sourceTree:manifest.originalSourceTree,version:lock.core.version,oracleSHA256:contract.oracleSHA256,cases:lang111};
-  const lang111File=join(here,'../../Tests/OpenUILangTests/Fixtures/lang-1.1-compatibility.json');
+  const lang111File=join(here,'../../Tests/SwiftLangTests/Fixtures/lang-1.1-compatibility.json');
   if(process.argv.includes('--write'))writeFileSync(lang111File,JSON.stringify(lang111Contract,null,2)+'\n');
   else assert.deepEqual(JSON.parse(readFileSync(lang111File)),lang111Contract,'Lang 1.1 fixture drift: inspect official behavior before regenerating');
+  if(process.argv.includes('--write-current-reference')) {
+    const generated=join(temporary,'reference');
+    execFileSync(process.execPath,[join(here,'generate-reference-fixtures.mjs'),modulePath,
+      join(here,'../../Fixtures/Language/1.0'),generated,manifest.upstream],{stdio:'inherit'});
+    const current=JSON.parse(readFileSync(join(generated,'reference-vectors.json')));
+    current.version=lock.core.version;current.sourceTree=manifest.originalSourceTree;current.oracleSHA256=contract.oracleSHA256;
+    const previous=JSON.parse(readFileSync(join(here,'../../Tests/SwiftLangTests/Fixtures/reference-vectors.json')));
+    const expected=(data,vector)=>vector.expectedRef?data.promptExpectations[vector.expectedRef]:vector.expected;
+    const oldByID=new Map(previous.vectors.map(v=>[v.id,v]));
+    assert.deepEqual(current.vectors.map(v=>v.id),previous.vectors.map(v=>v.id),'Every original input case must remain');
+    const changes=current.vectors.filter(v=>JSON.stringify(expected(current,v))!==JSON.stringify(expected(previous,oldByID.get(v.id))))
+      .map(v=>({id:v.id,kind:v.kind,before:expected(previous,oldByID.get(v.id)),after:expected(current,v)}));
+    writeFileSync(join(here,'../../Tests/SwiftLangTests/Fixtures/reference-vectors-'+lock.core.version+'.json'),JSON.stringify(current,null,2)+'\n');
+    const evidence=join(here,'../../outputs/verification');mkdirSync(evidence,{recursive:true});
+    writeFileSync(join(evidence,'lang-reference-'+lock.core.version+'-changes.json'),JSON.stringify({upstream:manifest.upstream,
+      oracleSHA256:contract.oracleSHA256,inputCases:current.vectors.length,changedCases:changes.length,changes},null,2)+'\n');
+  }
   console.log(JSON.stringify({strictParserComparisons:comparisons,officialActionTraces:actions.length,controlledQuerySnapshots:queries.snapshots.length,serializerRoundtrips:roundtrips.length,lang111Cases:lang111.length,unexplainedDifferences:0}));
 } finally {rmSync(temporary,{recursive:true,force:true});}

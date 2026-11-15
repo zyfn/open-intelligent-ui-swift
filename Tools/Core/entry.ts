@@ -17,7 +17,6 @@ export const identity = (value: object) => {
   return id;
 };
 export const keys = Object.keys;
-export const json = JSON.parse;
 export const isAST = isASTNode;
 export const api = core;
 export const fences = stripFences;
@@ -50,119 +49,21 @@ export const root = (
   store: any,
   errors: any[],
 ) => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors });
-export const element = (
-  node: any,
-  ctx: any,
-  lib: any,
-  store: any,
-  errors: any[],
-) => core.evaluateElementProps(node, { ctx: evaluationContext(ctx), library: lib, store, errors });
-export const expression = (text: string) =>
-  core.parseExpression(core.tokenize(text));
-export const number = (value: any) => Number(value);
-export const text = (value: any) => String(value ?? '');
 export const numberText = (value: number) => String(value);
 export const truth = (value: any) => !!value;
 export const equal = (a: any, b: any) => a == b;
-export const regexp = (pattern: string, text: string) => {
-  try {
-    return new RegExp(pattern).test(text) ? 'matches' : 'noMatch';
-  } catch {
-    return 'invalidPattern';
-  }
-};
 export const queryManager = core.createQueryManager;
 export const evaluateQueryStatements = (manager: any, statements: any, ctx: any) =>
   manager.evaluateStatements(statements, evaluationContext(ctx));
-export const queryNode = (
-  id: string,
-  tool: string,
-  args: any,
-  defaults: any,
-  deps: any,
-  refresh: number,
-  complete: boolean,
-) => ({
-  statementId: id,
-  toolName: tool,
-  args,
-  defaults,
-  deps,
-  refreshInterval: refresh,
-  complete,
-});
 export const promise = (start: (resolve: any, reject: any) => void) =>
   new Promise(start);
 export const error = (message: string) => new Error(message);
 export const toolError = (name: string, available: string[]) =>
   new core.ToolNotFoundError(name, available);
 export const mcpError = (message: string) => new core.McpToolError(message);
-import { BUILTINS, toNumber } from '@openui/core-source/parser/builtins';
-export const builtin = (name: string, args: any) =>
-  BUILTINS[name]?.fn?.(args) ?? null;
+import { toNumber } from '@openui/core-source/parser/builtins';
 export const dslNumber = toNumber;
 export const stringValue = (value: any) => String(value);
-import { compileSchema } from '@openui/core-source/parser/parser';
-import {
-  containsDynamicValue,
-  materializeExpr,
-  materializeValue,
-} from '@openui/core-source/parser/materialize';
-import {
-  buildParamsSignature,
-  pushValidationIssue,
-  validateSchemaValue,
-  INVALID,
-} from '@openui/core-source/parser/validation';
-export const dynamic = containsDynamicValue;
-export function materialize(
-  mode: string,
-  value: any,
-  schema: any,
-  syms: any,
-  partial: boolean,
-  id: string,
-  visited: string[],
-  unreached: string[] | null,
-  component?: string,
-  path?: string,
-  propSchema?: any,
-) {
-  const cat = compileSchema(schema);
-  const ctx: any = {
-    syms: new Map(Object.entries(syms)),
-    cat,
-    errors: [],
-    unres: [],
-    visited: new Set(visited),
-    partial,
-    currentStatementId: id,
-    unreached: unreached ? new Set(unreached) : undefined,
-  };
-  const result =
-    mode === 'expr'
-      ? materializeExpr(value, ctx)
-      : mode === 'validate'
-        ? validateSchemaValue(value, propSchema, component!, path!, ctx)
-        : mode === 'issue'
-          ? (pushValidationIssue(ctx, component!, path!, value), null)
-          : materializeValue(value, ctx);
-  return {
-    result: result === INVALID ? null : result,
-    invalid: result === INVALID,
-    errors: ctx.errors,
-    unresolved: ctx.unres,
-    unreached: ctx.unreached ? [...ctx.unreached] : null,
-  };
-}
-export function signature(name: string, params: any) {
-  const cat = compileSchema({
-    $defs: { X: params },
-    properties: { X: {} },
-  } as any);
-  return buildParamsSignature(name, cat.get('X')!.params);
-}
-
 export const preprocess = nativePreprocess;
 // Lang 1.1 uses the parser's statement spans for merging. Keep native editing
 // on that same algorithm, including multiline ternaries and comments.
@@ -260,4 +161,4 @@ import { ownSteps } from '@openui/core-source/runtime/evaluator';
 export const actionSteps = (plan: any) =>
   isNativePlan(plan) ? plan.steps : ownSteps(plan).steps;
 
-export { nativeAuthoring, nativeCompileSchema, nativeSignature } from './authoring';
+export { nativeAuthoring, nativeCompileSchema } from './authoring';

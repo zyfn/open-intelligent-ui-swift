@@ -1,6 +1,5 @@
 import Foundation
-import OpenUICore
-import OpenUILang
+import SwiftLang
 
 enum GalleryValidation {
     struct Report {
@@ -13,13 +12,18 @@ enum GalleryValidation {
     @MainActor static func validate(_ catalog: GalleryCatalog) -> Report {
         var variants = 0, batchChecks = 0, streamChecks = 0
         var failures: [String] = []
-        for entry in catalog.entries {
-            for kind in GalleryLibrary.allCases where entry.supports(kind) {
-                let label = "\(entry.id) [\(kind.rawValue)]"
-                variants += 1
-                do {
-                    let source = try entry.source(for: kind)
-                    let library = try kind.makeLibrary()
+        for kind in GalleryLibrary.allCases {
+            do {
+                let library = try kind.makeLibrary()
+                var programs = try catalog.entries.filter { $0.supports(kind) }.map {
+                    (id: $0.id, source: try $0.source(for: kind))
+                }
+                let components = try GalleryComponent.load(kind, resourceRoot: GalleryResources.root())
+                programs += components.map { (id: $0.id, source: $0.source) }
+                for program in programs {
+                    let label = "\(program.id) [\(kind.rawValue)]"
+                    variants += 1
+                    let source = program.source
                     let batch = library.makeState()
                     batch.setSource(source)
                     batchChecks += 1
@@ -41,8 +45,8 @@ enum GalleryValidation {
                     streamChecks += 1
                     check(stream, label: label + " streamed", failures: &failures)
                     stream.reset()
-                } catch { failures.append(label + ": " + error.localizedDescription) }
-            }
+                }
+            } catch { failures.append(kind.title + ": " + error.localizedDescription) }
         }
         return Report(variants: variants, batchChecks: batchChecks, streamChecks: streamChecks, failures: failures)
     }
@@ -53,7 +57,7 @@ enum GalleryValidation {
         for error in state.errors { failures.append(label + ": " + error.message) }
     }
 
-    static func exportContracts(to directory: URL) throws {
+    @MainActor static func exportContracts(to directory: URL) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for kind in GalleryLibrary.allCases {
             let json = try kind.makeLibrary().readerSpecification.jsonString()

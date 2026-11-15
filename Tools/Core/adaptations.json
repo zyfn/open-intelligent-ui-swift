@@ -16,8 +16,8 @@
     "category": "platform-bridge",
     "locations": [
       "Tools/Core/entry.ts",
-      "Sources/OpenUILang/SharedCore.swift",
-      "Sources/OpenUILang/OpenUIString.swift"
+      "Sources/SwiftLang/Language/SharedCore.swift",
+      "Sources/SwiftLang/Language/OpenUIString.swift"
     ],
     "reason": "Ordered UTF16 values and native callback transport",
     "observable": "Identity, undefined, surrogate and key order semantics",
@@ -29,7 +29,7 @@
     "category": "platform-bridge",
     "locations": [
       "Tools/Core/captures.ts",
-      "Sources/OpenUILang/Actions.swift"
+      "Sources/SwiftLang/Language/Actions.swift"
     ],
     "reason": "Opaque native values and ActionPlan provenance",
     "observable": "Deferred evaluation and ordered native actions",
@@ -41,13 +41,12 @@
     "category": "platform-bridge",
     "locations": [
       "Tools/Core/authoring.ts",
-      "Sources/OpenUILang/LibraryBridge.swift",
-      "Sources/OpenUILang/SchemaDocument.swift"
+      "Sources/SwiftLang/Language/LibraryBridge.swift"
     ],
-    "reason": "Lossless JSON/Zod references and compatible editable schema projections",
-    "observable": "Definitions, constraints, positional fields and native binding metadata",
-    "verification": "Authoring oracle and compiled schema mutation tests",
-    "removal": "Equivalent upstream native authoring interface; mutable public setters require a migration"
+    "reason": "Lossless JSON/Zod references from native declarations",
+    "observable": "Definitions, constraints, positional fields and native binding metadata; compiled Swift schemas are immutable snapshots",
+    "verification": "Authoring oracle and immutable compiled-schema snapshot tests",
+    "removal": "Equivalent upstream native authoring interface"
   },
   {
     "id": "native-record-representation",
@@ -91,7 +90,7 @@
     "locations": [
       "Tools/Core/readiness-compat.mjs",
       "Tools/Core/readiness.ts",
-      "Sources/OpenUILang/NativeSourceReadiness.swift"
+      "Sources/SwiftLang/Language/NativeSourceReadiness.swift"
     ],
     "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness",
     "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs, and survive official memoized statement-alias copies",
@@ -113,8 +112,8 @@
     "id": "source-budget",
     "category": "resource-limit",
     "locations": [
-      "Sources/OpenUILang/RuntimeLimits.swift",
-      "Sources/OpenUILang/ProtocolTypes.swift"
+      "Sources/SwiftLang/Language/RuntimeLimits.swift",
+      "Sources/SwiftLang/Language/ProtocolTypes.swift"
     ],
     "reason": "Bound source nesting/operators and JSON decoding",
     "observable": "Existing parse-exception or native JSON error; no DSL additions",
@@ -125,7 +124,7 @@
     "id": "transport-depth",
     "category": "unproven-equivalence",
     "locations": [
-      "Sources/OpenUILang/SharedCore.swift"
+      "Sources/SwiftLang/Language/SharedCore.swift"
     ],
     "reason": "Native value conversion retains a 256-level defensive guard",
     "observable": "Inputs requiring deeper transport are outside the verified domain",
@@ -137,7 +136,7 @@
     "category": "resource-limit",
     "locations": [
       "Tools/Core/build.mjs",
-      "Sources/OpenUILang/RegExp.swift",
+      "Sources/SwiftLang/Language/RegExp.swift",
       "Sources/COpenUIRegExp"
     ],
     "reason": "Bound no-flag ECMAScript pattern execution",
@@ -149,8 +148,8 @@
     "id": "timers-tools",
     "category": "platform-bridge",
     "locations": [
-      "Sources/OpenUILang/SharedCore.swift",
-      "Sources/OpenUILang/QueryManager.swift"
+      "Sources/SwiftLang/Language/SharedCore.swift",
+      "Sources/SwiftLang/Language/QueryManager.swift"
     ],
     "reason": "Native timers, controlled tools and disposal; raw query statements and live evaluation context delegate dependency scheduling to the official QueryManager",
     "observable": "Callbacks, in-flight replacement and cancellation",
@@ -179,17 +178,5 @@
     "observable": "Visibility only, no algorithm substitution",
     "verification": "Pinned preprocess export check and multiline/Unicode statement splitting regressions",
     "removal": "Equivalent public upstream exports"
-  },
-  {
-    "id": "typed-diagnostic-source",
-    "category": "platform-bridge",
-    "locations": [
-      "Sources/OpenUILang/ProtocolTypes.swift",
-      "Sources/OpenUILang/SharedCore.swift"
-    ],
-    "reason": "Keep the legacy nonoptional native source property without inventing a source in protocol diagnostics",
-    "observable": "protocolSource preserves official omission; source retains its existing parser display fallback",
-    "verification": "Raw diagnostics compare all fields and order; typed protocolSource matches exact source presence",
-    "removal": "A separately versioned public native API migration can remove the legacy fallback"
   }
 ]

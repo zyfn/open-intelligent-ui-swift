@@ -10,23 +10,23 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+PRODUCTS = {"SwiftLang": "swift-lang", "SwiftOpenUI": "swift-ui", "SwiftIntelligentUI": "swift-intelligent-ui"}
 FORBIDDEN_MODULES = {
-    "OpenUILang": ("OpenUICore", "OpenSwiftUI", "OpenIntelligentSwiftUI"),
-    "OpenUICore": ("OpenSwiftUI", "OpenIntelligentSwiftUI"),
-    "OpenSwiftUI": ("OpenIntelligentSwiftUI",),
-    "OpenIntelligentSwiftUI": ("OpenSwiftUI",),
+    "SwiftLang": ("SwiftOpenUI", "SwiftIntelligentUI"),
+    "SwiftOpenUI": ("SwiftIntelligentUI",),
+    "SwiftIntelligentUI": ("SwiftOpenUI",),
 }
 UI_FACTORIES = {
-    "OpenSwiftUI": "OpenUILibrary.standard()",
-    "OpenIntelligentSwiftUI": "OpenUILibrary.intelligent()",
+    "SwiftOpenUI": "OpenUILibrary.openUI()",
+    "SwiftIntelligentUI": "OpenUILibrary.openIntelligentUI()",
 }
 HOST_PROGRAMS = {
-    "OpenUICore": ('$probe = "ready"\nroot = Notice($probe)', "Notice"),
-    "OpenSwiftUI": ('$probe = "ready"\nroot = Stack([TextContent($probe)])', "Stack"),
-    "OpenIntelligentSwiftUI": ('$probe = "ready"\nroot = Col([Text($probe)])', "Col"),
+    "SwiftLang": ('$probe = "ready"\nroot = Notice($probe)', "Notice"),
+    "SwiftOpenUI": ('$probe = "ready"\nroot = Stack([TextContent($probe)])', "Stack"),
+    "SwiftIntelligentUI": ('$probe = "ready"\nroot = Col([Text($probe)])', "Col"),
 }
 
-# Core and both UI products execute this exact host. Only the imported module,
+# The adapter and both component libraries execute this exact host. Only the imported module,
 # makeLibrary() factory and sample contract differ; their public APIs stay identical.
 HOST_SOURCE = """
 @MainActor public func makeConsumer(
@@ -64,7 +64,7 @@ HOST_SOURCE = """
 """
 
 LANG_SOURCE = r"""
-import OpenUILang
+import SwiftLang
 
 public func parseConsumer(source: String) throws -> (
     parsed: ParseResult, streamed: ParseResult, specification: LibrarySpec
@@ -76,7 +76,7 @@ public func parseConsumer(source: String) throws -> (
                 description: "Consumer-owned text contract",
                 params: [ParamDef(
                     name: "text", required: true,
-                    schema: .object([("type", .string("string"))])
+                    schema: .object([JSONField(key: "type", value: .string("string"))])
                 )]
             )
         ],
@@ -107,7 +107,7 @@ public func parseConsumer(source: String) throws -> (
 }
 """
 
-CORE_FACTORY = """
+ADAPTER_FACTORY = """
 private func makeLibrary() throws -> OpenUILibrary {
     let components = try OpenUIComponentLibrary(
         components: [
@@ -133,24 +133,27 @@ def consumer_source(product: str) -> str:
         '#endif'
         for forbidden in FORBIDDEN_MODULES[product]
     )
-    if product == "OpenUILang":
-        # SwiftUI is a platform module on macOS, so canImport(SwiftUI) cannot
-        # prove a package dependency. check_module_boundaries.py rejects its
-        # import in Lang sources; this consumer imports only OpenUILang.
-        return guards + LANG_SOURCE
-    factory = CORE_FACTORY if product == "OpenUICore" else f'''
+    factory = ADAPTER_FACTORY if product == "SwiftLang" else f'''
 private func makeLibrary() throws -> OpenUILibrary {{
     try {UI_FACTORIES[product]}
 }}
 '''
+    language_probe = LANG_SOURCE.split("@main struct ConsumerProbe")[0].replace("import SwiftLang", "") if product == "SwiftLang" else ""
+    language_checks = '''
+        let parsed = try parseConsumer(source: #"root = Notice("ready")"#)
+        precondition(parsed.parsed.root?.typeName == "Notice")
+        precondition(parsed.streamed.root?.typeName == "Notice")
+        precondition(parsed.parsed.meta.errors.isEmpty && parsed.streamed.meta.errors.isEmpty)
+        precondition(!parsed.specification.components.isEmpty)
+''' if product == "SwiftLang" else ""
     source, expected_root = HOST_PROGRAMS[product]
     return f'''import SwiftUI
-import OpenUILang
 import {product}
 {guards}
-''' + factory + HOST_SOURCE + f'''
+''' + factory + language_probe + HOST_SOURCE + f'''
 @main struct ConsumerProbe {{
     @MainActor static func main() throws {{
+{language_checks}
         try runConsumer(source: {json.dumps(source, ensure_ascii=False)}, expectedRoot: {json.dumps(expected_root, ensure_ascii=False)})
     }}
 }}
@@ -164,9 +167,9 @@ let package = Package(
     name: "{product}Consumer",
     platforms: [.macOS(.v13)],
     products: [.executable(name: "ConsumerProbe", targets: ["ConsumerProbe"])],
-    dependencies: [.package(name: "OpenUISwiftSDK", path: {json.dumps(str(ROOT), ensure_ascii=False)})],
+    dependencies: [.package(name: "openui-swift-sdk", path: {json.dumps(str(ROOT), ensure_ascii=False)})],
     targets: [.executableTarget(name: "ConsumerProbe", dependencies: [
-        .product(name: "{product}", package: "OpenUISwiftSDK")
+        .product(name: "{PRODUCTS[product]}", package: "openui-swift-sdk")
     ], swiftSettings: [.swiftLanguageMode(.v5)])]
 )
 '''

@@ -5,15 +5,14 @@ let package = Package(
     name: "OpenUIGallery",
     platforms: [.iOS(.v16), .macOS(.v13)],
     products: [.executable(name: "OpenUIGallery", targets: ["OpenUIGallery"])],
-    dependencies: [.package(name: "OpenUISwiftSDK", path: "../..")],
+    dependencies: [.package(name: "openui-swift-sdk", path: "../..")],
     targets: [
         .executableTarget(
             name: "OpenUIGallery",
             dependencies: [
-                .product(name: "OpenUILang", package: "OpenUISwiftSDK"),
-                .product(name: "OpenUICore", package: "OpenUISwiftSDK"),
-                .product(name: "OpenSwiftUI", package: "OpenUISwiftSDK"),
-                .product(name: "OpenIntelligentSwiftUI", package: "OpenUISwiftSDK")
+                .product(name: "swift-lang", package: "openui-swift-sdk"),
+                .product(name: "swift-ui", package: "openui-swift-sdk"),
+                .product(name: "swift-intelligent-ui", package: "openui-swift-sdk")
             ],
             path: ".",
             exclude: ["OpenUIGallery.xcodeproj", "Tests", "README.md", "build-app.sh", "verify.sh"],

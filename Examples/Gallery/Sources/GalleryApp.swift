@@ -23,7 +23,7 @@ final class GalleryAppDelegate: NSObject, NSApplicationDelegate {
             if parsed.help { print(GalleryOptions.usage); exit(0) }
             if let directory = parsed.exportContracts {
                 try GalleryValidation.exportContracts(to: URL(fileURLWithPath: directory, isDirectory: true))
-                print("Exported standard.json and intelligent.json reader specifications")
+                print("Exported openui.json and openintelligentui.json reader specifications")
             }
             if parsed.validate {
                 let catalog = try GalleryCatalog(resourceRoot: GalleryResources.root())

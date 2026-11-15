@@ -1,0 +1,3 @@
+root = Col([Title("图片状态与恢复","lg"),Caption("本地模拟：等待 15 秒后成功；首次失败后可重试恢复。图片使用同一来源的已打包照片，不连接真实搜索。"),SegmentedControl($scenario,[{value:"loading",label:"等待后成功"},{value:"retry",label:"失败后重试"},{value:"missing",label:"缺少来源"}],true),example])
+$scenario = "loading"
+example = $scenario=="loading"?SearchImage("gallery-loading"):($scenario=="retry"?SearchImage("gallery-retry"):Image("","缺少来源的图片"))

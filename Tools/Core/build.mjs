@@ -121,7 +121,7 @@ const imports = Object.values(result.metafile.outputs).flatMap(
   (x) => x.imports,
 );
 if (imports.length) throw Error('Unexpected external runtime imports');
-const out = join(here, '../../Sources/OpenUILang/Resources');
+const out = join(here, '../../Sources/SwiftLang/Resources');
 mkdirSync(out, { recursive: true });
 const data = Buffer.from(
   result.outputFiles[0].text

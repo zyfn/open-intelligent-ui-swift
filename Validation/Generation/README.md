@@ -21,4 +21,4 @@ python3 Validation/Generation/run.py --model gpt-6.1-terra --suite free --case f
 
 运行时检查只验证已实现的契约与交互断言。内容来源、呈现和实际操作审查分别保留 `pending`，不能从解析成功推断它们已通过。
 
-已经纳入回归的六份未改写程序现在位于 [GeneratedPrograms](../../Tests/OpenIntelligentSwiftUITests/Fixtures/GeneratedPrograms/README.md)，由 XCTest 读取；旧人工验收报告不再混入日常示例入口。
+已经纳入回归的六份未改写程序现在位于 [GeneratedPrograms](../../Tests/SwiftIntelligentUITests/Fixtures/GeneratedPrograms/README.md)，由 XCTest 读取；旧人工验收报告不再混入日常示例入口。

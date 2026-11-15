@@ -1,0 +1,24 @@
+root = Col([cover,form,confirmation,notes])
+$name = ""
+$email = ""
+$guests = "2"
+$mode = ""
+$notes = ""
+$reviewed = ""
+emailParts = @Split(@Trim($email),"@")
+domainParts = @Count(emailParts)==2?@Split(emailParts[1],"."):[]
+emailOK = @Count(emailParts)==2&&@Join(emailParts,"@")==@Trim($email)&&@Count(domainParts)>=2&&@Join(domainParts,".")==emailParts[1]&&@Count(@Split(@Trim($email)," "))==1
+valid = @Trim($name)!=""&&emailOK
+snapshot = $name.length+":"+$name+$email.length+":"+$email+$guests.length+":"+$guests+$mode.length+":"+$mode+$notes.length+":"+$notes
+heading = Title("行程联系人","xl")
+intro = Text("留下姓名、邮箱和同行安排，出发前在本页核对一次。")
+form = Form([contactDetails,travelDetails,extraNotes,review])
+feedback = valid?Caption("姓名和邮箱已通过本示例的基础检查，可以记录核对。"):Caption(@Trim($name)==""?"请先填写姓名；邮箱需要类似 name@example.com 的基本形态。":"请检查邮箱：需包含一个 @ 和完整域名，不含空格或空的域名段。")
+confirmation = $reviewed==""?Card([Title("尚未发送任何信息","sm"),Text("补全必填信息并记录核对，查看本页反馈。")],"soft"):$reviewed==snapshot?Card([Title("已记录本次本页核对","sm"),Text("Gallery 记录动作与显式字段，供调试查看；没有连接后端或提交联系人。")],"soft"):Card([Title("内容已修改，请重新核对","sm"),Text("当前内容与上次核对快照不同。确认姓名与邮箱后，再记录一次本页核对。")],"soft")
+
+cover = Col([Caption("TRIP DETAILS · CONTACT"),heading,intro,Caption("本页核对，不保存或提交联系信息。")],3)
+contactDetails = Col([Title("01 · 怎么联系你","lg"),Input($name,"姓名 · 必填","text","你的姓名"),Input($email,"邮箱 · 必填","text","name@example.com")],3)
+travelDetails = Col([Title("02 · 同行安排","lg"),Select($guests,[{value:"1",label:"1 人"},{value:"2",label:"2 人"},{value:"3",label:"3 人"},{value:"4",label:"4 人"}],"人数","选择人数"),Select($mode,[{value:"walk",label:"步行"},{value:"metro",label:"地铁"},{value:"taxi",label:"打车"}],"出行方式","选择方式")],3)
+extraNotes = Col([Title("03 · 还有什么需要照顾","lg"),TextArea($notes,"备注","无障碍、饮食或时间方面的需要",3)],3)
+review = Col([Title("核对后再继续","md"),feedback,Button("记录一次本页核对",Action([@Set($reviewed,snapshot),@ToAssistant("在示例宿主中核对联系信息",{name:@Trim($name),email:@Trim($email),guests:$guests,mode:$mode,notes:$notes})]),"solid","primary","md",null,!valid,true)],3)
+notes = Disclosure("本页核对说明",[Text("这里明确检查姓名非空和邮箱的基本形态；它不会确认邮箱存在，也不会发送或保存联系信息。"),Text("记录核对后再修改内容，会提示重新核对。")])

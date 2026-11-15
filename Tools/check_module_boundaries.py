@@ -9,13 +9,13 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-PRODUCTS = {"OpenUILang", "OpenUICore", "OpenSwiftUI", "OpenIntelligentSwiftUI"}
+PRODUCTS = {"swift-lang": "SwiftLang", "swift-ui": "SwiftOpenUI", "swift-intelligent-ui": "SwiftIntelligentUI"}
+MODULES = set(PRODUCTS.values())
 ALLOWED = {
     "COpenUIRegExp": set(),
-    "OpenUILang": {"COpenUIRegExp"},
-    "OpenUICore": {"OpenUILang"},
-    "OpenSwiftUI": {"OpenUILang", "OpenUICore"},
-    "OpenIntelligentSwiftUI": {"OpenUILang", "OpenUICore"},
+    "SwiftLang": {"COpenUIRegExp"},
+    "SwiftOpenUI": {"SwiftLang"},
+    "SwiftIntelligentUI": {"SwiftLang"},
 }
 IMPORT = re.compile(
     r"(?m)^\s*(?:@(?:_exported|testable|preconcurrency)\s+)*"
@@ -39,10 +39,13 @@ def check(manifest: dict, root: Path) -> dict:
     targets = {target["name"]: target for target in manifest["targets"]}
     products = {product["name"]: product for product in manifest["products"]
                 if "library" in product["type"]}
-    if set(products) != PRODUCTS:
-        problems.append(f"Expected exactly four library products, found {sorted(products)}")
-    for name in PRODUCTS:
-        if products.get(name, {}).get("targets") != [name]:
+    native_targets = {target["name"] for target in manifest["targets"] if target["type"] != "test"}
+    if native_targets != set(ALLOWED):
+        problems.append(f"Expected only canonical modules and the internal regex backend, found {sorted(native_targets)}")
+    if set(products) != set(PRODUCTS):
+        problems.append(f"Expected exactly three library products, found {sorted(products)}")
+    for name, module in PRODUCTS.items():
+        if products.get(name, {}).get("targets") != [module]:
             problems.append(f"Product {name} must export its single owning target")
 
     graph = {name: dependencies(target) for name, target in targets.items()}
@@ -56,12 +59,10 @@ def check(manifest: dict, root: Path) -> dict:
         local = graph[name] & targets.keys()
         if local - allowed:
             problems.append(f"{name} has an invalid dependency: {sorted(local - allowed)}")
-        if name in {"OpenSwiftUI", "OpenIntelligentSwiftUI"} and "OpenUICore" not in local:
-            problems.append(f"{name} must directly depend on shared OpenUICore")
-        if name == "OpenUICore" and graph[name] != {"OpenUILang"}:
-            problems.append("OpenUICore must depend only on OpenUILang")
-        if name == "OpenUILang" and graph[name] != {"COpenUIRegExp"}:
-            problems.append("OpenUILang must retain its bounded native regular-expression backend")
+        if name in {"SwiftOpenUI", "SwiftIntelligentUI"} and "SwiftLang" not in local:
+            problems.append(f"{name} must directly depend on shared SwiftLang")
+        if name == "SwiftLang" and graph[name] != {"COpenUIRegExp"}:
+            problems.append("SwiftLang must retain its bounded native regular-expression backend")
 
     def reachable(start: str) -> set[str]:
         seen = set()
@@ -74,26 +75,27 @@ def check(manifest: dict, root: Path) -> dict:
             pending.extend(graph.get(name, set()))
         return seen
 
-    for first, second in [("OpenSwiftUI", "OpenIntelligentSwiftUI"),
-                          ("OpenIntelligentSwiftUI", "OpenSwiftUI")]:
+    for first, second in [("SwiftOpenUI", "SwiftIntelligentUI"),
+                          ("SwiftIntelligentUI", "SwiftOpenUI")]:
         if second in reachable(first):
             problems.append(f"{first} still transitively depends on peer {second}")
-    if "OpenUICoreTests" not in targets or "OpenUICore" not in graph.get("OpenUICoreTests", set()):
-        problems.append("An independently owned Core behavior test target is required")
-    if reachable("OpenUICoreTests") & {"OpenSwiftUI", "OpenIntelligentSwiftUI"}:
-        problems.append("Core behavior tests must run without either UI library")
+    if "SwiftLangTests" not in targets or "SwiftLang" not in graph.get("SwiftLangTests", set()):
+        problems.append("An independently owned platform adapter test target is required")
+    if reachable("SwiftLangTests") & {"SwiftOpenUI", "SwiftIntelligentUI"}:
+        problems.append("Platform adapter tests must run without either component library")
 
-    for name in PRODUCTS:
-        forbidden = PRODUCTS - ALLOWED[name] - {name}
-        if name == "OpenUILang":
-            forbidden |= {"SwiftUI", "UIKit", "AppKit"}
+    for name in MODULES:
+        forbidden = MODULES - ALLOWED[name] - {name}
         for path in (root / "Sources" / name).rglob("*.swift"):
             source = path.read_text()
             leaked = set(IMPORT.findall(source)) & forbidden
             if leaked:
                 problems.append(f"{path.relative_to(root)} imports forbidden modules {sorted(leaked)}")
-            if name == "OpenUICore" and re.search(
-                r"\b(OpenUIStandardComponents|OpenUIThemeValues|IntelligentUITheme)\b", source
+            if name == "SwiftLang" and "Language" in path.relative_to(root / "Sources" / name).parts:
+                if set(IMPORT.findall(source)) & {"SwiftUI", "UIKit", "AppKit"}:
+                    problems.append(f"{path.relative_to(root)} mixes the language bridge with native presentation")
+            if name == "SwiftLang" and re.search(
+                r"\b(OpenUIComponents|OpenUIThemeValues|OpenIntelligentUITheme)\b", source
             ):
                 problems.append(f"{path.relative_to(root)} contains component-library design policy")
     if problems:

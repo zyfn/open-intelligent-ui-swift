@@ -7,7 +7,7 @@ import vm from 'node:vm';
 const here = dirname(fileURLToPath(import.meta.url));
 const bundled = join(here, 'runtime');
 const defaultRuntime = existsSync(join(bundled, 'core-manifest.json'))
-  ? bundled : resolve(here, '../Sources/OpenUILang/Resources');
+  ? bundled : resolve(here, '../Sources/SwiftLang/Resources');
 export const sha256 = data => createHash('sha256').update(data).digest('hex');
 
 /** Loading/integrity/runtime failures are distinct from invalid model input. */

@@ -1,1 +1,0 @@
-root = Col([Title("图片搜索状态", "lg"), Caption("固定本地适配器：成功使用已打包相机图；加载模拟延迟 15 秒；失败直接抛错。不连接真实搜索。"), Title("成功", "sm"), SearchImage("gallery-camera",1), Title("加载中", "sm"), SearchImage("gallery-loading",1), Title("失败", "sm"), SearchImage("gallery-error",1)])

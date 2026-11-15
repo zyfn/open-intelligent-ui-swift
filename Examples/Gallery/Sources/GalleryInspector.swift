@@ -1,14 +1,21 @@
 import SwiftUI
-import OpenUICore
-import OpenUILang
+import SwiftLang
 
 @MainActor struct GallerySourceEditor: View {
     @ObservedObject var session: GalleryDocumentSession
+    var component: GalleryComponent? = nil
+    @State private var showsComponentUsage = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(session.kind.title + " · OpenUI Lang", systemImage: "curlybraces")
+            Label("OpenUI Lang", systemImage: "curlybraces")
                 .font(.headline)
+            if let component {
+                DisclosureGroup("组件用法", isExpanded: $showsComponentUsage) {
+                    Text(component.definition.signature).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                    Text(component.definition.description).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+            }
             Text("编辑草稿后点“应用源码”；切换案例或组件库会载入对应原稿。")
                 .font(.caption).foregroundStyle(.secondary)
             TextEditor(text: $session.draft)
@@ -57,58 +64,5 @@ import OpenUILang
             .padding(.horizontal, 16).padding(.vertical, 8)
         }
         .scrollIndicators(.hidden)
-    }
-}
-
-@MainActor struct GalleryInspector: View {
-    @ObservedObject var session: GalleryDocumentSession
-    @ObservedObject var state: OpenUIState
-    @State private var snapshot = ""
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("诊断与动作").font(.headline)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(state.isInterrupted ? "文档已中断" : state.isComplete ? "文档已完成" : "文档生成中")
-                        .font(.subheadline.weight(.medium))
-                    Text("source revision \(state.sourceRevision) · presentation \(state.presentationRevision)")
-                        .font(.caption.monospaced()).foregroundStyle(.secondary)
-                    if state.errors.isEmpty { Label("当前无解析/运行时错误", systemImage: "checkmark.circle").foregroundStyle(.secondary) }
-                    else {
-                        Text(state.errors.map(\.message).joined(separator: "\n\n"))
-                            .font(.caption).foregroundStyle(.orange).textSelection(.enabled)
-                    }
-                }
-                Divider()
-                HStack {
-                    Text("状态快照").font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Button("刷新快照") { snapshot = session.currentStateJSON }
-                }
-                Text(snapshot).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
-                Divider()
-                Text("最近动作 · 最多 30 条").font(.subheadline.weight(.semibold))
-                if session.actions.isEmpty {
-                    Text("点击案例中的按钮、提交表单或链接后，在此检查 action 参数与提交时的 formState。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                ForEach(session.actions) { record in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(record.type).font(.subheadline.weight(.medium))
-                        if !record.message.isEmpty { Text(record.message).font(.caption) }
-                        Text("params: " + record.parameters).font(.system(size: 11, design: .monospaced))
-                        Text("formState: " + record.formState).font(.system(size: 11, design: .monospaced))
-                    }
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-                }
-            }
-            .padding(16)
-        }
-        .frame(minWidth: 280, idealWidth: 360, maxWidth: .infinity)
-        .onAppear { snapshot = session.currentStateJSON }
     }
 }

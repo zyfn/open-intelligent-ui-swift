@@ -1,7 +1,6 @@
 import Foundation
 import Combine
-import OpenUICore
-import OpenUILang
+import SwiftLang
 
 struct GalleryActionRecord: Identifiable {
     let id = UUID()
@@ -156,10 +155,14 @@ enum GalleryPlayback: String {
     @Published private(set) var entries: [GalleryEntry] = []
     @Published private(set) var selectedID: String?
     @Published private(set) var selectedLibrary: GalleryLibrary
+    @Published private(set) var components: [GalleryComponent] = []
     @Published private(set) var session: GalleryDocumentSession?
     @Published private(set) var failure: String?
     let resources: OpenUIResourceContext?
+    private let resourceRoot: URL?
+    private var selections: [GalleryLibrary: String] = [:]
     var selectedEntry: GalleryEntry? { entries.first { $0.id == selectedID } }
+    var selectedComponent: GalleryComponent? { components.first { $0.id == selectedID } }
 
     init(options: GalleryOptions = GalleryOptions(), catalog: GalleryCatalog? = nil, resourceRoot: URL? = nil) {
         selectedLibrary = options.library
@@ -167,10 +170,14 @@ enum GalleryPlayback: String {
             let root = try resourceRoot ?? GalleryResources.root()
             let loader = try GalleryImageLoader(resourceRoot: root)
             let loaded = try catalog?.entries ?? GalleryCatalog(resourceRoot: root).entries
+            let componentItems = try GalleryComponent.load(options.library, resourceRoot: root)
             resources = OpenUIResourceContext(loader: loader)
+            self.resourceRoot = root
             entries = loaded
+            components = componentItems
         } catch {
             resources = nil
+            self.resourceRoot = nil
             failure = error.localizedDescription
             return
         }
@@ -185,28 +192,43 @@ enum GalleryPlayback: String {
             } catch { failure = error.localizedDescription }
         } else if let id = options.caseID {
             if let entry = entries.first(where: { $0.item.id == id || $0.id == id }) { select(entry.id) }
+            else if components.contains(where: { $0.id == id }) { select(id) }
             else { failure = "找不到案例：\(id)" }
         } else if let first = entries.first(where: { $0.supports(selectedLibrary) }) { select(first.id) }
     }
 
     func select(_ id: String) {
-        guard let entry = entries.first(where: { $0.id == id }) else { return }
+        let entry = entries.first { $0.id == id && $0.supports(selectedLibrary) }
+        let component = components.first { $0.id == id }
+        guard entry != nil || component != nil else { return }
         if id == selectedID, session?.kind == selectedLibrary { return }
         session?.retire(); session = nil
         selectedID = id
+        selections[selectedLibrary] = id
         do {
-            session = try GalleryDocumentSession(kind: selectedLibrary, source: entry.source(for: selectedLibrary), title: entry.item.title)
+            let source = try component?.source ?? entry!.source(for: selectedLibrary)
+            session = try GalleryDocumentSession(kind: selectedLibrary, source: source,
+                                                 title: component?.name ?? entry!.item.title)
             failure = nil
         } catch { failure = error.localizedDescription }
     }
 
     func selectLibrary(_ library: GalleryLibrary) {
         guard selectedLibrary != library else { return }
+        let previousID = selectedID
+        if let id = selectedID { selections[selectedLibrary] = id }
+        session?.retire(); session = nil
+        selectedID = nil
         selectedLibrary = library
-        if let id = selectedID { select(id) }
-        else {
-            session?.retire(); session = nil
-            failure = "请为 \(library.title) 选择案例或重新导入匹配的源码。"
+        do {
+            guard let root = resourceRoot else { return }
+            components = try GalleryComponent.load(library, resourceRoot: root)
+            let matchingScene = entries.first { $0.id == previousID && $0.section == .cases && $0.supports(library) }?.id
+            let id = selections[library] ?? matchingScene ?? entries.first { $0.section == .cases && $0.supports(library) }?.id
+            if let id { select(id) }
+        } catch {
+            components = []
+            failure = error.localizedDescription
         }
     }
 

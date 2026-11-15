@@ -9,8 +9,8 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const script = readFileSync(resolve(root, 'Sources/OpenUILang/Resources/lang-core.js'), 'utf8');
-const catalog = JSON.parse(readFileSync(resolve(root, 'Sources/OpenSwiftUI/Resources/upstream-catalog.json')));
+const script = readFileSync(resolve(root, 'Sources/SwiftLang/Resources/lang-core.js'), 'utf8');
+const catalog = JSON.parse(readFileSync(resolve(root, 'Sources/SwiftOpenUI/Resources/upstream-catalog.json')));
 const schemas = {
   stringNumber: { anyOf: [{ type: 'string' }, { type: 'number' }] },
   numberString: { anyOf: [{ type: 'number' }, { type: 'string' }] },

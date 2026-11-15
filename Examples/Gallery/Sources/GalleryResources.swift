@@ -1,5 +1,5 @@
 import Foundation
-import OpenUICore
+import SwiftLang
 
 enum GalleryResources {
     static var bundle: Bundle {

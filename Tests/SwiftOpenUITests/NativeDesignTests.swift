@@ -1,0 +1,123 @@
+import SwiftLang
+import SwiftUI
+import XCTest
+
+@testable import SwiftOpenUI
+
+final class NativeDesignTests: XCTestCase {
+    func testRequiredFeedbackUsesLocaleWithoutRewritingUnknownMessages() {
+        XCTAssertEqual(NativeControlText.localized("This field is required", locale: Locale(identifier: "zh-Hans")), "请填写或选择此项")
+        XCTAssertEqual(NativeControlText.localized("This field is required", locale: Locale(identifier: "en_US")), "This field is required")
+        XCTAssertEqual(NativeControlText.localized("Custom validation detail", locale: Locale(identifier: "zh-Hans")), "Custom validation detail")
+    }
+
+    func testCustomTypographyReachesEveryTextSizeWithoutSeparateNumericConstants() {
+        var theme = OpenUIThemeValues()
+        theme.textBodyDefault.size = 21
+        theme.textBodySm.size = 18
+        theme.textHeadingSm.size = 30
+        theme.textHeadingSm.weight = .light
+        theme.textBodyLg.size = 26
+        theme.textBodyLgHeavy = OpenUIFont(size: 26, weight: .bold)
+        theme.textHeadingMd.size = 32
+        theme.textHeadingMd.weight = .bold
+        theme.textBodySm.family = "Example typeface"
+        XCTAssertEqual(NativeRichTextStyle.textContent("default", theme: theme).font?.size, 21)
+        XCTAssertEqual(NativeRichTextStyle.textContent("small", theme: theme).font?.size, 18)
+        XCTAssertEqual(NativeRichTextStyle.textContent("large-heavy", theme: theme).font?.size, 26)
+        XCTAssertEqual(NativeRichTextStyle.textContent("large-heavy", theme: theme).font?.weight, .bold)
+        XCTAssertEqual(theme.inlineFont("md").size, 21)
+        XCTAssertEqual(theme.inlineFont("sm").size, 21,
+            "Upstream Text sm is body-default; xs is body-small")
+        XCTAssertEqual(theme.inlineFont("xs").size, 18)
+        XCTAssertEqual(theme.textBodySm.family, "Example typeface")
+        let override = OpenUIFont(size: 18, family: "Object typeface")
+        XCTAssertEqual(override.family, "Object typeface")
+        XCTAssertNil(theme.textCodeDefault.family,
+            "A prose font override must not remove the code role's fixed-width face")
+    }
+
+    func testOfficialBodyEmphasisVariantsKeepTheirReadingScale() throws {
+        let theme = OpenUIThemeValues()
+        for (plain, emphasized) in [("small", "small-heavy"), ("large", "large-heavy")] {
+            let a = NativeRichTextStyle.textContent(plain, theme: theme).font
+            let b = NativeRichTextStyle.textContent(emphasized, theme: theme).font
+            XCTAssertEqual(a?.size, b?.size, "Emphasis must not promote body copy to a display heading")
+            XCTAssertNotEqual(a?.weight, b?.weight)
+            XCTAssertEqual(a?.design, b?.design)
+        }
+        XCTAssertLessThan(try XCTUnwrap(NativeRichTextStyle.textContent("large-heavy", theme: theme).font).size,
+                          theme.textHeadingMd.size)
+    }
+
+    func testBodySizeVariantsDoNotChangeInformationPriorityColor() {
+        var theme = OpenUIThemeValues()
+        theme.textNeutralPrimary = .red
+        theme.textNeutralSecondary = .blue
+        for variant in ["small", "small-heavy", "default", "large", "large-heavy"] {
+            XCTAssertEqual(NativeRichTextStyle.textContent(variant, theme: theme).color, theme.textNeutralPrimary,
+                           "Size alone does not make a recommendation or explanation secondary")
+        }
+    }
+
+    func testAccentForegroundChoosesReadableContrastForLightAndDarkAccents() {
+        XCTAssertTrue(NativeControlPalette.prefersDarkForeground(red: 1, green: 1, blue: 1))
+        XCTAssertTrue(NativeControlPalette.prefersDarkForeground(red: 1, green: 0.9, blue: 0.2))
+        XCTAssertFalse(NativeControlPalette.prefersDarkForeground(red: 0, green: 0, blue: 0))
+        XCTAssertFalse(NativeControlPalette.prefersDarkForeground(red: 0.12, green: 0.44, blue: 0.34))
+        XCTAssertFalse(NativeControlPalette.prefersDarkForeground(red: 0.345, green: 0.337, blue: 0.839))
+    }
+
+    func testControlStringsFollowTheScopedLocale() {
+        XCTAssertEqual(
+            NativeControlText.localized("Start date", locale: Locale(identifier: "zh-Hans")), "开始日期")
+        XCTAssertEqual(NativeControlText.localized("End date", locale: Locale(identifier: "zh_CN")), "结束日期")
+        XCTAssertEqual(NativeControlText.localized("Select", locale: Locale(identifier: "en_US")), "Select")
+    }
+
+    @MainActor func testPendingCalendarRetainsTheSourceThatOpenedIt() throws {
+        let library = try OpenUIComponents.library()
+        let state = OpenUIState(schema: library.library.toSchema())
+        state.setSource("$date=null\nroot=DatePicker(\"date\",\"single\",null,$date)")
+        let context = OpenUIComponentContext(
+            element: try XCTUnwrap(state.root), registry: library.registry, state: state)
+        let field = NativeFieldState(context: context)
+        field.initialize()
+        let before = state.snapshotState()
+        let request = NativeDateRequest(part: .single, label: "Date", date: Date(), context: context)
+        XCTAssertEqual(state.snapshotState(), before, "Opening a calendar must not commit today's date")
+        state.setSource("root=TextContent(\"A different response\")")
+        NativeFieldState(context: request.context).write(NativeCalendarDate.encode(request.date))
+        XCTAssertFalse(request.context.canInteract)
+        XCTAssertEqual(
+            state.stateValue("$date"), .null, "A stale calendar must not write to a replacement response")
+    }
+}
+
+
+extension NativeDesignTests {
+  func testDateOnlyValuesUseScopedTimeZoneWithoutChangingCalendarDay() throws {
+    for identifier in ["America/Los_Angeles", "Asia/Shanghai", "Pacific/Kiritimati"] {
+      let zone = try XCTUnwrap(TimeZone(identifier: identifier))
+      var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+      for text in ["2024-02-29", "2026-03-08", "2026-11-01"] {
+        let date = try XCTUnwrap(NativeCalendarDate.parse(.string(text), timeZone: zone))
+        let parts = text.split(separator: "-").compactMap { Int($0) }
+        XCTAssertEqual(calendar.component(.year, from: date), parts[0])
+        XCTAssertEqual(calendar.component(.month, from: date), parts[1])
+        XCTAssertEqual(calendar.component(.day, from: date), parts[2])
+        let roundTrip = try XCTUnwrap(NativeCalendarDate.parse(NativeCalendarDate.encode(date), timeZone: zone))
+        XCTAssertEqual(roundTrip.timeIntervalSince1970, date.timeIntervalSince1970, accuracy: 0.001)
+      }
+      XCTAssertNil(NativeCalendarDate.parse(.string("2025-02-29"), timeZone: zone))
+      XCTAssertNil(NativeCalendarDate.parse(.string("2026-02-31"), timeZone: zone))
+    }
+  }
+
+  func testTimestampIsAnInstantRegardlessOfDisplayTimeZone() throws {
+    let text: Value = .string("2026-11-13T00:30:00.000Z")
+    let west = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+    let east = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+    XCTAssertEqual(NativeCalendarDate.parse(text, timeZone: west), NativeCalendarDate.parse(text, timeZone: east))
+  }
+}

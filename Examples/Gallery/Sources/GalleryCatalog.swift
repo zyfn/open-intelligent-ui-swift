@@ -1,7 +1,7 @@
 import Foundation
-import OpenUICore
-import OpenIntelligentSwiftUI
-import OpenSwiftUI
+import SwiftLang
+import SwiftIntelligentUI
+import SwiftOpenUI
 
 struct GalleryFailure: LocalizedError {
     let message: String
@@ -10,20 +10,26 @@ struct GalleryFailure: LocalizedError {
 }
 
 enum GalleryLibrary: String, CaseIterable, Codable, Identifiable {
-    case standard, intelligent
+    case openUI = "openui", openIntelligentUI = "openintelligentui"
     var id: String { rawValue }
-    var title: String { self == .standard ? "Standard UI" : "Intelligent UI" }
+    var title: String { self == .openUI ? "OpenUI" : "OpenIntelligentUI" }
 
-    func makeLibrary() throws -> OpenUILibrary {
+    @MainActor func makeLibrary() throws -> OpenUILibrary {
         switch self {
-        case .standard: return try .standard()
-        case .intelligent:
-            return try .intelligent(referenceDate: Date(timeIntervalSince1970: 1_793_491_200), imageSearch: IntelligentUIImageSearch { query in
+        case .openUI: return try .openUI()
+        case .openIntelligentUI:
+            var retryAttempt = 0
+            return try .openIntelligentUI(referenceDate: Date(timeIntervalSince1970: 1_793_491_200), imageSearch: OpenIntelligentUIImageSearch { query in
                 // This is an explicit resource-state diagnostic, not a live search.
                 if query == "gallery-loading" {
                     try await Task.sleep(nanoseconds: 15_000_000_000)
                 }
-                guard query == "gallery-loading" || query == "gallery-camera" else {
+                if query == "gallery-retry" {
+                    retryAttempt += 1
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                    if retryAttempt == 1 { throw GalleryFailure("Gallery 首次图片搜索模拟失败，可重试") }
+                }
+                guard ["gallery-loading", "gallery-camera", "gallery-retry"].contains(query) else {
                     throw GalleryFailure("Gallery 模拟图片搜索失败")
                 }
                 return .init(url: GalleryImageLoader.cameraURL, alt: "Nikon D850 来源照片")
@@ -35,7 +41,49 @@ enum GalleryLibrary: String, CaseIterable, Codable, Identifiable {
 enum GallerySection: String, CaseIterable, Identifiable {
     case cases = "Cases", diagnostics = "Diagnostics"
     var id: String { rawValue }
-    var title: String { self == .cases ? "核心场景" : "组件诊断" }
+    var title: String { self == .cases ? "场景" : "回归程序" }
+}
+
+/// Names and signatures come from the real library. Only examples belong to Gallery.
+struct GalleryComponent: Identifiable {
+    static let categories = ["Layout", "Content", "Controls", "DataDisplay", "Media"]
+    let definition: LibrarySpecEntry
+    let category: String
+    let source: String
+    let supporting: Bool
+    let container: String?
+    var id: String { "Components/" + definition.name }
+    var name: String { definition.name }
+
+    private struct Example: Decodable {
+        let category: String
+        let program: String
+        let supporting: Bool?
+        let container: String?
+    }
+
+    @MainActor static func load(_ kind: GalleryLibrary, resourceRoot: URL) throws -> [GalleryComponent] {
+        let specification = try kind.makeLibrary().specification
+        let url = resourceRoot.appendingPathComponent("Components/" + kind.rawValue + ".json")
+        let examples = try JSONDecoder().decode([String: Example].self, from: Data(contentsOf: url))
+        let names = Set(specification.components.map(\.name))
+        guard names == Set(examples.keys) else {
+            let missing = names.subtracting(examples.keys).sorted().joined(separator: ", ")
+            let unknown = Set(examples.keys).subtracting(names).sorted().joined(separator: ", ")
+            throw GalleryFailure("\(kind.title) 组件示例与实际目录不一致。缺少：\(missing)；未知：\(unknown)")
+        }
+        return try specification.components.map { definition in
+            let example = examples[definition.name]!
+            guard categories.contains(example.category), !example.program.isEmpty else {
+                throw GalleryFailure("\(definition.name) 缺少分类或示例。")
+            }
+            if let container = example.container, !names.contains(container) {
+                throw GalleryFailure("\(definition.name) 引用了不存在的父组件 \(container)。")
+            }
+            return GalleryComponent(definition: definition, category: example.category, source: example.program,
+                                    supporting: example.supporting ?? false, container: example.container)
+        }.sorted { ($0.category, $0.name) < ($1.category, $1.name) }
+    }
 }
 
 struct GalleryOrigin: Decodable, Hashable {

@@ -1,6 +1,6 @@
 # Language runtime benchmark
 
-独立 SwiftPM 消费者，仅依赖公开 `OpenUILang` 产品。要求 macOS 13+ 与 Swift 6 工具链。
+独立 SwiftPM 消费者，仅依赖公开 `SwiftLang` 产品。要求 macOS 13+ 与 Swift 6 工具链。
 
 初始 `Package.resolved` 沿用根 SDK 的既有 pins，未在本次无 Swift 的环境中重新解析。SwiftPM 仍可能解析根包的传递包图，但该 executable 只链接 Lang 产品，不导入 UI 模块。
 

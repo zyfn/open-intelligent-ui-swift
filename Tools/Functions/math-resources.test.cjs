@@ -8,8 +8,8 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const repository = path.resolve(__dirname, '../..');
-const intelligent = path.join(repository, 'Sources/OpenIntelligentSwiftUI/Resources');
-const standard = path.join(repository, 'Sources/OpenSwiftUI/Resources');
+const intelligent = path.join(repository, 'Sources/SwiftIntelligentUI/Resources');
+const standard = path.join(repository, 'Sources/SwiftOpenUI/Resources');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 function realm(file) {
   const context = vm.createContext({ console: { log() {}, warn() {}, error() {} } });

@@ -1,6 +1,6 @@
 import SwiftUI
-import OpenUICore
-import OpenIntelligentSwiftUI
+import SwiftLang
+import SwiftIntelligentUI
 
 /// A fixed logical viewport inside a separately scaled workbench canvas.
 /// The viewport includes 20 pt of padding on each side of the SDK content.
@@ -29,11 +29,11 @@ import OpenIntelligentSwiftUI
     }
 
     @ViewBuilder private var document: some View {
-        if session.kind == .intelligent {
+        if session.kind == .openIntelligentUI {
             ScrollView {
-                program.intelligentUIReadingContent()
+                program.openIntelligentUIReadingContent()
             }
-            .intelligentUIReadingPosition(enabled: true)
+            .openIntelligentUIReadingPosition(enabled: true)
         } else {
             ScrollView { program }
         }

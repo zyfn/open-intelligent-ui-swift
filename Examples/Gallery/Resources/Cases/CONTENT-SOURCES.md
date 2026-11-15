@@ -34,5 +34,5 @@
 
 - `monthly-spending` 与 `contact-form` 取自 CaseLab 固定提交 `903c6ebaa0611bd228b19962e324524175492437` 的 `Review/Catalog/Programs/ReviewExamplePrograms.swift`，分别为 `scene-spending` 与 `behavior-form` 的 `zh-Hans` 程序。账单所有金额为示例账单；联系人表单仅用于本页交互验证。
 - Intelligent 场景重新表达相同任务，不新增实时商业结论。台灯的商品 ID、图片、店铺、历史金额与购买 URL 保留；苏州交通与酒店金额明确是预算或 mock；四条历史航班链接的声明从标准原文逐字复制，各自绑定原日期。
-- 所有远程图片保留原来源 URL；未使用其他图片冒充缺失素材。部分重复图片被省略，地点和商品身份不变。
+- OpenIntelligentUI 场景恢复完整的原场景媒体来源，所有远程图片保留原 URL；未使用其他图片冒充缺失素材。地点和商品身份不变，重新编排不代表重新验证历史事实、价格或库存。
 - Intelligent 联系人场景的基础邮箱检查由 DSL 明确实现，核对后再编辑会显示需要重新核对。Gallery 只在本地记录动作及字段，不连接外部提交端点。

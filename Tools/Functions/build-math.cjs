@@ -10,7 +10,7 @@ if (process.argv.slice(2).some(value => value !== '--check')) {
   throw new Error('Usage: node Tools/Functions/build-math.cjs [--check]');
 }
 const here = __dirname;
-const resources = path.resolve(here, '../../Sources/OpenIntelligentSwiftUI/Resources');
+const resources = path.resolve(here, '../../Sources/SwiftIntelligentUI/Resources');
 const read = file => fs.readFileSync(file);
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const packageBytes = read(path.join(here, 'package.json'));
