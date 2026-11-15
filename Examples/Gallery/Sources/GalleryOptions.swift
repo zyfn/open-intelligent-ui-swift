@@ -94,7 +94,7 @@ struct GalleryViewport: Equatable {
     var zoom: Double = 1
     var scaledWidth: Double { width * zoom }
     var scaledHeight: Double { height * zoom }
-    mutating func rotate() { let oldWidth = width; width = height; height = oldWidth }
+    mutating func rotate() { let oldWidth = width; width = height; height = max(320, oldWidth) }
 }
 
 enum GalleryDevice: String, CaseIterable, Identifiable {

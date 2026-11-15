@@ -2,6 +2,10 @@
 
 **1.0**
 
+> This is the retained 1.0 reference specification. The SDK runs language core
+> 1.1.1; see [current compatibility behavior](compatibility.md#current-language-version-and-reference-documents)
+> for the version scope and runtime differences.
+
 The OpenUI specification is three documents:
 
 - **overview.md** (this file): what OpenUI is, and a short tour of every feature with an example.

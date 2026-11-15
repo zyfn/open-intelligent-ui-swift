@@ -1,6 +1,6 @@
-# 验证与安全修复
+# 验证与依赖安全
 
-本文记录四模块重构之后的依赖与源码验证修复。当前实现和安全修复在 `refactor/openui-four-module-foundation` 分支维护；具体提交的验收结果以 [Native SDK 流水线](https://github.com/zyfn/open-intelligent-ui-swift/actions/workflows/native-sdk.yml) 和 [PR #3](https://github.com/zyfn/open-intelligent-ui-swift/pull/3) 为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，原始导入来源可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，并随 SDK 资源打包。
+本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)。
 
 ## 1. 实际打包依赖与可复现生成
 
@@ -28,43 +28,11 @@ Zod 的 JSON Schema 导入也把简单字符串键 record 包装为带校验的 
 
 当前资源版本与内容哈希由各资源 manifest 记录。生成器运行后，CI 要求资源与当前提交逐字一致；它不再要求后续安全修复继续等于原始导入的旧哈希。
 
-## 2. RC21 源码修复候选
+## 2. 验收范围
 
-`source-rc21-gate` 使用 `zyfn/openui` 的固定基线 `f3dfa1d0b479c131b6d4268e81961186f22ff09c`，然后应用本分支保存的 [修复清单](../Validation/source-rc21/manifest.json)。该任务检验的是“固定源码 + 已审查修复”的候选，不把修补结果记成未经修改的原始源码通过。
+流水线按当前 SDK 分成三项检查：可复现输入、依赖安全和原生验收。可复现输入检查重建实际打包资源并运行语言、authoring 和组件目录回归；安全审计覆盖 Core、标准富文本、代码高亮、图标和 Intelligent 函数五个生成工具依赖图，使用 `--audit-level=high` 门槛。原生验收构建并测试根 SDK 及其公开产品消费者。
 
-该历史候选独立于当前 SDK 的 Lang 1.1.1 升级。清单中的 `sdk_payload_revision` 固定为 `cbd57808d1fe3f086ed261c602874d16a0ee14f9`，copy 操作从该 SDK Git 提交读取已审查的文件并校验原有 SHA-256，不读取当前工作树中的新资源。原始基线、逐文件 before/after 哈希、patch 和完整候选 tree `51eedac918540b31206b9f613e3ac7566da025a3` 保持不变。CI 为修复工具 checkout 保留完整历史，确保存有该不可变输入。
-
-修复包括以下真实问题：
-
-- 原视觉测试直接写只读的 SwiftUI `accessibilityReduceMotion` 环境值，在当前 Xcode 上无法编译。改用已有 presentation 配置和 transaction 控制动画，保留原视觉断言。
-- 原 ObjectCard 图片边缘测试使用没有图片地址的占位内容来断言红色图片。改用已加载的确定性红色 PNG，保留边缘、留白、像素坐标和阈值断言。
-- 源码候选的 Zod 与 KaTeX 同步升级，接入相同的精确 JSON Schema 导出与原生 record 兼容适配后独立重建；原始 Lang 源码不变。源路径下的适配器哈希按其实际生成器单独计算，清单包含这些经过审查的修改。
-- 源码中三份 presentation 锁文件的遗留私有下载地址改为公开 npm registry；该地址规范化逐项保留包版本、integrity 和其余元数据，并使用全新 npm cache 验证实际下载与审计。
-
-[修复工具](../Tools/repair_rc21_source.py) 验证基线 HEAD 和完整 tree、SDK payload 提交存在且为完整 commit ID、补丁 SHA-256、每个文件的前后哈希、允许变化的文件集合及完整候选 tree。copy 操作使用已经核对过的固定提交字节，证据中记录 payload revision。工具不移动基线 HEAD，不写入源码仓库的真实 index；它用临时 index 计算完整候选 tree。
-
-原始源码测试、Release 尺寸拟合、authoring fixtures、依赖审计、资源再生成、原组件目录逐字比较、AddressSanitizer、macOS 示例与 iOS 16 Simulator 编译均继续运行。资源再生成及所有构建完成后，再次验证完整候选 tree，确保测试过程没有悄悄改变候选。
-
-在具备固定源码 checkout 的本机，可以从 SDK 根目录执行：
-
-```sh
-python3 Tools/repair_rc21_source.py \
-  --source /path/to/source-rc21 \
-  --evidence /path/to/source-rc21-evidence
-
-# 在源码 checkout 中执行原始测试与生成器后复核：
-python3 Tools/repair_rc21_source.py \
-  --source /path/to/source-rc21 \
-  --evidence /path/to/source-rc21-evidence --verify
-```
-
-证据目录必须位于源码 checkout 之外。CI 产物包含基线/候选 tree、控制分支提交、修复 manifest、完整源码 diff、逐轮验证记录和各检查日志；源码仓库及其发布记录不由该任务修改。
-
-## 3. 验收范围
-
-流水线包含四个独立结论：可复现输入、依赖安全、当前 SDK 原生验收、RC21 源码修复候选验收。安全审计覆盖所有五个当前 SDK 生成工具依赖图，以及源码候选的四个生成工具依赖图，保留原有 `--audit-level=high` 门槛。修复没有排除公告、降低阈值或使用 `continue-on-error`。
-
-原生验收覆盖四个独立产品消费者：仅 Lang、仅 Core、仅标准 UI 和仅 Intelligent UI。每个外部包只声明对应的一个产品；编译期检查禁止 Lang 导入 Core/UI、Core 导入两套 UI、任一 UI 导入另一套库。Core 和两套 UI 使用相同宿主模板，Lang 直接使用语言契约、解析和流式接口。Lang 不依赖 SwiftUI 另由模块图与源码边界检查验证。
+原生验收覆盖四个独立产品消费者：仅 Lang、仅 Core、仅标准 UI 和仅 Intelligent UI。每个外部包只声明对应的一个产品，实际构建并运行以检查打包资源初始化、解析和流式结果、生成契约及状态读写；该过程不启动原生窗口，不能代替 UI 视觉验收。编译期检查禁止 Lang 导入 Core/UI、Core 导入两套 UI、任一 UI 导入另一套库。Core 和两套 UI 使用相同宿主模板，Lang 直接使用语言契约、解析和流式接口。Lang 不依赖 SwiftUI 另由模块图与源码边界检查验证。
 
 其余原生验收覆盖全部原生测试、Release fitting、独立 Gallery 测试与双库案例完整/流式验证、完整历史契约、语言 ASan、独立契约/性能工具及 iOS 编译。独立检查在前一个检查失败后仍可收集证据，但任何检查失败都会保留为任务失败。消费者源码生成或语法检查不等于实际 Swift 编译通过；原生编译与测试结果以对应提交的执行日志为准。
 

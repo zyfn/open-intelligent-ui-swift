@@ -1,6 +1,8 @@
 # 示例与调试
 
-日常查看两套 UI、编辑案例和回放流式内容统一使用 [OpenUI Gallery](Gallery/README.md)。它是独立的开发 App，依赖根 Swift Package 的公开产品，不进入客户端 SDK 的产品清单。
+本目录目前只有一个可运行应用：[OpenUI Gallery](Gallery/README.md)。它依赖根 Swift Package 的公开产品，用于查看两套 UI、编辑案例和回放流式内容。
+
+Gallery 内分两组内容：**核心场景**展示完整任务回复，**组件诊断**集中复现布局、输入、图片和流式等问题。选择内容后，再选择 Standard UI 或 Intelligent UI；同一场景载入该库对应的程序。
 
 从仓库根目录启动 macOS Gallery：
 
@@ -8,7 +10,7 @@
 swift run --package-path Examples/Gallery OpenUIGallery
 ```
 
-iPhone/iPad 使用 `Gallery/OpenUIGallery.xcodeproj` 的 `OpenUIGallery` scheme。原生 App 打包和检查命令见 Gallery README。
+Xcode 使用 `Gallery/OpenUIGallery.xcodeproj` 的 `OpenUIGallery` scheme，可选择 My Mac、iPhone 或 iPad 模拟器。原生 App 打包和检查命令见 Gallery README。
 
 ## 各层放什么
 
@@ -18,9 +20,8 @@ iPhone/iPad 使用 `Gallery/OpenUIGallery.xcodeproj` 的 `OpenUIGallery` scheme�
 | `Gallery/Resources/Cases/` | 精选任务案例、两套 UI 各自的 Lang 变体、来源与覆盖说明 | 同一任务共用稳定案例 ID；按真实组件契约分别编写程序 |
 | `Gallery/Resources/Diagnostics/` | 边界状态、组件专项和开发诊断程序 | 与精选案例分组，不让人工验收草稿占据默认入口 |
 | `Gallery/Resources/Images/` | 展示 App 自己使用的离线图片 | 保留来源与许可，不将图片打进 SDK 产品 |
-| `Tests/…/Fixtures/` | 已固定的契约与行为回归输入 | 保留预期与来源，变化时解释语义依据 |
-| `Validation/Generation/` | 可选真实模型生成评测 | 原始输出与人工审查状态分开记录 |
-| `Benchmarks/` | 可重复性能工作负载 | 记录构建、输入与测量条件，不替代视觉检查 |
+
+其他任务从仓库根目录进入：[Tests](../Tests) 保存自动行为回归及固定输入；[Validation](../Validation/README.md) 提供程序静态校验和可选模型生成评测；[Benchmarks](../Benchmarks/README.md) 测量耗时与资源使用。它们各自维护输入和结果。
 
 案例与 Gallery 程序只维护一份源码。标准库原有八个案例的哈希和历史 schema 固定在测试 fixtures，测试直接读取 Gallery 的实际程序；Gallery 自身使用当前所选库导出的 reader，不用历史测试 schema 运行内容。
 

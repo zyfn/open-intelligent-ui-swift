@@ -15,6 +15,32 @@ The four SDK products share one language implementation and the official
 DSL/schema/action wire vocabulary. Platform budgets are explicit exceptions to
 stock-core equivalence.
 
+## Current language version and reference documents
+
+The SDK runs the pinned official `@openuidev/lang-core` **1.1.1** with the native
+adaptations recorded above. [Overview](overview.md), [Language](language.md)
+and [Prompt](prompt.md) retain the **1.0 reference specification**, alongside
+the versioned [1.0 fixtures](../../Fixtures/Language/1.0/README.md). Their version
+label identifies that reference, not the version of the bundled runtime.
+
+For model input, use the selected library's current `systemPrompt` and
+`specificationJSON`. They describe its actual component catalog, functions and
+generation policy. The key 1.1.1 runtime behavior relevant to those older
+reference documents is:
+
+| Area | Current behavior |
+| --- | --- |
+| Query dependencies | State dependencies are tracked through referenced statements and aliases. A query that reads another query waits for its upstream result and reevaluates when that dependency changes. The 1.0 direct-state-only description does not apply. |
+| Query failures and cycles | Repeated evaluation with unchanged inputs does not automatically retry a failed query; explicit `@Run` or host invalidation can retry it. Query cycles report `query-cycle` and do not dispatch their tools. |
+| State defaults | Expressions can compute an initial default. Separate statements `$n = 2` and `$total = $n * 3` initialize `$total` to 6; later writes to `$n` do not make that default a reactive formula. Derived values belong in ordinary variables. |
+| Numeric built-ins | `@Round`, `@Abs`, `@Floor` and `@Ceil` also accept arrays and apply their operation element by element. The 1.0 scalar-only signature table is incomplete for the current runtime. |
+
+The first-class cases in [lang-1.1-regressions.mjs](../../Tools/Core/lang-1.1-regressions.mjs)
+compare these outcomes with the pristine pinned official implementation and the
+actual bundled resource. [Lang111Tests.swift](../../Tests/OpenUILangTests/Lang111Tests.swift)
+and the query lifecycle tests cover the native bridge. Updating reference
+material or generating a fixture does not establish that those checks ran.
+
 ## Authoring and compatible schema edits
 
 Prefer `Library.extend(...)` followed by `toSchema()` for structural authoring.

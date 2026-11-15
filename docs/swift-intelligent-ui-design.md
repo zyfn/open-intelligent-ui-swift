@@ -6,7 +6,7 @@
 
 `OpenIntelligentSwiftUI` 是基于 `OpenUILang` 与 `OpenUICore` 的 Apple 平台组件库，提供 DesignSystem、组件、交互绑定和生成规范。布局、文字、图片、输入、商品、交通和图表遵循同一套组件机制。
 
-调用方持有 Core 定义的 `OpenUIState`、提供内容与资源、接收动作事件。库通过 Lang 的解析与求值接口和 Core 的状态、流式、context/host 与渲染遍历复用运行机制。模型生成验证仅位于 Benchmarks。
+调用方持有 Core 定义的 `OpenUIState`、提供内容与资源、接收动作事件。库通过 Lang 的解析与求值接口和 Core 的状态、流式、context/host 与渲染遍历复用运行机制。可选模型生成评测位于 `Validation/Generation`。
 
 库不负责模型服务、业务资料检索、消息生命周期、订单交易或购买结果。模型、工具和宿主提供事实；组件按来源呈现，不补造价格、库存、坐标、路线、来源或执行结果。
 
@@ -29,9 +29,9 @@ flowchart TB
 
 - 最低平台为 iOS 16 / macOS 13。
 - 四个模块在根 `Sources/`、`Tests/` 中共同版本化，根包导出 `OpenUILang`、`OpenUICore`、`OpenSwiftUI` 与 `OpenIntelligentSwiftUI`。客户端使用 Intelligent UI 时只选择 `OpenIntelligentSwiftUI` 产品，Core 与 Lang 自动作为依赖带入；同时支持标准 UI 时再选择 `OpenSwiftUI` 产品。当前边界见[四模块架构](architecture.md)。
-- 当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`，可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，并随 SDK 资源打包。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。
+- 当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定。通用底座的首次导入来源为 `zyfn/openui@f3dfa1d0b479c131b6d4268e81961186f22ff09c`，导入记录保留在 Git 历史中。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，并随 SDK 资源打包。上游语言核心通过固定官方源码的构建期依赖生成，保留显式原生适配；运行时不下载脚本。
 - 组件及计算参考固定为 `16ef26475999e3a021a50b1607a03717c0721255` 的 55 组件库，不是 OpenUI 运行时内置的 ReferenceCatalog。
-- swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.18.2；依赖安全修复与资源来源见[验证与安全修复](validation-and-security.md)。
+- swift-markdown-ui 2.4.1，Zod 4.6.7，KaTeX 0.18.2；依赖安全修复与资源来源见[验证与依赖安全](validation-and-security.md)。
 
 ## 2. 模块与目录
 
@@ -58,7 +58,7 @@ flowchart TB
 | `Generation/` | spec、Prompt、manifest 与诊断 |
 | `Resources/` | 计算、公式、本地化与许可资源 |
 
-根 `Examples/` 维护独立的双库 Gallery、精选场景与专项诊断；`Tools/` 维护契约导出、生成器与检查工具，`Fixtures/` 维护版本化语言规范夹具，`Validation/` 维护独立验证器、可选模型生成评测及冻结源码修复清单。`Benchmarks/` 只维护语言性能工作负载，`Tests/` 保存行为回归与固定测试输入，`docs/` 维护文档，`outputs/` 保存忽略的本地导出与验收材料。
+根 `Examples/` 维护独立的双库 Gallery、精选场景与专项诊断；`Tools/` 维护契约导出、生成器与检查工具，`Fixtures/` 维护版本化语言规范夹具，`Validation/` 维护程序静态校验器及可选模型生成评测。`Benchmarks/` 只维护语言性能工作负载，`Tests/` 保存行为回归与固定测试输入，`docs/` 维护文档，`outputs/` 保存忽略的本地导出与验收材料。
 
 组件定义与实现相邻，复杂组件在自己的文件或子目录维护辅助类型。Catalog 聚合实际实现，Generation 读取同一个注册库。消费者只需选择 `OpenIntelligentSwiftUI` 产品，其传递依赖由 SwiftPM 自动处理；标准 UI 库、Gallery 和开发工具按需使用。
 
@@ -251,13 +251,9 @@ Carousel(placeCards, itemWidth, gap)
 
 模型从同一份来源数组派生 marker 与图外卡片，不分别手写多份业务数据。Map.selected 保存地点 label；卡片由普通 Carousel 或宿主横向列表展示，横滑停稳后同步选中并聚焦，全览按钮恢复全部点位。卡片不与 Map 建立私有身份或过滤协议。宿主可以采用自己的变量名，SDK 不要求 places、hotels 等固定命名，也不新增全局实体目录或跨来源匹配协议。
 
-## 8. 生成、运行与交付
+## 8. 生成与验证
 
-```text
-实际注册契约 + 当前能力配置 + 组合规则
-                ↓
-      spec.json / prompt.txt / manifest.json
-```
+实际注册契约、当前能力配置与组合规则共同生成 `spec.json`、`prompt.txt` 和 `manifest.json`。
 
 在项目根目录运行：
 
@@ -267,7 +263,6 @@ swift run --package-path Examples/Gallery OpenUIGallery
 swift run --package-path Tools/ContractExport ContractExport "$PWD/outputs/contracts"
 python3 Tools/check_localization.py
 python3 Tools/check_lang_compatibility.py
-python3 Tools/package.py
 ```
 
 iOS Gallery 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 OpenUIGallery；支持 iPhone/iPad。Gallery 是独立开发包，通过本地 Swift Package 引用当前根 SDK，并同时展示标准 UI 与 Intelligent UI。精选案例、专项诊断、源码编辑和预览尺寸在同一个入口管理，见 [Gallery 指南](../Examples/Gallery/README.md)。消费者只选择根包的 SDK 库产品。
@@ -292,13 +287,11 @@ swift run --package-path Tools/ContractExport ContractExport --reader-contract -
 
 `sourceIssues(in:)` 检查源码标识符等问题；`validationIssues(in:source:)` 汇总源码、运行时、组件与 Map 数据关系问题；`validationIssues(in:)` 检查求值树。原有 Swift 调用默认使用 historical，新增 profile: .generation 显式按 writer 检查排除组件与兼容字段；CLI 的 --validate 默认使用 generation，--historical 用于旧记录。`presentationWarnings(in:)` 是独立的非阻断语义提示，不是实测对比度审计。诊断不替代事实审查或真实 UI 验收。
 
-生成规则按显式组件依赖组织，全局事实/URL/动作约束不随单个组件排除而丢失。writer spec、签名与 Prompt 同源；当前 RC20 Prompt 中关于无动作按钮的通用默认说明，仍保留一处精确的策略文字替换，以符合本库“无动作禁用”的既有实现，不再用文字替换修改组件签名或 schema。
+生成规则按显式组件依赖组织，全局事实/URL/动作约束不随单个组件排除而丢失。writer spec、签名与 Prompt 同源；共享语言生成器的 Prompt 中关于无动作按钮的通用默认说明，仍保留一处精确的策略文字替换，以符合本库“无动作禁用”的既有实现，不再用文字替换修改组件签名或 schema。
 
 可选模型验证使用 `python3 Validation/Generation/run.py --model gpt-6.1-terra`，通过指定 Codex 账户执行真实调用。保存请求、原始输出、解析与运行时结果，不静默换型；结果写入 `outputs/generation`。已纳入回归的六份未改写程序保存在 `Tests/OpenIntelligentSwiftUITests/Fixtures/GeneratedPrograms`，由 XCTest 检查当前运行时兼容性，不与 Gallery 的人工视觉验收混用。性能工作负载另归 `Benchmarks/LanguageRuntime`。
 
 `--suite guided|free|all` 区分指定组件的回归与不点名组件的自由组合任务。free 套件包含解释、商品、数据、表单和地图任务，以及商品/表单跟进更新；来源、交互、呈现审查单独记录 pending，解析成功不推断为任务成功。跟进使用前次生成程序和原始来源事实，不能把模型前次输出升级为新事实。
-
-本地交付包含源码、锁定依赖、测试、Gallery、工具、当前设计文档与生成契约。SHA256SUMS 与 source-manifest 记录归档及逐文件校验和。交付不包含账户配置或运行日志，也不执行远程发布。`Tools/package.py` 中的交付版本必须与 manifest 一致。
 
 CLI 保留导出、--validate 与 --case 命令结构，并提供显式历史验证和 reader 导出入口。官方组件不追加私有参数；Image 等原生增强不进入模型签名。ProductCard 不提供 offers 或其他旧数据契约的适配。
 

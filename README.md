@@ -6,6 +6,8 @@
 
 通过 Swift Package Manager 添加本仓库 `https://github.com/zyfn/open-intelligent-ui-swift.git`；使用当前开发分支时选择 `refactor/openui-four-module-foundation`。Lang、Core 和两套 UI 是独立的库产品与 Swift 模块，在同一个包中共同发布。
 
+构建需要 Swift 6 工具链，使用 Swift 5 语言模式；最低运行平台为 iOS 16 / macOS 13。
+
 | 客户端需要 | 给应用 target 添加的库产品 | 自动带入的公共模块 |
 |---|---|---|
 | 只解析、执行或校验语言 | `OpenUILang` | 无 UI 模块 |
@@ -57,16 +59,7 @@ let result = parser.parse(#"root = Notice("只解析，不展示")"#)
 
 ## 一套 UI 客户端接口
 
-根 `Package.swift` 定义四个可选库产品，最低平台为 iOS 16 / macOS 13；下面是包内分层，不要求客户端全部添加。
-
-| 库产品（同名 Swift 模块） | 用途 | 选择组件库 |
-|---|---|---|
-| `OpenUILang` | 语言解析、求值、Store、动作和查询语义 | 无原生 UI |
-| `OpenUICore` | 公共客户端接口、状态、注册、渲染、绑定和资源基础设施 | `OpenUILibrary(components: …)` |
-| `OpenSwiftUI` | 标准 OpenUI 组件与设计系统 | `OpenUILibrary.standard()` |
-| `OpenIntelligentSwiftUI` | Intelligent UI 组件与设计系统 | `OpenUILibrary.intelligent()` |
-
-两套 UI 产品各自依赖 Core 和 Lang，互不依赖。只选择一套时，只需链接对应的 UI 产品；同一应用也可以链接两套。所有产品来自本仓库的同一个根包。
+按上表选择 UI 产品后，使用对应的 library 工厂。状态、流式输入、动作回调和文档 View 都使用下面的同一套接口。
 
 ### 1. 选择库
 
@@ -198,7 +191,7 @@ python3 Tools/check_lang_compatibility.py
 
 日常调试使用独立的 [OpenUI Gallery](Examples/Gallery/README.md)，在同一入口浏览两套 UI 的精选案例、调整预览尺寸和倍率、编辑源码与回放流式内容。macOS 启动命令为 `swift run --package-path Examples/Gallery OpenUIGallery`；iOS 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 `OpenUIGallery`。Gallery 依赖本地根 SDK，根包仅导出四个库产品。
 
-独立消费者检查为 Lang、Core、标准 UI 和 Intelligent UI 各建一个只声明单产品的外部包：Lang 禁止导入 Core/UI，Core 禁止导入两套 UI，两套 UI 分别禁止导入另一套库。Core 和两套 UI 共用相同的宿主接入模板；Lang 消费者直接调用 authoring、解析和流式 API。Lang 不导入 SwiftUI 由源码边界检查负责，不能用系统 SDK 中天然存在的 `canImport(SwiftUI)` 判断包依赖。
+独立消费者检查为 Lang、Core、标准 UI 和 Intelligent UI 各创建并实际构建、运行一个只声明单产品的外部包，验证打包资源初始化、解析和流式结果、生成契约及状态读写。它不启动原生窗口，不能代替 UI 视觉验收。Lang 禁止导入 Core/UI，Core 禁止导入两套 UI，两套 UI 分别禁止导入另一套库。Core 和两套 UI 共用相同的宿主接入模板；Lang 消费者直接调用 authoring、解析和流式 API。Lang 不导入 SwiftUI 由源码边界检查负责，不能用系统 SDK 中天然存在的 `canImport(SwiftUI)` 判断包依赖。
 
 独立的 [ContractExport 工具包](Tools/ContractExport/README.md) 默认输出 Intelligent UI 新生成所用的 `spec.json`、`prompt.txt` 和 `manifest.json`。历史读取契约使用 `--reader-contract`，历史程序验证使用 `--historical`。性能测量见 [Benchmarks](Benchmarks/README.md)，可选真实模型评测见 [Validation/Generation](Validation/Generation/README.md)。
 
@@ -214,7 +207,7 @@ python3 Tools/check_lang_compatibility.py
 | `Tools/` | 契约导出、资源生成与维护检查 |
 | `Benchmarks/` | 独立性能基准与测量说明 |
 | `Fixtures/` | 语言兼容验证数据 |
-| `Validation/` | 模型生成评测、源码修复候选与核验工具 |
+| `Validation/` | 程序静态校验器与可选模型生成评测 |
 | `docs/` | 当前架构、组件、语言与设计文档 |
 
 源码只在根 `Sources/` 维护，没有嵌套 SDK 或旧目录软链接。客户端只依赖根包，避免同时解析另外一个定义同名模块的旧 fork。
@@ -223,4 +216,4 @@ python3 Tools/check_lang_compatibility.py
 
 本仓库直接维护整合后的 Swift 源码，未通过 SwiftPM 再依赖旧 OpenUI Swift SDK。历史迁移记录保留在 Git 历史；当前生成输入由 [upstream.json](Tools/upstream.json) 固定，上游许可保留在根 [第三方声明](THIRD-PARTY-NOTICES.txt) 和随 SDK 打包的 [语言层第三方声明](Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt) 中。
 
-维护入口：[当前架构](docs/architecture.md)、[Intelligent UI 设计](docs/swift-intelligent-ui-design.md)、[验证与安全修复](docs/validation-and-security.md)。
+维护入口：[当前架构](docs/architecture.md)、[Intelligent UI 设计](docs/swift-intelligent-ui-design.md)、[验证与依赖安全](docs/validation-and-security.md)。

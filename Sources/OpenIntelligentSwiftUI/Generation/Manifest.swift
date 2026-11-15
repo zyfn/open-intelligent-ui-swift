@@ -6,9 +6,13 @@ public struct IntelligentUIManifest: Codable, Sendable {
         public let rendering: String
         public let contract: String
     }
+    /// Intelligent UI contract version, independent of the SDK Git revision and lang-core version.
     public let version: String
     public let profile: String
+    /// Original upstream component/function source import revision.
     public let upstreamCommit: String
+    /// Original OpenUI Swift source import revision, retained as historical metadata.
+    /// The current bundled language core is identified by OpenUILang's core-manifest.json.
     public let runtimeCommit: String
     public let components: [Component]
     public let functions: [String]
@@ -25,7 +29,8 @@ extension IntelligentUILibrary {
             functions: specification.functions.map(\.name), actions: specification.actions.map(\.name),
             requirements: [
                 "iOS 16+ / macOS 13+; system text, controls and dynamic appearance.",
-                "OpenUI Swift is included as workspace targets under OpenUI; runtimeCommit records imported source provenance. The official core is pinned for build-time generation; no external fork package is resolved.",
+                "OpenUILang and OpenUICore are targets in the root Swift package, shared by both UI libraries. The official language core is pinned for build-time generation; its current identity is recorded in OpenUILang's bundled core-manifest.json.",
+                "upstreamCommit and runtimeCommit record the original component and Swift source imports. They do not identify the current SDK checkout or bundled language core.",
                 "SearchImage is registered only with an explicit caller service.",
                 "Content and citations present caller-supplied facts; this library does not retrieve or invent them.",
                 "TransportCard displays supplied local clock/date/zone and fare text; no inferred elapsed duration, through-ticket or total price.",

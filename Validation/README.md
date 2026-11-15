@@ -1,4 +1,16 @@
-# Author-time program validation
+# Program validation
+
+| Entry | Purpose |
+| --- | --- |
+| `api.mjs` / `cli.mjs` | Check a supplied program against an exported library with the SDK's actual language core |
+| `build.mjs` | Package that validator and its pinned runtime for offline use |
+| [Generation](https://github.com/zyfn/open-intelligent-ui-swift/tree/refactor/openui-four-module-foundation/Validation/Generation) | Optionally ask a real model to generate programs, then evaluate the recorded outputs |
+
+In the SDK repository, visual and interaction review belongs to [Gallery](https://github.com/zyfn/open-intelligent-ui-swift/tree/refactor/openui-four-module-foundation/Examples/Gallery).
+Performance measurement belongs to [Benchmarks](https://github.com/zyfn/open-intelligent-ui-swift/tree/refactor/openui-four-module-foundation/Benchmarks).
+Automated native behavior regressions belong to [Tests](https://github.com/zyfn/open-intelligent-ui-swift/tree/refactor/openui-four-module-foundation/Tests).
+
+## Static author-time validation
 
 This SDK-owned Node API/CLI invokes the exact JavaScript core shipped with the
 Apple SDK. It is a static author-delivery check, not a Swift Linux runtime or a

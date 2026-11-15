@@ -2,6 +2,11 @@
 
 **1.0**
 
+> This is the retained 1.0 reference specification. The SDK runs language core
+> 1.1.1; see [current compatibility behavior](compatibility.md#current-language-version-and-reference-documents)
+> for the version scope and runtime differences. Export model input from the
+> selected library's current `systemPrompt` and `specificationJSON`.
+
 This document defines what is sent to the model: the LibrarySpec, the system prompt generated from it, and the conversation the model sees. It also defines the marker lines a host stores messages with. MUST, MUST NOT, SHOULD, and MAY are used as in RFC 2119.
 
 For the language, see [language.md](./language.md). For the big picture, see [overview.md](./overview.md).

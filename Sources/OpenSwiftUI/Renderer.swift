@@ -1,41 +1,12 @@
-import OpenUICore
-// OpenSwiftUI — Renderer.
-//
-// The top-level SwiftUI view for OpenUI. Takes an OpenUIState and a
-// ComponentRegistry, renders the evaluated tree.
-
 import SwiftUI
+import OpenUICore
 import OpenUILang
 
-/// Renders an OpenUI stream.
-///
-/// ```swift
-/// struct ContentView: View {
-///     @StateObject var uiState = OpenUIState(schema: mySchema)
-///
-///     var body: some View {
-///         OpenUIRenderer(state: uiState, registry: myRegistry)
-///             .onAppear {
-///                 // Feed chunks as they arrive from the model.
-///                 uiState.push("root = Stack([Text(\"Hello\")])")
-///                 uiState.complete()
-///             }
-///     }
-/// }
-///
-/// let myRegistry: ComponentRegistry = [
-///     "Stack": { el, registry in
-///         AnyView(VStack {
-///             ForEach(0..<PropValue.children(el).count, id: \.self) { i in
-///                 RenderNode(element: PropValue.children(el)[i], registry: registry)
-///             }
-///         })
-///     },
-///     "Text": { el, _ in
-///         AnyView(Text(PropValue.string(el, "text") ?? ""))
-///     },
-/// ]
-/// ```
+/// Applies the standard library's appearance to a host-owned state and registry.
+/// Most clients select `OpenUILibrary.standard()` and present `OpenUIView`, which
+/// keeps the generation contract, reader and native registry paired together.
+/// Use this lower-level view when supplying the matched registry directly;
+/// retain the state for the document's lifetime and feed content outside `body`.
 public struct OpenUIRenderer: View {
     private let state: OpenUIState
     private let registry: ComponentRegistry

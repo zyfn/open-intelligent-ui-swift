@@ -109,6 +109,12 @@ native ActionPlans execute at the framework boundary, matching other adapters.
 
 ## Language reference
 
+The documents below retain the 1.0 reference specification and match the
+versioned 1.0 fixtures. The SDK runtime is 1.1.1; read the
+[current compatibility behavior](compatibility.md#current-language-version-and-reference-documents)
+for query dependencies, retries, state defaults and numeric built-ins. Generate
+model input from the selected library's current prompt and specification.
+
 - [Overview](overview.md): the language, streaming and stored UI model.
 - [Language specification](language.md): grammar, evaluation, state and actions.
 - [Prompt and message protocol](prompt.md): LibrarySpec, generation and stored responses.

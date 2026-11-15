@@ -1,6 +1,6 @@
 # 四模块架构
 
-本文描述当前 `refactor/openui-four-module-foundation` 分支的实际源码边界。本仓库是一个 Swift Package，根 `Package.swift` 导出四个独立库产品。语言客户端可只选择 `OpenUILang`；自建原生组件选择 `OpenUICore`；使用现成 UI 时选择对应的 UI 产品。UI 依赖 Core 和 Lang，同时支持两套 UI 时也共享同一份语言实现。UI 客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 接入，两个 UI 库各自提供组件与视觉体系。接入示例见 [README](../README.md)。
+本文描述 SDK 的实际源码边界。本仓库是一个 Swift Package，根 `Package.swift` 导出四个独立库产品。语言客户端可只选择 `OpenUILang`；自建原生组件选择 `OpenUICore`；使用现成 UI 时选择对应的 UI 产品。UI 依赖 Core 和 Lang，同时支持两套 UI 时也共享同一份语言实现。UI 客户端通过同一个 `OpenUILibrary`、`OpenUIState` 和 `OpenUIView` 接入，两个 UI 库各自提供组件与视觉体系。接入示例见 [README](../README.md)。
 
 ## 1. 依赖关系
 
@@ -156,13 +156,13 @@ layout/placeholder 的结构元数据也由组件注册提供。Core 只按已�
 
 当前源码和测试只在根 `Sources/` 与 `Tests/` 各自所属模块中维护。构建工具在 `Tools/`，验证材料在 `Validation/`，公共兼容数据在 `Fixtures/`，示例在 `Examples/`，有效文档在 `docs/`。不保留旧目录软链接、重复 SDK 外壳或过时的实施状态文档。
 
-根 Swift Package 只导出四个 SDK 库产品及其测试。开发入口各自是依赖根 SDK 的独立包：`Examples/Gallery` 负责双库人工调试，`Tools/ContractExport` 负责契约导出，`Benchmarks/LanguageRuntime` 只用 Lang 公开 API 测量语言工作负载。开发 App 的图片、案例和编辑状态不进入 SDK 产品。
+根 Swift Package 导出四个 SDK 库产品，并维护 SDK 测试。开发入口各自是依赖根 SDK 的独立包：`Examples/Gallery` 负责双库人工调试，`Tools/ContractExport` 负责契约导出，`Benchmarks/LanguageRuntime` 只用 Lang 公开 API 测量语言工作负载。开发 App 的图片、案例和编辑状态不进入 SDK 产品。
 
 Gallery 的精选任务有稳定 ID 和两套 UI 各自的源码变体，专项边界案例单列为 Diagnostics。完整案例源码只保存在 Gallery 资源目录；固定的标准历史 schema/摘要和原始模型输出归各自 XCTest fixtures。真实模型生成任务位于 `Validation/Generation`，结果写入忽略的 `outputs/generation`；性能结果写入 `outputs/benchmarks`。旧独立 macOS 编辑器的职责已并入 Gallery，独立产品依赖仍由四个消费者检查验证。后续 Agent 后端与真实 iOS 客户端按独立集成项目接入，见 [Examples 指南](../Examples/README.md)。
 
-[upstream.json](../Tools/upstream.json) 固定当前生成输入，原始导入来源可从 Git 历史与 [RC21 源码修复清单](../Validation/source-rc21/manifest.json) 查到。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，由根 Package 声明为资源并随 SDK 打包。开发执行命令显式指定对应 `--package-path`，不向 SDK 增加 executable 产品。
+[upstream.json](../Tools/upstream.json) 固定当前生成输入，原始导入来源保留在 Git 历史中。完整上游许可保存在 [THIRD-PARTY-NOTICES.txt](../Sources/OpenUILang/Resources/THIRD-PARTY-NOTICES.txt)，由根 Package 声明为资源并随 SDK 打包。开发执行命令显式指定对应 `--package-path`，不向 SDK 增加 executable 产品。
 
-本轮改变 Swift 模块边界与共享能力归属，保留现有 Lang 组件名、位置参数、枚举、绑定和 reader/writer 契约。标准目录与 Intelligent UI 目录继续独立生成各自 Prompt/spec，不混用两套定义或以布局改动为理由新增私有参数。
+Swift 模块按上述边界维护共享能力，并保留已支持的组件名、位置参数、枚举、绑定和 reader/writer 契约。标准目录与 Intelligent UI 目录继续独立生成各自 Prompt/spec，不混用两套定义或以布局改动为理由新增私有参数。
 
 Swift import 使用 `OpenSwiftUI`、`OpenIntelligentSwiftUI` 及按需的 `OpenUICore` / `OpenUILang`。产品选择只影响可用的 library 工厂；状态、流式输入、动作回调、生成契约属性和文档 View 的客户端用法相同。旧标准程序继续使用标准 reader，历史 Intelligent UI 程序继续使用对应 reader。
 
@@ -170,4 +170,4 @@ Swift import 使用 `OpenSwiftUI`、`OpenIntelligentSwiftUI` 及按需的 `OpenU
 
 [原生流水线](../.github/workflows/native-sdk.yml) 对当前提交运行模块图/源码边界、独立产品消费者、原生测试、Release fitting、历史契约、固定 Gallery、资源重建和 iOS 编译。独立消费者分别只声明 Lang、Core、标准 UI 或 Intelligent UI 一个产品：Lang 不得导入 Core/UI，Core 不得导入两套 UI，各 UI 不得导入另一套组件库。Lang 与 SwiftUI 的边界由源码检查验证，系统框架本身的可导入性不能代表产品依赖。
 
-架构检查或源码搬迁完成不代表 Apple SDK 编译、真机界面或全部交互已通过。验收状态绑定实际提交及其流水线结果；安全依赖更新、源码候选修复及验证方式见[验证与安全修复](validation-and-security.md)。重构分支上的提交也不等于发布、打 tag 或合并主分支。
+架构检查或源码搬迁完成不代表 Apple SDK 编译、真机界面或全部交互已通过。验收状态绑定实际提交及其流水线结果；依赖版本、安全修复与验证方式见[验证与依赖安全](validation-and-security.md)。重构分支上的提交也不等于发布、打 tag 或合并主分支。

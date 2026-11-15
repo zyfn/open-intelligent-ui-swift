@@ -3,7 +3,8 @@ import OpenUICore
 import OpenIntelligentSwiftUI
 
 /// A fixed logical viewport inside a separately scaled workbench canvas.
-/// The SDK sees viewport.width, never viewport.width * zoom.
+/// The viewport includes 20 pt of padding on each side of the SDK content.
+/// Zoom applies after layout and does not change the content's available width.
 @MainActor struct GalleryPreview: View {
     let session: GalleryDocumentSession
     let resources: OpenUIResourceContext
@@ -68,9 +69,9 @@ struct GalleryViewportControls: View {
                         }
                     }
                 } label: { Label("画布预设", systemImage: "iphone.and.ipad") }
-                dimension("宽", value: $viewport.width)
+                dimension("宽", value: $viewport.width, minimum: 240)
                 Text("×").foregroundStyle(.secondary)
-                dimension("高", value: $viewport.height)
+                dimension("高", value: $viewport.height, minimum: 320)
                 Text("pt").font(.caption).foregroundStyle(.secondary)
                 Button { viewport.rotate() } label: { Label("横竖切换", systemImage: "rotate.right") }
                     .labelStyle(.iconOnly)
@@ -88,12 +89,12 @@ struct GalleryViewportControls: View {
         .background(.bar)
     }
 
-    private func dimension(_ title: String, value: Binding<Double>) -> some View {
+    private func dimension(_ title: String, value: Binding<Double>, minimum: Double) -> some View {
         HStack(spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             TextField(title, value: Binding(
                 get: { value.wrappedValue },
-                set: { if $0.isFinite { value.wrappedValue = min(1600, max(240, $0)) } }
+                set: { if $0.isFinite { value.wrappedValue = min(1600, max(minimum, $0)) } }
             ), format: .number.precision(.fractionLength(0)))
             .textFieldStyle(.roundedBorder).frame(width: 64)
             .accessibilityLabel("画布" + title + "度，单位 pt")

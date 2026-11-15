@@ -41,17 +41,6 @@ final class NativeComponentsTests: XCTestCase {
         XCTAssertEqual(
             try LibrarySpec(jsonString: library.toSpec().jsonString()).components.count,
             library.library.components.count)
-        if let directory = ProcessInfo.processInfo.environment["OPENUI_CONTRACT_EXPORT_DIR"] {
-            let destination = URL(fileURLWithPath: directory)
-            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-            for (name, collection) in [("standard", library)] {
-                try collection.toSpec().jsonString().write(
-                    to: destination.appendingPathComponent(name + ".json"), atomically: true, encoding: .utf8)
-                try collection.prompt().write(
-                    to: destination.appendingPathComponent(name + "-prompt.txt"), atomically: true,
-                    encoding: .utf8)
-            }
-        }
     }
 
     @MainActor func testTypedNativeFormAndDataProgramsParseAndRoundTrip() throws {
