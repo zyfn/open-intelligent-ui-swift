@@ -57,10 +57,9 @@ final class NativeComponentSubscription: ObservableObject {
     private var presentation: NativeComponentPresentation?
     private var storeRevision: UInt64 = 0
     private var canExecuteActions = false
-    private var isRuntimeLimited = false
+    private var hasRuntimeFailure = false
     private var reads: [NativeComponentReadKey: NativeComponentRead] = [:]
     private var generation: UInt64 = 0
-    private(set) var revision: UInt64 = 0
 
     /// Called only when SwiftUI actually evaluates the component boundary.
     /// Recording dependencies does not publish, parse, or change business state.
@@ -76,17 +75,17 @@ final class NativeComponentSubscription: ObservableObject {
         presentation = current
         storeRevision = state.nativePresentation.storeRevision
         canExecuteActions = state.nativePresentation.canExecuteActions
-        isRuntimeLimited = state.nativePresentation.isRuntimeLimited
+        hasRuntimeFailure = state.nativePresentation.hasRuntimeFailure
         generation &+= 1
         reads.removeAll(keepingCapacity: true)
-        return (current, NativeComponentReadScope(subscription: self, generation: generation, revision: revision))
+        return (current, NativeComponentReadScope(subscription: self, generation: generation))
     }
 
     func refresh(state: OpenUIState, changes: NativeLiveElementIndex.Update, auxiliaryChanged: Bool) {
         guard self.state === state, let source, let previous = presentation else { return }
         let commit = state.nativePresentation
         let storeChanged = storeRevision != commit.storeRevision
-        let executionChanged = canExecuteActions != commit.canExecuteActions || isRuntimeLimited != commit.isRuntimeLimited
+        let executionChanged = canExecuteActions != commit.canExecuteActions || hasRuntimeFailure != commit.hasRuntimeFailure
         let sourceChanged = previous.sourceRevision != commit.sourceRevision
         // An unchanged candidate bucket needs no live lookup or action walk.
         // Document/Store/Query changes independently invalidate those derived
@@ -107,9 +106,8 @@ final class NativeComponentSubscription: ObservableObject {
         presentation = current
         storeRevision = commit.storeRevision
         canExecuteActions = commit.canExecuteActions
-        isRuntimeLimited = commit.isRuntimeLimited
+        hasRuntimeFailure = commit.hasRuntimeFailure
         guard !previous.hasSameInputs(as: current) || valuesChanged else { return }
-        revision &+= 1
         objectWillChange.send()
     }
 
@@ -131,22 +129,12 @@ final class NativeComponentSubscription: ObservableObject {
             case .field(let form, let name): current = state.nativePresentedFieldValue(form: form, name: name)
             case .state(let name): current = state.nativePresentedStateValue(name)
             }
-            if !sameRead(previous.value, current) { changed = true }
+            if !nativePresentationValuesEqual(previous.value, current) { changed = true }
             reads[key] = NativeComponentRead(value: current)
         }
         return changed
     }
 
-    private func sameRead(_ left: Value?, _ right: Value?) -> Bool {
-        switch (left, right) {
-        case (.none, .none): return true
-        case (.some(let left), .some(let right)):
-            // Use the same reference-sensitive native boundary as component
-            // props. Equal business contents may carry new readiness metadata.
-            return nativePresentationValuesEqual(left, right)
-        default: return false
-        }
-    }
 }
 
 /// Child bodies and Binding getters may execute after their Host. A scope keeps
@@ -156,10 +144,8 @@ final class NativeComponentSubscription: ObservableObject {
 final class NativeComponentReadScope {
     private weak var subscription: NativeComponentSubscription?
     private let generation: UInt64
-    let revision: UInt64
-
-    fileprivate init(subscription: NativeComponentSubscription, generation: UInt64, revision: UInt64) {
-        self.subscription = subscription; self.generation = generation; self.revision = revision
+    fileprivate init(subscription: NativeComponentSubscription, generation: UInt64) {
+        self.subscription = subscription; self.generation = generation
     }
 
     func field(form: OpenUIString?, name: OpenUIString, value: Value?) {

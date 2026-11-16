@@ -135,11 +135,15 @@ final class NativePresentationCommitTests: XCTestCase {
         XCTAssertEqual(state.nativePresentation.storeValues["$value"], .number(3))
     }
 
-    @MainActor func testComponentNotificationReentryFinishesTheReplacementBeforeReturning() {
+    @MainActor func testComponentNotificationReentryFinishesTheReplacementBeforeReturning() throws {
         let state = OpenUIState(schema: schema)
         state.setSource("$value=1\nroot=Box($value)")
+        let node = NativeComponentSubscription()
+        _ = node.begin(element: try XCTUnwrap(state.root), state: state)
         var changed = false
-        let updates = state.componentUpdates.objectWillChange.sink {
+        var notifications = 0
+        let updates = node.objectWillChange.sink {
+            notifications += 1
             guard !changed else { return }
             changed = true
             XCTAssertEqual(self.value(state.nativePresentation), .number(2))
@@ -150,6 +154,7 @@ final class NativePresentationCommitTests: XCTestCase {
         state.setState("$value", value: .number(2))
 
         XCTAssertTrue(changed)
+        XCTAssertEqual(notifications, 2, "The queued replacement must reach the same mounted node before returning")
         XCTAssertEqual(value(state.nativePresentation), .string("replacement"))
         XCTAssertTrue(state.nativePresentation.root === state.root)
         XCTAssertEqual(state.nativePresentation.sourceRevision, state.sourceRevision)
@@ -202,7 +207,7 @@ final class NativePresentationCommitTests: XCTestCase {
         XCTAssertEqual(failure.storeValues["$value"], .number(7))
         XCTAssertTrue(failure.isComplete)
         XCTAssertTrue(failure.isInterrupted)
-        XCTAssertTrue(failure.isRuntimeLimited)
+        XCTAssertTrue(failure.hasRuntimeFailure)
         XCTAssertFalse(failure.canExecuteActions)
         XCTAssertFalse(failure.errors.isEmpty)
         XCTAssertFalse(state.nativeIsElementReady(root))

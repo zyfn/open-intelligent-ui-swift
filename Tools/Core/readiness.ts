@@ -75,6 +75,7 @@ const path = Symbol('native.source.path');
 // This memo belongs to a materialization context, never to a protocol value.
 const materialized = Symbol('native.presentation.materialized');
 const emptyScope: ReadonlySet<string> = new Set();
+const layoutProps = new Set(['height', 'imageSize', 'size', 'iconSize', 'variant', 'appearance', 'layout', 'direction', 'gap', 'align', 'justify', 'wrap', 'id', 'key', 'resourceId', 'category', 'name']);
 
 export function tokenComplete(token: any): boolean { return token?.[syntax] !== false; }
 export function tagSyntax<T extends object>(value: T, complete: boolean): T {
@@ -192,8 +193,7 @@ export function recordResult(result: any, ctx: any, node: any, id?: string): any
 }
 
 function describeSource(node: any, ctx: any, value: any, scope: ReadonlySet<string> = emptyScope): Presentation {
-  const records: WeakMap<object, any> = ctx[materialized] ?? new WeakMap();
-  const layoutProps = new Set(['height', 'imageSize', 'size', 'iconSize', 'variant', 'appearance', 'layout', 'direction', 'gap', 'align', 'justify', 'wrap', 'id', 'key', 'resourceId', 'category', 'name']);
+  const records: WeakMap<object, any> = ctx[materialized];
   let budget = 0;
   const seen = new Set<any>();
   const pending = openPresentation;
@@ -304,7 +304,7 @@ function queryDependencies(node: any, ctx: any, scope: ReadonlySet<string> = emp
   return [...queries];
 }
 
-export function astComplete(node: any, ctx: any, scope: ReadonlySet<string> = emptyScope, seen: Set<any> = ctx[path] ??= new Set()): boolean {
+function astComplete(node: any, ctx: any, scope: ReadonlySet<string> = emptyScope, seen: Set<any> = ctx[path] ??= new Set()): boolean {
   if (!node || typeof node !== 'object') return true;
   if (seen.size > 256 || ctx.nativeLimit) return false;
   if (node[syntax] === false || node.k === 'Ph') return false;

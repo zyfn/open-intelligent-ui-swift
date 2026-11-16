@@ -1,6 +1,8 @@
 import Foundation
 import JavaScriptCore
 
+public func createStreamingParser(schema: LibrarySchema) -> StreamParser { CoreStreamParser(schema: schema) }
+
 /// Native transport and budgets around the shared parser. No second lexer or
 /// parser is introduced. A failed append preserves the last successful prefix.
 final class CoreStreamParser: StreamParser {
@@ -8,20 +10,22 @@ final class CoreStreamParser: StreamParser {
     private let parser: JSValue
     private var input = ""
     private var inputEnvelope = NativeSourceEnvelope()
-    private var selectedSource: String?
-    private var selectedEnvelope = NativeSourceEnvelope()
+    // A provisional frame may become ordinary Lang after another chunk or
+    // completion. Remember that the shared parser then needs its full input
+    // restored; retaining a second copy of the selected source is unnecessary.
+    private var usesMessageContent = false
     private var messageProbe = MessageProbe()
     private var blocked = false
     private var lastGood: ParseResult?
     private var limitError: OpenUIError?
 
-    private var source: String { selectedSource ?? input }
     private var limited: ParseResult { limitedParseResult(preserving: lastGood, error: limitError) }
 
     init(schema: LibrarySchema) {
-        parser = SharedCore.shared.sync {
-            SharedCore.shared.core("createStreamingParser", [
-                SharedCore.shared.json(SharedCore.shared.schemaJSON(schema)), schema.rootComponent as Any,
+        let runtime = SharedCore.shared
+        parser = runtime.sync {
+            runtime.core("createStreamingParser", [
+                runtime.json(runtime.schemaJSON(schema)), schema.rootComponent as Any,
             ])
         }
     }
@@ -33,7 +37,7 @@ final class CoreStreamParser: StreamParser {
             guard inputEnvelope.append(chunk) else { blocked = true; return limited }
             input += chunk
             messageProbe.append(chunk)
-            if selectedSource != nil || messageProbe.protectedPrefix(complete: complete) != nil {
+            if usesMessageContent || messageProbe.protectedPrefix(complete: complete) != nil {
                 return selectInput(complete: complete)
             }
             // Ordinary Lang chunks never rescan the accumulated input for
@@ -57,24 +61,26 @@ final class CoreStreamParser: StreamParser {
     func getResult(complete: Bool = false) -> ParseResult {
         core.sync {
             guard !blocked else { return limited }
-            if selectedSource != nil || messageProbe.protectedPrefix(complete: complete) != nil {
+            if usesMessageContent || messageProbe.protectedPrefix(complete: complete) != nil {
                 return selectInput(complete: complete)
             }
             return accept(parse("getResult", [complete]))
         }
     }
     private func selectInput(complete: Bool) -> ParseResult {
+        let source: String
         if let prefix = messageProbe.protectedPrefix(complete: complete) {
             // The official protocol handles partial lines, mid-line retries,
             // CRLF and the last content frame. A new frame can replace a broken
             // quoted prefix, so it must not be appended to that prefix's parser.
-            selectedSource = parseMessageContent(input, streaming: !complete, protectedPrefix: prefix)
-            selectedEnvelope = NativeSourceEnvelope()
-            guard selectedEnvelope.append(selectedSource!) else {
+            usesMessageContent = true
+            source = parseMessageContent(input, streaming: !complete, protectedPrefix: prefix)
+            guard OpenUIRuntimeBudget.acceptsSource(source) else {
                 blocked = true; return limited
             }
         } else {
-            selectedSource = nil
+            usesMessageContent = false
+            source = input
         }
         return accept(parse("set", [source, complete]))
     }

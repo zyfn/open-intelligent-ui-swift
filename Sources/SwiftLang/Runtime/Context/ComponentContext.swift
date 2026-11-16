@@ -26,9 +26,10 @@ public struct OpenUIComponentContext {
     private let state: OpenUIState
     package let registry: OpenUIComponentRegistry
     private let sourceRevision: Int
-    // A Store/Query notification can change a field without changing props.
-    // Preserve that dependency when this context is passed through child views.
-    private let componentUpdateRevision: UInt64
+    // Public, manually constructed contexts have no read scope. Preserve their
+    // Store/Query invalidation when passed through child views. Mounted contexts
+    // already receive a new read-scope identity for every actual render.
+    private let unscopedUpdateRevision: UInt64?
     // Element/phase flags describe this render. Field and Binding getters stay
     // dynamic, but a mounted Context reads only the latest completed native
     // commit, never a Store write halfway through publication. Retaining a
@@ -52,7 +53,7 @@ public struct OpenUIComponentContext {
         self.exactFormName = exactFormName ?? formName.map { OpenUIString($0) }
         self.readScope = readScope
         self.sourceRevision = presentation?.sourceRevision ?? state.sourceRevision
-        self.componentUpdateRevision = readScope?.revision ?? state.componentUpdates.revision
+        self.unscopedUpdateRevision = readScope == nil ? state.componentUpdates.revision : nil
         self.isStreaming = presentation?.streaming ?? !state.isComplete
         self.isQueryLoading = presentation?.queryLoading ?? state.isQueryLoading
         self.presentationReadiness = self.element.sourceReadiness

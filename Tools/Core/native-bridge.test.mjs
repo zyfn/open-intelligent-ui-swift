@@ -12,6 +12,11 @@ const schema = {
   properties: { Box: { $ref: '#/$defs/Box' } },
 };
 const plain = value => JSON.parse(JSON.stringify(value));
+function checkedValue(outcome) {
+  assert.equal(outcome.limitExceeded, false, 'Bridge scenarios must use a successful bounded outcome');
+  assert.equal(outcome.error, undefined);
+  return outcome.value;
+}
 
 function runtime() {
   const realm = vm.createContext({
@@ -23,7 +28,7 @@ function runtime() {
   const library = core.library(schema, {});
   const context = { getState: () => null, resolveRef: () => null };
   const expression = source => core.api.parseExpression(core.api.tokenize(source));
-  const evaluate = (source, extra = {}) => core.evaluate(expression(source), { ...context, ...extra }, library);
+  const evaluate = (source, extra = {}) => checkedValue(core.boundedEvaluate(expression(source), { ...context, ...extra }, library));
   return { core, library, context, expression, evaluate };
 }
 
@@ -36,7 +41,7 @@ test('plain steps data survives parsed props, aliases and serialization without 
   ]) {
     const parsed = core.api.createParser(schema).parse(source);
     const errors = [];
-    const evaluated = core.root(parsed, context, library, null, errors);
+    const evaluated = checkedValue(core.boundedRoot(parsed, context, library, null, errors));
     assert.equal(parsed.meta.errors.length + errors.length, 0);
     assert.equal(core.isRuntimePlan(parsed.root.props.value), false);
     assert.equal(core.isRuntimePlan(evaluated.props.value), false);
@@ -74,7 +79,7 @@ test('dynamic props and nested arrays preserve business steps records without fi
   ]) {
     const parsed = core.api.createParser(schema).parse(source);
     const errors = [];
-    const root = core.root(parsed, ctx, library, null, errors);
+    const root = checkedValue(core.boundedRoot(parsed, ctx, library, null, errors));
     assert.equal(parsed.meta.errors.length + errors.length, 0, source);
     assert.equal(core.isRuntimePlan(root.props.value), false, source);
     assert.deepEqual(plain(root.props.value), expected, source);
@@ -133,7 +138,7 @@ test('real actions and trusted native plans survive static and dynamic prop path
   ]) {
     const parsed = core.api.createParser(actionSchema).parse(source);
     const errors = [];
-    const root = core.root(parsed, ctx, library, null, errors);
+    const root = checkedValue(core.boundedRoot(parsed, ctx, library, null, errors));
     assert.equal(parsed.meta.errors.length + errors.length, 0, source);
     const plan = root.props.value;
     assert.equal(core.isRuntimePlan(plan), true, source);
@@ -142,7 +147,7 @@ test('real actions and trusted native plans survive static and dynamic prop path
     if (text === 'native') assert.equal(plan, native, 'a trusted function result keeps its identity at the prop boundary');
     const serialized = core.serialize(root, library, { stateDeclarations: {} });
     const reparsed = core.api.createParser(actionSchema).parse(serialized);
-    const roundtrip = core.root(reparsed, ctx, library, null, []);
+    const roundtrip = checkedValue(core.boundedRoot(reparsed, ctx, library, null, []));
     assert.equal(reparsed.meta.errors.length, 0, source);
     assert.equal(core.isRuntimePlan(roundtrip.props.value), true, source);
     assert.deepEqual(plain(roundtrip.props.value.steps), plain(plan.steps), source);
@@ -203,6 +208,37 @@ test('repeated store lookups never enumerate or read unrelated snapshot values',
   assert.equal(membershipChecks, count);
 });
 
+test('storeSet reports actual snapshot changes without copying the upstream no-op rule', () => {
+  const { core } = runtime();
+  const store = core.store();
+  const original = { ['k'.repeat(600_000)]: undefined };
+  let notifications = 0;
+  store.subscribe(() => notifications++);
+  assert.equal(core.storeSet(store, '$data', original, true), true);
+  const before = store.getSnapshot();
+  assert.equal(core.storeSet(store, '$data', { x: undefined }, false), false);
+  assert.equal(store.getSnapshot(), before);
+  assert.equal(store.get('$data'), original);
+  assert.equal(notifications, 1);
+  store.initialize({ $data: 7 }, {});
+  assert.equal(store.get('$data'), original, 'a no-op still made the field non-pristine');
+  store.dispose();
+});
+
+test('storeSet keeps accepted reentrant writes visible when the outer notification returns', () => {
+  const { core } = runtime();
+  const store = core.store();
+  store.subscribe(() => {
+    if (store.get('$first') === 1) {
+      core.storeSet(store, '$first', 2, false);
+      core.storeSet(store, '$second', 3, false);
+    }
+  });
+  assert.equal(core.storeSet(store, '$first', 1, true), true);
+  assert.deepEqual(plain(store.getSnapshot()), { $first: 2, $second: 3 });
+  store.dispose();
+});
+
 test('validation resolves only own registry keys while preserving rule order and custom overrides', () => {
   const { core } = runtime();
   for (const type of ['valueOf', 'toString', 'constructor', '__proto__', 'hasOwnProperty']) {
@@ -224,7 +260,7 @@ test('standard catalog form rules with inherited names do not throw at the nativ
   const catalogSchema = catalog.spec.schema;
   const parsed = core.api.createParser(catalogSchema).parse('root=Stack([Input("name",null,"text",{valueOf:true})])');
   const errors = [];
-  const tree = core.root(parsed, context, core.library(catalogSchema, {}), null, errors);
+  const tree = checkedValue(core.boundedRoot(parsed, context, core.library(catalogSchema, {}), null, errors));
   assert.equal(parsed.meta.errors.length + errors.length, 0);
   const rules = core.api.parseStructuredRules(tree.props.children[0].props.rules);
   assert.deepEqual(plain(rules), [{ type: 'valueOf' }]);

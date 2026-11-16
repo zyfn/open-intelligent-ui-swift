@@ -35,7 +35,6 @@ final class CoreParseSnapshot: @unchecked Sendable {
         }
         return cachedExpression
     } }
-    func matches(_ result: ParseResult) -> Bool { result.usesSnapshot(self) }
 }
 
 enum LangCoreResources {
@@ -259,15 +258,7 @@ final class SharedCore {
         return JSValueIsStrictEqual(context.jsGlobalContextRef, left.value.jsValueRef, right.value.jsValueRef)
     } }
     func encode(_ value: Value) -> JSValue {
-        let native: AnyObject?
-        switch value {
-        case .array(let v): native = v
-        case .object(let v): native = v
-        case .element(let v): native = v
-        case .actionPlan(let v): native = v
-        case .binding(let v), .reactiveBinding(let v): native = v
-        default: native = nil
-        }
+        let native = value.referenceObject
         if let native, let record = identities[ObjectIdentifier(native)], record.object === native { return record.value }
         let result: JSValue
         switch value {
@@ -300,13 +291,13 @@ final class SharedCore {
         var path: Set<Int> = []
         init(rootScope: Scope) { self.rootScope = rootScope }
     }
-    func decode(_ js: JSValue, level: Int = 0, interpret: Bool = true, sourceSnapshot: JSValue? = nil) -> Value {
+    func decode(_ js: JSValue, interpret: Bool = true, sourceSnapshot: JSValue? = nil) -> Value {
         let snapshot = sourceSnapshot.flatMap { $0.isObject ? $0 : nil }
         let source = ValueProjection.Scope(snapshot: snapshot,
             identity: snapshot.map { Int(call("identity", [$0]).toInt32()) } ?? 0)
         let projection = ValueProjection(rootScope: source)
         return NativeRuntimeTrace.measure("Native projection") {
-            decode(js, level: level, interpret: interpret, projection: projection, source: source)
+            decode(js, level: 0, interpret: interpret, projection: projection, source: source)
         }
     }
     private func decode(_ js: JSValue, level: Int, interpret: Bool, projection: ValueProjection,
@@ -405,25 +396,42 @@ final class SharedCore {
     }
     func optionalString(_ js: JSValue) -> String? { js.isNull || js.isUndefined ? nil : js.toString() }
     func ast(_ node: ASTNode) -> JSValue {
-        if case .runtimeValue(let value) = node { return call("capture", [encode(value)]) }
-        if case .comp(let name, let args, let mapped, let fn) = node {
-            let js = object([("k", string("Comp")), ("name", string(OpenUIString(name))), ("args", array(args.map(ast)))])
-            if let mapped { js.setValue(object(mapped.map { (OpenUIString($0.0), ast($0.1)) }), forProperty: "mappedProps") }
-            if fn { js.setValue(true, forProperty: "fn") }; return js
+        // AST markers are transport objects, not Lang reference values. Encode
+        // them directly instead of allocating temporary Value containers and
+        // entering those short-lived containers into the identity cache.
+        func marker(_ kind: OpenUIString, _ fields: [(OpenUIString, JSValue)] = []) -> JSValue {
+            object([("k", string(kind))] + fields)
         }
-        // Replace nested runtime captures recursively, retaining the upstream AST shape.
         switch node {
-        case .arr(let a): return object([("k", string("Arr")), ("els", array(a.map(ast)))])
-        case .obj(let o): return object([("k", string("Obj")), ("entries", array(o.map { array([string($0.0), ast($0.1)]) }))])
-        case .binOp(let op, let l, let r): return object([("k", string("BinOp")), ("op", string(OpenUIString(op))), ("left", ast(l)), ("right", ast(r))])
-        case .unaryOp(let op, let n): return object([("k", string("UnaryOp")), ("op", string(OpenUIString(op))), ("operand", ast(n))])
-        case .ternary(let c, let t, let e): return object([("k", string("Ternary")), ("cond", ast(c)), ("then", ast(t)), ("else", ast(e))])
-        case .member(let n, let f): return object([("k", string("Member")), ("obj", ast(n)), ("field", string(f))])
-        case .index(let n, let i): return object([("k", string("Index")), ("obj", ast(n)), ("index", ast(i))])
-        case .assign(let t, let v): return object([("k", string("Assign")), ("target", string(OpenUIString(t))), ("value", ast(v))])
-        default: break
+        case .runtimeValue(let value): return call("capture", [encode(value)])
+        case .str(let value): return marker("Str", [("v", string(value))])
+        case .num(let value): return marker("Num", [("v", JSValue(double: value, in: context)!)])
+        case .bool(let value): return marker("Bool", [("v", JSValue(bool: value, in: context)!)])
+        case .null: return marker("Null")
+        case .ref(let name): return marker("Ref", [("n", string(OpenUIString(name)))])
+        case .stateRef(let name): return marker("StateRef", [("n", string(OpenUIString(name)))])
+        case .runtimeRef(let name, let type):
+            return marker("RuntimeRef", [("n", string(OpenUIString(name))), ("refType", string(OpenUIString(type.rawValue)))])
+        case .ph(let name): return marker("Ph", [("n", string(OpenUIString(name)))])
+        case .comp(let name, let args, let mapped, let fn):
+            let js = marker("Comp", [("name", string(OpenUIString(name))), ("args", array(args.map(ast)))])
+            if let mapped { js.setValue(object(mapped.map { (OpenUIString($0.0), ast($0.1)) }), forProperty: "mappedProps") }
+            if fn { js.setValue(true, forProperty: "fn") }
+            return js
+        case .arr(let values): return marker("Arr", [("els", array(values.map(ast)))])
+        case .obj(let fields):
+            return marker("Obj", [("entries", array(fields.map { array([string($0.0), ast($0.1)]) }))])
+        case .binOp(let op, let left, let right):
+            return marker("BinOp", [("op", string(OpenUIString(op))), ("left", ast(left)), ("right", ast(right))])
+        case .unaryOp(let op, let operand):
+            return marker("UnaryOp", [("op", string(OpenUIString(op))), ("operand", ast(operand))])
+        case .ternary(let condition, let then, let otherwise):
+            return marker("Ternary", [("cond", ast(condition)), ("then", ast(then)), ("else", ast(otherwise))])
+        case .member(let object, let field): return marker("Member", [("obj", ast(object)), ("field", string(field))])
+        case .index(let object, let index): return marker("Index", [("obj", ast(object)), ("index", ast(index))])
+        case .assign(let target, let value):
+            return marker("Assign", [("target", string(OpenUIString(target))), ("value", ast(value))])
         }
-        return encode(protocolASTValue(node))
     }
     func decodeAST(_ js: JSValue) -> ASTNode {
         if call("hasCapture", [js]).toBool() { return .runtimeValue(decode(call("capturedValue", [js]))) }
@@ -615,22 +623,19 @@ extension SharedCore {
     }
     func parseResult(_ js: JSValue) -> ParseResult {
         let meta = js.forProperty("meta")!
-        var parseMeta = ParseMeta(incomplete: meta.forProperty("incomplete").toBool(), unresolved: items(meta.forProperty("unresolved")).map { $0.toString() }, orphaned: items(meta.forProperty("orphaned")).map { $0.toString() }, statementCount: Int(meta.forProperty("statementCount").toInt32()), errors: items(meta.forProperty("errors")).map(error))
-        // Inspect private core metadata before projecting any state defaults or
-        // retaining a lazily decoded root. A rejected graph may itself be too
-        // large to copy through the native bridge.
+        // A rejected graph includes its diagnostics. Read the private failure
+        // before enumerating any of that graph, and project only the registered
+        // bounded budget reason plus primitive terminal metadata.
         if call("nativeBudgetExceeded", [js]).toBool() {
-            parseMeta.incomplete = true
-            if parseMeta.errors.isEmpty {
-                parseMeta.errors = [OpenUIError(source: .parser, code: .parseException,
-                    message: "Native materialization or output budget exceeded.",
-                    hint: "The last valid prefix remains readable but is not executable. Replace or reset this document to resume.")]
-            }
-            var result = ParseResult(root: nil, rootExpression: nil, meta: parseMeta,
+            let terminal = ParseMeta(incomplete: true, unresolved: [], orphaned: [],
+                statementCount: Int(meta.forProperty("statementCount").toInt32()),
+                errors: [error(call("parseBudgetError", [js]))])
+            var result = ParseResult(root: nil, rootExpression: nil, meta: terminal,
                 stateDeclarations: [], queryStatements: [], mutationStatements: [])
-            result.nativeLimitExceeded = true
+            result.nativeFailure = .budget
             return result
         }
+        let parseMeta = ParseMeta(incomplete: meta.forProperty("incomplete").toBool(), unresolved: items(meta.forProperty("unresolved")).map { $0.toString() }, orphaned: items(meta.forProperty("orphaned")).map { $0.toString() }, statementCount: Int(meta.forProperty("statementCount").toInt32()), errors: items(meta.forProperty("errors")).map(error))
         var result = ParseResult(snapshot: CoreParseSnapshot(value: js),
             meta: parseMeta,
             stateDeclarations: entries(js.forProperty("stateDeclarations")).map { ($0.0.displayString, .stateDefault(StateDefault(materialized($0.1)))) },

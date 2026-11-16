@@ -64,3 +64,13 @@ test('MCP rejected extraction does not poison the next bounded result', () => {
   assert.deepEqual(plain(bridge.extract({ structuredContent: { recovered: true } })),
     { value: { recovered: true } });
 });
+
+test('malformed MCP envelopes report extraction errors without escaping the bridge', () => {
+  for (const input of [null, { content: 7 }]) {
+    assert.throws(() => bridge.api.extractToolResult(input), { name: 'TypeError' });
+    const outcome = bridge.extract(input);
+    assert.deepEqual(Object.keys(outcome), ['error']);
+    assert.match(outcome.error, /^Tool result extraction failed: /);
+  }
+  assert.deepEqual(plain(bridge.extract({ structuredContent: 42 })), { value: 42 });
+});

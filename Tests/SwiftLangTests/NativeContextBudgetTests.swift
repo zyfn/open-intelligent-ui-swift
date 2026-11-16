@@ -3,6 +3,9 @@ import XCTest
 @testable import SwiftLang
 
 final class NativeContextBudgetTests: XCTestCase {
+    private struct DescribedError: Error, CustomStringConvertible {
+        let description: String
+    }
     private final class Calls: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0
@@ -110,5 +113,53 @@ final class NativeContextBudgetTests: XCTestCase {
         XCTAssertTrue(normal.evaluate(.runtimeValue(small)).isSameValue(as: small))
         XCTAssertEqual(normal.evaluate(.arr([.runtimeValue(small), .bool(true)])), .array([small, .boolean(true)]))
         XCTAssertFalse(normal.nativeLimitExceeded)
+    }
+
+    func testEscapedCoercionRetiresTheEvaluatorWithoutRelabelingItAsABudgetFailure() {
+        let bad = Value.object([.init(key: "toString", value: .number(1)),
+                                .init(key: "valueOf", value: .number(2))])
+        let calls = Calls(), budget = NativeActionWorkBudget()
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in bad }, resolveRef: { _ in .null },
+            functions: ["Later": CustomFunction(params: [], fn: { _ in calls.record(); return .number(1) })]),
+            schema: LibrarySchema())
+        evaluator.nativeWorkBudget = budget
+        XCTAssertEqual(evaluator.evaluate(.binOp("+", .stateRef("$bad"), .str("x"))), .null)
+        XCTAssertNotNil(evaluator.nativeFailure)
+        XCTAssertFalse(evaluator.nativeLimitExceeded)
+        XCTAssertFalse(budget.exceeded, "An ordinary runtime cause must not poison the numeric budget")
+        XCTAssertEqual(evaluator.errors.count, 1)
+        XCTAssertTrue(evaluator.errors[0].message.hasPrefix("Native execution failed: "))
+        XCTAssertEqual(evaluator.evaluate(call("Later")), .null)
+        XCTAssertEqual(calls.value, 0)
+    }
+
+    func testOversizedNativeErrorDescriptionIsRejectedBeforeJSErrorAllocation() {
+        let failure = DescribedError(description: String(repeating: "e", count: OpenUIRuntimeBudget.maximumSourceUTF16 + 1))
+        let calls = Calls()
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .null }, resolveRef: { _ in .null },
+            functions: [
+                "Fail": CustomFunction(params: [], fn: { _ in throw failure }),
+                "Later": CustomFunction(params: [], fn: { _ in calls.record(); return .number(1) }),
+            ]), schema: LibrarySchema())
+        XCTAssertEqual(evaluator.evaluate(.arr([call("Fail"), call("Later")])), .null)
+        XCTAssertTrue(evaluator.nativeLimitExceeded)
+        XCTAssertEqual(evaluator.errors.count, 1)
+        XCTAssertEqual(evaluator.errors.first?.message, runtimeBudgetError().message)
+        XCTAssertEqual(calls.value, 0)
+    }
+
+    func testRecoverableNativeErrorsShareTheOperationDiagnosticBudget() {
+        let failure = DescribedError(description: String(repeating: "e", count: 500_000))
+        let calls = Calls()
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .null }, resolveRef: { _ in .null },
+            functions: [
+                "Fail": CustomFunction(params: [], fn: { _ in throw failure }),
+                "Later": CustomFunction(params: [], fn: { _ in calls.record(); return .number(1) }),
+            ]), schema: LibrarySchema())
+        XCTAssertEqual(evaluator.evaluate(.arr([call("Fail"), call("Fail"), call("Fail"), call("Later")])), .null)
+        XCTAssertTrue(evaluator.nativeLimitExceeded)
+        XCTAssertEqual(evaluator.errors.count, 3, "Two recoverable diagnostics precede the terminal budget error")
+        XCTAssertEqual(evaluator.errors.last?.message, runtimeBudgetError().message)
+        XCTAssertEqual(calls.value, 0)
     }
 }

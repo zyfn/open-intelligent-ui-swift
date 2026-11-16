@@ -1,6 +1,6 @@
 import { replaceOnce } from './compat.mjs';
 export function readiness(source, kind, path) {
-  const imports = `import {tokenComplete as nativeTokenComplete,tagSyntax as nativeTagSyntax,tagReady as nativeTagReady,sourceComplete as nativeSourceComplete,astComplete as nativeASTComplete,evaluateSource as nativeEvaluateSource,finishEvaluation as nativeFinishEvaluation,finishMaterialization as nativeFinishMaterialization,copyPresentation as nativeCopyPresentation,copyEvaluationSource as nativeCopyEvaluationSource,recordResult as nativeRecordResult,observeQueries as nativeObserveQueries} from ${JSON.stringify(path)};\n`;
+  const imports = `import {tokenComplete as nativeTokenComplete,tagSyntax as nativeTagSyntax,tagReady as nativeTagReady,evaluateSource as nativeEvaluateSource,finishEvaluation as nativeFinishEvaluation,finishMaterialization as nativeFinishMaterialization,copyPresentation as nativeCopyPresentation,copyEvaluationSource as nativeCopyEvaluationSource,recordResult as nativeRecordResult,observeQueries as nativeObserveQueries} from ${JSON.stringify(path)};\n`;
   if (kind === 'lexer') {
     source = replaceOnce(source, 'tokenize(src: string): Token[]', 'tokenize(src: string, sourceLength = src.length, sourceEnded = true): Token[]');
     source = source.replaceAll('tokens.push(', 'nativePush(');

@@ -13,7 +13,9 @@ final class NativePresentationCommit {
     let isInterrupted: Bool
     let isQueryLoading: Bool
     let canExecuteActions: Bool
-    let isRuntimeLimited: Bool
+    // Fatal execution/budget failures retire interaction; ordinary component
+    // diagnostics remain recoverable and do not set this gate.
+    let hasRuntimeFailure: Bool
     let queryStates: [String: QueryState]
     let mutationStates: [String: MutationState]
     let errors: [OpenUIError]
@@ -28,13 +30,13 @@ final class NativePresentationCommit {
     init(root: EvaluatedElement? = nil, presentationRoot: NativeSourceReadiness? = nil,
          sourceRevision: Int = 0, presentationRevision: Int = 0,
          isComplete: Bool = false, isInterrupted: Bool = false, isQueryLoading: Bool = false,
-         canExecuteActions: Bool = false, isRuntimeLimited: Bool = false,
+         canExecuteActions: Bool = false, hasRuntimeFailure: Bool = false,
          queryStates: [String: QueryState] = [:], mutationStates: [String: MutationState] = [:],
          errors: [OpenUIError] = [], storeValues: [OpenUIString: Value] = [:], storeRevision: UInt64 = 0) {
         self.root = root; self.presentationRoot = presentationRoot
         self.sourceRevision = sourceRevision; self.presentationRevision = presentationRevision
         self.isComplete = isComplete; self.isInterrupted = isInterrupted; self.isQueryLoading = isQueryLoading
-        self.canExecuteActions = canExecuteActions; self.isRuntimeLimited = isRuntimeLimited
+        self.canExecuteActions = canExecuteActions; self.hasRuntimeFailure = hasRuntimeFailure
         self.queryStates = queryStates; self.mutationStates = mutationStates; self.errors = errors
         self.storeValues = storeValues; self.storeRevision = storeRevision
     }
@@ -44,7 +46,7 @@ final class NativePresentationCommit {
             && sourceRevision == other.sourceRevision && presentationRevision == other.presentationRevision
             && isComplete == other.isComplete && isInterrupted == other.isInterrupted
             && isQueryLoading == other.isQueryLoading && canExecuteActions == other.canExecuteActions
-            && isRuntimeLimited == other.isRuntimeLimited && storeRevision == other.storeRevision
+            && hasRuntimeFailure == other.hasRuntimeFailure && storeRevision == other.storeRevision
             && nativeQueryStatesEqual(queryStates, other.queryStates)
             && nativeMutationStatesEqual(mutationStates, other.mutationStates)
             && nativePresentationErrorsEqual(errors, other.errors)
@@ -73,7 +75,7 @@ final class NativePresentationCommit {
     }
 
     func isPlanReady(_ plan: ActionPlan) -> Bool {
-        guard !isRuntimeLimited else { return false }
+        guard !hasRuntimeFailure else { return false }
         return nativeActionPlanIsReady(plan, canExecuteActions: canExecuteActions,
             stateValue: { self.storeValues[OpenUIString($0)] },
             queryData: { self.queryStates[$0]?.data },
@@ -117,6 +119,18 @@ func nativeUnwrappedFieldValue(form: OpenUIString?, name: OpenUIString,
 
 /// One readiness rule for live action validation and committed UI reads.
 /// The caller supplies values from the appropriate ownership boundary.
+func nativeElementActionsAreReady(_ element: EvaluatedElement, planIsReady: (ActionPlan) -> Bool) -> Bool {
+    func ready(_ value: Value) -> Bool {
+        switch value {
+        case .actionPlan(let plan): return planIsReady(plan)
+        case .array(let values): return values.allSatisfy(ready)
+        case .object(let fields): return fields.allSatisfy { ready($0.value) }
+        default: return true
+        }
+    }
+    return element.props.allSatisfy { ready($0.1) }
+}
+
 func nativeActionPlanIsReady(_ plan: ActionPlan, canExecuteActions: Bool,
                              stateValue: (String) -> Value?, queryData: (String) -> Value?,
                              mutationStatus: (String) -> QueryStatus?) -> Bool {
@@ -148,20 +162,5 @@ func nativeActionPlanIsReady(_ plan: ActionPlan, canExecuteActions: Bool,
         case .custom(_, let args): return args.allSatisfy { ready($0.1) }
         case .run: return canExecuteActions
         }
-    }
-}
-
-private func nativePresentationErrorsEqual(_ lhs: [OpenUIError], _ rhs: [OpenUIError]) -> Bool {
-    func same(_ a: String?, _ b: String?) -> Bool {
-        switch (a, b) {
-        case (.none, .none): return true
-        case (.some(let a), .some(let b)): return a.utf16.elementsEqual(b.utf16)
-        default: return false
-        }
-    }
-    return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { a, b in
-        a.source == b.source && a.code == b.code && same(a.message, b.message)
-            && same(a.statementId, b.statementId) && same(a.component, b.component)
-            && a.path == b.path && a.toolName == b.toolName && same(a.hint, b.hint) && same(a.severity, b.severity)
     }
 }

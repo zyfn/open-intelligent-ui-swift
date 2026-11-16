@@ -44,27 +44,40 @@ final class ComponentRenderInputTests: XCTestCase {
         XCTAssertFalse(nativePresentationInputsEqual(element(.binding("$field")), element(.binding("$field"))))
     }
 
-    @MainActor func testTextChunksDoNotBroadcastAuxiliaryStateButLateDefaultsAndEditsDo() {
+    @MainActor func testUnchangedFieldReaderIgnoresTextButReceivesLateDefaultsEditsAndLifecycle() throws {
         let schema = LibrarySchema(components: ["Probe": [ParamDef(name: "value", required: true)]],
                                    callDefs: builtinCallDefs)
         let state = OpenUIState(schema: schema)
         defer { state.reset() }
-        state.push("root=Probe(\"")
+        state.push("root=Probe(\"stable\")\nnote=Probe(\"")
+        let node = NativeComponentSubscription()
+        func readField(_ name: OpenUIString) throws {
+            let element = try XCTUnwrap(state.root)
+            let (presentation, reads) = node.begin(element: element, state: state)
+            let context = OpenUIComponentContext(element: element, registry: [:], state: state,
+                values: OpenUIContextValues(), resources: [:], nativePresentation: presentation, readScope: reads)
+            XCTAssertEqual(context.fieldValue(name), .null)
+        }
+        try readField("$late")
         var changes = 0
-        let subscription = state.componentUpdates.objectWillChange.sink { changes += 1 }
+        let subscription = node.objectWillChange.sink { changes += 1 }
         defer { subscription.cancel() }
-        for chunk in ["SHANGHAI", " → ", "SUZHOU", "\")\n"] { state.push(chunk) }
+        for chunk in ["SHANGHAI", " → ", "SUZHOU"] { state.push(chunk) }
         XCTAssertEqual(changes, 0)
+        state.push("\")\n")
+        XCTAssertEqual(changes, 1, "Closing the pending declaration changes the root's visible partial flag")
         state.push("$late=\"first\"\n")
-        XCTAssertEqual(changes, 1, "A State default arriving in the stream must notify field readers")
+        XCTAssertEqual(changes, 2, "A State default arriving in the stream must notify field readers")
         state.setState("$late", value: .string("edited"))
-        XCTAssertEqual(changes, 2)
-        state.complete()
         XCTAssertEqual(changes, 3)
-        state.reset()
+        state.complete()
         XCTAssertEqual(changes, 4)
-        state.push("root=Probe(\"new\")\n$new=1\n")
-        XCTAssertEqual(changes, 5, "The replacement Store must have its own live subscription")
+        state.reset()
+        XCTAssertEqual(changes, 5)
+        state.push("root=Probe(\"new\")\n")
+        try readField("$new")
+        state.push("$new=1\n")
+        XCTAssertEqual(changes, 6, "The replacement Store must have its own live subscription")
     }
 
     func testAuxiliaryQueryComparisonKeepsMissingDataAndErrorChangesObservable() {

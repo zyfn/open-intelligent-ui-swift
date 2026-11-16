@@ -37,6 +37,15 @@ func parseMessageContent(_ text: String, streaming: Bool = false, protectedPrefi
     }
 }
 
+/// Ordinary Lang, including marker text inside comments and strings, is kept
+/// intact. Only a confirmed transport frame selects content from the message.
+func selectLangMessageContent(_ text: String) -> String {
+    var probe = MessageProbe()
+    probe.append(text)
+    guard let prefix = probe.protectedPrefix(complete: true) else { return text }
+    return parseMessageContent(text, protectedPrefix: prefix)
+}
+
 /// Locates the transport boundary before invoking the shared message parser.
 /// Only the raw prefix is protected by Lang's quote/comment delimiters; after
 /// the first real frame, the protocol owns retries, including truncated quotes.

@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.7 · 更新日期：2026-11-16
+文档版本：1.8 · 更新日期：2026-11-16
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -85,7 +85,8 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 
 - ProtocolTypes、OpenUIString、ReferenceValues、ValueConversion、JSSemantics：公开数据契约、顺序、UTF-16、引用身份与类型投影。
 - SharedCore、LibraryBridge：串行 JavaScriptCore 环境、JS 对象/回调、资源加载与 authoring 传输。
-- API、Lexer、Parser、StreamingParser、Evaluator、Store、Library、Prompt、Serialize、Merge、Message、Forms、MCP：对内核实现的类型化调用。
+- Parser、StreamingParser：批量与增量入口，各自的公开工厂与实现在同一文件；Message 只负责传输帧选择，普通 Lang 不进入选帧分支。原始输入与选中内容分别检查，流式适配只保留原始输入、增量包络及是否需要恢复全文的标志。
+- Lexer、Evaluator、Store、Library、Prompt、Serialize、Merge、Forms、MCP：对内核实现的类型化调用。运行主线的错误与预算沿所属入口交付；低层工具保留各自公开返回合同，其覆盖边界见验证说明，不将所有公开 helper 都描述为受限执行事务。
 - QueryManager、Actions：Swift async 工具、取消与原生动作步骤执行；依赖调度与状态语义由内核管理器负责。
 - NativeSourceReadiness：源数据闭合、依赖、数组位置和占位提示；不进入 Lang 值、AST 字段或持久化协议。
 - RuntimeLimits、RegExp：原生输入、深度和正则执行预算。
@@ -105,6 +106,19 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 
 每份文档拥有独立的 parser、Store、查询和 revision/epoch。共享代码及 JS 执行环境不代表共享用户状态。旧文档回调、工具结果和资源结果不得写回替换后的文档。
 
+读代码时按数据所有权跟踪，不把不同用途的对象都当作“状态缓存”：
+
+| 数据 | 唯一所有者 | 交接边界 |
+| --- | --- | --- |
+| 原始输入与解析进度 | 该文档的 parser / State 输入入口 | 按到达顺序同步处理；只有真实消息帧才能选择 content |
+| 可写业务值与 pristine | 内核 Store | 写入先验最终候选；原生规模账本必须反映实际接受的 Store 值 |
+| Query 依赖、请求与结果 | 内核 QueryManager 及其原生 Task 适配 | 派发和返回都检查当前请求身份；退休先结束等待，再取消 Task |
+| 一次完整的 UI 读取 | NativePresentationCommit | 同步工作及重入队列稳定后交付；只能读取，不能反向覆盖 Store |
+| 挂载节点的读取依赖 | NativeComponentSubscription | 每次 render 建立独立作用域，旧作用域不能登记到新 render |
+| 资源请求及解码结果 | 请求 Store / 媒体 cache 各自的 owner | 缓存命中和 await 返回都复核取消、generation 与鉴权作用域 |
+
+输入入口负责顺序，执行入口负责值与副作用，呈现入口负责完整快照，组件入口负责实际依赖。任何优化先说明改变哪一条交接边界；没有所有权或失效条件的缓存、revision、广播不进入主线。
+
 ### 求值、发布与外部副作用
 
 `OpenUIState` 最外层同步调用在返回前排空本次重入请求。宿主在同步发布回调中再次调用换源、reset 或状态写入时，重入调用先入队，等当前 setter 完成后顺序执行，防止 `@Published` 的旧赋值覆盖新文档。过期轮次不能继续派发工具或投递解析回调；组件捕获的 revision 在实际执行排队写入时再次验证。这个短队列只处理同步重入，不是分块节流器，也不使解析后台化；宿主不得在每次状态通知中无条件再写入同一状态，队列不替代回声循环的终止条件。
@@ -123,6 +137,22 @@ Query 依赖排序由内核管理器拥有。原生首次同步 Query 批次先�
 
 两套库始终使用同一个 OpenUILibrary、OpenUIState、OpenUIView、ActionEvent 和组件 Context。产品特有主题、服务和呈现参数使用 OpenUI / OpenIntelligentUI 前缀；不再提供产品专属 State/Event 别名或旧工厂转发入口。
 
+### 失败与正常诊断的区别
+
+执行失败只在所属 parser / evaluator / QueryManager / 文档保存一次原因，以内部 `NativeExecutionFailure` 交接。没有共享 JS realm 的全局“最后错误”，也不靠把所有错误都叫作预算耗尽来阻断后续动作。
+
+| 结果 | 后续行为 |
+| --- | --- |
+| 正常值 | 按原顺序更新业务值、回调和呈现 |
+| 内核已处理的可恢复表达式 / prop 诊断 | 保留官方诊断及替代值语义，例如自定义函数正常抛错后该 prop 为 null；不能一律退休整份文档 |
+| 工具业务失败或不存在 | 沿原有 Query / Mutation 错误合同报告；失败的 Mutation 结束其动作计划，不因此退休无关的整份文档 |
+| 输入、工作或输出超限 | `.budget` 停止本轮；公开 `nativeLimitExceeded` 为 true |
+| 逃出正式运行入口的异常 | `.runtime(OpenUIError)` 停止本轮；明确报告实际运行错误，`nativeLimitExceeded` 仍为 false |
+
+两类停止都关闭后续副作用和控件写入，结束所属等待，保留已经接受的 Store 值及最后有效呈现；不伪装成已回滚已完成步骤。替换或 reset 建立新一轮。初始 Query 批次与异步 reader 重算使用同一失败通道，不能只保护第一次调用。动作表达式失败在写 Store、投递事件及执行下一步之前被检查；普通异常不能被 `undefined` 或 `null` 的桥接返回值掩盖。
+
+运行期错误文本与诊断输出也属于预算边界。宿主自身产生错误描述或执行自定义函数的计算无法被 SDK 抢占；进入 JS/native 投影的负载仍应在所属入口检查。公开 `ActionRuntimeContext.evaluate` 是宿主提供的闭包，其自定义返回值和 `isActive` 语义仍由宿主负责，不能从任意闭包返回的 null 反推出失败。
+
 ### 现有入口的性能边界与后续验证
 
 readiness 与 root 由同一次公开 root 发布交付；Query、Mutation、错误和完成状态保留各自现有通知。公开 `$root`、`@Published` 的 willSet 读取语义、逐步 Store 可见性及业务回调顺序均保留。当前仍为 MainActor 同步求值，公开通知没有改成一个新的客户端事务 API。
@@ -131,7 +161,7 @@ readiness 与 root 由同一次公开 root 发布交付；Query、Mutation、错
 
 渲染入口保留公开的 `EnvironmentObject` 解析：每个 `OpenUIComponentHost` 使用离自身最近的 State，允许宿主在嵌套内容中切换文档。轻量 Host 仍接收共享 State 广播，先经过内部输入边界，再做 live lookup、readiness 和 Context 构造；`RenderNode` 也在调用注册 builder 前比较输入。比较检查组件类型、声明身份、partial、完整 readiness 和属性，标量遵守 SameValue，引用属性按原生引用身份判断，不递归比较整棵业务树，不复用或改写 Lang 物化对象。注册表及直接 Host 闭包有内部身份，父级环境、注册闭包及最近 State 的变化仍须到达组件；身份不作为新的视图 `.id`，避免因此重挂载。
 
-每个挂载内容边界持有自己的 `NativeComponentSubscription`，协调器只弱引用它。读作用域记录实际读取的表单字段和 Binding 目标；同一次提交只在该节点的呈现输入或已读取值变化时通知它。旧 render 的迟到读取不能把依赖登记到新 render，切换最近 State 时解除旧注册。Store、Query/Mutation、完成/中断、执行资格及文档 revision 变化仍独立影响 readiness；Query/Mutation 比较保留状态、错误全部字段及数据引用/标量的区别。分发仍需检查已挂载订阅，不承诺消除所有 O(组件数) 工作。ActionSurface、原生字段和 EditableTable 的独立挂载合同保留原有观察及草稿生命周期。
+每个挂载内容边界持有自己的 `NativeComponentSubscription`，协调器只弱引用它，逐节点发送变化，不再额外发布无人消费的整组广播。读作用域本身就是本次 render 的身份，不再叠加一个仅用于比较的节点 revision；手工构造的 unscoped Context 仍使用原有失效 token。读作用域记录实际读取的表单字段和 Binding 目标；同一次提交只在该节点的呈现输入或已读取值变化时通知它。旧 render 的迟到读取不能把依赖登记到新 render，切换最近 State 时解除旧注册。Store、Query/Mutation、完成/中断、执行资格及文档 revision 变化仍独立影响 readiness；Query/Mutation 比较保留状态、错误全部字段及数据引用/标量的区别。完全相同的已完成 commit 可跳过分发，新挂载节点自行读取当前 commit；发生真实变化时仍需检查已挂载订阅，不承诺消除所有 O(组件数) 工作。ActionSurface、原生字段和 EditableTable 的独立挂载合同保留原有观察及草稿生命周期。
 
 Context 的 element 和状态标志是构造时快照；字段与 Binding getter 保留动态读取行为，每次从最新的完整原生提交取值，不读正在提交的 Store。长期持有一个 Context 不等于冻结整个文档。`canInteract`、动作和写入继续在执行时检查当前文档、目标 membership 与 readiness，过期控件不能因旧只读快照仍可交互。若宿主在公开 setter 回调中强制拟合，旧内容仍可显示，而依赖 `canInteract` 的控件/链接可先被安全禁用；不承诺所有交互 gate 与旧显示快照同时切换。公开手工构造的 Context 和 Host 状态读写保留原有即时读取合同；内部只读呈现不是第二个可写 Store，也不新增客户端观察 API。
 

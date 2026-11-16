@@ -72,6 +72,7 @@ final class CoreStore: Store {
     public func set(_ name: OpenUIString, value: Value, pristine: Bool) { core.sync {
         let measured = cost(value)
         guard !ledger.rejects(name, cost: measured) else { rejectedMutation = true; return }
+        let previous = ledger.fields[name]
         let encoded = core.encode(value)
         // Commit accounting before JS notifies subscribers. A reentrant write
         // must see this accepted write's cost, just as it sees its Store value.
@@ -83,7 +84,13 @@ final class CoreStore: Store {
             ledger.replace(name, cost: measured, pristine: pristine)
         }
         rejectedMutation = false
-        _ = store.invokeMethod("set", withArguments: [core.string(name), encoded, ["pristine": pristine]])
+        let changed = core.call("storeSet", [store, core.string(name), encoded, pristine])
+        if changed.isBoolean, !changed.toBool(), let previous {
+            // A real no-op did not notify, so no subscriber can have replaced
+            // this ledger reentrantly. Keep the stored value's cost; set still
+            // changes pristine even when upstream retains the old identity.
+            ledger.replace(name, cost: previous.cost, pristine: pristine)
+        }
     } }
     public func initialize(defaults: [(String, Materialized)], persisted: [OpenUIString: Value]) { core.sync {
         // Preflight the entire input before materializing or encoding it, even

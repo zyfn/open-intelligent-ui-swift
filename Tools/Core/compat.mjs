@@ -130,7 +130,7 @@ function nativeMaterializeExpr(node:ASTNode,ctx:MaterializeCtx,scopedRefs:Readon
 // query scheduling still come from the pinned core. Exhaustion is a private
 // signal, caught before a native bridge call or asynchronous reader returns.
 export function evaluationBudget(source, kind, path) {
-  const imports = `import {budgetFrame as nativeBudgetFrame,enterBudget as nativeEnterBudget,leaveBudget as nativeLeaveBudget,reserveWork as nativeReserveWork,budgetBuiltin as nativeBudgetBuiltin,budgetLiteral as nativeBudgetLiteral,budgetConcat as nativeBudgetConcat,budgetInput as nativeBudgetInput,budgetString as nativeBudgetString,budgetEqual as nativeBudgetEqual,isNativeBudgetError,hasActiveBudget as nativeHasBudget,runBudget as nativeRunBudget,nativeBudgetExceeded,markBudgetExceeded as nativeMarkBudgetExceeded,materializationEvaluation as nativeMaterializationEvaluation} from ${JSON.stringify(path)};\n`;
+  const imports = `import {budgetFrame as nativeBudgetFrame,enterBudget as nativeEnterBudget,leaveBudget as nativeLeaveBudget,reserveWork as nativeReserveWork,budgetBuiltin as nativeBudgetBuiltin,budgetLiteral as nativeBudgetLiteral,budgetConcat as nativeBudgetConcat,budgetInput as nativeBudgetInput,budgetString as nativeBudgetString,budgetEqual as nativeBudgetEqual,budgetDiagnostic as nativeBudgetDiagnostic,isNativeBudgetError,hasActiveBudget as nativeHasBudget,runBudget as nativeRunBudget,nativeBudgetExceeded,markBudgetExceeded as nativeMarkBudgetExceeded,materializationEvaluation as nativeMaterializationEvaluation,nativeExecutionFailure} from ${JSON.stringify(path)};\n`;
   if (kind === 'lexer') {
     // Raw source size is checked before the merge enters the lexer. One charge
     // per outer iteration bounds token allocation and otherwise ignored input;
@@ -252,6 +252,12 @@ function nativeBudgetEvaluate(node:ASTNode,context:EvaluationContext,schemaCtx?:
     source = replaceOnce(source, '  const ctx = { errors: [], partial: false } as unknown as MaterializeCtx;', '  nativeBudgetInput(value);\n  const ctx = { errors: [], partial: false } as unknown as MaterializeCtx;');
     source = replaceOnce(source, '  } catch (e) {\n    context.reportError?', '  } catch (e) {\n    if (isNativeBudgetError(e)) throw e;\n    context.reportError?');
   } else if (kind === 'evaluate-tree') {
+    source = replaceOnce(source, '\n    evalCtx.errors?.push({', '\n    evalCtx.errors?.push(nativeBudgetDiagnostic({');
+    source = replaceOnce(source, '      hint: `Check the expression used for prop "${key}"`,\n    });',
+      '      hint: `Check the expression used for prop "${key}"`,\n    }));');
+    source = replaceOnce(source, '\n  evalCtx.errors?.push({', '\n  evalCtx.errors?.push(nativeBudgetDiagnostic({');
+    source = replaceOnce(source, '    message: "root does not evaluate to a component",\n  });',
+      '    message: "root does not evaluate to a component",\n  }));');
     source = replaceOnce(source, 'export function evaluateElementProps(el: ElementNode, evalCtx: EvalContext): ElementNode {', `export function evaluateElementProps(el: ElementNode, evalCtx: EvalContext): ElementNode {
   return nativeBudgetFrame(()=>nativeBudgetElementProps(el,evalCtx),evalCtx.ctx);
 }
@@ -404,8 +410,8 @@ function nativeBudgetElementProps(el: ElementNode, evalCtx: EvalContext): Elemen
 }
 function nativeBudgetQueryNode(statement:QueryStatementInfo,context:EvaluationContext,extraDeps?: (toolName:string)=>Record<string,unknown>|undefined):QueryNode {
   const toolName`);
-    source = replaceOnce(source, '  let disposed = false;', '  let disposed = false;\n  let nativeReportLimit: (()=>void) | undefined;');
-    source = replaceOnce(source, '    statements = next;', '    statements = next;\n    nativeReportLimit=()=> (context as EvaluationContext & {reportNativeLimit?:()=>void}).reportNativeLimit?.();');
+    source = replaceOnce(source, '  let disposed = false;', '  let disposed = false;\n  let nativeReportLimit: (()=>void) | undefined;\n  let nativeReportFailure: ((error:unknown)=>void) | undefined;');
+    source = replaceOnce(source, '    statements = next;', '    statements = next;\n    nativeReportLimit=()=> (context as EvaluationContext & {reportNativeLimit?:()=>void}).reportNativeLimit?.();\n    nativeReportFailure=error=> (context as EvaluationContext & {reportNativeFailure?:(error:unknown)=>void}).reportNativeFailure?.(error);');
     source = replaceOnce(source, '    applyNodes(next.map(buildNode));', `    const nativeNodes=nativeBuildNodes(()=>next.map(statement=>{
       const node=buildNode(statement); nativeReserveWork(); return node;
     }));
@@ -418,9 +424,17 @@ function nativeBudgetQueryNode(statement:QueryStatementInfo,context:EvaluationCo
       if (!nativeNodes) return;
       applyNodes(nativeNodes);`);
     source = replaceOnce(source, '  function applyNodes(queryNodes: QueryNode[]) {', `  function nativeBuildNodes(build:()=>QueryNode[]):QueryNode[]|null {
-    const outcome=nativeRunBudget(build);
-    if (outcome.limitExceeded) { nativeReportLimit?.(); dispose(); return null; }
-    return outcome.value;
+    try {
+      const outcome=nativeRunBudget(build);
+      if (outcome.limitExceeded) { nativeReportLimit?.(); dispose(); return null; }
+      return outcome.value;
+    } catch (error) {
+      const failure=nativeExecutionFailure(error);
+      if ('error' in failure) nativeReportFailure?.(failure.error);
+      else nativeReportLimit?.();
+      dispose();
+      return null;
+    }
   }
 
   function applyNodes(queryNodes: QueryNode[]) {`);

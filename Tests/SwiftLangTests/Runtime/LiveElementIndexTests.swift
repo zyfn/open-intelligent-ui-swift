@@ -64,7 +64,7 @@ final class LiveElementIndexTests: XCTestCase {
     XCTAssertFalse(index.contains(older), "Equal props and statement ID do not prove current membership")
     assertIdentities(index.candidates(for: older), [current, ready],
       file: #filePath, line: #line)
-    index.removeAll(keepingCapacity: true)
+    index.replaceRoot(nil)
     XCTAssertFalse(index.contains(current))
     XCTAssertFalse(index.contains(ready))
     index.replaceRoot(older)
@@ -81,7 +81,7 @@ final class LiveElementIndexTests: XCTestCase {
     assertIdentities(index.candidates(for: composed), [composed, decomposed])
   }
 
-  func testClearReleasesCandidatesEvenWhenKeepingDictionaryCapacity() {
+  func testClearingTheRootReleasesCandidates() {
     var index = NativeLiveElementIndex()
     weak var retained: EvaluatedElement?
     do {
@@ -90,7 +90,7 @@ final class LiveElementIndexTests: XCTestCase {
       index.replaceRoot(value)
     }
     XCTAssertNotNil(retained)
-    index.removeAll(keepingCapacity: true)
+    index.replaceRoot(nil)
     XCTAssertNil(retained)
     XCTAssertTrue(index.candidates(for: element("TextContent", "old")).isEmpty)
     let replacement = element("TextContent", "old")

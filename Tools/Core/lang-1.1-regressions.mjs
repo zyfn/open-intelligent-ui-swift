@@ -261,9 +261,13 @@ export async function verifyLang111({official, native, bridge, schema, digest}) 
       assert.equal(name,'host-record','Opaque captures must be resolved inside the native bridge');
       return hostRecord;
     }};
-    const evaluate = () => core === native
-      ? bridge.evaluateQueryStatements(manager, statements, ctx)
-      : manager.evaluateStatements(statements, ctx);
+    const evaluate = () => {
+      if (core === native) {
+        const outcome = bridge.boundedQueryStatements(manager, statements, ctx);
+        assert.equal(outcome.limitExceeded, false);
+        assert.equal(outcome.error, undefined);
+      } else manager.evaluateStatements(statements, ctx);
+    };
     try {
       evaluate();
       await settle();

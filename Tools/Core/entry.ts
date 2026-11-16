@@ -1,8 +1,8 @@
 import { capture, hasCapture, capturedValue, nativePlan, isNativePlan, isRuntimePlan, evaluationContext } from './captures';
 export { capture, hasCapture, capturedValue, nativePlan, isRuntimePlan };
-import { runBudget, nativeBudgetLimits, nativeInputFailure, reserveWork } from './budget';
+import { runBudget, nativeExecution, nativeBudgetLimits, nativeInputFailure, reserveWork } from './budget';
 import { sourceEvaluation, sourceComplete, sourcePresentation, sourceChildSnapshot } from './readiness';
-export { nativeBudgetExceeded, nativeInputFailure } from './budget';
+export { nativeBudgetExceeded, nativeInputFailure, parseBudgetError } from './budget';
 export { sourceComplete, sourcePresentation, sourcePresentationDefaults, sourceChildSnapshot, tagNativeSource, currentSourceSnapshot } from './readiness';
 import * as core from '@openui/core-source';
 import { nativeParseMessage } from '@openui/core-source/message';
@@ -64,9 +64,16 @@ export function storeRead(store: any, name: string): { found: boolean, value?: u
   return Object.prototype.hasOwnProperty.call(store.getSnapshot(), name)
     ? { found: true, value: store.get(name) } : { found: false };
 }
+// The official Store owns its shallow no-op rule. Snapshot identity tells the
+// native cost ledger whether the write was accepted, including reentrant writes
+// made by subscribers, without copying that rule or projecting the Store.
+export function storeSet(store: any, name: string, value: unknown, pristine: boolean): boolean {
+  const previous = store.getSnapshot();
+  store.set(name, value, { pristine });
+  return store.getSnapshot() !== previous;
+}
 export const boundedEvaluate = (node: any, ctx: any, lib: any, maximumWork?: number) =>
-  sourceEvaluation(() => runBudget(() => core.evaluate(node, evaluationContext(ctx), { library: lib }), maximumWork));
-export const evaluate = (node: any, ctx: any, lib: any) => boundedEvaluate(node, ctx, lib).value;
+  nativeExecution(() => sourceEvaluation(() => runBudget(() => core.evaluate(node, evaluationContext(ctx), { library: lib }), maximumWork)));
 export const boundedRoot = (
   result: any,
   ctx: any,
@@ -74,9 +81,7 @@ export const boundedRoot = (
   store: any,
   errors: any[],
   maximumWork?: number,
-) => sourceEvaluation(() => runBudget(() => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors }), maximumWork));
-export const root = (result: any, ctx: any, lib: any, store: any, errors: any[]) =>
-  boundedRoot(result, ctx, lib, store, errors).value;
+) => nativeExecution(() => sourceEvaluation(() => runBudget(() => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors }), maximumWork)));
 // Invalid rule data must not leave an uncaught exception in the shared realm.
 // Normal validation, unknown-rule leniency and first-error order stay upstream.
 export function validate(value: unknown, rules: any[]): string | undefined {
@@ -87,12 +92,10 @@ export const numberText = (value: number) => String(value);
 export const truth = (value: any) => !!value;
 export const equal = (a: any, b: any) => a == b;
 export const queryManager = core.createQueryManager;
-export const evaluateQueryStatements = (manager: any, statements: any, ctx: any) =>
-  manager.evaluateStatements(statements, evaluationContext(ctx));
 export const boundedQueryStatements = (manager: any, statements: any, ctx: any, maximumWork?: number) =>
-  runBudget(() => { manager.evaluateStatements(statements, evaluationContext(ctx)); return null; }, maximumWork);
+  nativeExecution(() => runBudget(() => { manager.evaluateStatements(statements, evaluationContext(ctx)); return null; }, maximumWork));
 export const boundedQueryInvalidation = (manager: any, statementId: string, maximumWork?: number) =>
-  runBudget(() => { manager.invalidate([statementId]); return null; }, maximumWork);
+  nativeExecution(() => runBudget(() => { manager.invalidate([statementId]); return null; }, maximumWork));
 export const promise = (start: (resolve: any, reject: any) => void) =>
   new Promise(start);
 export const error = (message: string) => new Error(message);
@@ -132,7 +135,7 @@ export function extract(result: any) {
   } catch (error) {
     if (error instanceof core.McpToolError)
       return { error: error.toolErrorText };
-    throw error;
+    return { error: `Tool result extraction failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 import { toLiteralAST } from '@openui/core-source/parser/ast';

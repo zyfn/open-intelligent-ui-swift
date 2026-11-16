@@ -102,7 +102,8 @@ func protocolMaterializedValue(_ value: Materialized) -> Value {
     case .expr(let ast): return protocolASTValue(ast)
     case .array(let values): return .array(values.map(protocolMaterializedValue))
     case .object(let pairs): return .object(pairs.map { ObjectField(key: $0.0, value: protocolMaterializedValue($0.1)) })
-    default: return materializedToPlain(value) ?? .null
+    case .value(let value): return value
+    case .null: return .null
     }
 }
 
@@ -110,6 +111,3 @@ func jsonStringify(_ value: JSONValue) -> String {
     let core = SharedCore.shared
     return core.sync { core.stringifyJSON(core.json(value)) }
 }
-
-/// Swift String equality normalizes Unicode; JavaScript compares UTF-16 units.
-func jsStringEqual(_ a: String, _ b: String) -> Bool { a.utf16.elementsEqual(b.utf16) }

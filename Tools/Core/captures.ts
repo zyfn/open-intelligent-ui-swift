@@ -1,6 +1,8 @@
 // Private opaque references exist only at the native bridge boundary. The
 // upstream evaluator resolves them through its ordinary context callback.
 // Model data cannot construct a token, and no string name is reserved.
+import { budgetDiagnostic } from './budget';
+
 const values = new WeakMap<object, unknown>();
 export function capture(value: unknown): any {
   const token = Object.freeze({});
@@ -16,6 +18,11 @@ export function capturedValue(node: any): unknown {
 export function evaluationContext(context: any): any {
   return {
     ...context,
+    reportError: context.reportError && ((message: string) => {
+      // Swift stores an OpenUIError, so charge its fields as well as its text.
+      budgetDiagnostic({ source: 'runtime', code: 'runtime-error', message });
+      return context.reportError(message);
+    }),
     resolveRef(name: any) {
       if (typeof name === 'object' && name !== null && values.has(name)) return values.get(name);
       return context.resolveRef(name);

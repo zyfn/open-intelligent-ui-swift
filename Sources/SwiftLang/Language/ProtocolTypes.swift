@@ -9,7 +9,7 @@ import Foundation
 
 /// An object field. Struct (not tuple) so Value can be Equatable.
 public struct ObjectField: Equatable, Sendable {
-    public static func == (lhs: Self, rhs: Self) -> Bool { jsStringEqual(lhs.key, rhs.key) && lhs.value == rhs.value }
+    public static func == (lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key && lhs.value == rhs.value }
     public var key: OpenUIString
     public var value: Value
     @_disfavoredOverload public init<S: StringProtocol>(key: S, value: Value) { self.init(key: OpenUIString(String(key)), value: value) }
@@ -41,7 +41,7 @@ public indirect enum Value: Sendable {
 extension Value: Equatable {
     public static func == (lhs: Value, rhs: Value) -> Bool {
         switch (lhs, rhs) {
-        case (.string(let a), .string(let b)): return jsStringEqual(a, b)
+        case (.string(let a), .string(let b)): return a == b
         case (.number(let a), .number(let b)): return a == b || (a.isNaN && b.isNaN)
         case (.boolean(let a), .boolean(let b)): return a == b
         case (.null, .null), (.undefined, .undefined): return true
@@ -323,9 +323,10 @@ public struct MutationStatementInfo: Sendable {
 }
 
 public struct ParseResult: Sendable {
-    /// Native adapter guard only; not part of the shared wire format. A
-    /// preserved root after a limit failure is display-only, never executable.
-    public internal(set) var nativeLimitExceeded = false
+    /// Native adapter budget status only; not part of the shared wire format.
+    /// Other fatal execution errors are reported through the existing errors.
+    public var nativeLimitExceeded: Bool { nativeFailure?.isBudget == true }
+    var nativeFailure: NativeExecutionFailure?
     private var nativeRoot: ElementNode?
     private var nativeExpression: ASTNode?
     private var rootOverridden: Bool
@@ -484,8 +485,7 @@ public func parseJSONPreservingOrder(_ text: OpenUIString) throws -> JSONValue {
 extension JSONValue {
     /// Object field lookup.
     @_disfavoredOverload public func field(_ key: String) -> JSONValue? {
-        guard case .object(let fields) = self else { return nil }
-        return fields.last(where: { jsStringEqual($0.key, key) })?.value
+        field(OpenUIString(key))
     }
     public func field(_ key: OpenUIString) -> JSONValue? {
         guard case .object(let fields) = self else { return nil }
@@ -626,7 +626,7 @@ public struct EvaluationContext: Sendable {
 
 // MARK: - Public API contracts
 //
-// Implemented in API.swift / StreamingParser.swift. Declared here so the
+// Implemented in Parser.swift / StreamingParser.swift. Declared here so the
 // fixture harness and other modules can rely on exact signatures.
 
 public protocol Parser: AnyObject {

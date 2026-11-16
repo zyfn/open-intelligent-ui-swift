@@ -45,6 +45,23 @@ final class NativeComponentSubscriptionTests: XCTestCase {
         XCTAssertEqual(rightContext.fieldBinding("right").wrappedValue, .string("right changed"))
     }
 
+    @MainActor func testNoOpReplayKeepsANewlyMountedFieldDependency() throws {
+        let state = makeState()
+        defer { state.reset() }
+        let subscription = NativeComponentSubscription(), context = try makeContext(subscription, state: state)
+        XCTAssertEqual(context.fieldValue("field"), .null)
+        var changes = 0
+        let sink = subscription.objectWillChange.sink { changes += 1 }
+        defer { sink.cancel() }
+
+        state.setSource("root=Probe(\"stable\")")
+        state.push("")
+        XCTAssertEqual(changes, 0)
+        state.setFieldValue(form: nil, name: "field", value: .string("observed"))
+        XCTAssertEqual(changes, 1)
+        XCTAssertEqual(context.fieldValue("field"), .string("observed"))
+    }
+
     @MainActor func testMissingFieldAndExplicitUndefinedKeepDistinctFallbackBehavior() throws {
         let state = makeState()
         defer { state.reset() }

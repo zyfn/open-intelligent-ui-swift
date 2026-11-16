@@ -81,12 +81,14 @@ import CoreGraphics
   package func resource(_ key: NativeResourceRequestID, loader: any OpenUIResourceLoading,
                 targetPixelSize: Int? = nil) async throws -> Entry {
     try Task.checkCancellation()
+    guard key.loader == ObjectIdentifier(loader),
+      openUIResourceScopeIsCurrent(loader, authorizationScope: key.authorizationScope) else { throw CancellationError() }
     let target = Self.effectivePixelSize(targetPixelSize, limits: loader.resourceLimits)
     if let value = entries[key], value.satisfies(target) { return value }
     guard let request = key.request else { throw URLError(.badURL) }
     let decodeKey = DecodeKey(resource: key, pixelSize: target)
     let waiterID = UUID(), epoch = generation
-    let scope = loader.authorizationScopeID
+    let scope = key.authorizationScope
     let entry: Entry = try await withTaskCancellationHandler(operation: {
       try await withCheckedThrowingContinuation { continuation in
         guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
@@ -99,7 +101,7 @@ import CoreGraphics
           do {
             let value = try await Self.load(request, loader: loader, targetPixelSize: target)
             try Task.checkCancellation()
-            guard loader.authorizationScopeID == scope else { throw CancellationError() }
+            guard openUIResourceScopeIsCurrent(loader, authorizationScope: scope) else { throw CancellationError() }
             result = .success(value)
           } catch { result = .failure(error) }
           self?.finish(decodeKey, id: id, epoch: epoch, result: result)
@@ -111,7 +113,8 @@ import CoreGraphics
     // Cancellation can race completion before the actor processes onCancel.
     // Check the subscriber task, not only the shared transport task.
     try Task.checkCancellation()
-    guard generation == epoch, loader.authorizationScopeID == scope else { throw CancellationError() }
+    guard generation == epoch,
+      openUIResourceScopeIsCurrent(loader, authorizationScope: scope) else { throw CancellationError() }
     return entry
   }
   private func cancelWaiter(_ key: DecodeKey, id: UUID) {
@@ -141,7 +144,7 @@ import CoreGraphics
     let data = try await loader.data(for: request)
     try Task.checkCancellation()
     let entry = try await prepare(data, loader: loader, targetPixelSize: targetPixelSize)
-    guard loader.authorizationScopeID == scope else { throw CancellationError() }
+    guard openUIResourceScopeIsCurrent(loader, authorizationScope: scope) else { throw CancellationError() }
     return entry
   }
   package static func prepare(_ data: Data, loader: any OpenUIResourceLoading,

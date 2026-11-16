@@ -135,10 +135,4 @@ struct NativeLiveElementIndex {
   func candidates(for element: EvaluatedElement) -> [EvaluatedElement] {
     buckets[Key(element)] ?? []
   }
-
-  mutating func removeAll(keepingCapacity: Bool = false) {
-    root = nil
-    buckets.removeAll(keepingCapacity: keepingCapacity)
-    members.removeAll(keepingCapacity: keepingCapacity)
-  }
 }

@@ -240,7 +240,7 @@ public struct OpenUIResourceContext {
             || request.cachePolicy == .returnCacheDataElseLoad || request.cachePolicy == .returnCacheDataDontLoad
         if retains, let data = completed[key] { return data }
         let waiterID = UUID()
-        return try await withTaskCancellationHandler(operation: {
+        let data: Data = try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
                 guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
                 if let group = pending[key] {
@@ -268,6 +268,12 @@ public struct OpenUIResourceContext {
         }, onCancel: {
             Task { @MainActor [weak self] in self?.cancel(key, waiterID: waiterID, epoch: epoch) }
         })
+        // Completion may resume this waiter before its cancellation/reset is
+        // processed. Validate the subscriber and its lease again on return;
+        // another live subscriber still owns the shared transport result.
+        try Task.checkCancellation()
+        guard epoch == generation, owner.authorizationScopeID == scope else { throw CancellationError() }
+        return data
     }
 
     private func finish(_ key: Key, id: UUID, epoch: Int, retains: Bool, result: Result<Data, Error>) {
