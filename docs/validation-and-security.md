@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.6 · 更新日期：2026-11-16
+文档版本：1.7 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -207,7 +207,7 @@ Android 冷构建首次在 Gradle wrapper 下载阶段因 Java 继承代理配�
 
 ### 5.2 完整 OpenUI 同步
 
-本轮从 RN 分支 `7495210de7a1b0fee84ffaf3d4d72b75fdba5896` 继续。交付前再次核对远端 main 为 `cf8d2add05ded01f7046fbf3ac82de54e0f00f83`：RN 需要的 OpenUI catalog、完整导出契约、组件程序与共用素材没有新增差异，因此不整条合并 main 的 Swift 改动。改动限定在 RN 工程、独立 RN workflow 的资源触发路径及已有文档；没有修改 Swift 或 OpenIntelligentUI 实现。
+本轮从 RN 分支 `7495210de7a1b0fee84ffaf3d4d72b75fdba5896` 继续，实现提交为 [`e9bf033`](https://github.com/zyfn/open-intelligent-ui-swift/commit/e9bf03311038b808710a96317c9db586baac750a)。交付前再次核对远端 main 为 `cf8d2add05ded01f7046fbf3ac82de54e0f00f83`：RN 需要的 OpenUI catalog、完整导出契约、组件程序与共用素材没有新增差异，因此不整条合并 main 的 Swift 改动。改动限定在 RN 工程、独立 RN workflow 的资源触发路径及已有文档；没有修改 Swift 或 OpenIntelligentUI 实现。
 
 组件注册从 7 个扩展到 87 个，使用既有 84 定义 catalog 与 87 定义的完整导出契约作为来源；同一来源生成 native library 和 Node spec/prompt。逐项比较所有 signature、参数与完整 schema；仅对 JSON Schema 标准等价的标量 `type` 数组 / `anyOf` 表达进行归一化比较，不抹去 required、default、enum、引用或约束差异。原始 fixture 与 Gallery 的 87 个程序保持逐字不变，分块回归使用官方 `getResult(true)` 完成尾部，不用最后重新提交整段源码掩盖流式差异。
 
@@ -236,3 +236,5 @@ Jest 仍使用 Expo 标准 RN host mocks，并仅在 MapLibre native view/camera
 最终实现与共用资源清单记录在 `outputs/verification/react-native/openui-source-manifest.json`，按排序后的路径与逐文件 SHA256 计算的实现树摘要为 `4a07ec8e8d0ea488e514c3d8cccae2cf6fbac378aefc21044597152d849cdf46`；文档不参与此摘要，避免补充证据使已构建代码身份失效。清单另记录各日志、契约、两端 Hermes 产物与 APK 哈希。最后一次构建日志为 `openui-native-android-final.log`，与前一次 `openui-native-android.log` 区分。最终 APK SHA256：`c9ebac856d1a847f9b72bd23211f5ddb1c31e5b04fb6edcf9e520514a31bbd7f`。
 
 本轮没有重试前述受限模拟器，也没有本地 Xcode。iOS native build、两端实际安装/截图/软键盘/辅助功能、地图瓦片与交互、Release 帧率和内存仍未验收；不将 Metro 导出或 Jest 结果写成这些检查已通过。日期范围为两个原生选择器、数组 Slider 为多个单值滑块，SVG 为受限原生子集，具体呈现差异与预算在 [OpenUI](openui.md#react-native-openui-组件) 维护。完整组件同步不等于已发布 SDK、生产业务接入或全部 Swift 回归通过。
+
+实现提交实际触发 [GitHub Actions run 43850940579](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43850940579)：`Contract, JavaScript and Metro`（job 133242989056）在任何步骤执行前失败，返回的 steps 为空；Android / iOS job 均 skipped。check summary/text 为空且有一条 annotation，当前 GitHub 连接器不支持该 annotation endpoint，无法读取具体原因。因此记录为远端 CI 未完成、根因未确认，不套用历史计费原因，也不把本地通过写成远端通过。上述本地构建和测试都绑定实现提交的文件哈希。
