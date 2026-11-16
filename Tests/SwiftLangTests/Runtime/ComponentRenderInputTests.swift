@@ -145,7 +145,7 @@ final class ComponentRenderInputTests: XCTestCase {
         XCTAssertEqual(index.candidates(for: element(.number(.nan), id: nil)).count, 2)
         XCTAssertEqual(index.candidates(for: element(.string("é"), id: nil)).count, 1)
         XCTAssertEqual(index.candidates(for: element(.string("e\u{301}"), id: nil)).count, 1)
-        XCTAssertEqual(index.candidates(for: element(.null), id: nil)).count, 1)
-        XCTAssertEqual(index.candidates(for: element(.undefined), id: nil)).count, 1)
+        XCTAssertEqual(index.candidates(for: element(.null, id: nil)).count, 1)
+        XCTAssertEqual(index.candidates(for: element(.undefined, id: nil)).count, 1)
     }
 }

@@ -727,13 +727,16 @@ struct NativeCardItem: View {
       if summary { content }
       else { content.clipShape(RoundedRectangle(cornerRadius: itemTheme.radius3xl, style: .continuous)) }
     }
+    // Artwork contrast belongs to the inline copy. Presentations must inherit
+    // the reader's appearance rather than this local dark treatment.
+    .environment(\.openUITheme, contentTheme)
+    .environment(\.colorScheme, usesArtworkOverlay ? .dark : colorScheme)
+    .foregroundStyle(contentTheme.textNeutralPrimary)
     .modifier(NativeImageInteraction(source: artworkSource,
       image: displayedArtwork,
       alt: context.string("bgImageAlt") ?? "", enabled: artworkSource != nil && context.canInteract,
       failed: artworkImageState?.target == artworkTarget && artworkImageState?.status == .unavailable,
       previewTheme: context.theme, retry: { artworkAttempt += 1 }))
-    .environment(\.openUITheme, contentTheme)
-    .foregroundStyle(contentTheme.textNeutralPrimary)
     .modifier(NativeCardSurface(
       theme: itemTheme,
       // Facts are outlined without a fill so they stay part of the reply;
@@ -744,7 +747,6 @@ struct NativeCardItem: View {
         : summary ? .clear : context.theme.foreground,
       bordered: artworkSource == nil && kind != "Context"))
     .environment(\.openUIActionDensity, .compact)
-    .environment(\.colorScheme, usesArtworkOverlay ? .dark : colorScheme)
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("openui.card-item." + kind.lowercased())
     .layoutValue(key: OpenUIFlexGrowKey.self, value: true)

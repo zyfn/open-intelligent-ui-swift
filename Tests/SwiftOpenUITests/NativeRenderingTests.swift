@@ -7,6 +7,36 @@ import SwiftLang
     @testable import SwiftOpenUI
 
     final class NativeRenderingTests: XCTestCase {
+        @MainActor func testImagePreviewKeepsTextAndCanvasInTheSameAppearance() throws {
+            for scheme in [ColorScheme.light, .dark] {
+                let name = scheme == .light ? "image-preview-light" : "image-preview-dark"
+                let bitmap = try repairBitmap(
+                    NativeSingleImagePreview(source: nil, alt: "A complete image caption")
+                        .environment(\.openUITheme, OpenUIThemeValues.defaults)
+                        .environment(\.colorScheme, scheme),
+                    size: CGSize(width: 390, height: 520), name: name)
+                let corner = try XCTUnwrap(bitmap.colorAt(x: 4, y: 4)?.usingColorSpace(.sRGB))
+                let background = (corner.redComponent + corner.greenComponent + corner.blueComponent) / 3
+                if scheme == .dark {
+                    XCTAssertLessThan(background, 0.2, "Light preview copy must not inherit the host's white sheet canvas")
+                } else {
+                    XCTAssertGreaterThan(background, 0.9)
+                }
+                var contrastingPixels = 0
+                for y in 10..<(bitmap.pixelsHigh - 10) {
+                    // Header and caption occupy the ends of the preview. Do not
+                    // count the media placeholder in its central viewport.
+                    guard y < bitmap.pixelsHigh / 4 || y > bitmap.pixelsHigh * 3 / 4 else { continue }
+                    for x in 12..<(bitmap.pixelsWide - 12) {
+                        guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                        let value = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                        if abs(value - background) > 0.35 { contrastingPixels += 1 }
+                    }
+                }
+                XCTAssertGreaterThan(contrastingPixels, 150, "Preview chrome and caption must remain readable")
+            }
+        }
+
         @MainActor func testVisiblePartialTextKeepsGrowingBeforeItsParentCloses() throws {
             _ = NSApplication.shared
             let library = try OpenUIComponents.library()
