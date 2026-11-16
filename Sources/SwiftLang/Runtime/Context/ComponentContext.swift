@@ -29,22 +29,43 @@ public struct OpenUIComponentContext {
     // A Store/Query notification can change a field without changing props.
     // Preserve that dependency when this context is passed through child views.
     private let componentUpdateRevision: UInt64
+    // Element/phase flags describe this render. Field and Binding getters stay
+    // dynamic, but a mounted Context reads only the latest completed native
+    // commit, never a Store write halfway through publication. Retaining a
+    // Context does not freeze an entire document; action validity remains live.
+    private let readScope: NativeComponentReadScope?
 
     @MainActor public init(element: EvaluatedElement, registry: OpenUIComponentRegistry, state: OpenUIState,
                 values: OpenUIContextValues = OpenUIContextValues(), resources: [String: Value] = [:],
                 formName: String? = nil, exactFormName: OpenUIString? = nil) {
-        self.element = element; self.registry = registry; self.state = state
+        self.init(element: element, registry: registry, state: state, values: values, resources: resources,
+            formName: formName, exactFormName: exactFormName, nativePresentation: nil, readScope: nil)
+    }
+
+    @MainActor init(element: EvaluatedElement, registry: OpenUIComponentRegistry, state: OpenUIState,
+                values: OpenUIContextValues, resources: [String: Value],
+                formName: String? = nil, exactFormName: OpenUIString? = nil,
+                nativePresentation: NativeComponentPresentation?, readScope: NativeComponentReadScope?) {
+        let presentation = nativePresentation ?? (readScope == nil ? nil : NativeComponentPresentation.capture(element, state: state))
+        self.element = presentation?.element ?? element; self.registry = registry; self.state = state
         self.values = values; self.resources = resources; self.formName = exactFormName?.displayString ?? formName
         self.exactFormName = exactFormName ?? formName.map { OpenUIString($0) }
-        self.sourceRevision = state.sourceRevision
-        self.componentUpdateRevision = state.componentUpdates.revision
-        self.isStreaming = !state.isComplete
-        self.isQueryLoading = state.isQueryLoading
-        self.presentationReadiness = element.sourceReadiness
-        let queries = element.sourceReadiness.queryDependencies.map { state.queryStates[$0.displayString] }
-        self.hasPendingData = queries.contains { $0?.status == .loading || (!state.isComplete && ($0 == nil || $0?.status == .idle)) }
-        self.hasDataFailure = queries.contains { $0?.status == .error }
-        self.hasInterruptedData = state.isInterrupted && queries.contains { $0 == nil || $0?.status == .idle }
+        self.readScope = readScope
+        self.sourceRevision = presentation?.sourceRevision ?? state.sourceRevision
+        self.componentUpdateRevision = readScope?.revision ?? state.componentUpdates.revision
+        self.isStreaming = presentation?.streaming ?? !state.isComplete
+        self.isQueryLoading = presentation?.queryLoading ?? state.isQueryLoading
+        self.presentationReadiness = self.element.sourceReadiness
+        if let presentation {
+            self.hasPendingData = presentation.pendingData
+            self.hasDataFailure = presentation.failedData
+            self.hasInterruptedData = presentation.interruptedData
+        } else {
+            let queries = element.sourceReadiness.queryDependencies.map { state.queryStates[$0.displayString] }
+            self.hasPendingData = queries.contains { $0?.status == .loading || (!state.isComplete && ($0 == nil || $0?.status == .idle)) }
+            self.hasDataFailure = queries.contains { $0?.status == .error }
+            self.hasInterruptedData = state.isInterrupted && queries.contains { $0 == nil || $0?.status == .idle }
+        }
     }
 
     @MainActor public var canInteract: Bool { interactionScopeReady && state.isElementReady(element) && isCurrentPresentation }
@@ -62,10 +83,11 @@ public struct OpenUIComponentContext {
     @MainActor package func presentationBinding(_ name: String) -> Binding<Value>? {
         guard let binding = state.binding(for: element, prop: name, expectedSourceRevision: sourceRevision,
                                           presentation: true) else { return nil }
-        return Binding(get: { binding.wrappedValue }, set: { if isCurrentPresentation { binding.wrappedValue = $0 } })
+        return Binding(get: { readBinding(name, binding: binding) },
+            set: { if isCurrentPresentation { binding.wrappedValue = $0 } })
     }
     @MainActor package func presentationFieldValue(_ name: OpenUIString, fallback: Value) -> Value {
-        state.fieldValue(form: exactFormName, name: name, fallback: fallback)
+        fieldValue(name, fallback: fallback)
     }
     @MainActor package func setPresentationFieldValue(_ name: OpenUIString, value: Value) {
         guard isCurrentPresentation else { return }
@@ -94,7 +116,8 @@ public struct OpenUIComponentContext {
     }
     @MainActor package func childContext(_ child: EvaluatedElement, form: OpenUIString?) -> OpenUIComponentContext {
         var next = OpenUIComponentContext(element: child, registry: registry, state: state,
-            values: values, resources: resources, exactFormName: form)
+            values: values, resources: resources, exactFormName: form,
+            nativePresentation: nil, readScope: readScope)
         next.interactionScopeReady = interactionScopeReady
         next.activationIntent = activationIntent
         return next
@@ -130,13 +153,26 @@ public struct OpenUIComponentContext {
     }
     @MainActor public func binding(_ name: String) -> Binding<Value>? {
         guard let binding = state.binding(for: element, prop: name, expectedSourceRevision: sourceRevision) else { return nil }
-        return Binding(get: { binding.wrappedValue }, set: { if canInteract { binding.wrappedValue = $0 } })
+        return Binding(get: { readBinding(name, binding: binding) },
+            set: { if canInteract { binding.wrappedValue = $0 } })
+    }
+    @MainActor private func readBinding(_ name: String, binding: Binding<Value>) -> Value {
+        switch self.value(name) {
+        case .binding(let assignment), .reactiveBinding(let assignment):
+            let value = readScope == nil ? binding.wrappedValue : state.nativePresentedStateValue(OpenUIString(assignment.target))
+            readScope?.state(assignment.target, value: value)
+            return value
+        default: return binding.wrappedValue
+        }
     }
     public func action(_ name: String = "action") -> ActionPlan? { PropValue.actionPlan(element, name) }
 
     @MainActor @_disfavoredOverload public func fieldValue<S: StringProtocol>(_ name: S, fallback: Value = .null) -> Value { fieldValue(OpenUIString(String(name)), fallback:fallback) }
     @MainActor public func fieldValue(_ name: OpenUIString, fallback: Value = .null) -> Value {
-        state.fieldValue(form: exactFormName, name: name, fallback: fallback)
+        let value = readScope == nil ? state.nativeFieldValue(form: exactFormName, name: name)
+            : state.nativePresentedFieldValue(form: exactFormName, name: name)
+        readScope?.field(form: exactFormName, name: name, value: value)
+        return value ?? fallback
     }
     @MainActor @_disfavoredOverload public func fieldBinding<S: StringProtocol>(_ name: S, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {
         fieldBinding(OpenUIString(String(name)), fallback:fallback, componentType:componentType)
@@ -144,7 +180,8 @@ public struct OpenUIComponentContext {
     @MainActor public func fieldBinding(_ name: OpenUIString, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {
         let binding = state.fieldBinding(form: exactFormName, name: name, fallback: fallback, componentType: componentType,
                                          expectedSourceRevision: sourceRevision, source: element)
-        return Binding(get: { binding.wrappedValue }, set: { if canInteract { binding.wrappedValue = $0 } })
+        return Binding(get: { fieldValue(name, fallback: fallback) },
+            set: { if canInteract { binding.wrappedValue = $0 } })
     }
     @MainActor @_disfavoredOverload public func initializeField<S: StringProtocol>(_ name: S, value: Value, componentType: String = "input") {
         initializeField(OpenUIString(String(name)), value:value, componentType:componentType)

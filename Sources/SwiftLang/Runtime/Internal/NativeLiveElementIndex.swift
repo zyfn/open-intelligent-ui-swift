@@ -1,16 +1,17 @@
-
-/// Narrows the session's live-snapshot search without deciding which snapshot
-/// is safe to use. Property and readiness checks remain in OpenUIState.
+/// Narrows live-snapshot matching without deciding which snapshot is safe to
+/// use. Property and readiness checks remain at the shared resolution boundary.
+/// Ordinary evaluator outputs may recreate every JS/native identity, so this
+/// index owns one current graph rather than a persistent container DAG cache.
 struct NativeLiveElementIndex {
-  private enum Scalar: Hashable {
+  fileprivate enum Scalar: Hashable, Sendable {
     case string(OpenUIString), number(UInt64), boolean(Bool), null, undefined
 
     init?(_ value: Value) {
       switch value {
       case .string(let value): self = .string(value)
       case .number(let value):
-        // Candidate matching below follows structural Value equality: all NaNs
-        // match, and either signed zero belongs to the same candidate bucket.
+        // Final matching uses structural Value equality: all NaNs match and
+        // either signed zero belongs to the same candidate bucket.
         self = .number(value.isNaN ? Double.nan.bitPattern : (value == 0 ? 0 : value.bitPattern))
       case .boolean(let value): self = .boolean(value)
       case .null: self = .null
@@ -19,13 +20,13 @@ struct NativeLiveElementIndex {
       }
     }
   }
-  private struct ScalarProperty: Hashable {
-    // liveElement's final property-name check uses Swift String equality.
-    // Canonically equivalent spellings must share the same ambiguity bucket.
+  fileprivate struct ScalarProperty: Hashable, Sendable {
+    // Property-name matching uses Swift String equality. Canonically equivalent
+    // spellings must share the same readiness-ambiguity bucket.
     let name: String
     let value: Scalar
   }
-  private struct Key: Hashable {
+  fileprivate struct Key: Hashable, Sendable {
     let typeName: String
     let statementID: String?
     let scalarProperties: [ScalarProperty]?
@@ -33,8 +34,6 @@ struct NativeLiveElementIndex {
     init(_ element: EvaluatedElement) {
       typeName = element.typeName
       statementID = element.statementId
-      // Named declarations already have small buckets. Only inline nodes need
-      // scalar narrowing; retain the existing declaration candidate grouping.
       guard statementID == nil else { scalarProperties = nil; return }
       var properties: [ScalarProperty] = []
       for (name, value) in element.props {
@@ -45,16 +44,90 @@ struct NativeLiveElementIndex {
     }
   }
 
+  /// Changes contain keys only, so accumulating several updates cannot retain
+  /// retired element graphs. Counts describe index work, never frame timing.
+  struct Update: Sendable {
+    fileprivate var affectedKeys: Set<Key> = []
+    fileprivate(set) var indexedContainers = 0
+    fileprivate(set) var comparedCandidates = 0
+
+    init() {}
+
+    func affectsLookup(for snapshot: EvaluatedElement) -> Bool {
+      affectedKeys.contains(Key(snapshot))
+    }
+
+    mutating func formUnion(_ other: Self) {
+      affectedKeys.formUnion(other.affectedKeys)
+      indexedContainers += other.indexedContainers
+      comparedCandidates += other.comparedCandidates
+    }
+  }
+
+  private var root: EvaluatedElement?
   private var buckets: [Key: [EvaluatedElement]] = [:]
   private var members: Set<ObjectIdentifier> = []
 
-  mutating func insert(_ element: EvaluatedElement) {
-    members.insert(ObjectIdentifier(element))
-    buckets[Key(element), default: []].append(element)
+  @discardableResult
+  mutating func replaceRoot(_ element: EvaluatedElement?) -> Update {
+    guard root !== element else { return Update() }
+    var update = Update()
+    var nextBuckets: [Key: [EvaluatedElement]] = [:]
+    var nextMembers: Set<ObjectIdentifier> = []
+    // A first deep occurrence must not hide descendants reachable through a
+    // later shallower alias. This map lasts for this traversal only.
+    var shallowestVisit: [ObjectIdentifier: Int] = [:]
+    func accept(_ object: AnyObject, at depth: Int) -> Bool {
+      let identity = ObjectIdentifier(object)
+      if let previous = shallowestVisit[identity], previous <= depth { return false }
+      shallowestVisit[identity] = depth
+      update.indexedContainers += 1
+      return true
+    }
+    func visit(_ value: Value, depth: Int) {
+      guard depth < NativeValueCost.maximumDepth else { return }
+      switch value {
+      case .element(let current):
+        guard accept(current, at: depth) else { return }
+        if nextMembers.insert(ObjectIdentifier(current)).inserted {
+          nextBuckets[Key(current), default: []].append(current)
+        }
+        current.props.forEach { visit($0.1, depth: depth + 1) }
+      case .array(let values):
+        guard accept(values, at: depth) else { return }
+        values.forEach { visit($0, depth: depth + 1) }
+      case .object(let values):
+        guard accept(values, at: depth) else { return }
+        values.forEach { visit($0.value, depth: depth + 1) }
+      default: break
+      }
+    }
+    if let element { visit(.element(element), depth: 0) }
+
+    // One shallow identity/order comparison per candidate at most. Do not
+    // recursively compare business values or merge equal Lang identities to
+    // manufacture a smaller delta. Fresh evaluator identities affect the key.
+    for (key, current) in nextBuckets {
+      guard let previous = buckets[key], previous.count == current.count else {
+        update.affectedKeys.insert(key)
+        continue
+      }
+      for (left, right) in zip(previous, current) {
+        update.comparedCandidates += 1
+        if left !== right {
+          update.affectedKeys.insert(key)
+          break
+        }
+      }
+    }
+    for key in buckets.keys where nextBuckets[key] == nil { update.affectedKeys.insert(key) }
+    root = element
+    buckets = nextBuckets
+    members = nextMembers
+    return update
   }
 
-  /// A node already in this tree has its current metadata. Only older native
-  /// snapshots need the semantic candidate search and ambiguity check.
+  /// Exact membership is separate from semantic matching of an old snapshot.
   func contains(_ element: EvaluatedElement) -> Bool {
     members.contains(ObjectIdentifier(element))
   }
@@ -64,6 +137,7 @@ struct NativeLiveElementIndex {
   }
 
   mutating func removeAll(keepingCapacity: Bool = false) {
+    root = nil
     buckets.removeAll(keepingCapacity: keepingCapacity)
     members.removeAll(keepingCapacity: keepingCapacity)
   }

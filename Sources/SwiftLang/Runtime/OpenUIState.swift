@@ -54,6 +54,13 @@ public final class OpenUIState: ObservableObject {
     private var store: Store
     private var unsubscribeStore: (() -> Void)?
     let componentUpdates = NativeComponentUpdates()
+    let presentationStore = NativePresentationStore()
+    var nativePresentation: NativePresentationCommit { presentationStore.snapshot }
+    private let nativeStoreChanges = NativeStoreRevision()
+    private var nativeStoreReadVersion: UInt64 = 0
+    private var nativeStoreSnapshotRevision: UInt64 = 0
+    private var nativeStoreValues: [OpenUIString: Value] = [:]
+    private var nativeStoreHasSourceMetadata = false
     private var queryManager: QueryManager
     private let schema: LibrarySchema
     private let functions: [String: CustomFunction]
@@ -66,80 +73,46 @@ public final class OpenUIState: ObservableObject {
         return !result.nativeLimitExceeded && !result.meta.incomplete && result.meta.unresolved.isEmpty
     }
     private var liveElements = NativeLiveElementIndex()
+    private var indexedRoot: EvaluatedElement?
+    private var pendingIndexChanges = NativeLiveElementIndex.Update()
     private var liveElementCache: [ObjectIdentifier: (snapshot: EvaluatedElement, current: EvaluatedElement)] = [:]
     package func liveElement(matching element: EvaluatedElement) -> EvaluatedElement {
+        // Preserve public willSet reads: an observer still holding the public
+        // root must not borrow a candidate root's membership before assignment.
         guard let root, root !== element else { return element }
-        // Current nodes already carry this publication's metadata. Only older
-        // snapshots need semantic matching against their candidate bucket.
         if liveElements.contains(element) { return element }
         let key = ObjectIdentifier(element)
         if let cached = liveElementCache[key], cached.snapshot === element { return cached.current }
-        func same(_ a: Value, _ b: Value, depth: Int) -> Bool {
-            guard depth < 256 else { return false }
-            switch (a,b) {
-            case (.element(let x), .element(let y)):
-                return x.typeName == y.typeName && x.statementId == y.statementId && props(x,y,depth:depth+1)
-            case (.array(let x), .array(let y)):
-                return x.count == y.count && zip(x,y).allSatisfy { same($0,$1,depth:depth+1) }
-            case (.object(let x), .object(let y)):
-                return x.count == y.count && zip(x,y).allSatisfy { $0.key == $1.key && same($0.value,$1.value,depth:depth+1) }
-            default: return a == b
-            }
-        }
-        func props(_ x: EvaluatedElement, _ y: EvaluatedElement, depth: Int) -> Bool {
-            x.props.count == y.props.count && zip(x.props,y.props).allSatisfy {
-                $0.0 == $1.0 && same($0.1,$1.1,depth:depth+1)
-            }
-        }
-        // A stable native child may hold an earlier readiness snapshot even
-        // when its displayed props have not changed. Match nested values too;
-        // never borrow readiness from a semantically different control.
-        let matches = liveElements.candidates(for: element).filter {
-            props($0, element, depth: 0)
-        }
-        func readiness(_ a: Value, _ b: Value, depth: Int) -> Bool {
-            guard depth < 256 else { return false }
-            switch (a, b) {
-            case (.element(let x), .element(let y)): return metadata(x, y, depth: depth + 1)
-            case (.actionPlan(let x), .actionPlan(let y)): return x.isSourceComplete == y.isSourceComplete
-            case (.array(let x), .array(let y)):
-                return x.count == y.count && zip(x,y).allSatisfy { readiness($0,$1,depth:depth+1) }
-            case (.object(let x), .object(let y)):
-                return x.count == y.count && zip(x,y).allSatisfy { readiness($0.value,$1.value,depth:depth+1) }
-            default: return true
-            }
-        }
-        func metadata(_ x: EvaluatedElement, _ y: EvaluatedElement, depth: Int) -> Bool {
-            x.isSourceComplete == y.isSourceComplete && x.sourceReadiness == y.sourceReadiness && x.props.count == y.props.count
-                && zip(x.props,y.props).allSatisfy { readiness($0.1,$1.1,depth:depth+1) }
-        }
-        let current = matches.first.flatMap { first in
-            matches.allSatisfy { metadata(first,$0,depth:0) } ? first : nil
-        } ?? element
+        let current = nativeResolveLiveElement(element, in: liveElements)
         liveElementCache[key] = (element, current)
         return current
     }
-    private func indexLiveElements(_ root: EvaluatedElement?) {
-        liveElements.removeAll(keepingCapacity: true)
-        liveElementCache.removeAll(keepingCapacity: true)
-        var seen: Set<ObjectIdentifier> = []
-        func visit(_ value: Value, depth: Int) {
-            guard depth < 256 else { return }
+
+    func nativeLiveElement(matching element: EvaluatedElement) -> EvaluatedElement {
+        let commit = nativePresentation
+        if commit.root === indexedRoot { return liveElement(matching: element) }
+        return commit.resolve(element)
+    }
+
+    func nativeIsElementReady(_ snapshot: EvaluatedElement) -> Bool {
+        let commit = nativePresentation
+        let element = nativeLiveElement(matching: snapshot)
+        let present = commit.root === indexedRoot ? liveElements.contains(element) : commit.contains(element)
+        guard present, !commit.isRuntimeLimited, element.isSourceComplete else { return false }
+        func ready(_ value: Value) -> Bool {
             switch value {
-            case .element(let element):
-                guard seen.insert(ObjectIdentifier(element)).inserted else { return }
-                liveElements.insert(element)
-                element.props.forEach { visit($0.1, depth: depth + 1) }
-            case .array(let values):
-                guard seen.insert(ObjectIdentifier(values)).inserted else { return }
-                values.forEach { visit($0, depth: depth + 1) }
-            case .object(let values):
-                guard seen.insert(ObjectIdentifier(values)).inserted else { return }
-                values.forEach { visit($0.value, depth: depth + 1) }
-            default: break
+            case .actionPlan(let plan): return commit.isPlanReady(plan)
+            case .array(let values): return values.allSatisfy(ready)
+            case .object(let fields): return fields.allSatisfy { ready($0.value) }
+            default: return true
             }
         }
-        if let root { visit(.element(root), depth: 0) }
+        return element.props.allSatisfy { ready($0.1) }
+    }
+    private func indexLiveElements(_ root: EvaluatedElement?) {
+        liveElementCache.removeAll(keepingCapacity: true)
+        pendingIndexChanges.formUnion(liveElements.replaceRoot(root))
+        indexedRoot = root
     }
     package func isElementCurrent(_ snapshot: EvaluatedElement) -> Bool {
         liveElements.contains(liveElement(matching: snapshot))
@@ -163,35 +136,11 @@ public final class OpenUIState: ObservableObject {
         return element.props.allSatisfy { ready($0.1) }
     }
     package func isPlanReady(_ plan: ActionPlan) -> Bool {
-        guard latestResult?.nativeLimitExceeded != true, plan.isSourceComplete else { return false }
-        if canExecuteActions { return true }
-        func ready(_ node: ASTNode) -> Bool {
-            var complete = true
-            walkAST(node) { node in
-                switch node {
-                case .ph, .ref: complete = false
-                case .stateRef(let name):
-                    if name != "$value", store.get(name) == nil { complete = false }
-                case .runtimeRef(let name, let type):
-                    if type == .query, queryManager.queryState(for: name)?.data == nil { complete = false }
-                    if type == .mutation, queryManager.mutationState(for: name)?.status != .success { complete = false }
-                case .runtimeValue(let value):
-                    if case .undefined = value { complete = false }
-                default: break
-                }
-            }
-            return complete
-        }
-        return plan.steps.allSatisfy { step in
-            switch step {
-            case .openUrl(let node): return ready(node)
-            case .continueConversation(let message, let context): return ready(message) && context.map(ready) != false
-            case .set(_, let node): return ready(node)
-            case .reset: return true
-            case .custom(_, let args): return args.allSatisfy { ready($0.1) }
-            case .run: return canExecuteActions
-            }
-        }
+        guard latestResult?.nativeLimitExceeded != true else { return false }
+        return nativeActionPlanIsReady(plan, canExecuteActions: canExecuteActions,
+            stateValue: { self.store.get(OpenUIString($0)) },
+            queryData: { self.queryManager.queryState(for: $0)?.data },
+            mutationStatus: { self.queryManager.mutationState(for: $0)?.status })
     }
     private var streamGeneration = 0 {
         didSet { componentUpdates.invalidate() }
@@ -220,14 +169,41 @@ public final class OpenUIState: ObservableObject {
         defer {
             queuedMutations.removeAll()
             drainingMutations = false
-            componentUpdates.flush()
         }
-        while let next = queuedMutations.popFirst() {
-            // Already queued work runs in FIFO order. Only a new request made
-            // during this operation supersedes its remaining publication.
-            activeMutation = mutationSequence
-            next()
+        repeat {
+            while let next = queuedMutations.popFirst() {
+                // Already queued work runs in FIFO order. Only a new request
+                // made during this operation supersedes its publication.
+                activeMutation = mutationSequence
+                next()
+            }
+            // Native UI receives one coherent read model after semantic work
+            // and public callbacks settle. Keep the queue protected while both
+            // native publishers deliver: a reentrant write must run after the
+            // current setter, rather than be overwritten when it returns.
+            commitNativePresentation()
+            if !queuedMutations.isEmpty { continue }
+            let changes = pendingIndexChanges
+            pendingIndexChanges = NativeLiveElementIndex.Update()
+            componentUpdates.flush(state: self, changes: changes)
+        } while !queuedMutations.isEmpty
+    }
+
+    private func commitNativePresentation() {
+        let storeVersion = nativeStoreChanges.read()
+        if nativeStoreReadVersion != storeVersion || nativeStoreHasSourceMetadata {
+            nativeStoreValues = store.getSnapshot()
+            nativeStoreReadVersion = storeVersion
+            nativeStoreHasSourceMetadata = nativeStoreValues.values.contains { $0.containsSourceMetadata }
+            nativeStoreSnapshotRevision &+= 1
         }
+        let commit = NativePresentationCommit(root: root, presentationRoot: presentationRoot,
+            sourceRevision: sourceRevision, presentationRevision: presentationRevision,
+            isComplete: isComplete, isInterrupted: isInterrupted, isQueryLoading: isQueryLoading,
+            canExecuteActions: canExecuteActions, isRuntimeLimited: latestResult?.nativeLimitExceeded == true,
+            queryStates: queryStates, mutationStates: mutationStates, errors: errors,
+            storeValues: nativeStoreValues, storeRevision: nativeStoreSnapshotRevision)
+        NativeRuntimeTrace.measure("Presentation commit") { presentationStore.commit(commit) }
     }
     private var mutationIsCurrent: Bool { activeMutation == mutationSequence }
     package let mediaCache = NativeMediaCache()
@@ -272,8 +248,9 @@ public final class OpenUIState: ObservableObject {
 
     private func observeStore() {
         unsubscribeStore?()
-        let updates = componentUpdates
-        unsubscribeStore = store.subscribe { updates.invalidate() }
+        let updates = componentUpdates, changes = nativeStoreChanges
+        changes.invalidate()
+        unsubscribeStore = store.subscribe { changes.invalidate(); updates.invalidate() }
     }
 
     private func observeQueries() {
@@ -560,12 +537,19 @@ public final class OpenUIState: ObservableObject {
     }
 
     public func fieldValue(form: OpenUIString?, name: OpenUIString, fallback: Value = .null) -> Value {
-        let value: Value?
-        if let form, case .object(let fields) = store.get(form) {
-            value = fields.last(where: { $0.key == name })?.value
-        } else if form == nil { value = store.get(name) } else { value = nil }
-        if case .object(let fields) = value { return fields.last(where: { $0.key == "value" })?.value ?? value ?? fallback }
-        return value ?? fallback
+        nativeFieldValue(form: form, name: name) ?? fallback
+    }
+
+    func nativeFieldValue(form: OpenUIString?, name: OpenUIString) -> Value? {
+        nativeUnwrappedFieldValue(form: form, name: name, read: { self.store.get($0) })
+    }
+
+    func nativePresentedFieldValue(form: OpenUIString?, name: OpenUIString) -> Value? {
+        nativePresentation.fieldValue(form: form, name: name)
+    }
+
+    func nativePresentedStateValue(_ name: OpenUIString) -> Value {
+        nativePresentation.storeValues[name] ?? .null
     }
 
     public func setFieldValue(form: OpenUIString?, name: OpenUIString, value: Value, componentType: String? = "input") {

@@ -1,14 +1,35 @@
 import Combine
 import Foundation
 
-/// Components receive their source values through the render tree. This signal
-/// covers the other context inputs: Store edits, query lifecycle and document
-/// completion/replacement. It owns no language values or alternate state.
+/// Coordinates component observations at the end of a document transaction.
+/// Source inputs still arrive through the render tree; registered node signals
+/// cover live membership and the Context dependencies each component read. The
+/// auxiliary revision records Store/Query/terminal changes without owning values.
 final class NativeComponentUpdates: ObservableObject, @unchecked Sendable {
     let objectWillChange = ObservableObjectPublisher()
     private let lock = NSLock()
     private var pending = false
     @MainActor private(set) var revision: UInt64 = 0
+    @MainActor private var subscriptions: [ObjectIdentifier: WeakSubscription] = [:]
+    @MainActor private var registrationsSincePrune = 0
+
+    private final class WeakSubscription {
+        weak var value: NativeComponentSubscription?
+        init(_ value: NativeComponentSubscription) { self.value = value }
+    }
+
+    @MainActor func attach(_ subscription: NativeComponentSubscription) {
+        registrationsSincePrune += 1
+        if registrationsSincePrune >= 64 {
+            subscriptions = subscriptions.filter { $0.value.value != nil }
+            registrationsSincePrune = 0
+        }
+        subscriptions[ObjectIdentifier(subscription)] = WeakSubscription(subscription)
+    }
+
+    @MainActor func detach(_ subscription: NativeComponentSubscription) {
+        subscriptions.removeValue(forKey: ObjectIdentifier(subscription))
+    }
 
     // Store listeners are Sendable. Defer SwiftUI notification until the owning
     // MainActor transaction has finished, even if a Store callback is nested.
@@ -16,7 +37,7 @@ final class NativeComponentUpdates: ObservableObject, @unchecked Sendable {
         lock.lock(); pending = true; lock.unlock()
     }
 
-    @MainActor func flush() {
+    @MainActor func flush(state: OpenUIState, changes: NativeLiveElementIndex.Update) {
         lock.lock()
         let changed = pending
         pending = false
@@ -24,6 +45,16 @@ final class NativeComponentUpdates: ObservableObject, @unchecked Sendable {
         if changed {
             revision &+= 1
             objectWillChange.send()
+        }
+        // Resolve each mounted node once against the completed transaction.
+        // SwiftUI observes those node signals, not this broad auxiliary signal.
+        // Weak registrations never keep a view, document or language graph alive.
+        let active = subscriptions.values.compactMap(\.value)
+        if active.count != subscriptions.count {
+            subscriptions = subscriptions.filter { $0.value.value != nil }
+        }
+        for subscription in active {
+            subscription.refresh(state: state, changes: changes, auxiliaryChanged: changed)
         }
     }
 }
@@ -48,7 +79,7 @@ func nativeMutationStatesEqual(_ lhs: [String: MutationState], _ rhs: [String: M
 private func sameData(_ lhs: Value?, _ rhs: Value?) -> Bool {
     switch (lhs, rhs) {
     case (.none, .none): return true
-    case (.some(let left), .some(let right)): return sameValue(left, right)
+    case (.some(let left), .some(let right)): return nativePresentationValuesEqual(left, right)
     default: return false
     }
 }
@@ -74,7 +105,7 @@ func nativePresentationInputsEqual(_ lhs: EvaluatedElement, _ rhs: EvaluatedElem
           sameName(lhs.statementId, rhs.statementId), lhs.partial == rhs.partial,
           lhs.isSourceComplete == rhs.isSourceComplete, lhs.props.count == rhs.props.count else { return false }
     for (left, right) in zip(lhs.props, rhs.props) {
-        guard left.0.utf16.elementsEqual(right.0.utf16), sameValue(left.1, right.1) else { return false }
+        guard left.0.utf16.elementsEqual(right.0.utf16), nativePresentationValuesEqual(left.1, right.1) else { return false }
     }
     return lhs.sourceReadiness == rhs.sourceReadiness
 }
@@ -87,7 +118,7 @@ private func sameName(_ lhs: String?, _ rhs: String?) -> Bool {
     }
 }
 
-private func sameValue(_ lhs: Value, _ rhs: Value) -> Bool {
+func nativePresentationValuesEqual(_ lhs: Value, _ rhs: Value) -> Bool {
     switch (lhs, rhs) {
     case (.array(let left), .array(let right)): return left === right
     case (.object(let left), .object(let right)): return left === right

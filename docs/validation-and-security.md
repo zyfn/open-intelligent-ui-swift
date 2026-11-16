@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.10 · 更新日期：2026-11-16
+文档版本：1.11 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -32,11 +32,11 @@ Zod 的 JSON Schema 导入也把简单字符串键 record 包装为带校验的 
 
 ## 2. 验收范围
 
-流水线按当前 SDK 分成三项检查：可复现输入、依赖安全和原生验收。可复现输入检查重建实际打包资源并运行语言、authoring 和组件目录回归；安全审计覆盖 Core、标准富文本、代码高亮、图标和 Intelligent 函数五个生成工具依赖图，使用 `--audit-level=high` 门槛。原生验收构建并测试根 SDK 及其公开产品消费者。
+流水线按当前 SDK 分成三项检查：可复现输入、依赖安全和原生验收，最后由 `Native SDK acceptance` 汇总。汇总仅在三项均为 success 时成功；failure、cancelled、skipped 或缺失结果均不算通过，并在摘要记录实际 checkout SHA 和各项结果。该 job 的存在不自动设置仓库分支保护，合并阻断还需仓库将它配置为 required check。可复现输入检查重建实际打包资源并运行语言、authoring 和组件目录回归；安全审计覆盖 Core、标准富文本、代码高亮、图标和 Intelligent 函数五个生成工具依赖图，使用 `--audit-level=high` 门槛。原生验收构建并测试根 SDK 及其公开产品消费者。
 
 原生验收覆盖 SwiftLang、OpenUI、OpenIntelligentUI 三个独立产品消费者。每个外部包只声明一个产品，验证打包资源、authoring、解析、流式、生成契约、原生宿主和状态读写；不启动窗口，不能代替 UI 视觉验收。模块检查禁止适配层导入两套组件库、任一 UI 导入另一套库；适配层内部 Language 目录不导入 UI 框架，Runtime 目录承接 SwiftUI。
 
-其余原生验收覆盖全部原生测试、Release fitting、独立 Gallery 测试与双库案例完整/流式验证、完整历史契约、语言 ASan、独立契约/性能工具及 iOS 编译。独立检查在前一个检查失败后仍可收集证据，但任何检查失败都会保留为任务失败。消费者源码生成或语法检查不等于实际 Swift 编译通过；原生编译与测试结果以对应提交的执行日志为准。
+其余原生验收覆盖全部原生测试、Release fitting、Release 挂载流式与呈现/订阅回归、独立 Gallery 测试与双库案例完整/流式验证、完整历史契约、语言 ASan、独立契约/性能工具及 iOS 编译。独立检查在前一个检查失败后仍可收集证据，但任何检查失败都会保留为任务失败。消费者源码生成或语法检查不等于实际 Swift 编译通过；原生编译与测试结果以对应提交的执行日志为准。
 
 这些记录用于验证当前分支的实现与构建；真机交互、产品发布和合并仍是独立的交付动作。
 
@@ -92,7 +92,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 预算之外不宣称与 stock core 等价。有限 fixtures 通过也不证明任意程序、后续版本、所有设备或网络时序正确。新差异必须解释或修复，再决定是否有依据增加新的版本预期。
 
-真实流式性能与重复拟合分开验收。当前 `OpenUIState` 在 MainActor 上同步执行每次 push 的解析、根求值和 live-element 索引；公共 host 与组件 host 订阅同一个状态。`RuntimeHostIsolationTests` 与 `HostSizingIsolationTests` 中重复提交相同源码和尺寸拟合的检查，只证明该路径不重复解析、发布或重挂，不能证明真实尾部增量不会刷新无关组件。局部刷新与每帧耗时需要在目标设备的 Release 构建中，另测不同内容规模和分块频率下的解析、桥接、求值、组件 body 与布局成本；没有运行证据时不宣称该观察路径已经收敛。
+真实流式性能与重复拟合分开验收。当前 `OpenUIState` 在 MainActor 上同步执行每次 push 的解析、根求值和 live-element 索引；`SwiftLangView` 观察完整的原生呈现提交，轻量组件 Host 仍观察最近 State，内部内容使用节点订阅。`RuntimeHostIsolationTests` 与 `HostSizingIsolationTests` 中重复提交相同源码和尺寸拟合的检查，只证明该路径不重复解析、发布或重挂，不能证明真实尾部增量不会刷新无关组件。局部刷新与每帧耗时需要在目标设备的 Release 构建中，另测不同内容规模和分块频率下的解析、桥接、求值、组件 body 与布局成本；没有运行证据时不宣称该观察路径已经收敛。
 
 任一物化、求值或输出预算失败后，OpenUIState 保留最近一次通过预算的已显示内容，停止当前文档的动作、Query 和 Mutation；不能把失败产生的 `null` 继续写入状态或作为工具参数。替换源码或 reset 可以恢复。预算用于限制异常工作量，并非每帧耗时或设备帧率保证；原生不卡顿仍需在目标设备 Release 构建上测量。
 
@@ -275,6 +275,33 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 本轮原生验收先运行全量 `swift test`；定向失败排查包含 `FramedStreamingTests`、`ProjectionBridgeTests`、`QuerySnapshotBridgeTests`、`ComponentRenderInputTests`、`StreamingRenderIsolationTests`、`LiveElementIndexTests`、`MountedStreamingTextProgressTests` 及原有 `NativeActionRenderingTests`、字段和 EditableTable 挂载用例。通过后复跑同机 Release 24/128-unit 基准，同时交付 p95、最大值、slowestPushes 和阶段 trace，再以相同行程回放验证进程 CPU、可见文本及交互；标准命令见 [LanguageRuntime](../Benchmarks/LanguageRuntime/README.md)。
 
+### cf8d2ad 基线的呈现提交与节点订阅
+
+本轮从 `cf8d2add05ded01f7046fbf3ac82de54e0f00f83` 建立独立分支 `codex/streaming-commit-boundaries`。基线包含此前类型修复及桥接/渲染边界修改，也包含恢复的 OpenUI 字体与呈现设计。本轮只修改共享原生运行时、相关回归及 CI，不改组件视觉、Lang 资源、公开流式入口或历史 fixture。
+
+| 范围 | 实现及待验证合同 |
+| --- | --- |
+| 内部完整提交 | `NativePresentationCommit` 汇总 root、readiness、revision、执行/完成/中断状态、Query/Mutation、错误及 Store 只读值。公开 Published 和逐步业务回调不改顺序；原生 setter 及节点通知受同一重入队列保护 |
+| 节点依赖 | 每个挂载边界持有弱注册的订阅，记录实际字段与 Binding 读取；无关字段写入不应重新构造该节点。旧读取作用域和最近 State 切换不能污染新订阅；completion、interrupt、readiness、Query 与预算失败仍送达 |
+| 动态读取与动作 | Context 的 props/标志属于构造时快照，字段/Binding 每次读取最新完整提交，延后首次 getter 也能得到当前值。动作和写入保持当前文档与节点的安全复核，不把旧 Context 当作冻结的业务事务 |
+| 当前树索引 | 保留一次当前图遍历及候选顺序，按候选身份/顺序产生变化键。没有把旧节点与值相等的新 Lang 对象合并，没有永久 DAG/refcount 缓存；整树工作仍是开放成本 |
+| 回归与 CI | 新增 `NativePresentationCommitTests`、`NativeComponentSubscriptionTests`、`NativeLiveElementUpdateTests`，扩展 `StreamingRenderIsolationTests`；CI 保留全量 XCTest 与 Release fitting，补 Release 流式/提交/订阅子集及严格汇总 job |
+
+索引方案已按实际输入收紧：对随包 bundle 的 50 次普通文字分片做对象身份计数时，稳定叶子、root 和 children 数组每次都形成新 JS 对象，稳定身份命中均为 0/50。这只是 JS 对象身份的证据，没有测 Swift 投影身份或设备耗时；它足以否定“普通流必然共享稳定子树”的优化前提。人工复用 600 个原生节点的计数不能证明真实流的收益，因此未保留基于该前提的复杂增量索引。脚本与原始 JSON 位于忽略的 `outputs/streaming-commit-boundaries/`；正式 bundle 未修改。
+
+| 实际检查 | 结果 |
+| --- | --- |
+| 来源/所有权 | `check_openui_integration.py` 通过，仅 source/ownership；bundle SHA-256 仍为 `a949bbb8ad880dba88a8ed7a09ccf2d50cb3c3194f38f7872d19daf041108a6b` |
+| 差异与文档 | tracked 与新增文件的空白检查通过；修改文档的本地链接目标存在；语言实现、资源、组件视觉、历史 fixture 和 Package 输入均未改动 |
+| CI 脚本 | YAML 与新增 shell 语法通过；六个 Release 过滤器对应实际测试类。汇总脚本验证 125 种状态组合，仅全 success 放行，3 个缺值负例均拒绝；没有因此执行原生测试 |
+| `swift test` | 实际尝试因无 `swift` 退出 127；新增和既有 XCTest 均未执行，尚未确认 Swift 编译通过 |
+| SwiftPM 模块图 | `check_module_boundaries.py` 因不能执行 `swift package dump-package` 阻塞，不能记为通过 |
+| Release / 实际 App | 本轮没有 Apple 运行环境，没有新增 CPU、帧率、push 延迟或挂载计数结果；既有 92.79% CPU 和 79.89–102.35ms 最大 push 仍未关闭 |
+
+本轮基线的 [run 43840534488](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43840534488) 中，`reproducible-inputs` 与 `dependency-security` 均失败、steps 为空，runner 未分配，`native-sdk` 为 skipped。未取得能解释本次启动失败的日志或 annotation，不能将历史账单/额度阻塞原因直接归到该 run。新增汇总只明确表达未验收状态，不修复 GitHub runner 的启动条件，也未更改仓库分支保护。执行日志保留于 `outputs/streaming-commit-boundaries/` 和 `outputs/verification/ci-boundaries.log`。
+
+本轮新增 33 项原生回归：完整提交 8 项、节点订阅 11 项、索引更新 12 项、实际挂载 2 项，全部待执行。下一次原生执行先跑完整 `swift test`，再运行 CI 中的 Release fitting 与流式子集；通过后用相同 24/128-unit、201 节点负载比较新增提交、索引变化键和订阅检查的成本，确认没有因边界更清晰而增加长调用。旧版本已有 `.equatable()` 输入过滤，新增节点订阅不能仅凭源码被当作 App CPU 改善。
+
 ### 客户端仍未关闭的验收
 
 以下保留较早的 SDK `9e05d888` 客户端记录及尚未关闭的复杂场景，不能当作 `a4808be3` 的同版本失败列表。原始 Mac 日志、录像和 xcresult 尚未取得。上节定向复测仅覆盖列出的功能、构建和性能样本，没有自动关闭此处其余历史失败；源码修复、JS 通过或合并同样不能代替复验。
@@ -333,11 +360,11 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 以下仍是开放项，不能标为本次已解决：
 
 - `OpenUIState.push` 仍在 MainActor 同步解析、整 root 求值/投影并建立 live index。持续细分块仍会增加整轮工作次数；本轮没有自动按显示帧合并输入，也没有改客户端的 push/complete/interrupt 使用方式。
-- 多步 Action 的累计额度已经加入，但逐步 Set/Reset 引发的 root 更新及计划结束后的更新仍保留。尚未实现渲染合并或节点级依赖计算；必须保留每步 Store 可见性、Mutation 失败即停止和事件次序，不可直接删中间通知。
+- 多步 Action 的累计额度已经加入，但逐步 Set/Reset 引发的 root 更新及计划结束后的更新仍保留。内部呈现提交与节点字段订阅不等于语言求值的增量依赖计算，也未合并跨步骤的语义工作；必须保留每步 Store 可见性、Mutation 失败即停止和事件次序，不可直接删中间通知。
 - Query 快照比较仍重复序列化完整数据，上述计数已确认其规模增长；本轮批量错误提取只减少原生呈现读取，没有删减 JS 快照比较。优化需保持 snapshot 值、正常通知及共享对象语义。Query 的内部通知投递已合并，实际原生执行次数和整 root 工作量尚未测量。旧 JS manager 探针中 100 个独立请求产生 100 次初始通知和 100 次完成通知；该计数不能直接换算成新实现的 MainActor 任务数，也不能宣称已测得“200 次变成 1 次”。不同执行时刻仍可能各产生一次呈现更新。
-- 普通 push 的 readiness/root 双重通知已收敛到一次 root 发布；SwiftLangView 与各轻量 ComponentHost 仍订阅同一个 ObservableObject。本轮已加内部呈现输入边界、Store/Query 通知和 mounted 计数回归，但未执行 Apple 测试，尚未取得真实“尾部更新而稳定兄弟不重算”的 body 计数。全局 partial 翻转、引用属性变化以及保留的直接组件订阅仍会带来更新；不能宣称视图已完全隔离或 App CPU 已降低。
+- 普通 push 的公开 readiness/root 双重通知已收敛到一次 root 发布；SwiftLangView 现观察完整内部提交，轻量 ComponentHost 仍观察最近 State。节点字段订阅和 mounted 回归已加入，但未执行 Apple 测试，尚未取得真实“尾部更新而稳定兄弟不重算”的 body 计数。全局 partial 翻转、引用属性变化以及保留的直接组件订阅仍会带来更新；不能宣称视图已完全隔离或 App CPU 已降低。
 - SharedCore 用锁串行化共享 JavaScriptCore。锁保护线程安全，不会自动把工作移到后台；多个文档可能相互等待。迁移到 worker 需要同步定义不可变输入/输出、回调线程、取消和提交代次，不能用 `Task.detached` 直接包住当前 MainActor State。
-- 当前节点的 identity 快径和本轮匿名 scalar 属性分桶不消除复杂引用节点的旧快照语义搜索；新增候选计数仍需原生执行，整树索引重建及实际耗时仍待验证。
+- 当前节点的 identity 快径和匿名 scalar 属性分桶不消除复杂引用节点的旧快照语义搜索；变化键比较也有成本。当前内核普通流会重建 JS 引用，整树索引遍历及每轮挂载订阅检查仍需原生计时，不能假定其复杂度已经降到只与文字尾部有关。
 - 尚无本轮真机 Release 的帧耗时、输入响应和长期内存数据。文档拥有的编辑记录保留离屏草稿，不能为压低缓存数字随意淘汰用户未提交内容；动态字段的长期留存需要专项测量。
 
 编码前保护的范围以适配清单为准：高层 OpenUIState、Query/Mutation 输入输出、Evaluator 上下文和 AST，以及本轮补齐的 SDK CoreStore、手工 Query AST 与 ParseResult fallback 都在相应编码边界预检。底层 Store 保留原有 void 写入/初始化签名，拒绝时保留旧值，并通过内部失败状态供 OpenUIState 走已有错误渠道；没有新增客户端写入 API。自定义 Store 的策略、宿主函数返回前的自身计算，以及 provider 忽略取消后仍在进行的外部工作不能被库抢占。不能将这些限制解释为任意宿主代码的隔离沙箱。
