@@ -109,13 +109,11 @@ struct NativeDateField: View {
                 dateControl(NativeControlText.localized("Start date", locale: locale), part: .from)
                 dateControl(NativeControlText.localized("End date", locale: locale), part: .to)
                 if let summary = NativeCalendarDate.rangeSummary(field.value, locale: locale, calendar: calendar, timeZone: timeZone) {
-                    VStack(alignment: .leading, spacing: context.theme.space2xs) {
-                        Text("Selected range", bundle: NativeControlResources.bundle)
-                            .nativeTextStyle(context.theme.textStyle(.caption))
-                        Text(summary).nativeTextStyle(context.theme.textStyle(.supporting),
-                            color: canEdit ? nil : context.theme.textNeutralTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }.accessibilityElement(children: .combine)
+                    Text(summary).nativeTextStyle(context.theme.textStyle(.supporting),
+                        color: canEdit ? nil : context.theme.textNeutralTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(Text("Selected range", bundle: NativeControlResources.bundle))
+                        .accessibilityValue(summary)
                         .accessibilityIdentifier("openui.date.range.\(field.name.displayString)")
                 }
             } else {

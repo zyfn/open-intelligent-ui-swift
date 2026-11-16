@@ -40,13 +40,18 @@ private struct YouTubeView: View {
         Color.clear.aspectRatio(16.0 / 9.0, contentMode: .fit).overlay {
             GeometryReader { geometry in
                 Group {
-                    if !context.element.isSourceComplete { ProgressView(SDKStrings.text("video.preparing", locale: locale)) }
-                    else if let id {
+                    if context.element.isSourceComplete, let id {
                         WebContent(context: context,
                             content: "<iframe title=\"\(XMLText.escape(context.string("title") ?? "YouTube"))\" src=\"https://www.youtube-nocookie.com/embed/\(id)?rel=0\" style=\"border:0;width:100%;height:100vh\" allowfullscreen></iframe>",
-                            height: geometry.size.height, scripts: true, frames: true, failureURL: originalURL)
+                            height: geometry.size.height, scripts: true, frames: true)
                     } else {
-                        Label(SDKStrings.text("video.invalid", locale: locale), systemImage: "play.slash").foregroundStyle(theme.secondaryText)
+                        theme.surface.overlay {
+                            Image(systemName: "play.rectangle")
+                                .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.35))
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(context.string("title") ?? "YouTube")
+                        .accessibilityValue(SDKStrings.text(context.element.isSourceComplete ? "video.invalid" : "video.preparing", locale: locale))
                     }
                 }.frame(width: geometry.size.width, height: geometry.size.height)
             }
@@ -98,7 +103,6 @@ struct WebContent: View {
     var scripts = false
     var frames = false
     var onMeasure: ((CGSize) -> Void)? = nil
-    var failureURL: String? = nil
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.openIntelligentUIContentBackground) private var contentBackground
@@ -117,27 +121,35 @@ struct WebContent: View {
                         "--iui-body-weight": theme.defaultBodyWeight(for: colorScheme) == .medium ? "500" : "400",
                         "background-color": BridgeColor.css(contentBackground ?? theme.canvas, dark: colorScheme == .dark)
                     ], reload: retry, open: open, onMeasure: onMeasure, onPhase: { phase = $0 })
+                    .accessibilityHidden(phase != .ready)
                     .overlay {
                         if phase == .loading {
-                            ProgressView(SDKStrings.text("web.loading", locale: locale)).frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(contentBackground ?? theme.canvas)
+                            placeholder(status: "web.loading")
                                 .allowsHitTesting(false)
                         } else if phase == .failed {
-                            VStack(spacing: theme.innerSpacing) {
-                                Label(SDKStrings.text("web.failed", locale: locale), systemImage: "exclamationmark.triangle")
-                                    .font(theme.captionFont).foregroundStyle(theme.secondaryText)
-                                if !interactive {
-                                    Button(SDKStrings.text("common.retry", locale: locale)) { retry &+= 1 }.buttonStyle(.borderless)
-                                    if let failureURL, let url = URL(string: failureURL), SourceURL.isActionable(failureURL) {
-                                        Button(SDKStrings.text("web.open_original", locale: locale)) { open(url) }.buttonStyle(.borderless)
-                                    }
-                                }
-                            }.frame(maxWidth: .infinity, maxHeight: .infinity).background(contentBackground ?? theme.canvas)
+                            if !interactive {
+                                Button { retry &+= 1 } label: { placeholder(status: "web.failed") }
+                                    .buttonStyle(.plain)
+                                    .accessibilityHint(SDKStrings.text("common.retry", locale: locale))
+                            } else { placeholder(status: "web.failed") }
                         }
                     }
-            } else { ProgressView(SDKStrings.text("web.preparing", locale: locale)) }
+            } else { placeholder(status: "web.preparing") }
         }.frame(height: height).frame(maxWidth: .infinity)
     }
+
+    private func placeholder(status: String) -> some View {
+        theme.surface.overlay {
+            Image(systemName: frames ? "play.rectangle" : "doc.richtext")
+                .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.35))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(context.string("title") ?? SDKStrings.text("web.interactive_title", locale: locale))
+        .accessibilityValue(SDKStrings.text(status, locale: locale))
+    }
+
     private func open(_ url: URL) {
         guard context.canInteract, SourceURL.isActionable(url.absoluteString) else { return }
         Task { await context.perform(OpenUIActions.openURL(url.absoluteString)) }

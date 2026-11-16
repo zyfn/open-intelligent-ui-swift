@@ -227,32 +227,38 @@ struct ImageFailurePlaceholder: View {
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
 
     var body: some View {
-        VStack(spacing: theme.innerSpacing) {
-            Image(systemName: retry == nil ? "photo" : "photo.badge.exclamationmark")
-                .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.65))
-            Text(status).font(theme.captionFont).foregroundStyle(theme.secondaryText)
-                .multilineTextAlignment(.center)
+        Group {
             if let retry, !interactive {
-                Button(action: retry) {
-                    Label(SDKStrings.text("image.retry_short", locale: locale), systemImage: "arrow.clockwise")
-                        .font(theme.secondaryFont)
-                        .frame(minHeight: theme.minimumControlHeight)
-                        .padding(.horizontal, theme.innerSpacing)
-                }
-                .buttonStyle(.bordered)
-                .tint(theme.actionAccent)
-                .accessibilityLabel(SDKStrings.text("image.retry", locale: locale))
+                Button(action: retry) { placeholder }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(accessibleLabel)
+                    .accessibilityValue(status)
+                    .accessibilityHint(SDKStrings.text("image.retry", locale: locale))
+            } else {
+                placeholder
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(accessibleLabel)
+                    .accessibilityValue(status)
             }
         }
-        .padding(theme.groupSpacing)
+    }
+
+    private var accessibleLabel: String {
+        alt.isEmpty ? SDKStrings.text("image.default_label", locale: locale) : alt
+    }
+
+    private var placeholder: some View {
+        theme.surface.overlay {
+            Image(systemName: "photo")
+                .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.35))
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.surface)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(alt)
+        .contentShape(Rectangle())
     }
 }
 
-/// One quiet loading signal shared by source images and the search stage.
+/// A static media surface shared by source images and the search stage.
 /// The parent retains the final media geometry throughout every phase.
 struct ImageLoadingPlaceholder: View {
     @Environment(\.locale) private var locale
@@ -260,27 +266,16 @@ struct ImageLoadingPlaceholder: View {
     let surface: Color
     var stage: String? = nil
     @Environment(\.openIntelligentUITheme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             surface
-            VStack(spacing: theme.innerSpacing) {
-                TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: reduceMotion)) { timeline in
-                    let wave = (sin(timeline.date.timeIntervalSinceReferenceDate * .pi) + 1) / 2
-                    Image(systemName: "photo")
-                        .font(.title3)
-                        .foregroundStyle(theme.secondaryText)
-                        .opacity(reduceMotion ? 0.45 : 0.3 + wave * 0.2)
-                }
-                Text(stage ?? SDKStrings.text("image.loading_short", locale: locale))
-                    .font(theme.captionFont).foregroundStyle(theme.secondaryText)
-            }
-            .padding(theme.groupSpacing)
+            Image(systemName: "photo")
+                .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.35))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(SDKStrings.text("image.failure_accessibility", locale: locale, alt,
-                                          stage ?? SDKStrings.text("image.loading_short", locale: locale)))
+        .accessibilityLabel(alt.isEmpty ? SDKStrings.text("image.default_label", locale: locale) : alt)
+        .accessibilityValue(stage ?? SDKStrings.text("image.loading_short", locale: locale))
     }
 }

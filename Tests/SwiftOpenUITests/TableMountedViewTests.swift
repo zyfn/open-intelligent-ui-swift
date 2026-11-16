@@ -1,12 +1,13 @@
 import SwiftLang
 #if os(macOS)
 import AppKit
+import Combine
 import SwiftUI
 import XCTest
 @testable import SwiftOpenUI
 
 final class TableMountedViewTests:XCTestCase {
-  @MainActor func testReadingModeKeepsMountedCustomCellsInputDraftAndActions() throws {
+  @MainActor func testAutomaticReadingLayoutKeepsMountedCustomCellsInputDraftAndActions() throws {
     _ = NSApplication.shared
     let standard = try OpenUIComponents.library()
     let button = try XCTUnwrap(standard.library.components.first { $0.name == "Button" })
@@ -35,10 +36,11 @@ final class TableMountedViewTests:XCTestCase {
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
     var received: [ActionEvent] = []
     state.onAction = { received.append($0) }
-    let hosting = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
-      .frame(width: 560).fixedSize(horizontal: false, vertical: true)
-      .background(MountedTableMarker(id: "bounds"))
-      .frame(width: 560, height: 620, alignment: .topLeading))
+    let typeSize = MountedTableTextSize()
+    let hosting = NSHostingView(rootView: MountedTableEnvironment(typeSize: typeSize,
+      content: OpenUIContentView(state: state, registry: library.registry)
+        .frame(width: 560).fixedSize(horizontal: false, vertical: true)
+        .frame(width: 560, height: 620, alignment: .topLeading)))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
@@ -114,11 +116,10 @@ final class TableMountedViewTests:XCTestCase {
     XCTAssertGreaterThan(gridLong.minY, gridShort.maxY)
 
     for (index, reading) in [true, false].enumerated() {
-      let table = try marker("bounds")
-      // The reading-mode Button is the first, leading control. The measured
-      // table origin plus half its minimum target stays inside its full label.
-      let inset = OpenUIPresentation().minimumControlTargetSize / 2
-      try click(table.convert(NSPoint(x: inset, y: inset), to: nil))
+      // Accessibility text sizes select row reading automatically, without a
+      // second mode control or replacing the document and its mounted cells.
+      typeSize.value = reading ? .accessibility1 : .large
+      settle()
       XCTAssertEqual(inputs().count, 1)
       XCTAssertTrue(inputs().first === input, "Reading mode must retain the native editing field")
       XCTAssertTrue(try marker("short") === short, "Custom cell identity must survive both layout directions")
@@ -137,7 +138,7 @@ final class TableMountedViewTests:XCTestCase {
       }
       if reading {
         XCTAssertEqual(currentShort.minX, currentLong.minX, accuracy: 1)
-        XCTAssertLessThan(currentShort.minX, gridShort.minX, "The control must actually switch to row reading")
+        XCTAssertLessThan(currentShort.minX, gridShort.minX, "Accessibility text must actually switch to row reading")
         XCTAssertGreaterThan(currentShort.minY, frame(input).maxY, "Each value follows the previous cell vertically")
       } else {
         XCTAssertEqual(currentShort.maxX, currentLong.maxX, accuracy: 1)
@@ -177,6 +178,16 @@ final class TableMountedViewTests:XCTestCase {
     XCTAssertEqual(received,1)
     XCTAssertFalse(editing.draft.hasChanges)
   }
+}
+
+@MainActor private final class MountedTableTextSize: ObservableObject {
+  @Published var value: DynamicTypeSize = .large
+}
+
+private struct MountedTableEnvironment<Content: View>: View {
+  @ObservedObject var typeSize: MountedTableTextSize
+  let content: Content
+  var body: some View { content.environment(\.dynamicTypeSize, typeSize.value) }
 }
 
 private struct MountedTableValue: NSViewRepresentable {

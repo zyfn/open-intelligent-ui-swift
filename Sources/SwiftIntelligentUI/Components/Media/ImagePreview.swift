@@ -84,6 +84,12 @@ struct ImagePreview: View {
                             .accessibilityAction(named: SDKStrings.text("image.zoom.reset", locale: locale)) { setZoom(1) }
                             .gesture(MagnificationGesture().onChanged { zoom = min(4, max(1, startingZoom * $0)) }.onEnded { _ in startingZoom = zoom })
                             .onTapGesture(count: 2) { setZoom(zoom > 1 ? 1 : 2) }
+                            .contextMenu {
+                                if failed { Button(SDKStrings.text("image.retry", locale: locale)) { retry &+= 1 } }
+                            }
+                            .accessibilityActions {
+                                if failed { Button(SDKStrings.text("image.retry", locale: locale)) { retry &+= 1 } }
+                            }
                     } else if failed {
                         ImageFailurePlaceholder(alt: currentAlt, status: SDKStrings.text("image.unavailable", locale: locale), retry: { retry &+= 1 })
                             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -93,13 +99,6 @@ struct ImagePreview: View {
                     }
                 }
                 .id(currentSource ?? "single-image")
-                .overlay(alignment: .bottomTrailing) {
-                    if failed, currentImage != nil {
-                        Button { retry &+= 1 } label: {
-                            Image(systemName: "arrow.clockwise").frame(minWidth: theme.minimumControlHeight, minHeight: theme.minimumControlHeight)
-                        }.buttonStyle(.borderless).accessibilityLabel(SDKStrings.text("image.retry", locale: locale))
-                    }
-                }
                 .onAppear { viewport = geometry.size }
                 .onChange(of: geometry.size) { viewport = $0 }
             }

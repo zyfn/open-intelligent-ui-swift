@@ -135,7 +135,6 @@ private struct TableView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.displayScale) private var scale
     @State private var identities = TableRowIdentities()
-    @State private var contentWidth: CGFloat = 0
     @State private var viewportWidth: CGFloat = 0
     var body: some View {
         let data = TableData(columns: context.value("columns"), rows: context.value("rows"), identity: identities.id)
@@ -156,37 +155,31 @@ private struct TableView: View {
                 }
             }
         } else {
-            VStack(alignment: .leading, spacing: theme.innerSpacing) {
-                ScrollView(.horizontal) {
-                    NativeTableLayout(numeric: data.columns.map(\.numeric), viewport: viewportWidth,
-                                      minimum: TableMetrics.minimumColumnWidth, maximum: TableMetrics.maximumColumnWidth) {
+            ScrollView(.horizontal) {
+                NativeTableLayout(numeric: data.columns.map(\.numeric), viewport: viewportWidth,
+                                  minimum: TableMetrics.minimumColumnWidth, maximum: TableMetrics.maximumColumnWidth) {
+                    ForEach(data.columns) { column in
+                        Text(column.title).font(theme.secondaryFont.weight(.semibold)).foregroundStyle(theme.primaryText)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
+                            .padding(.horizontal, TableMetrics.cellHorizontalPadding).padding(.vertical, TableMetrics.cellVerticalPadding)
+                            .background(theme.surface)
+                    }
+                    separator
+                    ForEach(data.rows) { row in
                         ForEach(data.columns) { column in
-                            Text(column.title).font(theme.secondaryFont.weight(.semibold)).foregroundStyle(theme.primaryText)
+                            VStack(alignment: column.numeric ? .trailing : .leading, spacing: 0) { cell(row, column) }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
                                 .padding(.horizontal, TableMetrics.cellHorizontalPadding).padding(.vertical, TableMetrics.cellVerticalPadding)
-                                .background(theme.surface)
                         }
                         separator
-                        ForEach(data.rows) { row in
-                            ForEach(data.columns) { column in
-                                VStack(alignment: column.numeric ? .trailing : .leading, spacing: 0) { cell(row, column) }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
-                                    .padding(.horizontal, TableMetrics.cellHorizontalPadding).padding(.vertical, TableMetrics.cellVerticalPadding)
-                            }
-                            separator
-                        }
                     }
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
                 }
-                .scrollIndicators(.visible, axes: .horizontal)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.fieldBorder))
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
-                if viewportWidth > 0 && contentWidth > viewportWidth + 1 {
-                    Label(SDKStrings.text("table.scroll_hint", locale: locale), systemImage: "arrow.left.and.right")
-                        .font(theme.captionFont).foregroundStyle(theme.secondaryText)
-                }
-            }.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollIndicators(.visible, axes: .horizontal)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.fieldBorder))
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
     private var separator: some View { Rectangle().fill(theme.separator.opacity(0.35)).frame(height: 1 / max(1, scale)) }

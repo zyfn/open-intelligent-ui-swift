@@ -77,11 +77,6 @@ struct OpenUINativeFormControl: View {
                 NativeFieldHeading(label: context.string("label") ?? "",
                     required: field?.isRequired == true, theme: context.theme)
             }
-            if let hint = field?.selectionHint {
-                Text(LocalizedStringKey(hint), bundle: NativeControlResources.bundle)
-                    .nativeTextStyle(context.theme.textStyle(.supporting))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
             context.slot("input")
             if let hint = context.string("hint"), !hint.isEmpty {
                 Text(hint).nativeTextStyle(context.theme.textStyle(.supporting))

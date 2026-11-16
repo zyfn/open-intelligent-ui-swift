@@ -211,7 +211,7 @@ private struct SVGView: View {
     var body: some View {
         Group {
             if !context.element.isSourceComplete {
-                ProgressView(SDKStrings.text("svg.preparing", locale: locale)).frame(maxWidth: .infinity).frame(height: height)
+                placeholder(status: "svg.preparing")
             } else {
                 switch document {
                 case .success(let document):
@@ -229,13 +229,21 @@ private struct SVGView: View {
                         }
                     }
                     .accessibilityLabel(document.labels.isEmpty ? SDKStrings.text("svg.label", locale: locale) : SDKStrings.text("svg.label_details", locale: locale, document.labels.joined(separator: " · ")))
-                case .failure(let error):
-                    VStack(alignment: .leading, spacing: theme.innerSpacing) {
-                        Label(SDKStrings.text("svg.failed", locale: locale), systemImage: "exclamationmark.triangle")
-                        Text((error as? SVGMarkup.Failure)?.message(locale: locale) ?? SDKStrings.text("svg.failed", locale: locale)).font(theme.captionFont)
-                    }.foregroundStyle(theme.secondaryText).frame(maxWidth: .infinity, alignment: .leading).frame(minHeight: 80)
+                case .failure:
+                    placeholder(status: "svg.failed")
                 }
             }
         }
+    }
+
+    private func placeholder(status: String) -> some View {
+        theme.surface.overlay {
+            Image(systemName: "square.on.circle")
+                .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.35))
+        }
+        .frame(height: height)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(SDKStrings.text("svg.label", locale: locale))
+        .accessibilityValue(SDKStrings.text(status, locale: locale))
     }
 }

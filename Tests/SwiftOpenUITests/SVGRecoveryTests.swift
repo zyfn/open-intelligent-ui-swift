@@ -37,11 +37,10 @@ final class SVGRecoveryTests: XCTestCase {
     await settle(.unavailable)
     XCTAssertEqual(loader.requests.count, 1, "A transport's CancellationError must terminate the loading state")
 
-    // The retry is the last 44 pt control in the leading-aligned failure stack.
+    // The whole reserved graphic is the retry target; no separate error stack
+    // or small Retry control is needed to recover the signed resource.
     host.layoutSubtreeIfNeeded()
-    let extent = host.fittingSize.height
-    let y = host.bounds.midY + (host.isFlipped ? 1 : -1) * (extent / 2 - 22)
-    let point = host.convert(NSPoint(x: host.bounds.minX + 22, y: y), to: nil)
+    let point = host.convert(NSPoint(x: host.bounds.midX, y: host.bounds.midY), to: nil)
     let down = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: point,
       modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
       windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))

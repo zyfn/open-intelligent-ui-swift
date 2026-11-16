@@ -48,31 +48,20 @@ struct NativeSVG: View {
                 .buttonStyle(.plain).foregroundStyle(context.theme.interactiveAccentDefault)
                 .disabled(!context.canInteract)
                 .accessibilityIdentifier("openui.svg.expand")
-            } else if !failed && (context.isStreaming || remoteTarget?.isCurrent == true) {
-                NativePendingContent(loading: true, message: "Loading")
             } else {
-                Text(failed ? "Unable to load graphic" : "Graphic requires a valid SVG viewBox", bundle: NativeControlResources.bundle)
-                    .nativeTextStyle(context.theme.textStyle(.supporting))
-                if let alt = context.string("alt"), !alt.isEmpty {
-                    Text(alt).nativeTextStyle(context.theme.textStyle(.body))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 if failed, retryableTarget == remoteTarget {
                     Button {
                         guard context.canActivate, let target = baseTarget else { return }
                         retryState.retry(target)
                     } label: {
-                        Label {
-                            Text("Retry", bundle: NativeControlResources.bundle)
-                        } icon: {
-                            Image(systemName: "arrow.clockwise").accessibilityHidden(true)
-                        }
-                        .openUIFont(context.theme.textLabelSm, role: .control)
-                        .openUIControlTarget(alignment: .leading)
+                        placeholder(loading: false)
                     }
-                    .buttonStyle(.plain).foregroundStyle(context.theme.interactiveAccentDefault)
+                    .buttonStyle(.plain)
                     .disabled(!context.canInteract)
+                    .accessibilityHint(Text("Tap image to retry", bundle: NativeControlResources.bundle))
                     .accessibilityIdentifier("openui.svg.retry")
+                } else {
+                    placeholder(loading: !failed && (context.isStreaming || remoteTarget?.isCurrent == true))
                 }
             }
         }
@@ -114,6 +103,11 @@ struct NativeSVG: View {
             }
         }
     }
+    private func placeholder(loading: Bool) -> some View {
+        NativeSVGPlaceholder(alt: context.string("alt") ?? "", loading: loading)
+            .aspectRatio(context.presentation.coverAspectRatio, contentMode: .fit)
+            .fixedSize(horizontal: false, vertical: true)
+    }
     private var baseTarget: NativeMediaResourceTarget? {
         guard context.element.sourceReadiness["src"].complete, context.string("content") == nil,
               let source = context.string("src") else { return nil }
@@ -126,26 +120,65 @@ struct NativeSVG: View {
     }
 }
 
+private struct NativeSVGPlaceholder: View {
+    let alt: String
+    let loading: Bool
+
+    var body: some View {
+        Color.clear.overlay {
+            NativeLoadingSurface(active: loading, showsMediaSymbol: true)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(alt.isEmpty
+            ? Text(loading ? "Loading" : "Unable to load graphic", bundle: NativeControlResources.bundle)
+            : Text(alt))
+        .accessibilityValue(Text(alt.isEmpty ? "" : loading ? "Loading" : "Unable to load graphic",
+            bundle: NativeControlResources.bundle))
+    }
+}
+
 private struct NativeSVGCanvas: View {
     let document: NativeSVGDocument
     let alt: String
     @State private var status = NativeMediaStatus.loading
+    @State private var renderAttempt = 0
     @Environment(\.openUITheme) private var theme
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.openUIActivationIntent) private var intent
+
+    private func retry() {
+        guard intent?.permitsActivation != false else { return }
+        status = .loading
+        renderAttempt += 1
+    }
 
     var body: some View {
         SVGWebView(html: document.html(textColor: NativeCSSColor.css(theme.textNeutralPrimary, scheme: scheme)),
             onStatus: { status = $0 })
+            .id(renderAttempt)
+            // Authored WebKit content is display-only; native recovery and
+            // preview gestures remain outside that noninteractive surface.
+            .allowsHitTesting(false)
             .overlay {
                 if status == .loading {
-                    NativePendingContent(loading: true, message: "Loading")
+                    NativeSVGPlaceholder(alt: alt, loading: true)
                 } else if status == .unavailable {
-                    Text("Unable to load graphic", bundle: NativeControlResources.bundle)
-                        .nativeTextStyle(theme.textStyle(.supporting))
+                    Button(action: retry) {
+                        NativeSVGPlaceholder(alt: alt, loading: false)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(alt.isEmpty ? "SVG" : alt)
+            .accessibilityValue(Text(status == .loaded ? "" : status == .loading ? "Loading" : "Unable to load graphic",
+                bundle: NativeControlResources.bundle))
+            .accessibilityActions {
+                if status == .unavailable {
+                    Button(action: retry) { Text("Tap image to retry", bundle: NativeControlResources.bundle) }
+                }
+            }
     }
 }
 
@@ -168,14 +201,9 @@ struct NativeSVGPreview: View {
                     .keyboardShortcut(.cancelAction)
                     .accessibilityIdentifier("openui.svg.preview.close")
             }
-            ZStack {
-                NativeSVGCanvas(document: document, alt: alt).allowsHitTesting(false)
-                // Native gestures belong to the preview, never to SVG-authored
-                // links or WebKit scrolling. The validator/CSP stay unchanged.
-                Color.clear.contentShape(Rectangle()).accessibilityHidden(true)
-            }
-            .modifier(NativeImageZoom(resetID: document.markup))
-            .accessibilityIdentifier("openui.svg.preview.zoom")
+            NativeSVGCanvas(document: document, alt: alt)
+                .modifier(NativeImageZoom(resetID: document.markup))
+                .accessibilityIdentifier("openui.svg.preview.zoom")
             if !alt.isEmpty {
                 ScrollView(.vertical) {
                     Text(alt).nativeTextStyle(theme.textStyle(.body))

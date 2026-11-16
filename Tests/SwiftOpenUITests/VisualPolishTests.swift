@@ -393,28 +393,42 @@ final class VisualPolishTests: XCTestCase {
     host.layoutSubtreeIfNeeded()
   }
 
-  @MainActor func testContentImageFailureKeepsReadablePixelsWithoutChangingItsSlot() async throws {
-    let loader = ArtworkFailureLoader()
+  @MainActor func testContentImageFailureKeepsQuietPlaceholderAndRetriesInItsOriginalSlot() async throws {
+    let loader = ArtworkFailureLoader(succeedsOnRetry: true)
     let loading = expectation(description: "content image loading")
     let unavailable = expectation(description: "content image unavailable")
-    var sawLoading = false, sawFailure = false
-    let (host, window) = artworkHost(NativeRemoteImage(src: "https://artwork.test/fail",
-      alt: "这张内容图片展示完整的交通换乘说明。", layout: .aspect(1.5), role: .content,
-      onStatus: { status, _ in
-        if status == .loading && !sawLoading { sawLoading = true; loading.fulfill() }
-        if status == .unavailable && !sawFailure { sawFailure = true; unavailable.fulfill() }
-      }).openUIResourceContext(.init(loader: loader)), size: CGSize(width: 240, height: 160))
+    let loaded = expectation(description: "content placeholder retry loaded")
+    var sawLoading = false, sawFailure = false, sawSuccess = false
+    func content(alt: String) -> some View {
+      NativeRemoteImage(src: "https://artwork.test/fail", alt: alt, layout: .aspect(1.5), role: .content,
+        onStatus: { status, _ in
+          if status == .loading && !sawLoading { sawLoading = true; loading.fulfill() }
+          if status == .unavailable && !sawFailure { sawFailure = true; unavailable.fulfill() }
+          if status == .loaded && !sawSuccess { sawSuccess = true; loaded.fulfill() }
+        }).openUIResourceContext(.init(loader: loader))
+    }
+    let (host, window) = artworkHost(content(alt: "这张内容图片展示完整的交通换乘说明。"),
+      size: CGSize(width: 240, height: 160))
     defer { window.close(); Task { await loader.releaseFailure() } }
     await fulfillment(of: [loading], timeout: 3)
     let before = host.fittingSize
     await loader.releaseFailure()
     await fulfillment(of: [unavailable], timeout: 3)
-    let image = try artworkPixels(host, name: "content-image-failed-readable")
+    let image = try artworkPixels(host, name: "content-image-failed-placeholder")
     XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 40,
-      "Content-image failure retains visible alternative copy")
-    XCTAssertEqual(host.fittingSize, before, "Failure copy cannot move adjacent content")
+      "A quiet photo glyph keeps the reserved media region recognizable")
+    XCTAssertEqual(host.fittingSize, before, "A resource failure cannot move adjacent content")
+    host.rootView = artworkRoot(content(alt: "A different, much longer alternative description remains available to VoiceOver."), width: 240)
+    try await Task.sleep(nanoseconds: 100_000_000)
+    let updated = try artworkPixels(host, name: "content-image-alternative-accessibility-only")
+    XCTAssertEqual(updated.pixels, image.pixels, "Alternative copy must not turn into a visible failure paragraph")
     for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
     XCTAssertEqual(loader.calls, 1, "Re-measuring a recovery control must not retry the resource")
+    try clickArtworkCenter(host, window: window)
+    await fulfillment(of: [loaded], timeout: 3)
+    XCTAssertEqual(loader.calls, 2, "Clicking the placeholder makes exactly one retry")
+    XCTAssertEqual(loader.lastCachePolicy, .reloadIgnoringLocalCacheData)
+    XCTAssertEqual(host.fittingSize, before)
   }
 
   @MainActor func testSemanticArtworkIsIdenticalWhileLoadingAndAfterFailure() async throws {

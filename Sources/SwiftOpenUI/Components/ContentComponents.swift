@@ -980,7 +980,7 @@ struct NativeCardBlock: View {
 struct NativeFollowUpBlock: View {
   let context: OpenUIComponentContext
   var body: some View {
-    VStack(alignment: .leading, spacing: context.theme.space2xs) {
+    NativeWrappingRow(gap: context.theme.spaceS) {
       ForEach(context.children("items")) { item in
         context.render(item.value)
       }
@@ -991,14 +991,30 @@ struct NativeFollowUpBlock: View {
 
 struct NativeFollowUpItem: View {
   let context: OpenUIComponentContext
+  @Environment(\.isEnabled) private var enabled
   private var text: String { context.string("text") ?? "" }
+  private var cornerRadius: CGFloat {
+    NativeButtonShape.readableRadius(horizontal: context.theme.spaceM, vertical: context.theme.spaceS)
+  }
+  private var shape: NativeButtonShape {
+    NativeButtonShape(radius: nil, maximumRadius: cornerRadius)
+  }
   var body: some View {
     OpenUIActionSurface(context: context, message: text, action: Self.action(for: text),
-      useNativeStyle: true, showsProgress: true) {
-      NativeConversationActionLabel(text: text, theme: context.theme, placement: .suggestion)
+      useNativeStyle: true) {
+      Text(text)
+        .fixedSize(horizontal: false, vertical: true)
+        .multilineTextAlignment(.leading)
+        .nativeTextStyle(context.theme.textStyle(.compactAction),
+          color: enabled ? context.theme.textNeutralPrimary : context.theme.textNeutralTertiary)
+        .padding(.horizontal, context.theme.spaceM)
+        .padding(.vertical, context.theme.spaceS)
+        .background(context.theme.sunk, in: shape)
+        .overlay(shape.strokeBorder(context.theme.borderDefault,
+          lineWidth: context.presentation.borderWidth).allowsHitTesting(false))
+        .openUIControlTarget(alignment: .leading)
     }
-    .conversationAccessoryProgress()
-    .buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusS))
+    .buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: cornerRadius))
     .accessibilityLabel(text)
     .accessibilityHint(Text("Send this question to continue", bundle: NativeControlResources.bundle))
     .accessibilityIdentifier("openui.followup")

@@ -2,21 +2,16 @@ import SwiftLang
 import SwiftUI
 import Combine
 
-/// The same required affordance is used by external FormControl labels and
-/// controls that own their heading. The marker comes from validation rules.
+/// Keep the authored heading visually quiet. Required state comes from the
+/// validation rules and remains available to assistive technologies.
 struct NativeFieldHeading: View {
     let label: String
     let required: Bool
     let theme: OpenUIThemeValues
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: theme.spaceXs) {
-            Text(label).nativeTextStyle(theme.textStyle(.fieldLabel))
-                .fixedSize(horizontal: false, vertical: true)
-            if required {
-                Text("Required", bundle: NativeControlResources.bundle)
-                    .nativeTextStyle(theme.textStyle(.caption)).fixedSize()
-            }
-        }.accessibilityElement(children: .combine)
+        Text(label).nativeTextStyle(theme.textStyle(.fieldLabel))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityValue(Text(required ? "Required" : "", bundle: NativeControlResources.bundle))
     }
 }
 
@@ -90,14 +85,9 @@ struct OpenUINativeField: View {
     }
     private func fieldBody(_ error: String?) -> some View {
         VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
-            if fieldLabel == nil, let hint = field.selectionHint {
-                Text(NativeControlText.localized(hint, locale: locale))
-                    .nativeTextStyle(context.theme.textStyle(.supporting),
-                        color: canEdit ? nil : context.theme.textNeutralTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
             control.accessibilityIdentifier("openui.field.\(field.name.displayString)")
                 .accessibilityFocused($accessibilityFocused)
+                .accessibilityHint(NativeControlText.localized(field.selectionHint ?? "", locale: locale))
             if let error {
                 Label(NativeControlText.localized(error, locale: locale), systemImage: "exclamationmark.circle.fill")
                     .nativeTextStyle(context.theme.textStyle(.fieldError),

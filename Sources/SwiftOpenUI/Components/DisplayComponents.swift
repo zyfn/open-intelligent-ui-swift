@@ -180,15 +180,16 @@ struct NativeDataTable: View {
     let context: OpenUIComponentContext
     @Environment(\.openUITableCellPolicy) private var cellPolicy
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .body) private var minimumWidth: CGFloat = 88
     @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
     @State private var availableWidth: CGFloat = 0
     @State private var currentPage = 0
-    @State private var readsByRow = false
     @State private var stableColumns: [Column]?
     @Namespace private var measurementScope
     private let pageSize = 10 // Pinned upstream Table's DEFAULT_PAGE_SIZE.
     private var columnGap: CGFloat { context.theme.spacing("ml") }
+    private var readsByRow: Bool { typeSize.isAccessibilitySize }
     private var currentColumns: [Column] {
         context.children("columns").compactMap { child in
             guard case .element(let element) = child.value else { return nil }
@@ -256,19 +257,6 @@ struct NativeDataTable: View {
     }
     private var loadedTable: some View {
         VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
-            if columns.count > 1 && rowCount > 0 {
-                Button { readsByRow.toggle() } label: {
-                    Label {
-                        Text(readsByRow ? "Show table" : "Read by row", bundle: NativeControlResources.bundle)
-                    } icon: {
-                        Image(systemName: readsByRow ? "tablecells" : "list.bullet.rectangle").accessibilityHidden(true)
-                    }
-                    .nativeTextStyle(context.theme.textStyle(.compactAction))
-                    .openUIControlTarget(alignment: .leading)
-                }
-                .buttonStyle(NativeQuietButtonStyle(theme: context.theme))
-                .accessibilityIdentifier("openui.table.reading-mode")
-            }
             NativeTableViewport { tableContent }
             if !waiting && (rowCount == 0 || incomplete || context.hasDataFailure) { stateMessage }
             if pageCount > 1 {
@@ -356,56 +344,14 @@ struct NativeDataTable: View {
     }
 }
 
-/// Read-only and editable tables share the same overflow affordance. Measure
-/// actual content, including custom cells, rather than guessing from columns.
+/// Read-only and editable tables use native horizontal scrolling without
+/// inserting helper copy into the surrounding document.
 struct NativeTableViewport<Content: View>: View {
     @ViewBuilder let content: () -> Content
-    @Environment(\.openUITheme) private var theme
-    @Namespace private var scope
-    @State private var overflows = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: theme.spaceS) {
-            ScrollView(.horizontal) {
-                content().background(GeometryReader { geometry in
-                    Color.clear.preference(key: NativeTableExtentKey.self,
-                        value: [scope: .init(content: geometry.size.width)])
-                })
-            }
-            .background(GeometryReader { geometry in
-                Color.clear.preference(key: NativeTableExtentKey.self,
-                    value: [scope: .init(viewport: geometry.size.width)])
-            })
-            if overflows {
-                Label {
-                    Text("Scroll horizontally to see all columns", bundle: NativeControlResources.bundle)
-                } icon: {
-                    Image(systemName: "arrow.left.and.right").accessibilityHidden(true)
-                }
-                .nativeTextStyle(theme.textStyle(.caption))
-                .accessibilityIdentifier("openui.table.overflow-hint")
-            }
-        }
-        .onPreferenceChange(NativeTableExtentKey.self) { measurements in
-            guard let extent = measurements[scope], let content = extent.content,
-                  let viewport = extent.viewport, content.isFinite, viewport.isFinite,
-                  viewport > 0 else { return }
-            overflows = content > viewport + 1
-        }
-    }
-}
-
-private struct NativeTableExtent: Equatable {
-    var content: CGFloat? = nil
-    var viewport: CGFloat? = nil
-}
-
-private struct NativeTableExtentKey: PreferenceKey {
-    static let defaultValue: [Namespace.ID: NativeTableExtent] = [:]
-    static func reduce(value: inout [Namespace.ID: NativeTableExtent], nextValue: () -> [Namespace.ID: NativeTableExtent]) {
-        value.merge(nextValue()) { first, next in
-            .init(content: next.content ?? first.content, viewport: next.viewport ?? first.viewport)
-        }
+        ScrollView(.horizontal) { content() }
+            .scrollIndicators(.visible, axes: .horizontal)
     }
 }
 

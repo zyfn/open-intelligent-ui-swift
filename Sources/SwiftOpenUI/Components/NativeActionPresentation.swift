@@ -84,40 +84,19 @@ extension EnvironmentValues {
     @Entry var openUIActionLabelFont: OpenUIFont? = nil
 }
 
-/// A single label for a native Button. Suggestions keep their full question;
-/// ordinary buttons inherit the declared button font, color and width policy.
+/// A single label for a native Button, inheriting its declared font, color and width policy.
 struct NativeConversationActionLabel: View {
-    enum Placement { case centered, suggestion }
     let text: String
     let theme: OpenUIThemeValues
-    var placement: Placement = .centered
     var fillsWidth = false
     @Environment(\.openUIActionLabelFont) private var actionFont
-    @Environment(\.openUIActionAppearance) private var appearance
-    @Environment(\.isEnabled) private var enabled
 
-    @ViewBuilder var body: some View {
-        if placement == .suggestion {
-            HStack(alignment: .firstTextBaseline, spacing: theme.spaceS) {
-                Text(text).fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                NativeConversationAccessory(font: theme.textStyle(.action).font)
-            }
-            .nativeTextStyle(theme.textStyle(.action), color: suggestionColor)
-            .padding(.vertical, theme.spaceS)
-            .openUIControlTarget(alignment: .leading)
-        } else {
-            HStack(alignment: .firstTextBaseline, spacing: theme.spaceS) {
-                Text(text).fixedSize(horizontal: false, vertical: true)
-                NativeConversationAccessory(font: actionFont ?? theme.textStyle(.action).font)
-            }
-            .frame(maxWidth: fillsWidth ? .infinity : nil)
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: theme.spaceS) {
+            Text(text).fixedSize(horizontal: false, vertical: true)
+            NativeConversationAccessory(font: actionFont ?? theme.textStyle(.action).font)
         }
-    }
-
-    private var suggestionColor: Color {
-        enabled || appearance == .pending || appearance == .performing
-            ? theme.textNeutralPrimary : theme.textNeutralTertiary
+        .frame(maxWidth: fillsWidth ? .infinity : nil)
     }
 }
 

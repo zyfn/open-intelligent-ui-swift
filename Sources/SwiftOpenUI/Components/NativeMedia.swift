@@ -12,9 +12,8 @@ enum NativeMediaStatus: Equatable { case loading, loaded, unavailable }
 enum NativeMediaLayout {
   case cover, aspect(CGFloat), thumbnail(CGSize), fit, fill, intrinsic
 }
-/// Full content images can explain failure with text; compact artwork keeps a
-/// visible symbol in the same slot. Neither role silently disappears on failure.
-/// This is native presentation policy, not another model-authored parameter.
+/// Content images retain a quiet surface; compact artwork uses its owner's
+/// surface. Neither role adds error copy or changes its reserved geometry.
 enum NativeMediaRole: Equatable { case artwork, content }
 
 /// Missing or failed images keep a visible, lightweight fallback in their
@@ -108,8 +107,8 @@ struct NativeRemoteImage: View {
       }
     }
     .modifier(NativeImageInteraction(source: src, image: displayedImage, alt: alt,
-      enabled: interactionEnabled && !showsContentFailure,
-      previewEnabled: previewEnabled, failed: failed,
+      enabled: interactionEnabled,
+      previewEnabled: previewEnabled, failed: failed, isImageSurface: true,
       previewAttempt: resourceTarget.attempt,
       retry: { localRetry.retry(baseTarget) }))
     .task(id: NativeMediaTaskID(target: sourceReady ? resourceTarget : nil,
@@ -171,9 +170,6 @@ struct NativeRemoteImage: View {
     // phase before we announce loading to the containing card or gallery.
     guard let requestID else { return src != nil }
     return requestID.request != nil && !failed
-  }
-  private var showsContentFailure: Bool {
-    role == .content && fallbackSystemImage == nil && presentedImage == nil && !waitingForImage
   }
   private var displayedImage: Image? {
     presentedImage?.image
@@ -258,47 +254,38 @@ struct NativeRemoteImage: View {
         canvas(sourceSize: retainedSize) { image.resizable().scaledToFill().modifier(NativeMediaReveal(enabled: reveal, fallbackSystemImage: fallbackSystemImage)) }
       }
     }
-    .accessibilityElement(children: .ignore).accessibilityLabel(alt)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(alt.isEmpty ? Text("View image", bundle: NativeControlResources.bundle) : Text(alt))
     .accessibilityAddTraits(.isImage).accessibilityHidden(alt.isEmpty && !interactionEnabled)
   }
-  @ViewBuilder private func placeholder(loading: Bool) -> some View {
-    if showsContentFailure {
-      // Keep the media slot, but let a content image explain its absence. The
-      // scrollable copy also fits explicitly short frames and large text sizes.
-      canvas(hidesContentAccessibility: false) {
-        NativeContentImageFailure(alt: alt,
-          canRetry: interactionEnabled && sourceReady && requestID?.request != nil,
-          retry: { localRetry.retry(baseTarget) })
-      }
-      .accessibilityIdentifier("openui.media.unavailable")
-    } else {
-      canvas {
-        ZStack {
-          NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
-          if fallbackSystemImage == nil {
-            // This view survives loading -> failure. Opacity is local, respects
-            // Reduce Motion and uses the existing presentation motion token.
-            NativeLoadingSurface(active: loading, showsMediaSymbol: true)
-              .opacity(loading ? 1 : 0)
-              .animation(reduceMotion ? nil : .easeOut(duration: nativePresentation.motion.mediaRevealDuration), value: loading)
-          }
+  private func placeholder(loading: Bool) -> some View {
+    canvas {
+      ZStack {
+        if role == .content && fallbackSystemImage == nil { theme.sunk }
+        NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
+        if fallbackSystemImage == nil {
+          // Only the loading overlay fades. The quiet placeholder and its tap
+          // target retain the same geometry when loading fails.
+          NativeLoadingSurface(active: loading, showsMediaSymbol: true)
+            .opacity(loading ? 1 : 0)
+            .animation(reduceMotion ? nil : .easeOut(duration: nativePresentation.motion.mediaRevealDuration), value: loading)
         }
       }
-      .accessibilityElement(children: .ignore)
-      .accessibilityLabel(alt.isEmpty
-        ? Text(loading ? "Loading image" : "Image unavailable", bundle: NativeControlResources.bundle)
-        : Text(alt))
-      .accessibilityValue(Text(alt.isEmpty ? "" : loading ? "Loading image" : "Image unavailable",
-        bundle: NativeControlResources.bundle))
-      .accessibilityAddTraits(.isImage)
-      .accessibilityIdentifier(loading ? "openui.media.loading" : "openui.media.unavailable")
     }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(alt.isEmpty
+      ? Text(loading ? "Loading image" : "Image unavailable", bundle: NativeControlResources.bundle)
+      : Text(alt))
+    .accessibilityValue(Text(alt.isEmpty ? "" : loading ? "Loading image" : "Image unavailable",
+      bundle: NativeControlResources.bundle))
+    .accessibilityAddTraits(.isImage)
+    .accessibilityIdentifier(loading ? "openui.media.loading" : "openui.media.unavailable")
   }
   // Document illustrations retain their source proportions; photo previews
   // use the same declared role in every resource state.
-  @ViewBuilder private func canvas<Content: View>(sourceSize: CGSize? = nil, hidesContentAccessibility: Bool = true,
+  @ViewBuilder private func canvas<Content: View>(sourceSize: CGSize? = nil,
     @ViewBuilder _ content: () -> Content) -> some View {
-    let surface = Color.clear.overlay { content().accessibilityHidden(hidesContentAccessibility) }.clipped().contentShape(Rectangle())
+    let surface = Color.clear.overlay { content().accessibilityHidden(true) }.clipped().contentShape(Rectangle())
     switch layout {
     case .cover:
       surface.aspectRatio(nativePresentation.coverAspectRatio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)
@@ -310,53 +297,6 @@ struct NativeRemoteImage: View {
       surface.aspectRatio(NativeMediaPreview.aspectRatio(sourceSize: sourceSize ?? loadedEntry?.size), contentMode: .fit)
         .fixedSize(horizontal: false, vertical: true)
     }
-  }
-}
-
-struct NativeContentImageFailure: View {
-  let alt: String
-  let canRetry: Bool
-  let retry: () -> Void
-  @Environment(\.openUITheme) private var theme
-  @Environment(\.isEnabled) private var enabled
-  @Environment(\.openUIActivationIntent) private var intent
-
-  var body: some View {
-    ScrollView(.vertical) {
-      VStack(alignment: .leading, spacing: theme.spaceS) {
-        Label {
-          Text("Image unavailable", bundle: NativeControlResources.bundle)
-        } icon: {
-          Image(systemName: "photo").accessibilityHidden(true)
-        }.nativeTextStyle(theme.textStyle(.supporting))
-        if !alt.isEmpty {
-          Text(alt).nativeTextStyle(theme.textStyle(.body))
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier("openui.media.alternative")
-        }
-        if canRetry {
-          Button {
-            guard enabled, intent?.permitsActivation != false else { return }
-            retry()
-          } label: {
-            Label {
-              Text("Retry", bundle: NativeControlResources.bundle)
-            } icon: {
-              Image(systemName: "arrow.clockwise").accessibilityHidden(true)
-            }
-            .openUIFont(theme.textLabelSm, role: .control)
-            .openUIControlTarget(alignment: .leading)
-          }
-          .buttonStyle(.plain)
-          .foregroundStyle(theme.interactiveAccentDefault)
-          .accessibilityIdentifier("openui.media.retry")
-        }
-      }
-      .padding(theme.spaceM)
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .foregroundStyle(theme.textNeutralPrimary)
-    .accessibilityElement(children: .contain)
   }
 }
 

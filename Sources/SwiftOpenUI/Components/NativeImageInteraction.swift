@@ -10,6 +10,9 @@ struct NativeImageInteraction: ViewModifier {
   var enabled = true
   var previewEnabled = true
   var failed = false
+  // Only a leaf media surface can be wrapped in a Button. Card-level callers
+  // may contain fields or actions whose mounted identity must stay unchanged.
+  var isImageSurface = false
   var previewTheme: OpenUIThemeValues? = nil
   var previewAttempt = 0
   let retry: () -> Void
@@ -26,6 +29,7 @@ struct NativeImageInteraction: ViewModifier {
   private var ready: Bool { enabled && hostEnabled && sourceReady && widthReady }
   private var canPreview: Bool { ready && previewEnabled && image != nil }
   private var canTap: Bool { ready && (failed || (canPreview && !cardIsAction)) }
+  private var usesImageButton: Bool { isImageSurface && canTap && !cardIsAction }
   private func activate() {
     guard canTap, intent?.permitsActivation != false else { return }
     if failed { retry() } else { openPreview() }
@@ -36,9 +40,18 @@ struct NativeImageInteraction: ViewModifier {
     preview = true
   }
   func body(content: Content) -> some View {
-    content
-      .gesture(TapGesture().onEnded { activate() }, including: canTap && !failed ? .all : .subviews)
-      .highPriorityGesture(TapGesture().onEnded { activate() }, including: canTap && failed ? .all : .subviews)
+    Group {
+      if usesImageButton {
+        Button(action: activate) { content }
+          .buttonStyle(.plain)
+      } else {
+        // Cards and gallery owners keep a structurally stable gesture path,
+        // without nesting buttons or remounting stateful card content.
+        content
+          .gesture(TapGesture().onEnded { activate() }, including: canTap && !failed ? .all : .subviews)
+          .highPriorityGesture(TapGesture().onEnded { activate() }, including: canTap && failed ? .all : .subviews)
+      }
+    }
       .contextMenu {
         if canPreview {
           Button(action: openPreview) {
@@ -47,9 +60,9 @@ struct NativeImageInteraction: ViewModifier {
         }
       }
       .accessibilityActions {
-        if canTap {
+        if canTap && !usesImageButton {
           Button(action: activate) { Text(failed ? "Tap image to retry" : "View image", bundle: NativeControlResources.bundle) }
-        } else if canPreview {
+        } else if canPreview && !usesImageButton {
           Button(action: openPreview) { Text("View image", bundle: NativeControlResources.bundle) }
         }
       }

@@ -75,7 +75,7 @@ public struct OpenUIActionSurface<Content: View>: View {
             !hostEnabled ? .disabled : performing ? .performing : context.canInteract ? .ready : .pending)
     }
     @MainActor private var accessibilityStatus: Text {
-        if showsProgress && performing { return Text("In progress", bundle: NativeControlResources.bundle) }
+        if performing { return Text("In progress", bundle: NativeControlResources.bundle) }
         if hostEnabled && !context.canInteract {
             if context.hasDataFailure { return Text("Content unavailable", bundle: NativeControlResources.bundle) }
             if context.hasInterruptedData || (!context.isStreaming && !context.hasPendingData) {
