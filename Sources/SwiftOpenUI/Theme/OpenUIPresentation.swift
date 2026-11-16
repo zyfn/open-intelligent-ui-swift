@@ -25,14 +25,14 @@ public struct OpenUIPresentation {
     /// Text actions are capsules by default. A finite radius is an independent host override.
     public var buttonCornerRadius: CGFloat? = nil
     public var cardBorderColor: Color?
-    /// Forms group fields and actions without adding a second visual container.
-    /// Hosts may opt into Card's surface without adding a Lang parameter.
-    public var formShowsCardSurface = false
+    /// A form presents one task panel using Card's surface. Hosts embedding a
+    /// form in an existing panel may opt out without adding a Lang parameter.
+    public var formShowsCardSurface = true
     public var minimumCardWidth: CGFloat = 240
     public var minimumCompactCardWidth: CGFloat = 160
-    /// Reading space per option card; the local proposal and Dynamic Type
-    /// determine column count. Hosts may opt into denser comparison layouts.
-    public var minimumChoiceWidth: CGFloat = 200
+    /// Base reading width per option. The local proposal and Dynamic Type
+    /// determine column count; hosts may request wider choices.
+    public var minimumChoiceWidth: CGFloat = 136
     public var chartGrid = NativeControlPalette.adaptive(light: 0xE8EAEE, dark: 0x34373C)
     public var chartAxis = NativeControlPalette.adaptive(light: 0x6A6F78, dark: 0xB4BBC6)
     // One shared thickness for drawing and sizing a single distribution strip.

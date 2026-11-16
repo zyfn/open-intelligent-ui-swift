@@ -23,17 +23,18 @@ final class GalleryReadingWidthTests: XCTestCase {
     return host.fittingSize.height
   }
 
-  @MainActor func testPhotoOnlyGalleryUsesThumbnailWidthsAcrossNarrowContainers() throws {
+  @MainActor func testPhotoOnlyGalleryRetainsReadingWidthAcrossNarrowContainers() throws {
     let source = "root=Stack([ImageGallery([{src:\"\",alt:\"A\"},{src:\"\",alt:\"B\"},{src:\"\",alt:\"C\"}])])"
     // Validate the real registered renderer, not just the generic grid helper.
     XCTAssertEqual(try height(source, width: 350), 169 * 9 / 16 * 2 + 12, accuracy: 1)
-    XCTAssertEqual(try height(source, width: 280), 134 * 9 / 16 * 2 + 12, accuracy: 1)
+    XCTAssertEqual(try height(source, width: 360), 174 * 9 / 16 * 2 + 12, accuracy: 1)
+    XCTAssertEqual(try height(source, width: 280), 280 * 9 / 16 * 3 + 24, accuracy: 1)
     XCTAssertEqual(try height(source, width: 530), (530 - 24) / 3 * 9 / 16, accuracy: 1)
-    XCTAssertEqual(try height(source, width: 240), 114 * 9 / 16 * 2 + 12, accuracy: 1)
+    XCTAssertEqual(try height(source, width: 240), 240 * 9 / 16 * 3 + 24, accuracy: 1)
     XCTAssertEqual(try height(source, width: 200), 200 * 9 / 16 * 3 + 24, accuracy: 1)
-    XCTAssertEqual(try height(source, width: 280, typeSize: .accessibility3),
-      try height(source, width: 280), accuracy: 1,
-      "Font preferences must not turn a captionless photo preview into full-width text cards")
+    XCTAssertEqual(try height(source, width: 350, typeSize: .accessibility3),
+      350 * 9 / 16 * 3 + 24, accuracy: 1,
+      "Photo galleries retain a single reading column at accessibility sizes")
   }
 
   @MainActor func testCaptionedGalleryRetainsReadingWidthAndAccessibilityReflow() throws {
@@ -55,18 +56,14 @@ final class GalleryReadingWidthTests: XCTestCase {
       "Future records outside the five-photo preview must not make the first visible photo narrower")
   }
 
-  @MainActor func testAdditionalImagesKeepOneAllPhotosEntryWithoutExpandingThePreview() throws {
+  @MainActor func testAdditionalImagesDoNotAddRowsOrControlsToTheInlinePreview() throws {
     func source(_ count: Int) -> String {
       let images = (1...count).map { "{src:\"\",alt:\"Photo \($0)\"}" }.joined(separator: ",")
       return "root=Stack([ImageGallery([\(images)])])"
     }
-    // Only photos beyond the five inline slots need a separate entry. It must
-    // remain reachable even when all visible sources are unavailable.
     let five = try height(source(5), width: 240)
-    let six = try height(source(6), width: 240)
-    XCTAssertEqual(six - five,
-      OpenUIThemeValues().spaceM + OpenUIPresentation().minimumControlTargetSize, accuracy: 1)
-    XCTAssertEqual(try height(source(9), width: 240), six, accuracy: 1,
+    XCTAssertEqual(try height(source(6), width: 240), five, accuracy: 1)
+    XCTAssertEqual(try height(source(9), width: 240), five, accuracy: 1,
       "Additional photos belong in the viewer, not extra inline rows or controls")
   }
 }

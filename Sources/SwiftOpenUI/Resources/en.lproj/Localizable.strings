@@ -19,10 +19,8 @@
 
 "Save Changes" = "Save Changes";
 "Map" = "Map";
-"Open place" = "Open place";
 "Loading image" = "Loading image";
 "Image unavailable" = "Image unavailable";
-"Show all photos" = "Show all photos";
 "View image" = "View image";
 
 "Previous page" = "Previous page";
@@ -102,9 +100,6 @@
 "Maximum" = "Maximum";
 "Clear range" = "Clear range";
 "Selected range" = "Selected range";
-"Earlier tabs" = "Earlier tabs";
-"Later tabs" = "Later tabs";
-"Place details" = "Place details";
 "View full graphic" = "View full graphic";
 "Graphic preview" = "Graphic preview";
 "Zoom and pan to inspect the graphic" = "Zoom and pan to inspect the graphic";

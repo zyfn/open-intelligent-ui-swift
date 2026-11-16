@@ -194,9 +194,8 @@ final class ObjectCardCompositionTests: XCTestCase {
       XCTAssertGreaterThan(color.blueComponent, 0.9, detail)
     }
 
-    // Content images preserve all corner markers at their source proportions.
-    // These pixels and the rendered bounds catch both cropping and fitting
-    // the image into a differently proportioned, letterboxed slot.
+    // Standard images fill their declared cover slot. Matching proportions
+    // preserve the corner markers; square and portrait images crop them.
     func cornerImage(width: Int, height: Int) throws -> Data {
       let pixels = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
         pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
@@ -233,15 +232,15 @@ final class ObjectCardCompositionTests: XCTestCase {
     ] {
       let placeholder = try bitmap(empty, name: name + "-placeholder")
       XCTAssertEqual(placeholder.pixelsWide, 320)
-      XCTAssertEqual(placeholder.pixelsHigh, 240)
-      for (width, height) in [(100, 100), (120, 80), (80, 120)] {
+      XCTAssertEqual(placeholder.pixelsHigh, 180)
+      for (width, height, keepsCorners) in [(100, 100, false), (160, 90, true), (80, 120, false)] {
         imageBytes = try cornerImage(width: width, height: height)
         let loaded = try bitmap(source, name: name + "-\(width)x\(height)")
-        XCTAssertEqual(try markerColors(loaded), Set(["red", "green", "blue", "yellow"]),
-          "\(name) must preserve every corner of the original image")
+        XCTAssertEqual(try markerColors(loaded), keepsCorners ? Set(["red", "green", "blue", "yellow"]) : [],
+          "\(name) must fill its cover slot, cropping only the source area outside it")
         XCTAssertEqual(loaded.pixelsWide, 320, "Content images use the full available width")
-        XCTAssertEqual(CGFloat(loaded.pixelsHigh), 320 * CGFloat(height) / CGFloat(width), accuracy: 1,
-          "The source proportions determine height, without a fixed cover slot")
+        XCTAssertEqual(loaded.pixelsHigh, 180,
+          "Loading and loaded images keep the same declared cover height")
       }
     }
     let banner = try bitmap("root=ImageTextLarge(\"\(imageSource)\",\"Corners\",\"Banner\")", name: "cropped-banner")
@@ -332,8 +331,8 @@ final class ObjectCardCompositionTests: XCTestCase {
     settle()
     let before = try XCTUnwrap(measured.values["a"])
     XCTAssertEqual(before.width, 169, accuracy: 1)
-    XCTAssertEqual(before.height, 169 * 3 / 4, accuracy: 1,
-      "An unknown source uses the intrinsic image's 4:3 placeholder inside its allocated column")
+    XCTAssertEqual(before.height, 169 * 9 / 16, accuracy: 1,
+      "An unknown source reserves the cover slot inside its allocated column")
     state.push(" copy that grows across many lines inside the same reading column.")
     settle()
     XCTAssertEqual(try XCTUnwrap(measured.values["a"]).width, before.width, accuracy: 1)

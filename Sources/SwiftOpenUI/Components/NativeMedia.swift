@@ -13,27 +13,49 @@ enum NativeMediaLayout {
   case cover, aspect(CGFloat), thumbnail(CGSize), fit, fill, intrinsic
 }
 /// Content images retain a quiet surface; compact artwork uses its owner's
-/// surface. The layout determines geometry; neither role adds error copy.
+/// surface. The layout determines geometry in every resource state.
 enum NativeMediaRole: Equatable { case artwork, content }
 
-/// Missing or failed images keep a visible, lightweight fallback in their
-/// declared slot. Owners can supply a semantic symbol, such as a map's POI;
-/// ordinary images use a photo symbol. Neither fallback adds a background.
+/// A resource placeholder is not an alert. Ordinary images show a short status
+/// only when it fits; owner-provided symbols retain their compact appearance.
 struct NativeUnavailableMedia: View {
   let theme: OpenUIThemeValues
   var systemImage: String? = nil
-  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 24
+  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 16
+  @ScaledMetric(relativeTo: .body) private var semanticGlyphSize: CGFloat = 24
 
   var body: some View {
     GeometryReader { geometry in
       let available = max(0, min(geometry.size.width, geometry.size.height))
-      let side = min(glyphSize, available * 0.42)
-      Image(systemName: systemImage ?? "photo")
-        .font(.system(size: side, weight: .medium))
-        .foregroundStyle(systemImage == nil ? theme.textNeutralSecondary : theme.interactiveAccentDefault)
+      if let systemImage {
+        Image(systemName: systemImage)
+          .font(.system(size: min(semanticGlyphSize, available * 0.42), weight: .medium))
+          .foregroundStyle(theme.interactiveAccentDefault)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        let side = min(glyphSize, available)
+        ViewThatFits(in: [.horizontal, .vertical]) {
+          if geometry.size.width >= 160 {
+            VStack(spacing: theme.spaceXs) {
+              glyph(side)
+              Text("Image unavailable", bundle: NativeControlResources.bundle)
+                .nativeTextStyle(theme.textStyle(.supporting))
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, theme.spaceS)
+            }.fixedSize()
+          }
+          glyph(side)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
     }
     .accessibilityHidden(true).allowsHitTesting(false)
+  }
+
+  private func glyph(_ side: CGFloat) -> some View {
+    Image(systemName: "photo").resizable().scaledToFit()
+      .frame(width: side, height: side).foregroundStyle(theme.textNeutralSecondary)
   }
 }
 
@@ -375,8 +397,7 @@ struct NativeImageGallery: View {
   @State private var selected: NativeGalleryResourceID?
   @State private var preview = false
   @State private var retries: [String: Int] = [:]
-  // Keep a compact inline preview. Its independent entry also reaches later
-  // images when every visible thumbnail is still loading or unavailable.
+  // Keep the inline preview compact; opening a photo presents the full gallery.
   private let previewLimit = 5
   @State private var stableImages: [NativeGalleryImage]?
   private var images: [NativeGalleryImage] {
@@ -407,10 +428,6 @@ struct NativeImageGallery: View {
     }
   }
   private var visible: [NativeGalleryImage] { Array(images.prefix(previewLimit)) }
-  // A declared details slot needs reading width, even while its text is still
-  // streaming. Photo-only previews use their thumbnail width and do not grow
-  // into text cards when the reader changes their preferred font size.
-  private var hasDetails: Bool { visible.contains { $0.details != nil } }
   private var gridReady: Bool {
     if stableImages != nil && (context.hasPendingData || context.hasDataFailure) { return true }
     return NativeLayoutContract.collectionShapeReady(context.element.sourceReadiness["images"], count: images.count)
@@ -427,10 +444,9 @@ struct NativeImageGallery: View {
       if !gridReady || (visible.isEmpty && (context.hasPendingData || (context.isStreaming && !context.element.isSourceComplete))) {
         NativePendingContent(loading: !context.hasDataFailure && (context.isStreaming || context.hasPendingData), message: "Loading image")
       } else if !visible.isEmpty {
-        NativeGalleryGridLayout(minimumWidth: hasDetails
-            ? max(context.presentation.thumbnailSize, context.presentation.minimumCompactCardWidth * readingScale)
-            : context.presentation.thumbnailSize,
-          gap: context.theme.spaceM, maximumColumns: hasDetails && typeSize.isAccessibilitySize ? 1 : nil, layoutCount: layoutCount) {
+        NativeGalleryGridLayout(minimumWidth: max(context.presentation.thumbnailSize,
+            context.presentation.minimumCompactCardWidth * readingScale),
+          gap: context.theme.spaceM, maximumColumns: typeSize.isAccessibilitySize ? 1 : nil, layoutCount: layoutCount) {
           ForEach(visible) { image in
             VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
               Button {
@@ -459,25 +475,6 @@ struct NativeImageGallery: View {
               if let details = image.details { Text(details).nativeTextStyle(context.theme.textStyle(.supporting)) }
             }
           }
-        }
-        if images.count > previewLimit {
-          Button {
-            guard context.canActivate, let first = images.first else { return }
-            selected = first.key
-            preview = true
-          } label: {
-            HStack(spacing: context.theme.spaceS) {
-              Text("Show all photos", bundle: NativeControlResources.bundle)
-              Text("\(images.count)").monospacedDigit()
-              Image(systemName: "arrow.forward").accessibilityHidden(true)
-            }
-            .openUIFont(context.theme.textLabelSm, role: .control)
-            .openUIControlTarget(alignment: .leading)
-          }
-          .buttonStyle(.plain)
-          .foregroundStyle(context.theme.interactiveAccentDefault)
-          .disabled(!context.canInteract)
-          .accessibilityIdentifier("openui.gallery.show-all")
         }
       }
     }

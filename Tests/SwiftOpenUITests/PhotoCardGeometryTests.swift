@@ -174,8 +174,8 @@ final class PhotoCardGeometryTests: XCTestCase {
     state.push("root=Image(\"photo\",\"photo.jpg\")\nother=TextContent(\"still arriving")
     let view = OpenUIContentView(state: state, registry: library.registry).frame(width: 300)
     XCTAssertFalse(state.isComplete)
-    XCTAssertEqual(NSHostingView(rootView: view).fittingSize.height, 225, accuracy: 1,
-      "An unknown image uses the existing 4:3 placeholder without waiting for unrelated text")
+    XCTAssertEqual(NSHostingView(rootView: view).fittingSize.height, 300 * 9 / 16, accuracy: 1,
+      "The declared cover ratio reserves the image slot without waiting for unrelated text")
   }
 
   @MainActor func testSingleResponsiveCardUsesTheFullAvailableColumn() throws {

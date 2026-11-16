@@ -19,10 +19,8 @@
 
 "Save Changes" = "保存修改";
 "Map" = "地图";
-"Open place" = "打开地点";
 "Loading image" = "图片加载中";
 "Image unavailable" = "图片暂不可用";
-"Show all photos" = "查看全部图片";
 "View image" = "查看图片";
 
 "Previous page" = "上一页";
@@ -102,9 +100,6 @@
 "Maximum" = "最大值";
 "Clear range" = "清空日期范围";
 "Selected range" = "已选范围";
-"Earlier tabs" = "前面的标签";
-"Later tabs" = "后面的标签";
-"Place details" = "地点详情";
 "View full graphic" = "查看完整图形";
 "Graphic preview" = "图形预览";
 "Zoom and pan to inspect the graphic" = "缩放或拖动以查看图形细节";

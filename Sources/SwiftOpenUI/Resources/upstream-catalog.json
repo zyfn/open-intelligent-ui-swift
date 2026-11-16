@@ -19,7 +19,7 @@
       "notes": [
         "- Organize a reply by its information relationships. Use Stack for continuous reading and sections; use Tabs for alternative views and Accordion for optional detail.",
         "- In column Stacks, use gap=\"s\" between a heading and its content, gap=\"m\" between related paragraphs, and gap=\"xl\" between sections. Explicit layout arguments remain authoritative.",
-        "- For side-by-side content use Stack with direction=\"row\" and wrap=true. Prefer justify=\"start\" to avoid large gutters; readable content may reflow to fewer columns.",
+        "- For grid-like collections use Stack with direction=\"row\", wrap=true and justify=\"start\". This is a collection layout, not a rule for every pair of adjacent values or actions.",
         "- Modal(\"Title\", $visible, [content]) uses a boolean binding. A form inside it still owns its own submit buttons."
       ]
     },
@@ -40,10 +40,10 @@
       ],
       "notes": [
         "- Use TextContent Markdown headings for page/section hierarchy, InlineHeader for object names, and ordinary TextContent for the main explanation. Large or heavy body variants are emphasis, not substitutes for headings.",
-        "- Card groups an independent object or bounded task. Ordinary sections and explanations can remain directly in a Stack.",
+        "- Use Stack for the response, sections, explanations and sequences. Use Card only when one concrete object needs a comparison, selection or action boundary; a heading or a list of attributes alone does not justify a card.",
         "- TextCallout is a persistent aside or constraint. Callout with a writable visible binding can show transient feedback; unbound Callout remains visible. Use neutral/info for quiet notes and explicit status variants for real status.",
-        "- Image and ImageBlock show the complete image at the available width with its original aspect ratio. ImageTextLarge is a cover/banner; ImageText is a thumbnail. Choose the component by purpose, using real provided image URLs.",
-        "- ImageGallery previews related images. Supply details only when there is meaningful accompanying information; keep long explanations in normal reading content."
+        "- Image and ImageBlock fill the configured cover aspect ratio; their viewer provides complete-image inspection. ImageTextLarge is a cover/banner; ImageText is a thumbnail. Use real provided image URLs and keep essential explanations in text.",
+        "- ImageGallery previews related images and owns access to the full collection. Supply details only when useful; do not add a separate count, view-all button or surrounding Card."
       ]
     },
     {
@@ -132,7 +132,7 @@
         "- FormControl owns the field label. Avoid repeating that label as a separate heading immediately above the same field.",
         "- OptionCards and Chips declare single/multiple selection through their mode. The controls convey selection state; do not add a separate selection-mode badge.",
         "- Keep meaningful labels and hints. Supply validation rules such as required, email, min, max, minLength, maxLength, pattern, url, numeric; the renderer owns validation errors.",
-        "- Use one clear primary submit for a task, with secondary actions only when they serve a distinct purpose. Form itself is a transparent field group; add Card only for a meaningful panel boundary."
+        "- Form already presents one task card containing its fields and actions. Place Form directly in the surrounding Stack; do not wrap it or each FormControl in another Card. Use one clear primary submit and only useful secondary actions."
       ]
     },
     {
@@ -185,8 +185,8 @@
         "MetricIndicatorWithStrikethrough"
       ],
       "notes": [
-        "- Use card collections for independent, comparable objects with consistent anatomy. Do not invent more objects to fill a grid or use a card for every paragraph.",
-        "- SnippetCardItem presents a compact key/value fact; OverviewCardItem presents a compact object with an optional metric. Core explanations belong in body text, not in a small subtitle.",
+        "- Use card collections only when users need to compare or act on separate objects. The collection items already own their surfaces; do not wrap the whole collection in another Card or invent objects to fill a grid.",
+        "- SnippetCardItem and OverviewCardItem support facts that benefit from scanning or comparison. Do not automatically turn an introduction or every number into overview cards; explain continuous reasoning in TextContent.",
         "- CompositeCardItem accepts its declared header, body and footer slots. Use object naming in the header, new supporting information in the body, and price/action in the footer; avoid repeating the same phrase in every slot.",
         "- VisualCardItem and background-image ContextCardItem use a photograph as the card background, with their tag/title and body over the image. Keep overlay copy concise; put extended explanations in adjacent reading content.",
         "- Text, BoldText, IconText, ImageText, ImageTextLarge and MetricIndicator components are object building blocks. Follow the declared slot schemas and prefer TextContent for a continuous explanation."
@@ -5773,7 +5773,7 @@
         "notes": [
           "- Organize a reply by its information relationships. Use Stack for continuous reading and sections; use Tabs for alternative views and Accordion for optional detail.",
           "- In column Stacks, use gap=\"s\" between a heading and its content, gap=\"m\" between related paragraphs, and gap=\"xl\" between sections. Explicit layout arguments remain authoritative.",
-          "- For side-by-side content use Stack with direction=\"row\" and wrap=true. Prefer justify=\"start\" to avoid large gutters; readable content may reflow to fewer columns.",
+          "- For grid-like collections use Stack with direction=\"row\", wrap=true and justify=\"start\". This is a collection layout, not a rule for every pair of adjacent values or actions.",
           "- Modal(\"Title\", $visible, [content]) uses a boolean binding. A form inside it still owns its own submit buttons."
         ]
       },
@@ -5794,10 +5794,10 @@
         ],
         "notes": [
           "- Use TextContent Markdown headings for page/section hierarchy, InlineHeader for object names, and ordinary TextContent for the main explanation. Large or heavy body variants are emphasis, not substitutes for headings.",
-          "- Card groups an independent object or bounded task. Ordinary sections and explanations can remain directly in a Stack.",
+          "- Use Stack for the response, sections, explanations and sequences. Use Card only when one concrete object needs a comparison, selection or action boundary; a heading or a list of attributes alone does not justify a card.",
           "- TextCallout is a persistent aside or constraint. Callout with a writable visible binding can show transient feedback; unbound Callout remains visible. Use neutral/info for quiet notes and explicit status variants for real status.",
-          "- Image and ImageBlock show the complete image at the available width with its original aspect ratio. ImageTextLarge is a cover/banner; ImageText is a thumbnail. Choose the component by purpose, using real provided image URLs.",
-          "- ImageGallery previews related images. Supply details only when there is meaningful accompanying information; keep long explanations in normal reading content."
+          "- Image and ImageBlock fill the configured cover aspect ratio; their viewer provides complete-image inspection. ImageTextLarge is a cover/banner; ImageText is a thumbnail. Use real provided image URLs and keep essential explanations in text.",
+          "- ImageGallery previews related images and owns access to the full collection. Supply details only when useful; do not add a separate count, view-all button or surrounding Card."
         ]
       },
       {
@@ -5886,7 +5886,7 @@
           "- FormControl owns the field label. Avoid repeating that label as a separate heading immediately above the same field.",
           "- OptionCards and Chips declare single/multiple selection through their mode. The controls convey selection state; do not add a separate selection-mode badge.",
           "- Keep meaningful labels and hints. Supply validation rules such as required, email, min, max, minLength, maxLength, pattern, url, numeric; the renderer owns validation errors.",
-          "- Use one clear primary submit for a task, with secondary actions only when they serve a distinct purpose. Form itself is a transparent field group; add Card only for a meaningful panel boundary."
+          "- Form already presents one task card containing its fields and actions. Place Form directly in the surrounding Stack; do not wrap it or each FormControl in another Card. Use one clear primary submit and only useful secondary actions."
         ]
       },
       {
@@ -5939,8 +5939,8 @@
           "MetricIndicatorWithStrikethrough"
         ],
         "notes": [
-          "- Use card collections for independent, comparable objects with consistent anatomy. Do not invent more objects to fill a grid or use a card for every paragraph.",
-          "- SnippetCardItem presents a compact key/value fact; OverviewCardItem presents a compact object with an optional metric. Core explanations belong in body text, not in a small subtitle.",
+          "- Use card collections only when users need to compare or act on separate objects. The collection items already own their surfaces; do not wrap the whole collection in another Card or invent objects to fill a grid.",
+          "- SnippetCardItem and OverviewCardItem support facts that benefit from scanning or comparison. Do not automatically turn an introduction or every number into overview cards; explain continuous reasoning in TextContent.",
           "- CompositeCardItem accepts its declared header, body and footer slots. Use object naming in the header, new supporting information in the body, and price/action in the footer; avoid repeating the same phrase in every slot.",
           "- VisualCardItem and background-image ContextCardItem use a photograph as the card background, with their tag/title and body over the image. Keep overlay copy concise; put extended explanations in adjacent reading content.",
           "- Text, BoldText, IconText, ImageText, ImageTextLarge and MetricIndicator components are object building blocks. Follow the declared slot schemas and prefer TextContent for a continuous explanation."
@@ -9842,21 +9842,21 @@
       "Use ordinary TextContent/Markdown for core explanations. Small, secondary subtitles are for metadata or supplementary context, not the main reasoning.",
       "Use consistent heading levels for peer sections and smaller object headings within them. Do not add duplicate titles or increase body size merely to create hierarchy.",
       "Use column Stack gap=\"s\" for a heading with its content, \"m\" for related paragraphs and \"xl\" between sections. Nested grouping expresses these relationships without an extra surface.",
-      "Use Card for an independent object or bounded task. Charts, forms, follow-ups and ordinary sections do not automatically need a Card.",
+      "Default to a continuous Stack of headings, text and relevant media. Reserve Card for a concrete object being compared, selected or acted on; do not cardify the response, ordinary sections, paragraphs, charts, tables or follow-ups.",
       "Use TextCallout for a distinct aside, limitation or warning. Do not wrap normal explanations in callouts or invent generic titles such as Information or Note.",
-      "Choose Image/ImageBlock for a complete content image, ImageTextLarge for a photographic cover/banner, and ImageText for a thumbnail. Do not infer image purpose from a URL or force a product outline or diagram into a cover.",
+      "Image/ImageBlock and ImageTextLarge use cover framing; ImageText is a thumbnail, and SVG expresses diagrams. The media viewer provides complete-image inspection. Do not infer image purpose from its URL or put essential instructions only inside a cropped image.",
       "Use real images supplied by the user or tools. Do not invent image URLs, placeholder objects, prices, availability or factual data. Label explicitly requested hypothetical examples as hypothetical.",
       "Keep photo-overlay copy short; put longer explanations in reading content. Gallery details must add useful information instead of repeating the surrounding text.",
       "For SVG diagrams, use a tight meaningful viewBox, short labels readable at phone width, and colors with clear meaning. Keep long explanations in adjacent text. Do not embed an extra preview button or instructions.",
       "Choose a chart to explain a quantitative relationship and a table to support exact comparison. Avoid repeated metrics, charts and lists that add no information.",
       "Within one decision area, emphasize its main next action and use secondary treatment for alternatives and references. Preserve the actual action, destination and payload.",
       "Use FollowUpBlock at the end of the response for useful next questions. It can be a direct child of Stack and does not require a Card wrapper.",
-      "For forms, define one FormControl reference per field and pass Buttons(...) as the second Form argument: Form(name, buttons, fields). Never nest Form inside Form.",
+      "A complete Form is one task card by default. Place it directly in Stack without an extra Card, define one FormControl per field, and pass Buttons(...) as its second argument: Form(name, buttons, fields). Never nest Form inside Form.",
       "Declare single/multiple selection through the actual field mode. Do not generate Required/Multi-select badges, duplicate field labels, validation errors or resource-retry controls.",
       "Reset fields only when the task calls for it; use @Reset($var1, $var2) to restore defaults. Reactive variables update their dependent expressions and Queries.",
       "Keep existing action semantics: a multi-query refresh can use Action([@Run(mutation), @Run(query1), @Run(query2)]). Use existing Tabs, Accordion and Modal before inventing equivalent visibility logic.",
       "Always pass a category to Icon for its supported fallback. Use EditableTable only when editing is requested; the consuming app owns persistence.",
-      "Use Map for meaningful coordinate relationships. Initial overview and selected-place details are component behavior; do not duplicate map controls or details outside it."
+      "Use Map for meaningful coordinate relationships. The component owns point selection, the selected-place card and external-place links; do not duplicate these controls or details outside it."
     ],
     "examples": [
       "root = Stack([summary, explanation, note, followUps], \"column\", \"xl\")\nsummary = TextContent(\"The main result is **unchanged**. The useful difference is how the work is distributed.\")\nexplanation = Stack([heading, body], \"column\", \"s\")\nheading = TextContent(\"## How to read the result\")\nbody = TextContent(\"Start with the total, then compare the parts.\\n\\nA larger part explains more of the total; it does not by itself explain the cause.\")\nnote = TextCallout(\"neutral\", null, \"The sample covers completed work only.\")\nfollowUps = FollowUpBlock([FollowUpItem(\"Compare the parts\"), FollowUpItem(\"Explain the assumptions\")])",
@@ -10004,6 +10004,6 @@
   },
   "promptSource": {
     "path": "Tools/Presentation/prompt-options.mjs",
-    "sha256": "eec197938396db0757f63e21f4ca7406d8650d1de077fa9d2270ff69ac29b97b"
+    "sha256": "99778575398a36b7a41992d0bb883f0ddecba7140dd9d26852f18212feb71cf3"
   }
 }

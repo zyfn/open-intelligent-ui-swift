@@ -44,11 +44,4 @@ final class NativeAffordanceTests: XCTestCase {
         XCTAssertEqual(customized.resolvedCardBorderColor(with: theme), .red)
     }
 
-    func testTabsOverflowHintRequiresActualOverflow() {
-        XCTAssertFalse(NativeTabsOverflow.shouldShowHint(contentWidth: 200, viewportWidth: 240))
-        XCTAssertFalse(NativeTabsOverflow.shouldShowHint(contentWidth: 240, viewportWidth: 240))
-        XCTAssertFalse(NativeTabsOverflow.shouldShowHint(contentWidth: 241, viewportWidth: 240))
-        XCTAssertTrue(NativeTabsOverflow.shouldShowHint(contentWidth: 242, viewportWidth: 240))
-        XCTAssertTrue(NativeTabsOverflow.shouldShowHint(contentWidth: 100, viewportWidth: 0))
-    }
 }

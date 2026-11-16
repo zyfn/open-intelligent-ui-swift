@@ -122,24 +122,24 @@ final class VisualPolishTests: XCTestCase {
     XCTAssertGreaterThan(nested.count(blue), 50, "Removing the content border must not erase editable field boundaries")
   }
 
-  @MainActor func testFormDefaultsToUnframedAndSupportsExplicitCardSurface() throws {
+  @MainActor func testFormDefaultsToCardAndSupportsUnframedEmbedding() throws {
     var theme = OpenUITheme()
     theme.borderDefault = Color(red: 1, green: 0, blue: 0)
     theme.borderInteractive = Color(red: 0, green: 0, blue: 1)
     let form = "Form(\"f\",Buttons([]),[FormControl(\"Field\",Input(\"x\",\"Value\"))])"
-    var panel = OpenUIPresentation(); panel.formShowsCardSurface = true
-    let optIn = try raster("root=" + form, theme: theme, presentation: panel)
-    let composed = try raster("root=Card([\(form)],\"card\")", theme: theme)
-    XCTAssertEqual(optIn.width, composed.width)
-    XCTAssertEqual(optIn.height, composed.height)
-    XCTAssertEqual(optIn.pixels, composed.pixels, "An explicit Form surface must reuse Card geometry without nesting another panel")
-    let unframed = try raster("root=" + form, theme: theme)
+    var embedded = OpenUIPresentation(); embedded.formShowsCardSurface = false
+    let panel = try raster("root=" + form, theme: theme)
+    let composed = try raster("root=Card([\(form)],\"card\")", theme: theme, presentation: embedded)
+    XCTAssertEqual(panel.width, composed.width)
+    XCTAssertEqual(panel.height, composed.height)
+    XCTAssertEqual(panel.pixels, composed.pixels, "The default Form surface must reuse Card geometry without nesting another panel")
+    let unframed = try raster("root=" + form, theme: theme, presentation: embedded)
     let red: (UInt8, UInt8, UInt8) -> Bool = { $0 > 180 && $1 < 100 && $2 < 100 }
     let blue: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 < 100 && $2 > 180 }
-    XCTAssertGreaterThan(optIn.count(red), 100)
+    XCTAssertGreaterThan(panel.count(red), 100)
     XCTAssertEqual(unframed.count(red), 0)
     XCTAssertGreaterThan(unframed.count(blue), 50, "A quiet Form must preserve editable field boundaries")
-    XCTAssertGreaterThan(optIn.height, unframed.height)
+    XCTAssertGreaterThan(panel.height, unframed.height)
   }
 
   @MainActor func testNeutralIconAliasesRenderIdenticallyAndStatusVariantsKeepTheSameGeometry() throws {

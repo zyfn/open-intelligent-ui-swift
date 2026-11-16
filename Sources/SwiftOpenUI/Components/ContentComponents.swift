@@ -133,7 +133,7 @@ struct NativeImageBlock: View {
   let context: OpenUIComponentContext
   var body: some View {
     NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-      layout: .intrinsic, role: .content)
+      layout: .aspect(context.presentation.coverAspectRatio), role: .content)
       .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
   }
 }

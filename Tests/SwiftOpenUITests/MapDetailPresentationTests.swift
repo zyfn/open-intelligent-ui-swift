@@ -1,13 +1,12 @@
 import SwiftLang
 #if os(macOS)
 import AppKit
-import MapKit
 import SwiftUI
 import XCTest
 @testable import SwiftOpenUI
 
 final class MapDetailPresentationTests: XCTestCase {
-  @MainActor func testOverviewWaitsForSelectionAndRetiresDetailsWhenSelectionDisappears() async throws {
+  @MainActor func testSelectionBindingControlsCardsAndUnboundMapShowsFirstPlace() async throws {
     guard #available(macOS 14, *) else { throw XCTSkip("Native Map requires macOS 14") }
     _ = NSApplication.shared
     let standard = try OpenUIComponents.library()
@@ -35,9 +34,11 @@ final class MapDetailPresentationTests: XCTestCase {
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
     let selectedB = expectation(description: "Explicitly selected B mounts its artwork")
     let selectedC = expectation(description: "Explicitly selected C mounts its artwork")
+    let defaultPlace = expectation(description: "An unbound map mounts its first place card")
     let loader = MapDetailImageLoader { path in
       if path == "/b" { selectedB.fulfill() }
       if path == "/c" { selectedC.fulfill() }
+      if path == "/unbound" { defaultPlace.fulfill() }
     }
     let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
       .openUIResourceContext(.init(loader: loader)).frame(width: 350, height: 360))
@@ -53,7 +54,7 @@ final class MapDetailPresentationTests: XCTestCase {
       host.layoutSubtreeIfNeeded()
     }
     try await settle()
-    XCTAssertTrue(loader.paths.isEmpty, "Overview must not mount an arbitrary place card")
+    XCTAssertTrue(loader.paths.isEmpty, "An explicit null selection must not mount an arbitrary place card")
 
     state.setState("$choice", value: .string("b"))
     await fulfillment(of: [selectedB], timeout: 3)
@@ -74,36 +75,7 @@ final class MapDetailPresentationTests: XCTestCase {
     XCTAssertFalse(loader.paths.contains("/cleared"), "Clearing the binding must retire the detail card")
 
     state.setSource("root=Map([MapPoint(\"D\",33,123,\"https://map.test/unbound\")])")
-    try await settle()
-    XCTAssertFalse(loader.paths.contains("/unbound"), "A map without a selection binding also starts in overview")
-  }
-
-  @MainActor func testPlaceWithoutExternalURLStillHasDetailControlInTheReservedSlot() {
-    _ = NSApplication.shared
-    let place = NativeMapPlace(id: "place", title: "完整地点名称", image: nil, url: nil,
-      description: "地点详情不依赖外部网页。", coordinate: .init(latitude: 31.2, longitude: 121.5))
-    let host = NSHostingView(rootView: NativeMapPlaceDetailsButton(place: place, enabled: true, select: {}))
-    XCTAssertEqual(host.fittingSize.width, 44, accuracy: 1)
-    XCTAssertEqual(host.fittingSize.height, 44, accuracy: 1)
-  }
-
-  @MainActor func testLongChineseDetailsGrowBeyondTheCompactCardAtNarrowWidthsAndLargeType() {
-    _ = NSApplication.shared
-    func height(_ description: String, width: CGFloat, type: DynamicTypeSize) -> CGFloat {
-      let place = NativeMapPlace(id: "place", title: "完整地点名称，包含必要的分馆与入口说明", image: nil, url: nil,
-        description: description, coordinate: .init(latitude: 31.2, longitude: 121.5))
-      return NSHostingView(rootView: NativeMapPlaceDetailContent(place: place)
-        .dynamicTypeSize(type).frame(width: width)).fittingSize.height
-    }
-    for width: CGFloat in [220, 320] {
-      for type in [DynamicTypeSize.large, .accessibility3] {
-        let short = height("从北门进入。", width: width, type: type)
-        let full = height(String(repeating: "从北门进入后沿无障碍通道前行，穿过大厅即可到达参观入口。", count: 16),
-          width: width, type: type)
-        XCTAssertGreaterThan(full, short + 200,
-          "The actual detail content must lay out complete copy instead of inheriting the map card's line limits")
-      }
-    }
+    await fulfillment(of: [defaultPlace], timeout: 3)
   }
 }
 

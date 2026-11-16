@@ -73,37 +73,11 @@ final class ReadingControlPresentationTests: XCTestCase {
         XCTAssertEqual(validation.focusRequest?.name, "email", "A hidden invalid field must still be revealable by Tabs")
     }
 
-    func testTabsHintsFollowRemainingEdgesInBothDirections() {
-        let ids: [OpenUIString] = ["a", "b", "c"]
-        let width: CGFloat = 220
-        func frames(offset: CGFloat, rtl: Bool) -> [OpenUIString: CGRect] {
-            Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
-                let x = CGFloat(index) * 104 + offset
-                return (id, CGRect(x: rtl ? width - x - 100 : x, y: 0, width: 100, height: 44))
-            })
-        }
-        for rtl in [false, true] {
-            let initial = NativeTabsOverflow.visibility(ids: ids, frames: frames(offset: 0, rtl: rtl), viewportWidth: width, rightToLeft: rtl)
-            XCTAssertNil(initial.earlier)
-            XCTAssertEqual(initial.later, "c")
-            let middle = NativeTabsOverflow.visibility(ids: ids, frames: frames(offset: -44, rtl: rtl), viewportWidth: width, rightToLeft: rtl)
-            XCTAssertEqual(middle.earlier, "a")
-            XCTAssertEqual(middle.later, "c")
-            let end = NativeTabsOverflow.visibility(ids: ids, frames: frames(offset: -88, rtl: rtl), viewportWidth: width, rightToLeft: rtl)
-            XCTAssertEqual(end.earlier, "a")
-            XCTAssertNil(end.later, "The final edge must stop advertising more tabs")
-            let fitting = NativeTabsOverflow.visibility(ids: ids, frames: frames(offset: 0, rtl: false), viewportWidth: 400, rightToLeft: rtl)
-            XCTAssertEqual(fitting, NativeTabsOverflow())
-        }
-        XCTAssertEqual(NativeTabsOverflow.chevron(earlier: false, rightToLeft: false), "chevron.right")
-        XCTAssertEqual(NativeTabsOverflow.chevron(earlier: false, rightToLeft: true), "chevron.left")
-    }
-
     func testTabLabelBoundLeavesRoomForItsOwnPadding() {
-        let label = NativeTabsOverflow.maximumLabelWidth(viewportWidth: 200, horizontalPadding: 12)
+        let label = NativeTabsLayout.maximumLabelWidth(viewportWidth: 200, horizontalPadding: 12)
         XCTAssertEqual(label + 24, 200)
-        XCTAssertEqual(NativeTabsOverflow.maximumLabelWidth(viewportWidth: 600, horizontalPadding: 12), 232)
-        XCTAssertGreaterThan(NativeTabsOverflow.maximumLabelWidth(viewportWidth: 10, horizontalPadding: 12), 0)
+        XCTAssertEqual(NativeTabsLayout.maximumLabelWidth(viewportWidth: 600, horizontalPadding: 12), 232)
+        XCTAssertGreaterThan(NativeTabsLayout.maximumLabelWidth(viewportWidth: 10, horizontalPadding: 12), 0)
     }
 
     func testRangeEditingAndSummaryKeepBothDatesVisible() throws {
@@ -207,11 +181,12 @@ final class ReadingControlPresentationTests: XCTestCase {
             }.frame(width: width)).fittingSize.height
         }
         let minimum = OpenUIPresentation().minimumChoiceWidth
-        XCTAssertEqual(height(width: 318, minimum: minimum), 164, accuracy: 1)
-        XCTAssertEqual(height(width: 398, minimum: minimum), 164, accuracy: 1)
+        XCTAssertEqual(height(width: 318, minimum: minimum), 112, accuracy: 1)
+        XCTAssertEqual(height(width: 398, minimum: minimum), 112, accuracy: 1)
         XCTAssertEqual(height(width: 412, minimum: minimum), 112, accuracy: 1)
+        XCTAssertEqual(height(width: 432, minimum: minimum), 60, accuracy: 1)
         XCTAssertEqual(height(width: 412, minimum: minimum, secondHeight: 200), 272, accuracy: 1)
-        XCTAssertEqual(height(width: 318, minimum: 136), 112, accuracy: 1, "Hosts may keep a compact comparison layout")
+        XCTAssertEqual(height(width: 318, minimum: 200), 164, accuracy: 1, "Hosts may request wider choices without changing content")
         XCTAssertEqual(height(width: 800, minimum: minimum, single: true), 164, accuracy: 1)
     }
 

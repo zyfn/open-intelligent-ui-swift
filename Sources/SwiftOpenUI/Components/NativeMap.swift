@@ -81,6 +81,7 @@ struct NativeMapPlace: Identifiable {
 private struct NativeMap: View {
     let context: OpenUIComponentContext
     @State private var localSelection: String?
+    @State private var hasUserSelection = false
     @State private var camera: MapCameraPosition = .automatic
     @State private var fullscreenCamera: MapCameraPosition = .automatic
     @State private var expanded = false
@@ -88,6 +89,8 @@ private struct NativeMap: View {
     @ScaledMetric(relativeTo: NativeTextRole.label.textStyle) private var titleScale: CGFloat = 1
     @ScaledMetric(relativeTo: NativeTextRole.caption.textStyle) private var captionScale: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openUIResourceContext) private var resources
+    @Environment(\.openURL) private var openURL
     private var surfaceColor: Color {
         context.theme.foreground
     }
@@ -100,7 +103,7 @@ private struct NativeMap: View {
             guard case .string(let value) = binding.wrappedValue else { return nil }
             return places.first { OpenUIString($0.id) == value }?.id
         }
-        return places.first(where: { $0.id == localSelection })?.id
+        return places.first(where: { $0.id == localSelection })?.id ?? places.first?.id
     }
     private func number(_ place: NativeMapPlace) -> Int {
         (places.firstIndex { $0.id == place.id } ?? 0) + 1
@@ -108,6 +111,7 @@ private struct NativeMap: View {
     private func select(_ id: String) {
         guard context.canInteract, let place = places.first(where: { $0.id == id }) else { return }
         localSelection = id
+        hasUserSelection = true
         if let binding = context.presentationBinding("value"), binding.wrappedValue != .string(id) {
             binding.wrappedValue = .string(id)
         }
@@ -177,18 +181,28 @@ private struct NativeMap: View {
             }
         }
         .onChange(of: selectedID, initial: true) { _, id in
+            guard context.presentationBinding("value") != nil else { return }
             if let place = places.first(where: { $0.id == id }) { focus(place) }
             else { fitPlaces() }
         }
-        .onChange(of: places.map(\.id)) { _, _ in
-            if !places.contains(where: { $0.id == localSelection }) { localSelection = nil }
-            if selectedID == nil { fitPlaces() }
+        .onChange(of: places.map(\.id), initial: true) { _, _ in
+            if !places.contains(where: { $0.id == localSelection }) {
+                localSelection = context.presentationBinding("value") == nil ? places.first?.id : nil
+                hasUserSelection = false
+            }
+            if context.presentationBinding("value") != nil {
+                if selectedID == nil { fitPlaces() }
+            } else if !hasUserSelection {
+                fitPlaces()
+            }
         }
         .onChange(of: context.presentationSourceRevision) { _, _ in
-            localSelection = nil
+            localSelection = context.presentationBinding("value") == nil ? places.first?.id : nil
+            hasUserSelection = false
             expanded = false
             expandedSourceRevision = nil
-            if let place = places.first(where: { $0.id == selectedID }) { focus(place) }
+            if context.presentationBinding("value") != nil,
+               let place = places.first(where: { $0.id == selectedID }) { focus(place) }
             else { fitPlaces() }
         }
     }
@@ -304,7 +318,22 @@ private struct NativeMap: View {
             }
             .frame(maxWidth: .infinity, maxHeight: rowHeight, alignment: .leading)
             .clipped()
-            NativeMapPlaceDetailsButton(place: place, enabled: context.canInteract) { select(place.id) }
+            if let address = place.url, let url = NativeMapValue.url(address, baseURL: resources.baseURL) {
+                Button {
+                    guard context.canInteract else { return }
+                    openURL(url)
+                } label: {
+                    Image(systemName: "chevron.right").font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary).frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).disabled(!context.canInteract)
+                .accessibilityLabel(Text("Details for \(place.title)", bundle: NativeControlResources.bundle))
+                .accessibilityIdentifier("openui.map.details")
+            } else {
+                // Reserve the URL action's space while optional metadata arrives.
+                Color.clear.frame(width: 44, height: 44).accessibilityHidden(true).allowsHitTesting(false)
+            }
         }
         // Reserve the same row for every card. Streaming or long descriptions
         // can change text, never the card's geometry or the photo column.
@@ -315,98 +344,6 @@ private struct NativeMap: View {
 
 }
 
-/// Each visible card owns its presentation, so a detail sheet opens from the
-/// active inline/fullscreen map rather than competing with the other presenter.
-struct NativeMapPlaceDetailsButton: View {
-    let place: NativeMapPlace
-    let enabled: Bool
-    let select: () -> Void
-    @State private var showingDetails = false
-
-    var body: some View {
-        Button {
-            guard enabled else { return }
-            select()
-            showingDetails = true
-        } label: {
-            Image(systemName: "chevron.forward").font(.body.weight(.semibold))
-                .foregroundStyle(.secondary).frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).disabled(!enabled)
-        .accessibilityLabel(Text("Details for \(place.title)", bundle: NativeControlResources.bundle))
-        .accessibilityIdentifier("openui.map.details")
-        .sheet(isPresented: $showingDetails) {
-            NativeMapPlaceDetails(place: place, enabled: enabled)
-        }
-        .onChange(of: place.id) { _ in showingDetails = false }
-    }
-}
-
-struct NativeMapPlaceDetails: View {
-    let place: NativeMapPlace
-    var enabled = true
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.openUITheme) private var theme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: theme.spaceM) {
-            HStack(alignment: .firstTextBaseline, spacing: theme.spaceM) {
-                Text("Place details", bundle: NativeControlResources.bundle)
-                    .nativeTextStyle(theme.objectTitleStyle())
-                Spacer(minLength: 0)
-                Button { dismiss() } label: { Image(systemName: "xmark").openUIControlTarget() }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Close", bundle: NativeControlResources.bundle))
-                    .keyboardShortcut(.cancelAction)
-                    .accessibilityIdentifier("openui.map.details.close")
-            }
-            ScrollView(.vertical) {
-                NativeMapPlaceDetailContent(place: place, enabled: enabled)
-            }
-        }
-        .padding(theme.spaceML)
-        .frame(idealWidth: 520, idealHeight: 440)
-        .background(theme.background)
-        .foregroundStyle(theme.textNeutralPrimary)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("openui.map.details.content")
-    }
-}
-
-/// Detail copy is independent of the compact card's row height and line limits.
-struct NativeMapPlaceDetailContent: View {
-    let place: NativeMapPlace
-    var enabled = true
-    @Environment(\.openUITheme) private var theme
-    @Environment(\.openUIResourceContext) private var resources
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: theme.spaceM) {
-            Text(place.title).nativeTextStyle(theme.objectTitleStyle())
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-            if let description = place.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(description).nativeTextStyle(theme.textStyle(.body))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("openui.map.details.description")
-            }
-            if let address = place.url, let url = NativeMapValue.url(address, baseURL: resources.baseURL) {
-                Button { guard enabled else { return }; openURL(url) } label: {
-                    Label {
-                        Text("Open place", bundle: NativeControlResources.bundle)
-                    } icon: { Image(systemName: "arrow.up.right").accessibilityHidden(true) }
-                        .openUIControlTarget(alignment: .leading)
-                }
-                .buttonStyle(.plain).foregroundStyle(theme.interactiveAccentDefault)
-                .disabled(!enabled)
-                .accessibilityIdentifier("openui.map.details.open-place")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
 /// The location remains useful without photography. Reuse the same resource
 /// pipeline and fixed thumbnail slot for missing, pending and failed images;
 /// do not guess place categories from model-authored names or descriptions.

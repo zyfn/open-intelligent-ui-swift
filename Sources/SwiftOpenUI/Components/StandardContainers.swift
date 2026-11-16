@@ -146,10 +146,10 @@ struct NativeContentImage: View {
     @Environment(\.openUICardMediaInset) private var cardMediaInset
     var body: some View {
         NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-            layout: .intrinsic, role: .content)
+            layout: .cover, role: .content)
             // Suggest a media width when a row measures its children. Grid card
             // widths are unrelated; the parent still controls the final width.
-            // The source proportions determine height once its pixels arrive.
+            // Standard Image uses the shared native cover role.
             .frame(idealWidth: context.presentation.thumbnailSize)
             .clipShape(NativeCardTopMediaShape(radius: cardMediaInset > 0 ? context.theme.radius3xl : context.theme.radiusM,
                 topOnly: cardMediaInset > 0))
