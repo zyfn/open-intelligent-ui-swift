@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.5 · 更新日期：2026-11-16
+文档版本：1.6 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -150,13 +150,25 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 **本轮全部 Swift/XCTest 均未编译、未执行，所有媒体原生测试待验收。** 新增 `MountedStreamingTextProgressTests` 挂载真实 NSHostingView/OpenUIContentView，先显示半句 plain heading 与 Markdown，补全字段后继续用现有 push 追加无关节点约三秒，并从 AppKit accessibility 控件断言 done 前已出现完整文本。这只是已写入的回归，不是本环境的运行结果，更不是 Muse 回放、像素或 FPS 验收。旧 Slider 的 `testDraftFeedbackRefreshDoesNotFlushWritesOrRequestFocus` 已迁入现有测试文件，同样待执行。
 
+### 原生文本流中停滞
+
+2026-11-16 依据客户端提供的调试记录继续检查原有 `fix/kernel-stability-20261116` 分支（修正前为 `2a0201b`，文本代码与 `bdac1bf` 一致）：`source` 已是 `SHANGHAI → SUZHOU · 2 DAYS`，而 `NativeStreamingTextBuffer.received/displayed` 仍为 `SHANGHAI → SUZH`。记录来自客户端，本次未重新运行该 App 或原始回放。
+
+确定的源码缺陷位于 `NativeMarkdownText`：单参数 `onChange(of:perform:)` 忽略传入的新值，改读闭包捕获的旧 `text`。该 API 的[闭包语义](https://developer.apple.com/documentation/swiftui/view/onchange(of:perform:))使 A → AB 的更新再次交付 A；若该字段不再变化，即使其它节点继续生成，也不会补交 AB，直到停止流式时才绕过旧显示值。这条路径与记录相符；单次断点本身不足以证明全部实际时序。
+
+修正将文字的精确 UTF-16 值与流式状态组成私有输入，并由一个变化回调消费新参数，避免同帧变化时两个回调混用新旧值。保留 iOS 16 / macOS 13 支持、48ms 呈现合并、只读尺寸拟合和现有 Markdown 工作队列；不修改 parser、公共状态入口或客户端调用方式。
+
+`MountedStreamingTextProgressTests` 在既有挂载回归上扩展为 4 项 XCTest、6 个场景，使用实际挂载的文本和标准 `OpenUIState.push` 路径，覆盖目标字段完成后其它节点继续生成、文字与流式状态同帧变化，以及最终分片紧接 `complete` / `interrupt`。验收必须确认缓冲和 Markdown 准备都收到完整文字、界面在 `complete` 之前更新；一次性输入完整程序或仅在流结束后检查正确文字不能替代该项。既有 `StreamingTextPresentationTests` 的无副作用读取和合并约束保留。
+
+本次源码/所有权检查与 `git diff --check` 通过；`swift test` 实际因环境找不到 `swift` 返回 127，原生 XCTest 与客户端分块回放尚未执行，不能将源码修正称为 App 验收通过。执行结果与环境阻塞记录在忽略的 `outputs/verification/native-text-sync/`，不另建并行报告。
+
 ### 客户端仍未关闭的验收
 
 用户提供的 2026-11-16 记录使用 SDK `9e05d888`，不是前轮 main `bdac1bfd` 或本轮候选；原始 Mac 日志、录像和 xcresult 尚未取得。以下保留用户报告的结果，不冒称在本环境复现，也不以源码修复、JS 通过或合并自动关闭这些失败。
 
 | 验收项 | 已有证据与当前结论 |
 | --- | --- |
-| 流中文字长期停在半句 | 行程文字在输入早期及数据层已完整，画面约 18–54 秒仍显示截断，约 57 秒才补齐；酒店、表单也有类似观察。显示更新链路尚未定位到 Host 或 SDK 的具体断点。必须在 done 之前验证真实可见文本 |
+| 流中文字长期停在半句 | 行程文字在输入早期及数据层已完整，画面约 18–54 秒仍显示截断，约 57 秒才补齐；酒店、表单也有类似观察。后续客户端断点显示 SDK source 已完整、received/displayed 仍旧前缀；本分支已修正文本 onChange 回调交付旧值的缺陷，原始客户端回放仍未重验。必须在 done 之前验证真实可见文本 |
 | SDK 原生回归 | 用户报告 870 项中 10 个失败用例、24 条失败断言；涉及选项列宽、按钮身份、物化预算、Gallery 高度、mutation 退休、焦点、紧凑图表及三项 signed media。需要完整 testcase 和第一条 expected/actual；不能全部解释为生产缺陷或测试过时 |
 | signed media 与 SVG | 三项 signed media 测试使用内存 PNG 和确定性 loader，不能用 App proxy HTTPError 解释。SVG 打开/缩放通过，拖动像素断言失败且归因未定；图像预览正常不等于 SVG 拖动通过 |
 | 流中表单选择 | 复杂表单的自动点击实际发生在 done 后，流中选择跨完成状态保留仍未验收；小型状态测试不能替代此场景 |
@@ -169,7 +181,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 实际 Muse 半句停滞仍需取得原始输入与客户端回放，逐段关联输入、投影、发布、text buffer、Markdown prepared 与可见文本版本，检查“目标字段已完整，其他节点继续生成时，done 前画面必须更新”。新增 mounted 回归覆盖直接 Text 与 Markdown 的持续输入场景，但没有运行，且小型 SDK 用例不能替代复杂客户端回放。
 
-现有 `testCanonicalMarkdownPreparationCoalescesWithoutStarvingContinuousInput` 在 MainActor 同步循环投喂后才等待最终结果，未证明持续分片时的中间可见进展。文本 buffer 的 48 ms 逻辑是 throttle，追加不重置计时器；不能把真实停滞直接解释成普通 debounce。两个允许旧前缀的展示阶段和共享 Markdown worker 的等待需测量；如果直接 Text 也停滞，还要检查更上游的宿主、投影和发布。本轮没有据此修改文本生产代码，也没有把共享 native Value 的特殊触发当作该 App 事故的根因。
+现有 `testCanonicalMarkdownPreparationCoalescesWithoutStarvingContinuousInput` 在 MainActor 同步循环投喂后才等待最终结果，未证明持续分片时的中间可见进展。文本 buffer 的 48 ms 逻辑是 throttle，追加不重置计时器；不能把真实停滞直接解释成普通 debounce。两个允许旧前缀的展示阶段和共享 Markdown worker 的等待需测量；如果直接 Text 也停滞，还要检查更上游的宿主、投影和发布。后续客户端断点与源码复核将一个确定缺陷收敛到变化回调交付旧捕获文本，修正见上节；没有把共享 native Value 的特殊触发当作该 App 事故的根因。共享 worker 的等待和其它性能成本仍需另测。
 
 早期只读探针保留在忽略的 `outputs/text-audit/`、`outputs/remaining-action-budget-probe.*`、`outputs/remaining-state-aggregate-probe.*` 与 `outputs/main-assessment-20261116/`；本轮执行日志以前述 `outputs/kernel-repair-*.log` 为准。只维护本文这份验收记录，不新增并行审查报告。
 

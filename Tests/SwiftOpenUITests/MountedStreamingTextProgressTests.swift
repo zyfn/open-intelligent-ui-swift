@@ -1,34 +1,29 @@
 import SwiftLang
 #if os(macOS)
 import AppKit
+import Combine
 import SwiftUI
 import XCTest
 @testable import SwiftOpenUI
 
-/// Exercises the actual plain Text and MarkdownUI presentation in a mounted
-/// native host. Accessibility text comes from rendered controls, not a source
-/// probe or an injected label. This is not a client replay or a frame-time test.
+/// Exercises mounted native Text and MarkdownUI controls, including their actual accessibility
+/// text. Source probes alone cannot detect a view that missed its last update.
+/// These regressions are not client replay or frame-time measurements.
 final class MountedStreamingTextProgressTests: XCTestCase {
     @MainActor func testMountedPlainAndMarkdownTextAdvanceBeforeUnrelatedStreamingEnds() async throws {
-        _ = NSApplication.shared
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())
         state.push("root=Stack([CardHeader(\"SHANGHAI → SUZH")
-        let host = NSHostingView(rootView: ScrollView {
+        let (host, window) = mount(ScrollView {
             OpenUIContentView(state: state, registry: library.registry)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }.frame(width: 390, height: 600))
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 390, height: 600),
-            styleMask: [.borderless], backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        window.contentView = host
-        window.orderFront(nil)
+        })
         defer { window.close() }
 
         try await waitForRenderedText("SHANGHAI → SUZH", in: host)
-        state.push("OU\"),TextContent(\"旅行成员共 3 位成")
+        state.push("OU · 2 DAYS\"),TextContent(\"旅行成员共 3 位成")
         try await waitForRenderedText("旅行成员共 3 位成", in: host)
-        let title = "SHANGHAI → SUZHOU"
+        let title = "SHANGHAI → SUZHOU · 2 DAYS"
         let paragraph = "旅行成员共 3 位成人，路线已经全部确定。"
         state.push("人，路线已经全部确定。\"),")
         let children = PropValue.children(try XCTUnwrap(state.root))
@@ -36,52 +31,156 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         guard children.count == 2 else { return }
         XCTAssertEqual(PropValue.string(children[0], "title"), title)
         XCTAssertEqual(PropValue.string(children[1], "text"), paragraph,
-            "The target field is complete before unrelated nodes keep arriving")
+            "Both target fields must be complete before unrelated input arrives")
 
         let revision = state.presentationRevision
-        var titleVisibleAt: Int?, paragraphVisibleAt: Int?
-        // Yield between real chunks. A synchronous 100-call burst followed by
-        // a final wait would not test progress while input is still arriving.
+        var settledDuringStream = false
+        // Yield between real chunks. One synchronous burst followed by done
+        // would allow terminal rendering to hide a missed source delivery.
         for chunk in 1...100 {
             state.push("TextContent(\"后续节点 \(chunk)\"),")
             host.layoutSubtreeIfNeeded()
             try await Task.sleep(nanoseconds: 30_000_000)
             host.layoutSubtreeIfNeeded()
             let rendered = renderedText(in: host)
-            if rendered.contains(title), titleVisibleAt == nil { titleVisibleAt = chunk }
-            if rendered.contains(paragraph), paragraphVisibleAt == nil { paragraphVisibleAt = chunk }
-            XCTAssertFalse(state.isComplete, "Progress must be observable before done")
+            let completeTextVisible = rendered.contains(title) && rendered.contains(paragraph)
+            XCTAssertFalse(state.isComplete, "The producer must remain active")
             if chunk == 50 {
-                XCTAssertNotNil(titleVisibleAt, "The plain heading stayed stale during continued input")
-                XCTAssertNotNil(paragraphVisibleAt, "Markdown stayed at an old prefix during continued input")
+                settledDuringStream = completeTextVisible
+                XCTAssertTrue(completeTextVisible,
+                    "Completed fields stayed at old prefixes while unrelated nodes arrived: \(rendered)")
+            } else if chunk > 50, settledDuringStream, !completeTextVisible {
+                XCTFail("Completed text regressed after settling while only unrelated nodes changed: \(rendered)")
+                return
             }
         }
-        XCTAssertNotNil(titleVisibleAt)
-        XCTAssertNotNil(paragraphVisibleAt)
-        XCTAssertEqual(state.presentationRevision, revision, "Streaming must not replace the presentation")
+        XCTAssertEqual(state.presentationRevision, revision,
+            "Streaming must preserve the presentation identity")
         XCTAssertTrue(state.errors.isEmpty)
-        // Terminal correctness remains a separate assertion, not the progress
-        // oracle. The assertions above execute while the producer is active.
+        // Completion is a separate check; it cannot satisfy the assertion
+        // above, which runs while the stream is still active.
         state.push("])")
         state.complete()
         try await waitForRenderedText(paragraph, in: host)
     }
 
+    @MainActor func testMountedInputChangesDeliverLatestSourceAndStreamingState() async throws {
+        // The first case isolates a source-only update. The other two change
+        // source and status in one render, with the same mounted view identity.
+        for (before, after) in [(true, true), (true, false), (false, true)] {
+            let prefix = before && after ? "SHANGHAI → SUZH" : "行程 👩🏽‍💻 Cafe\u{301}"
+            let complete = prefix + (before && after ? "OU · 2 DAYS" : " → 苏州 · 3 位成人")
+            let model = MountedTextModel(source: prefix, streaming: before)
+            let scheduler = MountedTextScheduler()
+            let buffer = NativeStreamingTextBuffer(schedule: scheduler.schedule)
+            let document = NativeMarkdownDocument()
+            let (host, window) = mount(MountedTextHarness(model: model, buffer: buffer, document: document))
+            defer { window.close(); document.cancel(); buffer.cancel() }
+
+            try await waitFor("initial text preparation", in: host) {
+                buffer.displayed.map { OpenUIString($0) } == OpenUIString(prefix)
+                    && document.currentSource == OpenUIString(prefix)
+            }
+            try await waitForRenderedText(prefix, in: host)
+            XCTAssertEqual(scheduler.deliveryCount, 0)
+
+            // A single Published value prevents the test harness from creating
+            // an intermediate old-source/new-status or new-source/old-status frame.
+            model.input = .init(source: complete, streaming: after)
+            if after {
+                try await waitFor("one coalesced delivery for the new source", in: host) {
+                    scheduler.deliveryCount == 1
+                }
+                XCTAssertEqual(buffer.displayed.map { OpenUIString($0) }, OpenUIString(prefix),
+                    "An active append must keep its normal coalescing interval")
+                scheduler.fire(0)
+            }
+            try await waitFor("latest source in both buffer and prepared document", in: host) {
+                buffer.displayed.map { OpenUIString($0) } == OpenUIString(complete)
+                    && document.currentSource == OpenUIString(complete)
+            }
+            try await waitForRenderedText(complete, in: host)
+            XCTAssertEqual(scheduler.deliveryCount, after ? 1 : 0,
+                "A terminal update must flush without starting a streaming timer")
+
+            // Checking only the first full accessibility value can pass on a
+            // synchronous fallback before an older prepared value arrives.
+            // Require actual preparation first, then retain it across renders
+            // that change neither the target text nor its streaming status.
+            for revision in 1...3 {
+                model.unrelatedRevision = revision
+                try await waitForRenderedText("Unrelated \(revision)", in: host)
+                XCTAssertEqual(buffer.displayed.map { OpenUIString($0) }, OpenUIString(complete))
+                XCTAssertEqual(document.currentSource, OpenUIString(complete))
+                XCTAssertTrue(renderedText(in: host).contains(complete))
+            }
+            XCTAssertEqual(model.appearances, 1, "Remounting must not repair a missed onChange")
+            XCTAssertEqual(model.disappearances, 0)
+        }
+    }
+
+    @MainActor func testMountedFinalChunkAndCompleteKeepLatestText() async throws {
+        try await checkFinalChunk(interrupted: false)
+    }
+
+    @MainActor func testMountedFinalChunkAndInterruptKeepLatestText() async throws {
+        try await checkFinalChunk(interrupted: true)
+    }
+
+    @MainActor private func checkFinalChunk(interrupted: Bool) async throws {
+        let library = try OpenUIComponents.library()
+        let state = OpenUIState(schema: library.library.toSchema())
+        let prefix = "家庭 👨‍👩‍👧，2 位成"
+        let complete = prefix + "人，行程已确认。"
+        state.push("root=TextContent(\"\(prefix)")
+        let (host, window) = mount(OpenUIContentView(state: state, registry: library.registry))
+        defer { window.close() }
+        try await waitForRenderedText(prefix, in: host)
+
+        // No suspension between the last source chunk and the terminal event.
+        // The existing public SDK API must deliver this combined transition.
+        state.push("人，行程已确认。\")")
+        if interrupted { state.interrupt() } else { state.complete() }
+        XCTAssertTrue(state.isComplete)
+        XCTAssertEqual(state.isInterrupted, interrupted)
+        XCTAssertEqual(PropValue.string(try XCTUnwrap(state.root), "text"), complete)
+        try await waitForRenderedText(complete, in: host)
+        XCTAssertTrue(state.errors.isEmpty)
+    }
+
+    @MainActor private func mount<Content: View>(_ content: Content) -> (NSHostingView<AnyView>, NSWindow) {
+        _ = NSApplication.shared
+        let host = NSHostingView(rootView: AnyView(content.frame(width: 390, height: 600, alignment: .topLeading)))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 390, height: 600),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        return (host, window)
+    }
+
     @MainActor private func waitForRenderedText(_ text: String, in host: NSView) async throws {
-        let deadline = Date().addingTimeInterval(3)
+        try await waitFor("rendered text containing \(text)", in: host) {
+            self.renderedText(in: host).contains(text)
+        }
+    }
+
+    @MainActor private func waitFor(_ description: String, in host: NSView,
+        condition: @MainActor () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
         repeat {
             host.layoutSubtreeIfNeeded()
-            if renderedText(in: host).contains(text) { return }
+            if condition() { return }
             try await Task.sleep(nanoseconds: 10_000_000)
         } while Date() < deadline
-        XCTFail("Mounted accessibility text did not contain \(text); got \(renderedText(in: host))")
+        XCTFail("Timed out waiting for \(description); rendered text: \(renderedText(in: host))")
+        throw MountedTextFailure.timeout
     }
 
     @MainActor private func renderedText(in host: NSView) -> String {
         var visited = Set<ObjectIdentifier>(), text: [String] = []
-        // These are public AppKit accessibility getter selectors. Dynamic
-        // dispatch also covers SwiftUI accessibility elements without relying
-        // on their private classes or on SDK-dependent protocol import names.
+        // Public AppKit accessibility getters also cover SwiftUI elements;
+        // no source value is injected into their labels for this test.
         let label = NSSelectorFromString("accessibilityLabel")
         let value = NSSelectorFromString("accessibilityValue")
         let children = NSSelectorFromString("accessibilityChildren")
@@ -105,6 +204,57 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         }
         visit(host, depth: 0)
         return text.joined(separator: "\n")
+    }
+}
+
+private enum MountedTextFailure: Error { case timeout }
+
+@MainActor private final class MountedTextModel: ObservableObject {
+    struct Input {
+        let source: String
+        let streaming: Bool
+    }
+    @Published var input: Input
+    @Published var unrelatedRevision = 0
+    var appearances = 0
+    var disappearances = 0
+
+    init(source: String, streaming: Bool) {
+        input = .init(source: source, streaming: streaming)
+    }
+}
+
+@MainActor private struct MountedTextHarness: View {
+    @ObservedObject var model: MountedTextModel
+    let buffer: NativeStreamingTextBuffer
+    let document: NativeMarkdownDocument
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            NativeMarkdownText(text: model.input.source, mode: .textContent,
+                streamText: buffer, document: document)
+                .environment(\.openUIStreamActive, model.input.streaming)
+                .onAppear { model.appearances += 1 }
+                .onDisappear { model.disappearances += 1 }
+            Text("Unrelated \(model.unrelatedRevision)")
+        }
+    }
+}
+
+@MainActor private final class MountedTextScheduler {
+    private var deliveries: [@MainActor () -> Void] = []
+    private var cancelled = Set<Int>()
+    var deliveryCount: Int { deliveries.count }
+
+    func schedule(_ delivery: @escaping @MainActor () -> Void) -> NativeStreamingTextBuffer.Cancellation {
+        let index = deliveries.count
+        deliveries.append(delivery)
+        return { [weak self] in self?.cancelled.insert(index) }
+    }
+
+    func fire(_ index: Int) {
+        guard deliveries.indices.contains(index), !cancelled.contains(index) else { return }
+        deliveries[index]()
     }
 }
 #endif
