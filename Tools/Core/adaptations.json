@@ -21,8 +21,8 @@
       "Sources/SwiftLang/Language/OpenUIString.swift"
     ],
     "reason": "Ordered UTF16 values and native callback transport",
-    "observable": "Identity, undefined, surrogate and key order semantics; Store reads check one own key without enumerating the snapshot",
-    "verification": "Strict parser traces, semantic oracle vectors and instrumented single-key bridge regressions",
+    "observable": "Identity, undefined, surrogate and key order semantics; Store reads check one own key without enumerating the snapshot. Ordered entries and per-occurrence projection metadata cross in batches without caching mutable Lang values or snapshots",
+    "verification": "Strict parser traces, semantic oracle vectors, scoped projection/ordered-entry regressions and instrumented single-key bridge regressions",
     "removal": "Equivalent lossless upstream native transport"
   },
   {

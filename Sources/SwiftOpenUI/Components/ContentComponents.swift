@@ -53,7 +53,6 @@ private func semanticColor(_ variant: String?, theme: OpenUIThemeValues) -> Colo
 struct NativeCallout: View {
   let context: OpenUIComponentContext
   let reactive: Bool
-  @EnvironmentObject private var state: OpenUIState
   private var binding: Binding<Value>? { reactive ? context.binding("visible") : nil }
   private var visible: Bool {
     binding.map { $0.wrappedValue == .boolean(true) || $0.wrappedValue == .string("true") } ?? true
@@ -105,7 +104,7 @@ struct NativeCallout: View {
         .accessibilityElement(children: .combine)
         .accessibilityValue(Text(statusLabel, bundle: NativeControlResources.bundle))
       }
-    }.task(id: "\(state.sourceRevision):\(visible):\(context.canInteract)") {
+    }.task(id: "\(context.presentationSourceRevision):\(visible):\(context.canInteract)") {
       guard visible, context.canInteract, binding != nil else { return }
       do { try await Task.sleep(nanoseconds: 3_000_000_000) } catch { return }
       guard !Task.isCancelled else { return }
@@ -542,7 +541,6 @@ struct NativeCarousel: View {
 }
 struct NativeModal: View {
   let context: OpenUIComponentContext
-  @EnvironmentObject private var state: OpenUIState
   @Environment(\.dynamicTypeSize) private var typeSize
   @State private var contentHeight: CGFloat = 420
   private var presented: Binding<Bool> {
@@ -888,7 +886,6 @@ struct NativeCompositeFooter: View {
 struct NativeCardBlock: View {
   let context: OpenUIComponentContext
   let kind: String
-  @EnvironmentObject private var state: OpenUIState
   @Environment(\.dynamicTypeSize) private var typeSize
   @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
   @State private var selectedID = ""

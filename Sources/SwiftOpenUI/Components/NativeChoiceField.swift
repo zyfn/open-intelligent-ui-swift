@@ -36,7 +36,6 @@ enum NativeChoiceSelection {
 struct NativeChoiceField: View {
   let context: OpenUIComponentContext
   let cards: Bool
-  @EnvironmentObject private var state: OpenUIState
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.layoutDirection) private var direction
   @Environment(\.isEnabled) private var enabled

@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.5 · 更新日期：2026-11-16
+文档版本：1.6 · 更新日期：2026-11-16
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -125,13 +125,23 @@ Query 依赖排序由内核管理器拥有。原生首次同步 Query 批次先�
 
 ### 现有入口的性能边界与后续验证
 
-readiness 与 root 由同一次 root 发布交付，避免普通分片先后触发两次整 State 广播；公开 `$root` 保留，仅闭合符号造成的 readiness 变化仍会发布。Query、Mutation、错误和完成状态继续使用各自现有通知。当前仍为 MainActor 同步求值和共享 State 观察，不能把这项收敛描述为所有通道已原子化或稳定兄弟已完全隔离。
+readiness 与 root 由同一次 root 发布交付，避免普通分片先后触发两次整 State 广播；公开 `$root` 保留，仅闭合符号造成的 readiness 变化仍会发布。Query、Mutation、错误和完成状态继续使用各自现有通知。当前仍为 MainActor 同步求值，不能把这项收敛描述为所有通道已原子化。
+
+渲染入口保留公开的 `EnvironmentObject` 解析：每个 `OpenUIComponentHost` 使用离自身最近的 State，允许宿主在嵌套内容中切换文档。轻量 Host 仍接收共享 State 广播，先解析当前 live element 和可交互状态，再进入内部内容边界；`RenderNode` 也在调用注册 builder 前比较输入。比较只检查组件类型、声明身份、partial、完整 readiness 和当前属性，标量遵守 SameValue，引用属性仅按原生引用身份判断，不递归比较整棵业务树，不复用或改写 Lang 物化对象。注册表及直接 Host 闭包有内部身份，父级环境、注册闭包及最近 State 的变化仍须到达组件；身份不作为新的视图 `.id`，避免因此重挂载。
+
+组件还通过一个不持有业务值的内部通知对象接收 Store、Query/Mutation 状态和文档完成/替换变化。Store 由真实订阅驱动，reset 时重新绑定；同步重入队列排空后统一发送这类呈现通知，普通文字分片不无条件发送。Query/Mutation 比较保留状态、错误全部字段及数据引用/标量的区别，不合并公开业务回调。Context 带本次通知 revision，使属性不变的字段子视图也能读取新值。部分内部 OpenUI 组件已改为使用 Context 提供的文档 revision，或删除未使用的 State 订阅；ActionSurface、原生字段和 EditableTable 的独立挂载合同保留原有观察及草稿生命周期。此机制没有第二份 Store，也没有新增客户端观察 API。
+
+匿名且仅含标量属性的旧节点在 live index 中使用属性分桶，减少同类型节点的重复搜索；具名节点和复杂引用属性沿用原候选分组，最终语义匹配及 readiness 歧义检查仍执行。全局 partial 翻转、引用属性变化、真实 Store/Query 变化仍可使多个组件更新。新增挂载回归必须实际执行后，才能确认稳定兄弟的 builder/body 计数；不能将比较代码的存在等同实际 App CPU 已下降。
 
 原始输入先受 UTF-16 上限约束。语句/token/嵌套/操作符检查直接使用同一解析器已产生的 token，在 Pratt 递归前执行；流式已完成语句持有累计账目，重复声明也计入，pending 只检查当前尾部。前缀失效、set 或 reset 按解析器自身的缓存生命周期清账。旧的整份源码二次 preprocess/tokenize/split 预检已删除，没有保留并行保护路径或放宽额度。多行三元式的换行前瞻在同次 split 内复用终点。
 
 patch 在去空白、拆句或合并前检查每项原始 existing、patch 和 rootId 输入；合并中的词法分配、拆句、表达式递归、引用遍历、删除扫描和输出共用一次工作预算。底层 `mergeStatements` 使用标准 Swift `throws` 报告 `MergeStatementsError.budgetExceeded`，不返回旧文本或部分结果冒充成功；高层 `applyPatch` 的签名及失败/恢复合同不变。失败保留最后有效 root 与 Store，换源或 reset 恢复。
 
-桥接只共享冻结且无依赖的 open/closed readiness 描述，Swift 直接识别这些常量；含 Query、占位、数组位置或输出 scope 的元数据仍完整投影。没有跨更新复用可能被引用位置修改的 Lang 物化对象。重入队列、预算、缓存及通知收敛不等于流畅度已验收；实际效果仍由相同输入的 Release 及 App 回放验证。
+桥接只共享冻结且无依赖的 open/closed readiness 描述，Swift 直接识别这些常量；含 Query、占位、数组位置或输出 scope 的元数据仍完整投影。投影先按对象身份和父 scope 查询本次缓存，命中立即返回；未命中才读取类型及子 scope，避免重复边额外构造 scope。私有桥接把有序属性键值、类型/子 scope、元素完整性/readiness 分别成组读取，减少重复跨语言调用；键值仍按原始 UTF-16、枚举顺序及引用身份传递，不通过 JSON 往返。最外层串行桥接调用结束时释放临时 autorelease 对象，返回快照持有自身引用；跨调用保留值必须由原生生命周期测试覆盖。没有跨更新复用可能被引用位置修改的 Lang 物化对象。
+
+同次原生呈现批量读取 Query 状态，仅提取一次管理器快照并建立本次错误索引；缺失声明直接退出，批次之外不缓存结果或错误。管理器内部完整 JSON 快照比较仍保留，因为共享默认值可在 provider/listener 或两次调用之间改变。该批量读取处理 Query 呈现成本，不能据此解释无已派发 Query 的持续文本流 CPU。
+
+解析、解析投影、求值上下文、root 求值、原生投影、live index、桥接调用及弱引用清理通过内部 Instruments interval 分开记录；tracing 关闭时不创建 interval，也不记录源码或用户值。基准同时保留 p95、最大值和最慢分片位置，以识别整树增长与周期性长调用。整 root 求值/投影及定期弱引用清理仍存在，没有认定 80–100ms 长尾来自 GC，也没有宣布长尾已修复。重入队列、预算、缓存及通知收敛不等于流畅度已验收；实际效果仍由相同输入的 Release 及 App 回放验证。
 
 **输入与完成。** `push` 接收内容后仍同步更新。Lang 入口使用一次增量传输探测，仅将原始 Lang 引号/转义/行注释之外的首次标记视作封包边界；此前的源码作为数据保留。进入封包后，同一个消息解析器继续处理部分消息头和截断重试。公开 `parseMessage` 保留完整协议语义及 context；Lang 入口只投影选中的 content。普通注释和多行字符串内的 marker 不得静默删掉 root。任何内部优化都必须保留精确 UTF-16 内容、到达顺序、已闭合节点可交互以及末尾分块的处理语义。
 
@@ -145,7 +155,7 @@ patch 在去空白、拆句或合并前检查每项原始 existing、patch 和 r
 | 替换或 reset | 退休旧计算及异步回调。reset 清理业务状态及草稿；换源按现有 Store 保留/初始化规则处理业务状态，并建立新的呈现草稿生命周期 |
 | 输入或计算超限 | 停止该轮排队与执行，保留最后有效呈现，向调用方报告失败并结束等待 |
 
-**计算所有权与提交。** parser、Store、Query 和 JS 值由一个串行执行域拥有，UI 只读不可变原生投影；这是同一权威状态的读模型。每份候选投影关联文档身份和更新序号，提交前检查当前有效性，过期结果直接退休。root、readiness、字段、Query/Mutation 状态及错误应形成一致的可见提交，再发出外部通知；不能让订阅者组合出不同更新的字段。现有分散 Published 的兼容迁移和同步调用的返回语义必须一起落实，不能只把计算包进后台 Task。
+**计算所有权与提交。** parser、Store、Query 和 JS 值由一个串行执行域拥有，UI 只读不可变原生投影；这是同一权威状态的读模型。每份候选投影关联文档身份和更新序号，提交前检查当前有效性，过期结果直接退休。root、readiness、字段、Query/Mutation 状态及错误应形成一致的可见提交，再发出外部通知；不能让订阅者组合出不同更新的字段。现有分散 Published 的通知合同和同步调用的返回语义必须一起落实，不能只把计算包进后台 Task。
 
 **节点与交互更新。** 节点身份、业务值相等和呈现状态分开判断。变化尾部只使实际依赖它的节点失效；readiness、错误、Query 加载和动作可用性即使不改变 Lang 值也必须送达。输入草稿和焦点按文档及字段身份保留，不从无关的 root 发布反复初始化。视图 body 和布局测量只读取已提交投影，不调用 parser、写 Store 或触发工具。已有同源码重放/尺寸拟合回归不足以证明稳定兄弟隔离，必须增加 body 与投影计数。
 
@@ -158,7 +168,7 @@ patch 在去空白、拆句或合并前检查每项原始 existing、patch 和 r
 ## 4. 适配层、组件与宿主的边界
 
 - 适配层统一拥有运行机制。组件不另建 parser/Store/state，不重复观察整份文档，不绕过 Context 直接派发动作或写入业务状态。
-- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。当前 SwiftLangView 与各 OpenUIComponentHost 都观察同一个 OpenUIState，尚不能描述为只在公共 host 观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
+- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。SwiftLangView 与轻量 OpenUIComponentHost 仍观察 OpenUIState，内部内容边界过滤无关输入；不能描述为整棵树只观察一次。ActionSurface、原生字段、EditableTable 及未收敛的其他库订阅继续保留。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
 - 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
 - typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
 - 通用资源 Context 管理地址、宿主 loader、鉴权作用域、预算和文档生命周期。各 UI 的图片缓存/解码、占位、重试、预览和地图交互保持在所属组件库。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。

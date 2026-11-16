@@ -26,6 +26,9 @@ public struct OpenUIComponentContext {
     private let state: OpenUIState
     package let registry: OpenUIComponentRegistry
     private let sourceRevision: Int
+    // A Store/Query notification can change a field without changing props.
+    // Preserve that dependency when this context is passed through child views.
+    private let componentUpdateRevision: UInt64
 
     @MainActor public init(element: EvaluatedElement, registry: OpenUIComponentRegistry, state: OpenUIState,
                 values: OpenUIContextValues = OpenUIContextValues(), resources: [String: Value] = [:],
@@ -34,6 +37,7 @@ public struct OpenUIComponentContext {
         self.values = values; self.resources = resources; self.formName = exactFormName?.displayString ?? formName
         self.exactFormName = exactFormName ?? formName.map { OpenUIString($0) }
         self.sourceRevision = state.sourceRevision
+        self.componentUpdateRevision = state.componentUpdates.revision
         self.isStreaming = !state.isComplete
         self.isQueryLoading = state.isQueryLoading
         self.presentationReadiness = element.sourceReadiness

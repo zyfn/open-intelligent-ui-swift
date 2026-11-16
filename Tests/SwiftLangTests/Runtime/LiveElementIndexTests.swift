@@ -164,6 +164,31 @@ final class LiveElementIndexTests: XCTestCase {
       "Membership must not replace the existing readiness ambiguity check for old snapshots")
   }
 
+  @MainActor func testAnonymousScalarPropertyNamesRetainCanonicalReadinessAmbiguity() throws {
+    let pending = EvaluatedElement(typeName: "TextContent", props: [("é", .string("Same"))],
+      isSourceComplete: false)
+    let ready = EvaluatedElement(typeName: "TextContent", props: [("e\u{301}", .string("Same"))],
+      isSourceComplete: true)
+    var index = NativeLiveElementIndex()
+    index.insert(pending); index.insert(ready)
+    assertIdentities(index.candidates(for: pending), [pending, ready])
+    let schema = LibrarySchema(components: [
+      "Stack": [ParamDef(name: "children", required: true)],
+      "TextContent": [ParamDef(name: "é", required: true)]
+    ], callDefs: builtinCallDefs.merging(["Nodes": CallDef(kind: .function, params: [])]) { _, new in new },
+      rootComponent: "Stack")
+    let state = OpenUIState(schema: schema, functions: [
+      "Nodes": CustomFunction(params: [], fn: { _ in .array([.element(pending), .element(ready)]) })
+    ])
+    state.setSource("root=Stack(@Nodes())")
+    let children = PropValue.children(try XCTUnwrap(state.root))
+    XCTAssertEqual(children.count, 2)
+    let older = EvaluatedElement(typeName: "TextContent", props: pending.props, isSourceComplete: false)
+    XCTAssertTrue(state.liveElement(matching: older) === older,
+      "Scalar indexing must not select one canonical spelling and borrow its readiness")
+    XCTAssertFalse(state.isElementReady(older))
+  }
+
   private func customSchema() -> LibrarySchema {
     LibrarySchema(components: [
       "Stack": [ParamDef(name: "children", required: true)],

@@ -6,7 +6,44 @@ public struct OpenUIComponentHost<Content: View>: View {
     private let element: EvaluatedElement
     private let registry: OpenUIComponentRegistry
     private let content: (OpenUIComponentContext) -> Content
+    private let contentIdentity: NativeComponentContentIdentity
     @EnvironmentObject private var state: OpenUIState
+
+    public init(element: EvaluatedElement, registry: OpenUIComponentRegistry,
+                @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
+        self.element = element
+        self.registry = registry
+        self.content = content
+        self.contentIdentity = NativeComponentContentIdentity()
+    }
+
+    init(element: EvaluatedElement, registry: OpenUIComponentRegistry,
+         contentIdentity: NativeComponentContentIdentity,
+         @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
+        self.element = element; self.registry = registry; self.content = content
+        self.contentIdentity = contentIdentity
+    }
+
+    public var body: some View {
+        let current = state.liveElement(matching: element)
+        NativeComponentContent(element: current, registry: registry, state: state,
+            updates: state.componentUpdates, ready: state.isElementReady(current),
+            contentIdentity: contentIdentity, content: content).equatable()
+    }
+}
+
+final class NativeComponentContentIdentity {}
+
+/// Keep EnvironmentObject resolution at the entry so a nested host can replace
+/// its document. Broad root notifications stop here when presentation is equal.
+private struct NativeComponentContent<Content: View>: View, Equatable {
+    let element: EvaluatedElement
+    let registry: OpenUIComponentRegistry
+    let state: OpenUIState
+    @ObservedObject var updates: NativeComponentUpdates
+    let ready: Bool
+    let contentIdentity: NativeComponentContentIdentity
+    let content: (OpenUIComponentContext) -> Content
     @Environment(\.openUIContextValues) private var values
     @Environment(\.openUIResources) private var resources
     @Environment(\.openUIFormName) private var formName
@@ -16,14 +53,13 @@ public struct OpenUIComponentHost<Content: View>: View {
     @Environment(\.openUIActivationIntent) private var activationIntent
     @Environment(\.openUIUserInteraction) private var userInteraction
 
-    public init(element: EvaluatedElement, registry: OpenUIComponentRegistry,
-                @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
-        self.element = element
-        self.registry = registry
-        self.content = content
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.state === rhs.state && lhs.contentIdentity === rhs.contentIdentity
+            && lhs.registry.renderRevision == rhs.registry.renderRevision && lhs.ready == rhs.ready
+            && nativePresentationInputsEqual(lhs.element, rhs.element)
     }
 
-    public var body: some View {
+    var body: some View {
         let element = state.liveElement(matching: self.element)
         var context = OpenUIComponentContext(element: element, registry: registry, state: state,
             values: values, resources: resources, formName: formName, exactFormName: exactFormName)

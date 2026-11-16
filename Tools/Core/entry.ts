@@ -1,7 +1,7 @@
 import { capture, hasCapture, capturedValue, nativePlan, isNativePlan, isRuntimePlan, evaluationContext } from './captures';
 export { capture, hasCapture, capturedValue, nativePlan, isRuntimePlan };
 import { runBudget, nativeBudgetLimits, nativeInputFailure, reserveWork } from './budget';
-import { sourceEvaluation } from './readiness';
+import { sourceEvaluation, sourceComplete, sourcePresentation, sourceChildSnapshot } from './readiness';
 export { nativeBudgetExceeded, nativeInputFailure } from './budget';
 export { sourceComplete, sourcePresentation, sourcePresentationDefaults, sourceChildSnapshot, tagNativeSource, currentSourceSnapshot } from './readiness';
 import * as core from '@openui/core-source';
@@ -20,7 +20,19 @@ export const identity = (value: object) => {
   if (!id) ids.set(value, (id = ++next));
   return id;
 };
-export const keys = Object.keys;
+// Copy the ordered keys before reading values, as the native bridge did. A
+// single crossing preserves UTF-16 keys and avoids converting each key to
+// Swift and back into JavaScript just to read its value.
+export function entries(value: Record<string, unknown>): unknown[] {
+  const names = Object.keys(value), fields = new Array(names.length * 2);
+  // One flat buffer avoids allocating a JavaScript array for every property.
+  for (let index = 0; index < names.length; index++) {
+    const key = names[index];
+    fields[index * 2] = key;
+    fields[index * 2 + 1] = value[key];
+  }
+  return fields;
+}
 export const isAST = isASTNode;
 export const api = core;
 export const messageContent = (source: string, streaming: boolean, protectedPrefix: number) =>
@@ -189,7 +201,14 @@ export const tag = (value: object, kind: string) => {
   nativeKinds.set(value, kind);
   return value;
 };
-export const kind = (value: object) => nativeKinds.get(value);
+
+// These tuples are private bridge calls, not Lang values or a cached snapshot.
+// The caller checks its identity/scope cache first, so repeated graph edges do
+// not construct occurrence scopes or allocate a metadata tuple on cache hits.
+export const projectionMetadata = (value: object, source?: any) =>
+  [nativeKinds.get(value), sourceChildSnapshot(value, source)];
+export const sourceStatus = (value: object, source?: any) =>
+  [sourceComplete(value, source), sourcePresentation(value, source)];
 
 import { ownSteps } from '@openui/core-source/runtime/evaluator';
 export const actionSteps = (plan: any) =>

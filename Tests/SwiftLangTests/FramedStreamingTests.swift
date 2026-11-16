@@ -124,7 +124,14 @@ final class FramedStreamingTests: XCTestCase {
     @MainActor func testStateDoesNotEraseRawCommentOrMultilineStringContent() throws {
         for source in ["root=Box(\"kept\")\n// ]]>openui:content",
                        "root=Box(\"😀\n]]>openui:content\nkept\")"] {
-            let expected = PropValue.string(try XCTUnwrap(rawReference(source, complete: true).root), "value")
+            let referenceRoot = try XCTUnwrap(rawReference(source, complete: true).root)
+            let referenceProp = try XCTUnwrap(referenceRoot.props.first { $0.key == "value" })
+            // The independent parser oracle produces Materialized props;
+            // PropValue reads the State's evaluated tree only.
+            guard case .value(.string(let referenceText)) = referenceProp.value else {
+                return XCTFail("The raw parser reference must contain a string value")
+            }
+            let expected = referenceText.displayString
             let state = OpenUIState(schema: schema())
             state.setSource(source)
             XCTAssertEqual(PropValue.string(try XCTUnwrap(state.root), "value"), expected)

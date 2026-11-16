@@ -38,7 +38,7 @@ final class CoreStreamParser: StreamParser {
             }
             // Ordinary Lang chunks never rescan the accumulated input for
             // message markers or rebuild the shared parser's statement cache.
-            return accept(core.parseResult(parser.invokeMethod("push", withArguments: [chunk, complete])))
+            return accept(parse("push", [chunk, complete]))
         }
     }
     @discardableResult func set(_ fullText: String, complete: Bool = false) -> ParseResult {
@@ -60,7 +60,7 @@ final class CoreStreamParser: StreamParser {
             if selectedSource != nil || messageProbe.protectedPrefix(complete: complete) != nil {
                 return selectInput(complete: complete)
             }
-            return accept(core.parseResult(parser.invokeMethod("getResult", withArguments: [complete])))
+            return accept(parse("getResult", [complete]))
         }
     }
     private func selectInput(complete: Bool) -> ParseResult {
@@ -76,7 +76,11 @@ final class CoreStreamParser: StreamParser {
         } else {
             selectedSource = nil
         }
-        return accept(core.parseResult(parser.invokeMethod("set", withArguments: [source, complete])))
+        return accept(parse("set", [source, complete]))
+    }
+    private func parse(_ method: String, _ arguments: [Any]) -> ParseResult {
+        let result = NativeRuntimeTrace.measure("Parse") { parser.invokeMethod(method, withArguments: arguments)! }
+        return NativeRuntimeTrace.measure("Parse projection") { core.parseResult(result) }
     }
     private func accept(_ result: ParseResult) -> ParseResult {
         guard !result.nativeLimitExceeded else {

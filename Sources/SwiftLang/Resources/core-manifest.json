@@ -16,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "842e71ddeee6d73a7c04df90f9c80f01ca43f504de2495e448047b7a75004e16",
-  "bytes": 862871,
+  "sha256": "a949bbb8ad880dba88a8ed7a09ccf2d50cb3c3194f38f7872d19daf041108a6b",
+  "bytes": 863070,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "47693978c81f65007c08cef351fbe0ba971210c1fdbb6140294d818065bbc53e",
+  "adapterSha256": "d7f87638e5cfada0179387af13917445b29ecbc9bd3d5e938582ab0189f3c2dc",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -74,8 +74,8 @@
         "Sources/SwiftLang/Language/OpenUIString.swift"
       ],
       "reason": "Ordered UTF16 values and native callback transport",
-      "observable": "Identity, undefined, surrogate and key order semantics; Store reads check one own key without enumerating the snapshot",
-      "verification": "Strict parser traces, semantic oracle vectors and instrumented single-key bridge regressions",
+      "observable": "Identity, undefined, surrogate and key order semantics; Store reads check one own key without enumerating the snapshot. Ordered entries and per-occurrence projection metadata cross in batches without caching mutable Lang values or snapshots",
+      "verification": "Strict parser traces, semantic oracle vectors, scoped projection/ordered-entry regressions and instrumented single-key bridge regressions",
       "removal": "Equivalent lossless upstream native transport"
     },
     {

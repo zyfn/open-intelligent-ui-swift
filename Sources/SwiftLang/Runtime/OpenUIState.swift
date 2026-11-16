@@ -20,10 +20,18 @@ public final class OpenUIState: ObservableObject {
     // used to invalidate every observer twice for a single streamed prefix.
     package private(set) var presentationRoot: NativeSourceReadiness?
     @Published public private(set) var errors: [OpenUIError] = []
-    @Published public private(set) var isComplete = false
-    @Published public private(set) var isInterrupted = false
-    @Published public private(set) var queryStates: [String: QueryState] = [:]
-    @Published public private(set) var mutationStates: [String: MutationState] = [:]
+    @Published public private(set) var isComplete = false {
+        didSet { if isComplete != oldValue { componentUpdates.invalidate() } }
+    }
+    @Published public private(set) var isInterrupted = false {
+        didSet { if isInterrupted != oldValue { componentUpdates.invalidate() } }
+    }
+    @Published public private(set) var queryStates: [String: QueryState] = [:] {
+        didSet { if !nativeQueryStatesEqual(oldValue, queryStates) { componentUpdates.invalidate() } }
+    }
+    @Published public private(set) var mutationStates: [String: MutationState] = [:] {
+        didSet { if !nativeMutationStatesEqual(oldValue, mutationStates) { componentUpdates.invalidate() } }
+    }
     /// Matches the reference context's loading signal, including declared
     /// Queries waiting for their streamed program to become executable.
     public var isQueryLoading: Bool {
@@ -44,6 +52,8 @@ public final class OpenUIState: ObservableObject {
 
     private var parser: StreamParser
     private var store: Store
+    private var unsubscribeStore: (() -> Void)?
+    let componentUpdates = NativeComponentUpdates()
     private var queryManager: QueryManager
     private let schema: LibrarySchema
     private let functions: [String: CustomFunction]
@@ -183,7 +193,9 @@ public final class OpenUIState: ObservableObject {
             }
         }
     }
-    private var streamGeneration = 0
+    private var streamGeneration = 0 {
+        didSet { componentUpdates.invalidate() }
+    }
     private var persistedState: [OpenUIString: Value]
     private var unsubscribe: (() -> Void)?
     private var queryDelivery: NativeQueryUpdateDelivery?
@@ -208,6 +220,7 @@ public final class OpenUIState: ObservableObject {
         defer {
             queuedMutations.removeAll()
             drainingMutations = false
+            componentUpdates.flush()
         }
         while let next = queuedMutations.popFirst() {
             // Already queued work runs in FIFO order. Only a new request made
@@ -240,10 +253,12 @@ public final class OpenUIState: ObservableObject {
         self.schema = schema; self.functions = functions
         parser = createStreamingParser(schema: schema); store = createStore()
         queryManager = QueryManager(provider: toolProvider)
+        observeStore()
         observeQueries()
     }
 
     deinit {
+        unsubscribeStore?()
         unsubscribe?(); queryManager.dispose()
         // In-flight callers can retain the caches beyond this state. Cancel
         // their work when the owning state ends, on the caches' actor.
@@ -253,6 +268,12 @@ public final class OpenUIState: ObservableObject {
             mediaCache.removeAll()
             resourceStore.removeAll()
         }
+    }
+
+    private func observeStore() {
+        unsubscribeStore?()
+        let updates = componentUpdates
+        unsubscribeStore = store.subscribe { updates.invalidate() }
     }
 
     private func observeQueries() {
@@ -359,6 +380,7 @@ public final class OpenUIState: ObservableObject {
         unsubscribe?(); queryManager.dispose()
         queryManager = QueryManager(provider: toolProvider)
         parser = createStreamingParser(schema: schema); store = createStore()
+        observeStore()
         latestResult = nil; source = ""; persistedState = [:]
         indexLiveElements(nil)
         querySourceGeneration = -1; queryStoreSnapshot = [:]; idleMutations = [:]
@@ -931,8 +953,9 @@ public final class OpenUIState: ObservableObject {
                 }
             }
             guard mutationIsCurrent, !evaluator.nativeLimitExceeded else { return false }
+            let currentQueries = queryManager.queryStates(for: result.queryStatements.map(\.statementId))
             for query in result.queryStatements {
-                queryValues[query.statementId] = queryManager.queryState(for: query.statementId)
+                queryValues[query.statementId] = currentQueries[query.statementId]
                     ?? QueryState(status: .idle, data: evaluator.context.resolveRef(query.statementId))
             }
             guard mutationIsCurrent, !evaluator.nativeLimitExceeded else { return false }
@@ -960,7 +983,7 @@ public final class OpenUIState: ObservableObject {
         guard executable else { stopForRuntimeLimit(preserving: previous); return }
         presentationRoot = result.presentationRoot
         guard mutationIsCurrent else { return }
-        indexLiveElements(evaluatedRoot)
+        NativeRuntimeTrace.measure("Live index") { indexLiveElements(evaluatedRoot) }
         root = evaluatedRoot
         guard mutationIsCurrent else { return }
         // Empty auxiliary channels have no changed value to publish. Root and

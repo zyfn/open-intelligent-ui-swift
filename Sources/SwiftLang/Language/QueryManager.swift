@@ -398,11 +398,35 @@ public final class QueryManager {
         return
     } }
     public func queryState(for id: String) -> QueryState? { core.sync {
+        // Streaming references often precede active declarations. Keep this
+        // absent-query read allocation-free before creating the batch input.
         guard statementIDs.contains(id) else { return nil }
+        return queryStates(for: [id])[id]
+    } }
+
+    /// One presentation reads a coherent manager snapshot under the realm lock.
+    /// Index its errors once instead of bridging the full error array for each
+    /// query. No snapshot or error index survives this synchronous read.
+    func queryStates(for ids: [String]) -> [String: QueryState] { core.sync {
+        guard !ids.isEmpty, !statementIDs.isEmpty else { return [:] }
+        let requested = Set(ids).intersection(statementIDs)
+        guard !requested.isEmpty else { return [:] }
         let snapshot = manager.invokeMethod("getSnapshot", withArguments: [])!
-        let error = core.items(snapshot.forProperty("__openui_errors")).first { $0.forProperty("statementId").toString() == id }.map(core.error)
-        let loading = manager.invokeMethod("isLoading", withArguments: [id]).toBool()
-        return QueryState(status: loading ? .loading : error != nil ? .error : provider == nil && tools == nil ? .idle : .success, data: core.decode(manager.invokeMethod("getResult", withArguments: [id])), error: error)
+        var errors: [String: OpenUIError] = [:]
+        for value in core.items(snapshot.forProperty("__openui_errors")) {
+            guard let id = value.forProperty("statementId").toString(),
+                  requested.contains(id), errors[id] == nil else { continue }
+            errors[id] = core.error(value)
+            if errors.count == requested.count { break }
+        }
+        var states: [String: QueryState] = [:]
+        for id in ids where requested.contains(id) && states[id] == nil {
+            let error = errors[id]
+            let loading = manager.invokeMethod("isLoading", withArguments: [id]).toBool()
+            states[id] = QueryState(status: loading ? .loading : error != nil ? .error : provider == nil && tools == nil ? .idle : .success,
+                                   data: core.decode(manager.invokeMethod("getResult", withArguments: [id])), error: error)
+        }
+        return states
     } }
     public func registerMutations(_ declarations: [String: OpenUIString]) { core.sync {
         guard !disposed else { return }

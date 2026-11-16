@@ -10,6 +10,50 @@ import XCTest
 /// text. Source probes alone cannot detect a view that missed its last update.
 /// These regressions are not client replay or frame-time measurements.
 final class MountedStreamingTextProgressTests: XCTestCase {
+    @MainActor func testStandardMarkdownBuilderStaysStableWhileAnotherTextStreams() async throws {
+        let library = try OpenUIComponents.library()
+        var registry = library.registry
+        let original = try XCTUnwrap(registry["TextContent"])
+        // Wrap the actual standard renderer and preserve all of its registration
+        // metadata; this test does not replace Markdown with a probe component.
+        let placeholder = registry.supportsPresentationPlaceholder("TextContent")
+        let layout = registry.presentationLayoutFields("TextContent")
+        let labels = registry.ownsFormControlLabel("TextContent")
+        let identity = registry.identityFields(for: "TextContent")
+        let placeholderFields = registry.presentationPlaceholderFields("TextContent")
+        var fixedBuilds = 0
+        registry["TextContent"] = { element, registry in
+            if element.statementId == "fixed" { fixedBuilds += 1 }
+            return original(element, registry)
+        }
+        registry.setPresentationPlaceholder("TextContent", enabled: placeholder)
+        registry.setLayoutFields("TextContent", fields: layout)
+        registry.setFormControlLabelOwner("TextContent", enabled: labels)
+        registry.setIdentityFields("TextContent", fields: identity)
+        registry.setPlaceholderFields("TextContent", fields: placeholderFields)
+        let state = OpenUIState(schema: library.library.toSchema())
+        defer { state.reset() }
+        state.push("root=Stack([fixed,tail])\nfixed=TextContent(\"稳定的正文段落\")\ntail=TextContent(\"")
+        let (host, window) = mount(OpenUIContentView(state: state, registry: registry))
+        defer { window.close() }
+        try await waitForRenderedText("稳定的正文段落", in: host)
+        XCTAssertGreaterThan(fixedBuilds, 0)
+        let settledBuilds = fixedBuilds
+        var text = ""
+        for chunk in ["SHANGHAI", " → ", "SUZHOU", " · 2 DAYS", " · 3 位成人"] {
+            text += chunk
+            state.push(chunk)
+            try await waitForRenderedText(text, in: host)
+            XCTAssertFalse(state.isComplete)
+            XCTAssertEqual(fixedBuilds, settledBuilds,
+                "The registered standard Markdown renderer must not rebuild for an unrelated text append")
+            XCTAssertTrue(renderedText(in: host).contains("稳定的正文段落"))
+        }
+        state.push("\")")
+        state.complete()
+        try await waitForRenderedText(text, in: host)
+    }
+
     @MainActor func testMountedPlainAndMarkdownTextAdvanceBeforeUnrelatedStreamingEnds() async throws {
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())

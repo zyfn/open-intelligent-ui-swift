@@ -75,7 +75,6 @@ struct NativeDateField: View {
     @Environment(\.timeZone) private var timeZone
     @Environment(\.isEnabled) private var enabled
     @Environment(\.openUIFieldPresentation) private var fieldPresentation
-    @EnvironmentObject private var runtime: OpenUIState
     @State private var request: NativeDateRequest?
     private var field: NativeFieldState { .init(context: context) }
     private var range: Bool { context.string("mode") == "range" }
@@ -94,7 +93,7 @@ struct NativeDateField: View {
     var body: some View {
         presentation
             .onChange(of: canEdit) { active in if !active { request = nil } }
-            .onChange(of: runtime.sourceRevision) { _ in request = nil }
+            .onChange(of: context.presentationSourceRevision) { _ in request = nil }
     }
     @ViewBuilder private var presentation: some View {
         #if os(macOS)

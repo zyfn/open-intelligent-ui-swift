@@ -68,8 +68,10 @@ public struct OpenUIComponent {
         @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content
     ) {
         self.definition = definition
+        let contentIdentity = NativeComponentContentIdentity()
         self.builder = { element, registry in
-            AnyView(OpenUIComponentHost(element: element, registry: registry, content: content))
+            AnyView(OpenUIComponentHost(element: element, registry: registry,
+                contentIdentity: contentIdentity, content: content))
         }
     }
 }

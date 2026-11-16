@@ -177,6 +177,17 @@ private func residentBytes() -> UInt64? {
             }
         }
         let languageStatistics = statistics(timings)
+        // Derive positions after measurement, without extra allocations or
+        // instrumentation inside the timed push. A maximum without its input
+        // position cannot distinguish late tree growth from a periodic spike.
+        let slowestPushes: [[String: Any]] = pushSamples.enumerated()
+            .sorted { $0.element > $1.element }.prefix(10).map { sample in
+                let chunk = sample.offset % chunks.count
+                return ["iteration": sample.offset / chunks.count,
+                        "chunk": chunk,
+                        "sourceUTF16Units": min(wire.count, (chunk + 1) * options.chunkUnits),
+                        "milliseconds": sample.element]
+            }
         #if DEBUG
         let configuration = "debug"
         #else
@@ -196,6 +207,7 @@ private func residentBytes() -> UInt64? {
                 "iterations": options.streamIterations, "chunkUTF16Units": options.chunkUnits,
                 "chunksPerIteration": chunks.count, "sourceUTF16Units": streamingSource.utf16.count,
                 "push": statistics(pushSamples), "complete": statistics(completionSamples),
+                "slowestPushes": slowestPushes,
                 "wholeStream": statistics(streamSamples), "parseCallbacks": parseCallbacks,
                 "objectWillChangePublications": publications,
                 "instrumentation": "Callbacks count synchronous publications; they do not count SwiftUI body evaluations or frames."

@@ -123,11 +123,20 @@ final class SharedCore {
             if depth == 0 {
                 operations += 1
                 if operations % 32 == 0 {
-                    identities = identities.filter { $0.value.object != nil }
-                    decoded = decoded.filter { $0.value.object != nil }
+                    NativeRuntimeTrace.measure("Bridge cleanup") {
+                        identities = identities.filter { $0.value.object != nil }
+                        decoded = decoded.filter { $0.value.object != nil }
+                    }
                 }
             }
             lock.unlock()
+        }
+        // A host may feed many chunks synchronously without returning to its
+        // run loop. Release temporary Objective-C/JSValue wrappers after each
+        // outer bridge operation; returned snapshots keep their own references.
+        // Nested/reentrant operations stay in the same serialized scope.
+        if depth == 1 {
+            return try NativeRuntimeTrace.measure("Bridge operation") { try autoreleasepool(invoking: body) }
         }
         return try body()
     }
@@ -161,17 +170,11 @@ final class SharedCore {
     func set(_ object: JSValue, _ key: OpenUIString, _ value: JSValue) {
         _ = call("define", [object, string(key), value])
     }
-    func get(_ object: JSValue, _ key: OpenUIString) -> JSValue {
-        let js = key.codeUnits.withUnsafeBufferPointer { JSStringCreateWithCharacters($0.baseAddress, $0.count)! }
-        defer { JSStringRelease(js) }
-        return JSValue(jsValueRef: JSObjectGetProperty(context.jsGlobalContextRef, JSValueToObject(context.jsGlobalContextRef, object.jsValueRef, nil), js, nil), in: context)
-    }
     func entries(_ object: JSValue) -> [(OpenUIString, JSValue)] {
         guard object.isObject else { return [] }
-        let keys = call("keys", [object])
-        return (0..<Int(keys.forProperty("length").toInt32())).map { index in
-            let key = string(keys.atIndex(index)!)
-            return (key, get(object, key))
+        let fields = call("entries", [object])
+        return (0..<(Int(fields.forProperty("length").toInt32()) / 2)).map { index in
+            (string(fields.atIndex(index * 2)!), fields.atIndex(index * 2 + 1)!)
         }
     }
     func array(_ items: [JSValue]) -> JSValue { JSValue(object: items, in: context) }
@@ -302,7 +305,9 @@ final class SharedCore {
         let source = ValueProjection.Scope(snapshot: snapshot,
             identity: snapshot.map { Int(call("identity", [$0]).toInt32()) } ?? 0)
         let projection = ValueProjection(rootScope: source)
-        return decode(js, level: level, interpret: interpret, projection: projection, source: source)
+        return NativeRuntimeTrace.measure("Native projection") {
+            decode(js, level: level, interpret: interpret, projection: projection, source: source)
+        }
     }
     private func decode(_ js: JSValue, level: Int, interpret: Bool, projection: ValueProjection,
                         source: ValueProjection.Scope) -> Value {
@@ -318,12 +323,13 @@ final class SharedCore {
         // calls bounded too, without expanding a shared DAG on every edge.
         guard projection.path.insert(id).inserted else { return .null }
         defer { projection.path.remove(id) }
+        let metadata = call("projectionMetadata", [js, source.snapshot ?? JSValue(undefinedIn: context)!])
         let cached = decoded[id]?.object
         var childrenScope: ValueProjection.Scope?
         func child(_ value: JSValue) -> Value {
             if childrenScope == nil {
                 if let snapshot = source.snapshot {
-                    let next = call("sourceChildSnapshot", [js, snapshot])
+                    let next = metadata.atIndex(1)!
                     childrenScope = JSValueIsStrictEqual(context.jsGlobalContextRef, next.jsValueRef, snapshot.jsValueRef)
                         ? source : .init(snapshot: next, identity: Int(call("identity", [next]).toInt32()))
                 } else { childrenScope = source }
@@ -338,7 +344,10 @@ final class SharedCore {
         }
         var sourceArguments: [Any] { [js, source.snapshot ?? JSValue(undefinedIn: context)!] }
         var complete: Bool { call("sourceComplete", sourceArguments).toBool() }
-        var readiness: NativeSourceReadiness { sourceReadiness(call("sourcePresentation", sourceArguments)) }
+        func sourceDetails() -> (complete: Bool, readiness: NativeSourceReadiness) {
+            let status = call("sourceStatus", sourceArguments)
+            return (status.atIndex(0).toBool(), sourceReadiness(status.atIndex(1)!))
+        }
         let result: Value
         if let array = cached as? OpenUIArray {
             if array.containsSourceMetadata {
@@ -351,7 +360,7 @@ final class SharedCore {
                 result = zip(fields, object.fields).allSatisfy { $0.value.isSameSnapshot(as: $1.value) } ? .object(object) : .object(fields)
             } else { result = .object(object) }
         } else if let element = cached as? EvaluatedElement {
-            let isComplete = complete, details = readiness
+            let (isComplete, details) = sourceDetails()
             let props = element.props.map { ($0.0, refreshed($0.1)) }
             if element.isSourceComplete == isComplete, element.sourceReadiness == details,
                zip(props, element.props).allSatisfy({ $0.1.isSameSnapshot(as: $1.1) }) {
@@ -370,11 +379,12 @@ final class SharedCore {
         } else if let binding = cached as? ReactiveAssign {
             result = binding.expression == .stateRef("$value") ? .binding(binding) : .reactiveBinding(binding)
         } else {
-            let tagged = call("kind", [js]).toString()
+            let tagged = metadata.atIndex(0).toString()
             let runtimeShape = interpret && tagged != "object"
             if js.isArray { result = .array(items(js).map(child)) }
             else if runtimeShape && js.forProperty("type").isString && js.forProperty("type").toString() == "element" {
-                result = .element(EvaluatedElement(typeName: js.forProperty("typeName").toString(), props: entries(js.forProperty("props")).map { ($0.0.displayString, child($0.1)) }, statementId: optionalString(js.forProperty("statementId")), partial: js.forProperty("partial").toBool(), isSourceComplete: complete, sourceReadiness: readiness))
+                let (isComplete, details) = sourceDetails()
+                result = .element(EvaluatedElement(typeName: js.forProperty("typeName").toString(), props: entries(js.forProperty("props")).map { ($0.0.displayString, child($0.1)) }, statementId: optionalString(js.forProperty("statementId")), partial: js.forProperty("partial").toBool(), isSourceComplete: isComplete, sourceReadiness: details))
             } else if runtimeShape && js.forProperty("__reactive").isString && js.forProperty("__reactive").toString() == "assign" {
                 let target = js.forProperty("target").toString()!
                 let expression = decodeAST(js.forProperty("expr"))

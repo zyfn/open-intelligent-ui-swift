@@ -12,7 +12,8 @@ final class CoreParser: Parser {
         guard OpenUIRuntimeBudget.acceptsSource(input) else { return limitedParseResult() }
         let content = stripMessageMarkers(input)
         guard OpenUIRuntimeBudget.acceptsSource(content) else { return limitedParseResult() }
-        return core.parseResult(parser.invokeMethod("parse", withArguments: [content]))
+        let parsed = NativeRuntimeTrace.measure("Parse") { parser.invokeMethod("parse", withArguments: [content])! }
+        return NativeRuntimeTrace.measure("Parse projection") { core.parseResult(parsed) }
     } }
 }
 public func createParser(schema: LibrarySchema) -> Parser { CoreParser(schema: schema) }

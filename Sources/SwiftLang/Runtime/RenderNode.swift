@@ -17,6 +17,8 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
     private var formControlLabelOwners = Set<String>()
     private var identityProperties: [String: [String]] = [:]
     private var placeholderProperties: [String: [String]] = [:]
+    private var revision = NativeRegistryRevision()
+    var renderRevision: ObjectIdentifier { ObjectIdentifier(revision) }
 
     public init(_ builders: [String: Builder] = [:]) { self.builders = builders }
     public init(dictionaryLiteral elements: (String, Builder)...) {
@@ -25,6 +27,7 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
     public subscript(_ name: String) -> Builder? {
         get { builders[name] }
         set {
+            revision = NativeRegistryRevision()
             builders[name] = newValue
             presentationPlaceholders.remove(name)
             layoutFields.removeValue(forKey: name)
@@ -34,18 +37,23 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
         }
     }
     package mutating func setPresentationPlaceholder(_ name: String, enabled: Bool) {
+        revision = NativeRegistryRevision()
         if enabled { presentationPlaceholders.insert(name) }
         else { presentationPlaceholders.remove(name) }
     }
     package func supportsPresentationPlaceholder(_ name: String) -> Bool { presentationPlaceholders.contains(name) }
-    package mutating func setLayoutFields(_ name: String, fields: [String]) { layoutFields[name] = fields }
+    package mutating func setLayoutFields(_ name: String, fields: [String]) {
+        revision = NativeRegistryRevision(); layoutFields[name] = fields
+    }
     package func presentationLayoutFields(_ name: String) -> [String] { layoutFields[name] ?? [] }
     package mutating func setFormControlLabelOwner(_ name: String, enabled: Bool) {
+        revision = NativeRegistryRevision()
         if enabled { formControlLabelOwners.insert(name) }
         else { formControlLabelOwners.remove(name) }
     }
     package func ownsFormControlLabel(_ name: String) -> Bool { formControlLabelOwners.contains(name) }
     package mutating func setIdentityFields(_ name: String, fields: [String]?) {
+        revision = NativeRegistryRevision()
         identityProperties[name] = fields
     }
     /// Identity belongs to the supplied component library, including when two
@@ -54,12 +62,15 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
         identityProperties[name] ?? ["key", "id", "resourceId"]
     }
     package mutating func setPlaceholderFields(_ name: String, fields: [String]) {
+        revision = NativeRegistryRevision()
         placeholderProperties[name] = fields
     }
     package func presentationPlaceholderFields(_ name: String) -> [String] {
         placeholderProperties[name] ?? []
     }
 }
+
+private final class NativeRegistryRevision {}
 
 /// Recursively renders an `EvaluatedElement` tree.
 public struct RenderNode: View {
@@ -72,6 +83,22 @@ public struct RenderNode: View {
     }
 
     public var body: some View {
+        NativeRenderedNode(element: element, registry: registry).equatable()
+    }
+}
+
+/// Environment changes and component-local observation still reach descendants.
+/// This boundary filters only unchanged inputs supplied by a parent render.
+private struct NativeRenderedNode: View, Equatable {
+    let element: EvaluatedElement
+    let registry: OpenUIComponentRegistry
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.registry.renderRevision == rhs.registry.renderRevision
+            && nativePresentationInputsEqual(lhs.element, rhs.element)
+    }
+
+    var body: some View {
         ElementErrorBoundary(element: registry[element.typeName] == nil ? nil : element) { el in
             if let builder = registry[el.typeName] {
                 builder(el, registry)

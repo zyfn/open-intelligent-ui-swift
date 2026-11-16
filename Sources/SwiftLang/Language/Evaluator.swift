@@ -146,7 +146,7 @@ public final class Evaluator {
     public func evaluate(_ node: ASTNode) -> Value { core.sync {
         guard !nativeLimitExceeded else { return .null }
         guard acceptNativeInput(nativeASTCost(node)) else { return .null }
-        let contextValue = jsContext()
+        let contextValue = NativeRuntimeTrace.measure("Evaluation context") { jsContext() }
         guard !nativeLimitExceeded else { return .null }
         guard let outcome = boundedOutcome({
             core.call("boundedEvaluate", [core.ast(node), contextValue, core.library(schema), nativeWorkAllowance])
@@ -160,7 +160,7 @@ public final class Evaluator {
         guard !nativeLimitExceeded, !result.nativeLimitExceeded else {
             recordNativeLimit(); return nil
         }
-        let contextValue = jsContext()
+        let contextValue = NativeRuntimeTrace.measure("Evaluation context") { jsContext() }
         guard !nativeLimitExceeded else { return nil }
         let diagnostics = core.array([])
         let js: JSValue
@@ -177,7 +177,9 @@ public final class Evaluator {
         }
         let libraryValue = core.library(schema)
         let outcome = boundedOutcome {
-            core.call("boundedRoot", [js, contextValue, libraryValue, JSValue(nullIn: core.context)!, diagnostics, nativeWorkAllowance])
+            NativeRuntimeTrace.measure("Root evaluation") {
+                core.call("boundedRoot", [js, contextValue, libraryValue, JSValue(nullIn: core.context)!, diagnostics, nativeWorkAllowance])
+            }
         }
         errors += core.items(diagnostics).map(core.error)
         guard let outcome else { return nil }
