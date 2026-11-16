@@ -230,7 +230,7 @@ struct NativeMediaText: View {
       } else {
         NativeMediaRow(axis: vertical ? .vertical : .horizontal,
           gap: context.theme.spaceM * (media == .icon ? iconScale : 1),
-          centered: !vertical ? true : centered,
+          centered: vertical ? centered : media != .icon,
           adaptiveThumbnail: adaptiveThumbnail,
           media: { leadingMedia }, copy: {
             words.frame(maxWidth: .infinity, alignment: centered ? .center : .leading)

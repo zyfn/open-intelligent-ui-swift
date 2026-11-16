@@ -83,7 +83,7 @@ final class ReadingRhythmTests: XCTestCase {
     XCTAssertEqual(try XCTUnwrap(frames.values["icon"]).midX, 75, accuracy: 1)
   }
 
-  @MainActor func testIconTextCentersItsIconAgainstTheCompleteTextBlock() throws {
+  @MainActor func testIconTextKeepsItsIconAtTheTitleWhenDescriptionWraps() throws {
     _ = NSApplication.shared
     let frames = OverviewSlotFrames()
     let standard = try OpenUIComponents.library()
@@ -104,15 +104,20 @@ final class ReadingRhythmTests: XCTestCase {
     window.isReleasedWhenClosed = false; window.contentView = host
     window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
     defer { window.close() }
-    func checkCenter(_ description: String) throws {
+    func measure(_ description: String) throws -> (icon: CGRect, height: CGFloat) {
       state.setSource("root=IconText(Icon(\"calendar\"),\"soft\",\"m\",\"Duration\",\(jsonStringLiteral(description)))")
       XCTAssertTrue(state.errors.isEmpty)
       host.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-      XCTAssertEqual(try XCTUnwrap(frames.values["icon"]).midY,
-        host.fittingSize.height / 2, accuracy: 1)
+      return (try XCTUnwrap(frames.values["icon"]), host.fittingSize.height)
     }
-    try checkCenter("One day")
-    try checkCenter(String(repeating: "A longer description with natural wrapping. ", count: 5))
+    let short = try measure("One day")
+    let long = try measure(String(repeating: "A longer description with natural wrapping. ", count: 5))
+    XCTAssertGreaterThan(long.height, short.height,
+      "The description must grow so this check exercises multiline layout")
+    XCTAssertEqual(short.icon.minY, OpenUIThemeValues().space2xs, accuracy: 1,
+      "The icon retains its existing inset beside the title")
+    XCTAssertEqual(long.icon.minY, short.icon.minY, accuracy: 1,
+      "Wrapping the description cannot move the icon away from the title")
   }
 
   @MainActor func testOverviewMetricsUseTheBottomEdgeOfTheSameGridRow() throws {

@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.14 · 更新日期：2026-11-16
+文档版本：1.15 · 更新日期：2026-11-16
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -96,6 +96,7 @@ OpenUIView(state: state, library: library)
 - Form 默认只组织字段和动作，不自动增加外框与内边距。需要独立面板时由作者组合 Card，或由宿主显式设置 formShowsCardSurface = true；两者复用同一表面配方。渲染器不按嵌套层数擅自改写显式 Card，输入控件仍保留自身边界。
 - 默认只显示作者提供的字段标签与 hint，不自动追加 Required、可多选或重复日期范围摘要。必填、选择模式和完整日期范围保留无障碍语义，原始校验规则仍是唯一依据；错误按已有校验时机展示。
 - InlineText 主值与辅助说明使用既有 titleDetailGap，空说明不产生额外间距。Chips、Tabs 与 FollowUp 的多行标签限制圆角，避免文字落入高胶囊的弧线区域；不缩字、不隐藏选择状态。
+- 水平 IconText 的图标槽与文字块顶部对齐，副标题换行不改变图标位置；显式图标尺寸、颜色和槽内边距保留。ImageText 继续让图片与整段文字居中，显式 vertical 布局保留原有排列。
 
 默认值是可覆盖的呈现策略。显式尺寸、布局方向与输入内容继续按契约处理；Form 唯一提交的局部满宽规则见下节。
 
@@ -324,3 +325,5 @@ python3 Tools/check_gallery_catalog.py
 当前检查日志保存在忽略的 `outputs/verification/gallery-presentation/`。原生文本流、签名媒体、SVG 缩放等既有行为的验收边界继续见[验证说明](validation-and-security.md)，本批静态检查不替代这些验证。截图中尚未定位到 SDK 的宿主悬浮入口和顶部状态也不记为已修复。
 
 遮罩微调基于 `3a301fa`，仅替换 Visual/Context 共用的渐变配方，保持布局、token、加载状态与既有测试。`git diff --check` 通过；`swift test --filter ArtworkPresentationTests` 因当前环境没有 Swift 返回 127。明亮照片、普通白字标题及较长正文的实际对比度尚待原生复验，不将色值调整记为视觉验收通过。
+
+水平 IconText 顶部对齐修正基于 `42509b5`，原位更新 ReadingRhythmTests，验证副标题增高时图标仍留在标题旁。`git diff --check` 通过；`swift test --filter ReadingRhythmTests` 因当前环境没有 Swift 返回 127。窄列中文、多行标题、显式大图标及辅助阅读字号尚待原生复验；交通/酒店底栏和提示块外层背景仍需对应实际 Lang 定位，不记为已修复。
