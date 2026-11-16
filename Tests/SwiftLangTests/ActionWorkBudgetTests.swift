@@ -94,7 +94,7 @@ final class ActionWorkBudgetTests: XCTestCase {
         var dispatched = 0, reported = 0
         var context = ActionRuntimeContext(store: store, evaluate: { _ in .string("next") },
             runQuery: { _ in }, runMutation: { _ in .failure },
-            formState: { [("first", shared), ("second", shared)] },
+            formState: { [(OpenUIString("first"), shared), (OpenUIString("second"), shared)] },
             onEvent: { _ in dispatched += 1 })
         context.onNativeLimit = { reported += 1 }
         let events = await runActionPlan(ActionPlan(steps: [

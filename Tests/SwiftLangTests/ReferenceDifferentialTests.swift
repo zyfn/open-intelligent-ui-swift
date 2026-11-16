@@ -44,7 +44,7 @@ extension ConformanceTests {
                 let rules = parseStructuredRules(data["rules"] ?? .object([]))
                 actual = validate(jsonValueToValue(data["value"] ?? .null), rules: rules) as Any? ?? NSNull()
             case "merge":
-                actual = mergeStatements(string("existing"), string("patch"))
+                actual = try mergeStatements(string("existing"), string("patch"))
             case "message":
                 let streaming: Bool
                 if case .boolean(let value) = data["streaming"] { streaming = value } else { streaming = false }

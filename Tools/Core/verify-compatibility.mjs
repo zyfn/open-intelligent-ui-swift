@@ -10,7 +10,7 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {serializer} from './compat.mjs';
-import {verifyLang111} from './lang-1.1-regressions.mjs';
+import {verifyLang111,verifyMergeSourceCompatibility} from './lang-1.1-regressions.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url)),preparedRoot=prepareCoreSource();
 const manifest=JSON.parse(readFileSync(join(here,'../../Sources/SwiftLang/Resources/core-manifest.json')));
@@ -137,6 +137,7 @@ try {
   }
   const queries=await queryTrace(official);assert.deepEqual(await queryTrace(native),queries);
   const lang111=await verifyLang111({official,native,bridge:realm.SwiftCore,schema,digest});
+  const mergeSourceComparisons=verifyMergeSourceCompatibility({official,native,schema,digest});
   const patchRoot=join(temporary,'patch-check'),serializerPath='packages/lang-core/src/parser/serialize.ts';
   mkdirSync(dirname(join(patchRoot,serializerPath)),{recursive:true});
   const serializerSource=readFileSync(join(root,serializerPath),'utf8');
@@ -169,5 +170,5 @@ try {
     writeFileSync(join(evidence,'lang-reference-'+lock.core.version+'-changes.json'),JSON.stringify({upstream:manifest.upstream,
       oracleSHA256:contract.oracleSHA256,inputCases:current.vectors.length,changedCases:changes.length,changes},null,2)+'\n');
   }
-  console.log(JSON.stringify({strictParserComparisons:comparisons,officialActionTraces:actions.length,controlledQuerySnapshots:queries.snapshots.length,serializerRoundtrips:roundtrips.length,lang111Cases:lang111.length,unexplainedDifferences:0}));
+  console.log(JSON.stringify({strictParserComparisons:comparisons,officialActionTraces:actions.length,controlledQuerySnapshots:queries.snapshots.length,serializerRoundtrips:roundtrips.length,lang111Cases:lang111.length,mergeSourceComparisons,unexplainedDifferences:0}));
 } finally {rmSync(temporary,{recursive:true,force:true});}

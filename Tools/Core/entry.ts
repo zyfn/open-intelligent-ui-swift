@@ -1,10 +1,11 @@
 import { capture, hasCapture, capturedValue, nativePlan, isNativePlan, isRuntimePlan, evaluationContext } from './captures';
 export { capture, hasCapture, capturedValue, nativePlan, isRuntimePlan };
-import { runBudget } from './budget';
+import { runBudget, nativeBudgetLimits, nativeInputFailure, reserveWork } from './budget';
 import { sourceEvaluation } from './readiness';
 export { nativeBudgetExceeded, nativeInputFailure } from './budget';
-export { sourceComplete, sourcePresentation, sourceChildSnapshot, tagNativeSource, currentSourceSnapshot } from './readiness';
+export { sourceComplete, sourcePresentation, sourcePresentationDefaults, sourceChildSnapshot, tagNativeSource, currentSourceSnapshot } from './readiness';
 import * as core from '@openui/core-source';
+import { nativeParseMessage } from '@openui/core-source/message';
 import { isASTNode } from '@openui/core-source/parser/ast';
 import {
   stripFences,
@@ -22,6 +23,8 @@ export const identity = (value: object) => {
 export const keys = Object.keys;
 export const isAST = isASTNode;
 export const api = core;
+export const messageContent = (source: string, streaming: boolean, protectedPrefix: number) =>
+  nativeParseMessage(source, { streaming }, protectedPrefix).content;
 export const fences = stripFences;
 export const library = (schema: any, bindings: Record<string, string[]>) => ({
   components: Object.fromEntries(
@@ -94,7 +97,12 @@ export const splitSource = (source: string) =>
   core.split(core.tokenize(source)).map(statement =>
     source.slice(statement.start, statement.end).trimEnd());
 
-export const merge = core.mergeStatements;
+export const merge = (existing: string, patch: string, rootId = 'root') => runBudget(() => {
+  if (existing.length > nativeBudgetLimits.utf16 || patch.length > nativeBudgetLimits.utf16
+      || rootId.length > nativeBudgetLimits.utf16) throw nativeInputFailure();
+  reserveWork(Math.ceil((existing.length + patch.length + rootId.length) / 64));
+  return core.mergeStatements(existing, patch, rootId);
+});
 export const object = () => ({});
 export const define = (object: any, key: string, value: any) =>
   Object.defineProperty(object, key, {

@@ -11,7 +11,7 @@ final class CoreParser: Parser {
     public func parse(_ input: String) -> ParseResult { core.sync {
         guard OpenUIRuntimeBudget.acceptsSource(input) else { return limitedParseResult() }
         let content = stripMessageMarkers(input)
-        if sourceExceedsLimits(content) { return limitedParseResult() }
+        guard OpenUIRuntimeBudget.acceptsSource(content) else { return limitedParseResult() }
         return core.parseResult(parser.invokeMethod("parse", withArguments: [content]))
     } }
 }

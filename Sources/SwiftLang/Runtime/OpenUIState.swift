@@ -16,7 +16,9 @@ public struct OpenUIActionEvaluation {
 @MainActor
 public final class OpenUIState: ObservableObject {
     @Published public private(set) var root: EvaluatedElement?
-    @Published package private(set) var presentationRoot: NativeSourceReadiness?
+    // Readiness is committed with root below. Publishing this companion first
+    // used to invalidate every observer twice for a single streamed prefix.
+    package private(set) var presentationRoot: NativeSourceReadiness?
     @Published public private(set) var errors: [OpenUIError] = []
     @Published public private(set) var isComplete = false
     @Published public private(set) var isInterrupted = false
@@ -360,7 +362,7 @@ public final class OpenUIState: ObservableObject {
         latestResult = nil; source = ""; persistedState = [:]
         indexLiveElements(nil)
         querySourceGeneration = -1; queryStoreSnapshot = [:]; idleMutations = [:]
-        root = nil; presentationRoot = nil; errors = []; queryStates = [:]; mutationStates = [:]; isComplete = false; isInterrupted = false
+        presentationRoot = nil; root = nil; errors = []; queryStates = [:]; mutationStates = [:]; isComplete = false; isInterrupted = false
         errorRevision = nil
         observeQueries()
         if hadErrors && mutationIsCurrent { onError?([]) }
@@ -443,7 +445,12 @@ public final class OpenUIState: ObservableObject {
         if queuedMutations.isEmpty && !isComplete { return }
         mutate {
             guard self.isComplete else { return }
-            self.replaceSource(mergeStatements(self.source, patch), streaming: false, replacesPresentation: false)
+            do {
+                let merged = try mergeStatements(self.source, patch)
+                self.replaceSource(merged, streaming: false, replacesPresentation: false)
+            } catch {
+                self.stopForRuntimeLimit()
+            }
         }
     }
 

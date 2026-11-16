@@ -138,7 +138,7 @@ final class ConformanceTests: XCTestCase {
 
     // MARK: - Test runner
 
-    func testConformance() {
+    func testConformance() throws {
         let fm = FileManager.default
         guard let cases = try? fm.contentsOfDirectory(atPath: fixturesDir) else {
             XCTFail("Cannot list fixtures dir")
@@ -171,7 +171,7 @@ final class ConformanceTests: XCTestCase {
                 if files.contains("patch.oui") {
                     let input = try! String(contentsOfFile: casePath + "/input.oui", encoding: .utf8)
                     let patch = try! String(contentsOfFile: casePath + "/patch.oui", encoding: .utf8)
-                    let merged = mergeStatements(input, patch)
+                    let merged = try mergeStatements(input, patch)
                     let expected = try! parseJSONPreservingOrder(String(contentsOfFile: casePath + "/expected.json", encoding: .utf8))
                     guard case .object(let fields) = expected else { XCTFail("Invalid editing fixture"); continue }
                     let result = createParser(schema: schema).parse(merged)

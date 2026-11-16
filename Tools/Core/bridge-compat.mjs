@@ -2,6 +2,42 @@
 // core remains the oracle for ordinary values, action contents and validation.
 import { replaceOnce } from './compat.mjs';
 
+// The Swift transport probe identifies the first real frame outside raw Lang
+// strings/comments. Keep the official selection algorithm, but do not let it
+// reinterpret markers inside that protected prefix. The public message API
+// calls the same implementation with its original unrestricted boundary.
+export function messageBoundary(source) {
+  source = replaceOnce(source,
+    'export function parseMessage(raw: string, { streaming }: ParseMessageOptions = {}): ParsedMessage {',
+    `export function parseMessage(raw: string, options: ParseMessageOptions = {}): ParsedMessage {
+  return nativeParseMessage(raw, options);
+}
+
+export function nativeParseMessage(raw: string, { streaming }: ParseMessageOptions = {}, protectedPrefix = 0): ParsedMessage {`);
+  source = replaceOnce(source,
+    'const held = streaming && last !== "" && PREFIX.startsWith(last);',
+    'const held = streaming && nl + 1 >= protectedPrefix && last !== "" && PREFIX.startsWith(last);');
+  source = replaceOnce(source,
+    '  let text = raw.replace(RETRY, "$1\\n");',
+    `  // Include exactly one preceding unit so a mid-line first content frame
+  // keeps the official retry newline, without scanning the protected prefix.
+  const retryStart = Math.max(0, protectedPrefix - 1);
+  let text = raw.slice(0, retryStart) + raw.slice(retryStart).replace(RETRY, "$1\\n");`);
+  source = replaceOnce(source,
+    'if (cut && `${PREFIX}content`.startsWith(cut[1]))',
+    'if (cut && cut.index + 1 >= protectedPrefix && `${PREFIX}content`.startsWith(cut[1]))');
+  source = replaceOnce(source,
+    'const held = streaming && last !== "" && (last.startsWith(PREFIX) || PREFIX.startsWith(last));',
+    'const held = streaming && text.lastIndexOf("\\n") + 1 >= protectedPrefix && last !== "" && (last.startsWith(PREFIX) || PREFIX.startsWith(last));');
+  source = replaceOnce(source,
+    '  for (const [i, line] of lines.entries()) {\n    const match = MARKER.exec(line.replace(/\\r$/, ""));',
+    `  let lineOffset = 0;
+  for (const [i, line] of lines.entries()) {
+    const match = lineOffset >= protectedPrefix ? MARKER.exec(line.replace(/\\r$/, "")) : null;
+    lineOffset += line.length + 1;`);
+  return source;
+}
+
 export function actionProvenance(source, capturesPath) {
   source = replaceOnce(source,
     'if (isStep(node.name)) return evaluateActionCall(node, context);',

@@ -221,7 +221,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for chunk in 32 256; do
+          for chunk in 24 128; do
             swift run --configuration release --package-path Benchmarks/LanguageRuntime --skip-build \
               LanguageBenchmark --iterations 100 --warmup 5 --rows 200 \
               --stream-iterations 5 --chunk-units "$chunk" \

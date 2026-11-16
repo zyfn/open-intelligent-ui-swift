@@ -1,5 +1,6 @@
 // Native execution limits. They are host metadata, never Lang values or fields.
 // One synchronous operation shares its work counter across recursive calls.
+import { T, type Token } from '@openui/core-source/parser/tokens';
 export const nativeBudgetLimits = Object.freeze({
   work: 100_000, nodes: 100_000, depth: 256, elements: 4_096, utf16: 1_048_576,
 });
@@ -39,6 +40,47 @@ export function nativeInputFailure(): object {
   return limit;
 }
 export function hasActiveBudget(): boolean { return active !== undefined; }
+const sourceOpenings = new Set([T.LParen, T.LBrack, T.LBrace]);
+const sourceClosings = new Set([T.RParen, T.RBrack, T.RBrace]);
+const sourceOperators = new Set([T.Plus, T.Minus, T.Star, T.Slash, T.Percent, T.Not,
+  T.And, T.Or, T.EqEq, T.NotEq, T.Greater, T.Less, T.GreaterEq, T.LessEq, T.Question, T.Dot]);
+
+// Use the official parser's tokens before Pratt recursion. Completed streaming
+// statements have already passed this check; their occurrence counts are kept
+// by that parser, including declarations later overwritten by the same ID.
+// No second tokenize/preprocess/split pass is needed for a growing source.
+export function checkSourceStatements(statements: readonly { tokens: Token[] }[],
+  previousTokens = 0, previousStatements = 0, tokenComplete?: (token: Token) => boolean): number {
+  if (previousStatements + statements.length > 4_096) throw nativeInputFailure();
+  let total = previousTokens;
+  for (const statement of statements) {
+    let depth = 0, operators = 0;
+    for (const token of statement.tokens) {
+      const closing = sourceClosings.has(token.t);
+      // autoClose adds advisory closing tokens to a pending tail. They are
+      // parsed as before, but do not count as tokens received on the wire.
+      if ((!closing || !tokenComplete || tokenComplete(token)) && ++total > 100_000)
+        throw nativeInputFailure();
+      if (sourceOpenings.has(token.t)) depth++;
+      else if (closing) depth = Math.max(0, depth - 1);
+      else if (sourceOperators.has(token.t)) operators++;
+      if (depth > 128 || operators > 256) throw nativeInputFailure();
+    }
+  }
+  return total;
+}
+
+export function parseWithSourceBudget<T extends { meta: { errors: unknown[] } }>(body: () => T, empty: () => T): T {
+  try { return body(); }
+  catch (error) {
+    if (!isNativeBudgetError(error)) throw error;
+    const result = empty();
+    result.meta.errors.push({ source: 'parser', code: 'parse-exception',
+      message: 'Native input budget exceeded (100,000 tokens, 4,096 statements, 128 nesting levels or 256 operators per expression).',
+      hint: 'The last valid prefix remains readable but is not executable. Replace or reset this document to resume.' });
+    return markBudgetExceeded(result);
+  }
+}
 function fail(state: Scope, reason: Reason): never {
   state.reason ??= reason; throw limit;
 }

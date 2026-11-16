@@ -62,6 +62,12 @@ final class SharedCore {
     private var depth = 0
     private var timers: [Int: DispatchSourceTimer] = [:]
     private var timerID = 0
+    private lazy var bridge = context.objectForKeyedSubscript("SwiftCore")!
+    private lazy var api = bridge.forProperty("api")!
+    private lazy var sourceReadinessDefaults: (closed: JSValue, open: JSValue) = {
+        let values = call("sourcePresentationDefaults")
+        return (values.atIndex(0)!, values.atIndex(1)!)
+    }()
     private final class WeakObject { weak var object: AnyObject?; init(_ object: AnyObject) { self.object = object } }
     private final class Record {
         weak var object: AnyObject?
@@ -126,7 +132,7 @@ final class SharedCore {
         return try body()
     }
     func call(_ name: String, _ arguments: [Any] = []) -> JSValue {
-        let result = context.objectForKeyedSubscript("SwiftCore").invokeMethod(name, withArguments: arguments)!
+        let result = bridge.invokeMethod(name, withArguments: arguments)!
         // Adapter methods return structured errors; an exception here is a bridge bug.
         if let exception = context.exception {
             context.exception = nil
@@ -228,7 +234,7 @@ final class SharedCore {
         }
         return try project(result, depth: 0)
     }
-    func remember(_ object: AnyObject, _ js: JSValue) {
+    func remember(_ object: AnyObject, _ js: JSValue, identity: Int? = nil) {
         let kind: String
         switch object {
         case is OpenUIObject: kind = "object"
@@ -240,7 +246,7 @@ final class SharedCore {
         }
         _ = call("tag", [js, kind])
         identities[ObjectIdentifier(object)] = Record(object, js)
-        decoded[Int(call("identity", [js]).toInt32())] = WeakObject(object)
+        decoded[identity ?? Int(call("identity", [js]).toInt32())] = WeakObject(object)
     }
     /// Presentation can produce another immutable native snapshot of the same
     /// JS value. Reuse the bridge's existing mapping for ECMAScript identity.
@@ -379,7 +385,7 @@ final class SharedCore {
                 }, isSourceComplete: complete))
             } else { result = .object(entries(js).map { ObjectField(key: $0.0, value: child($0.1)) }) }
         }
-        if let object = result.referenceObject, object !== cached { remember(object, js) }
+        if let object = result.referenceObject, object !== cached { remember(object, js, identity: id) }
         projection.values[key] = result
         return result
     }
@@ -444,6 +450,15 @@ final class SharedCore {
     }
     private func sourceReadiness(_ js: JSValue, depth: Int = 0) -> NativeSourceReadiness {
         guard depth < 256 else { return .init(complete: false, closed: false) }
+        // The core shares only these immutable, dependency-free descriptions.
+        // Scoped query/Each constraints and structural hints keep the complete
+        // projection below; no live Lang object is assumed immutable here.
+        if JSValueIsStrictEqual(context.jsGlobalContextRef, js.jsValueRef, sourceReadinessDefaults.closed.jsValueRef) {
+            return .init(complete: true, closed: true)
+        }
+        if JSValueIsStrictEqual(context.jsGlobalContextRef, js.jsValueRef, sourceReadinessDefaults.open.jsValueRef) {
+            return .init(complete: false, closed: false)
+        }
         let hint = js.forProperty("placeholder")!
         let placeholder: NativeComponentPlaceholder? = hint.isObject && hint.forProperty("name").isString
             ? .init(typeName: hint.forProperty("name").toString(), statementId: optionalString(hint.forProperty("id")),
@@ -541,7 +556,7 @@ final class SharedCore {
 
 extension SharedCore {
     func core(_ name: String, _ args: [Any] = []) -> JSValue {
-        context.objectForKeyedSubscript("SwiftCore").forProperty("api").invokeMethod(name, withArguments: args)
+        api.invokeMethod(name, withArguments: args)
     }
     func parameters(_ params: [ParamDef]) -> JSONValue {
         .object([

@@ -33,6 +33,110 @@ final class FramedStreamingTests: XCTestCase {
         }
     }
 
+    /// Raw Lang goes directly to the shared parser. Applying parseMessage here
+    /// would reproduce the wrapper bug in the expected value as well.
+    private func rawReference(_ source: String, complete: Bool) -> ParseResult {
+        let core = SharedCore.shared
+        return core.sync {
+            let schema = schema()
+            let parser = core.core("createStreamingParser", [core.json(core.schemaJSON(schema)), schema.rootComponent as Any])
+            return core.parseResult(parser.invokeMethod("set", withArguments: [source, complete]))
+        }
+    }
+
+    func testRawLangCommentAndStringMarkersRemainDataAcrossEverySplit() {
+        let examples = [
+            "root=Box(\"kept\")\n// ]]>openui:content",
+            "root=Box(\"kept\")\r\n# \" ]]>openui:content?retry=2\r\n",
+            "// quote \" is comment text\nroot=Box(\"kept\")\n// ]]>openui:end",
+            "root=Box(\"😀 上海\n]]>openui:content\nkept\")",
+            "root=Box('single\n]]>openui:content\nkept')",
+            "root=Box(\"escaped \\\"\n]]>openui:content\nkept\")",
+            "root=Box(\"literal ]]>openui:content?retry=2\nkept\")",
+            // Retain the original raw fixture, but compare it to raw Lang.
+            // At `root=Box("literal ]]>openui:` the old parseMessage oracle
+            // incorrectly removed the string's suffix as a potential retry.
+            "root=Box(\"literal ]]>openui:end\")",
+            "root=Box(\"first\n]]>openui:context\n{not a context}\n]]>openui:end\nlast\")",
+            "```openui\nroot=Box(\"kept\")\n// ]]>openui:content\n```",
+        ]
+        for source in examples {
+            let expected = rawReference(source, complete: true)
+            XCTAssertNotNil(expected.root, source)
+            XCTAssertTrue(expected.meta.errors.isEmpty, source)
+            assertEquivalent(createParser(schema: schema()).parse(source), expected, "raw batch")
+            assertEquivalent(createStreamingParser(schema: schema()).set(source, complete: true), expected, "raw set")
+            let characters = Array(source)
+            for width in [1, 2, 7] {
+                let parser = createStreamingParser(schema: schema())
+                var prefix = ""
+                for offset in stride(from: 0, to: characters.count, by: width) {
+                    let chunk = String(characters[offset..<min(offset + width, characters.count)])
+                    prefix += chunk
+                    assertEquivalent(parser.push(chunk), rawReference(prefix, complete: false),
+                        "raw width \(width), prefix \(prefix.debugDescription)")
+                }
+                assertEquivalent(parser.getResult(complete: true), expected, "raw completion")
+            }
+        }
+    }
+
+    func testRealContextAndEndFramesPreserveEarlierRawMarkerText() {
+        let prefixes = [
+            "root=Box(\"😀\n]]>openui:content\nkept\")\n",
+            "root=Box(\"kept\")\r\n// ]]>openui:content\r\n",
+        ]
+        for prefix in prefixes {
+            let expected = rawReference(prefix, complete: true)
+            for suffix in ["]]>openui:context\r\n{\"attempt\":1}\r\n]]>openui:end",
+                           "]]>openui:end\r\n"] {
+                let parser = createStreamingParser(schema: schema())
+                parser.set(prefix)
+                for character in suffix {
+                    let result = parser.push(String(character))
+                    XCTAssertEqual(result.root, expected.root, "Partial context/end must keep raw content")
+                    XCTAssertTrue(result.meta.errors.isEmpty)
+                }
+                assertEquivalent(parser.getResult(complete: true), expected, "raw prefix then context/end")
+                assertEquivalent(createParser(schema: schema()).parse(prefix + suffix), expected, "batch context/end")
+                assertEquivalent(createStreamingParser(schema: schema()).set(prefix + suffix, complete: true), expected, "set context/end")
+
+                // A later real content attempt still wins. It must not recover
+                // one of the fake content markers in the earlier raw prefix.
+                let retried = parser.push("\n]]>openui:content\nroot=Box(\"new\")", complete: true)
+                assertEquivalent(retried, rawReference("root=Box(\"new\")", complete: true), "retry after context/end")
+            }
+        }
+    }
+
+    func testFirstMidlineRetryProtectsRawPrefixAndSupportsBracketOverlap() {
+        let raw = "root=Box(\"😀\n]]>openui:content\nkept\")"
+        for separator in ["", "]"] {
+            let source = raw + separator + "]]>openui:content?attempt=2\r\nroot=Box(\"new\")"
+            let expected = rawReference("root=Box(\"new\")", complete: true)
+            assertEquivalent(createParser(schema: schema()).parse(source), expected, "midline batch")
+            let parser = createStreamingParser(schema: schema())
+            for character in source { parser.push(String(character)) }
+            assertEquivalent(parser.getResult(complete: true), expected, "midline stream")
+        }
+    }
+
+    @MainActor func testStateDoesNotEraseRawCommentOrMultilineStringContent() throws {
+        for source in ["root=Box(\"kept\")\n// ]]>openui:content",
+                       "root=Box(\"😀\n]]>openui:content\nkept\")"] {
+            let expected = PropValue.string(try XCTUnwrap(rawReference(source, complete: true).root), "value")
+            let state = OpenUIState(schema: schema())
+            state.setSource(source)
+            XCTAssertEqual(PropValue.string(try XCTUnwrap(state.root), "value"), expected)
+            XCTAssertTrue(state.errors.isEmpty)
+            state.reset()
+            for character in source { state.push(String(character)) }
+            state.complete()
+            XCTAssertEqual(PropValue.string(try XCTUnwrap(state.root), "value"), expected)
+            XCTAssertTrue(state.errors.isEmpty)
+        }
+    }
+
     func testRetryFramesMatchBatchAcrossChunkBoundaries() {
         let examples = [
             retry,
@@ -59,8 +163,7 @@ final class FramedStreamingTests: XCTestCase {
     func testPartialMarkerLinesFollowOfficialStreamingSelection() {
         let examples = [retry,
             "]]>openui:content\nroot=Box(\"cut]]>openui:content?v=2\nroot=Box(\"new\")\n]]>openui:end",
-            "root=Box([\n[1],\n[2]\n])",
-            "root=Box(\"literal ]]>openui:end\")"]
+            "root=Box([\n[1],\n[2]\n])"]
         for source in examples {
             let parser = createStreamingParser(schema: schema())
             var prefix = ""
