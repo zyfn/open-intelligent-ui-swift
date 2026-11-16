@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.2 · 更新日期：2026-11-16
+文档版本：1.3 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -98,7 +98,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-本轮以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线，按本 SDK 的输入完整性、状态隔离、执行边界、更新范围和恢复能力审查。设计约束见[架构](architecture.md#内核必须保持的约束)，依赖版本及兼容性检查仍按第 3 节记录。以下区分已执行的 JS 证据、确定的源码路径和仍未执行的原生验证；不将有限测试解释为所有程序或所有设备上的稳定性保证。
+前一轮以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线完成下表修复，已通过 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 合入 main。本次剩余问题评估核对的 main 仍是该提交，源码树为 `786a43155949e57ada4ea8bd898d381ab17420c3`。设计约束见[架构](architecture.md#内核必须保持的约束)，依赖版本及兼容性检查仍按第 3 节记录。以下区分已执行的 JS 证据、确定的源码路径、用户提供的客户端验收和仍未执行的原生验证；合并不代表这些验收已经通过。
 
 | 问题 | 触发与依据 | 本轮处理及验证层级 |
 | --- | --- | --- |
@@ -113,7 +113,51 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 本轮正式生成资源已执行 **84/84** 项 `Tools/Core/native-*.test.mjs`，覆盖 26 个分块不变量案例的 **2,123 个中间前缀**及其末态；比较公开值、声明、诊断与私有 readiness。增量 push 与同前缀 fresh set 一致，这是分片不变量检查，不是独立官方 oracle。独立官方检查另执行 51 项 parser、5 项动作、4 项 Query、6 项 round-trip、21 项 Lang 1.1 专项，未发现未解释差异；额外 1,053 项隐式转换对照也无差异。新加入的 6 项原生输入失败 JS 回归在旧资源均失败，当前通过；5 项 Query 请求有效性回归覆盖变参、删除、保留、删除后重建与 dispose。未修改历史 fixture 预期。
 
-本轮新增 54 项 XCTest，原生测试、Release 宿主测试和新基准尚未执行：当前审查环境缺少 Swift/Xcode，`swift test` 实际返回 `swift: command not found`；完整 SwiftPM 模块图检查也被同一条件阻塞。最近 `main` 的原生 CI job 为 skipped，不能作为这轮代码的编译或验收证据。源码归属检查、生成资源和 JS 检查通过不能替代该缺口。日志及独立探针放在忽略的 `outputs/kernel-audit-9e05d88/`，不另建并行设计或审查文档。
+上述修复新增 54 项 XCTest，原生测试、Release 宿主测试和新基准尚未在本审查环境执行：当前环境缺少 Swift/Xcode，`swift test` 实际返回 `swift: command not found`；完整 SwiftPM 模块图检查也被同一条件阻塞。已回读合并提交的 [CI run 43809174570](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43809174570)：reproducible-inputs 与 dependency-security 为 failure，runner 与 steps 为空；native-sdk 为 skipped。没有原生测试执行结果可作为本提交通过证据。源码归属、生成资源和 JS 检查分别报告。原修复日志保存在忽略的 `outputs/kernel-audit-9e05d88/`，不另建并行设计或审查文档。
+
+### 当前 main 的剩余问题
+
+本次重新评估只更新工作规则与本验证文档，没有修改生产源码或把下列事项标为已修复。JS 探针使用当前实际分发的 `lang-core.js`，SHA-256 为 `b84833a91b9f63589c9093cf12d374d24280a0a0f1c438007396b36eda3dba73`。原生代码的确定控制流与真实 Swift 执行结果仍需分开。
+
+**客户端已有失败。** 用户提供的 2026-11-16 记录使用 SDK `9e05d888`，不是合并后的 `bdac1bfd`；原始 Mac 日志、录像和 xcresult 尚未取得。以下保留用户报告的结果，不冒称在本环境复现，也不以本次内核合并自动关闭这些失败。
+
+| 验收项 | 已有证据与当前结论 |
+| --- | --- |
+| 流中文字长期停在半句 | 行程文字在输入早期及数据层已完整，画面约 18–54 秒仍显示截断，约 57 秒才补齐；酒店、表单也有类似观察。显示更新链路尚未定位到 Host 或 SDK 的具体断点。必须在 done 之前验证真实可见文本 |
+| SDK 原生回归 | 用户报告 870 项中 10 个失败用例、24 条失败断言；涉及选项列宽、按钮身份、物化预算、Gallery 高度、mutation 退休、焦点、紧凑图表及三项 signed media。需要完整 testcase 和第一条 expected/actual；不能全部解释为生产缺陷或测试过时 |
+| signed media 与 SVG | 三项 signed media 测试使用内存 PNG 和确定性 loader，不能用 App proxy HTTPError 解释。SVG 打开/缩放通过，拖动像素断言失败且归因未定；图像预览正常不等于 SVG 拖动通过 |
+| 流中表单选择 | 复杂表单的自动点击实际发生在 done 后，流中选择跨完成状态保留仍未验收；小型状态测试不能替代此场景 |
+| 性能 | 同一行程的一次 Debug 样本由旧版本平均 98.81% CPU / 峰值 220.58 MiB，变为 9e05 的 89.95% / 226.96 MiB；分片配置相同、实际传输时长不同。单样本不能证明改善或泄漏，未取得当前 main 的 Release、真机、FPS、有效 Instruments 或 memgraph 证据 |
+| App 与后端阻塞 | Release 在 App 的 TaskBrowserSession.performRefresh 遇 Swift 编译器内部错误；真实模型链路受 sandbox initialize 的 fixed_sandbox_missing 阻塞。两项应独立跟进，不据此归因 SDK parser |
+
+**新增的具体正确性与接入缺口。** 下表的源码定位均对应本次核对的 main。缺少原生执行的项目仍需原生最小回归，不把源码推导冒充已发生的 App 事故。
+
+| 问题与证据层级 | 触发、影响及代码入口 | 处理与验收要求 |
+| --- | --- | --- |
+| 增量写入与状态恢复的预算范围不一致：源码确定，JS Store 探针通过 | `OpenUIState.setStateNow` 只检查本次 Value；`update` 只对待恢复 persistedState 做整批检查。两次写入各 60,001 节点的合法数组可留下 120,003 节点快照，恢复却被 100,000 节点上限拒绝。现有 StateInputBudgetTests 已有同样的整批超限数据，缺增量写入后的往返验证 | 以提交后的文档状态为统一预算范围，在写入前检查字段替换后的总成本；边界内 snapshot 必须可恢复，超限写入不能先污染 Store。避免每次写入全量重扫 |
+| Action 的调用方取消未接入执行器：源码确定 | `Actions.runActionPlan` 只检查 context.isActive；State 提供的判定只看 generation。`QueryManager.runMutation` 使用 continuation，没有调用方取消处理，provider 在独立 Task。取消外层 action Task 而不换源时，等待不会因此结束，成功返回后剩余步骤仍可能执行 | 定义 action/request 级取消，SDK 等待者有界退出，迟到结果不能继续 Set 或发送事件；取消一个 action 不影响其他 Query。外部 provider 不配合取消不能成为 SDK 等待不退出的理由 |
+| 共享原生值在同一次求值不同出现位置的 readiness 相互影响：实际 JS bundle 复现 | `Tools/Core/readiness.ts` 的 snapshot WeakMaps 仍按对象身份存储。实际探针通过 JS getState 注入经 tagNativeSource 标记的共享 Button/Action 值图，并分别用于直接分支和未完成 Each；直接分支也会读到 incomplete，不共享的同值对照正常、Each 闭合后恢复。Swift 注入与函数返回入口仍待原生复验 | 位置相关 presentation metadata 与 Lang 对象身份分离，保留 SameValue。此问题限定于复用同一原生值图；纯 Lang Button/Action 别名的 5 类、10 个 pending/closed 用例没有复现，不能扩大为普通变量复用错误 |
+| complete 父元素仍可能持有旧的 incomplete Action：源码确定，原生未运行 | `ComponentHost.body` 与 `OpenUIState.isElementReady` 仅在元素自身 incomplete 时刷新 live element；父元素 complete、内部 plan incomplete 的旧 Context 会持续检查旧 plan。context.perform 先被 canInteract 拦截，尚未进入 currentActionPlan 的刷新保护 | 用当前 projection membership 或明确的 presentation revision 判断是否需要刷新；保留旧 Context，完成依赖后，在同一 sourceRevision 下交互应与新 Context 一致，不依赖重挂载 |
+| 标准 Stack/Card 漏传组件身份规则：源码确定 | `StandardContainers.swift` 的 OpenUIStack.children 调用 children(of:) 时没有传 context.registry。扩展组件的 identityFields 在此退回 key/id/resourceId；稳定业务 key 加服务端 id 更新可能重挂载，没有默认 id 时重排可能按位置复用状态 | 标准容器使用实际 registry；把 ProbeOption 真正挂入 Stack/Card，检查重排、无关 id 改变、局部状态和焦点。现有 RegistryIdentityTests 只直接调用带 registry 的 helper，未覆盖此入口 |
+| 部分公开底层输入在预算前编码：源码确定 | `CoreStore.set/initialize`、改写 ParseResult 后的 Evaluator.evaluateRoot fallback、手工 Query AST 的 evaluateStatements 先进入 core.encode/materialized/ast；常用 wrapper 的预检没有覆盖这些原生调用路径 | 在实际公开编码边界有界拒绝深/宽输入并明确失败；不泛化成普通 parser 输出都能绕过。高低层对同一输入的预算与恢复契约应一致 |
+| 裸 push 无法识别旧流迟到分块：已知接入契约缺口 | `pushNow` 在 isComplete 时 reset 并开启新流。若宿主把旧请求 A 的迟到块送给已完成 B 的同一 State，B 会被重置；字符串本身不含流身份 | 保留既有裸 push 兼容行为，按架构提供带文档句柄的入口；旧句柄在完成、停止或替换后不能改变新 root、Store、草稿或资源。现有入口要求宿主自行屏蔽旧回调 |
+
+“Mutation 参数函数同步换源后可能派发旧调用”没有列为正常输入缺陷：现行语言契约要求自定义函数纯且同步，不得修改状态。此类违反契约的宿主重入可作为防御核验，不与普通纯函数执行混淆。
+
+**媒体与规模问题。** 两套 UI 的图片实现分别审查，不能把一套的恢复机制视为另一套也已具备；下表属于源码确定的触发路径，未取得原生请求/清晰度/内存测量。
+
+| 问题 | 当前机制与用户可见影响 | 最小验收 |
+| --- | --- | --- |
+| Gallery 预览按全图库挂载与测量 | NativeGalleryPreview 将所有图片传入非惰性 NativePager；缩略条也是普通 HStack。离屏页的 phase 和父 pictures 字典继续持有 Image，32 MiB / 8 项共享缓存上限不能限制这些引用；正文 previewLimit=5 不限制预览工作量 | 较多不同图片打开预览时，只为当前页及受限邻页启动/保留资源；记录实际请求、解码、挂载与布局次数，关闭后检查释放。缓存 cost 不能单独作为总内存证据 |
+| OpenUI 大图预览复用并锁定首个缩略图 | NativeSingleImagePreview 传 cachedImage 后，NativeRemoteImage 加载任务直接返回；Gallery pictures[key] 只接收首次 Image，后来的高分辨率结果不替换。缩放只做 scaleEffect | 先加载小缩略图再打开大预览，验证最终显示像素升级；再用低清先到/高清后到的受控 loader，不能仅断言 loaded 或总请求为 1 |
+| IntelligentUI 预览跨尺寸档重新签名 | ImagePreview 每个 pixelTarget task 新建 ImageResource；nonce 签名进入缓存 key。2560/4096 两档即使都被宿主 cap 截成相同有效像素，也可能反复签名下载；正文 SourceImage 已有 snapshot，预览未沿用 | nonce loader 下往返缩放，稳定 source/owner/retry 沿用请求快照；以 cap 后的有效像素作为升级依据，避免相同解码尺寸重复请求 |
+| OpenUI 远程 SVG 缺同源恢复入口 | task 只按 remoteTarget 变化重启，失败后只有说明，没有 retry attempt 或组件内操作。网络恢复但 source/owner 不变时，保持挂载的节点不能主动重试 | 第一次失败、第二次返回合法 SVG 的 loader；同一节点、同一 source 下用户触发一次新尝试并恢复。此项与 SVG 拖动像素失败不同 |
+
+**验证补齐顺序。** 先固定当前 revision 与真实回放，补“目标字段早已完整、其他节点继续生成时，done 前画面必须更新”的原生挂载用例；同时比较直接 Text 与 Markdown 路径，并记录输入/投影/发布/buffer/prepared/可见文本版本。随后补状态 snapshot 往返、action 调用方取消、共享原生值 readiness、旧 Context 刷新和标准容器 identity。资源用例再覆盖预览升级、签名复用与图库窗口。每轮仍要复验用户的 10 项原生失败，保留第一条断言，不改历史预期压绿。
+
+现有 `testCanonicalMarkdownPreparationCoalescesWithoutStarvingContinuousInput` 在 MainActor 同步循环投喂后才等待最终结果，未证明持续分片时的中间可见进展。文本 buffer 的 48 ms 逻辑是 throttle，追加不重置计时器；不能把真实停滞直接解释成普通 debounce。两个允许旧前缀的展示阶段和共享 Markdown worker 的等待需测量；如果直接 Text 也停滞，则还要检查更上游的宿主/投影/发布。旧 Slider 提交中的 `testDraftFeedbackRefreshDoesNotFlushWritesOrRequestFocus` 也尚未迁入，它属于验证遗漏，不是已证生产故障。
+
+本次可复跑探针位于忽略的 `outputs/text-audit/`、`outputs/remaining-action-budget-probe.*`、`outputs/remaining-state-aggregate-probe.*` 与 `outputs/main-assessment-20261116/`。只维护本文这份验收记录，不新增并行审查报告。
 
 ### 性能证据与未完成项
 
@@ -134,6 +178,8 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 - `OpenUIState.push` 在 MainActor 同步工作，没有自动按显示帧合并输入。应用持续送入很细分块时会增加整轮求值和投影次数；本轮同步重入队列不改变这一点。
 - 原生输入保护在超过快速包络阈值后会再次扫描完整前缀。优化时必须保留截断 token、注释、转义、消息封包和实际表达式深度限制；不能为降低次数简单删掉保护。
 - 多步 Action 没有整条计划的累计工作预算或渲染合并。每个 Set/Reset 通知 State 同步重算 root，结束后再重算；实际合法的 2,034 UTF-16 units 探针含 128 个 Set 和 128 行 Each，各次求值均未超限，按现有 Swift 路径会发生 129 次 root 求值。Node 单次 root 为 1,549 工作单位，乘数是源码推导，不是设备计时。后续必须在保留逐步 Store 可见性、Mutation 失败即停止和事件顺序的前提下设计提交/累计额度，不能直接删掉中间状态通知。
+- 本次另用正式 JS bundle 解析 9,946 字节的合法程序，取得 100 个 Set 后逐步调用 boundedEvaluate 并写入 JS Store：解析/root 均未超限，每步为 19,315 work，100 步累计 1,931,500 work，仍无一步失败。这直接证明单次 100,000 work 上限没有覆盖整个计划；探针未调用原生 runActionPlan，不含 Swift 每次 Set 的 root 刷新，也不是设备阻塞时长。应将计划累计预算、可取消等待与必要的让步一起验证。
+- Query 通知也没有呈现合并：实际分发 JS manager 的 100 个独立请求产生 100 次初始通知和 100 次完成通知；`OpenUIState.observeQueries` 当前对每次通知创建 MainActor Task 并 update。200 是实测 JS 通知数，原生任务执行/整树求值次数仍需计数；不能通过丢失请求状态、错误或完成事件来压低通知量。
 - SwiftLangView 与各 ComponentHost 广泛订阅同一个 ObservableObject，尚未获得真实“尾部更新而稳定兄弟不重算”的 body 计数。不能仅加 `equatable()` 就假定依赖已被隔离。
 - SharedCore 用锁串行化共享 JavaScriptCore。锁保护线程安全，不会自动把工作移到后台；多个文档可能相互等待。迁移到 worker 需要同步定义不可变输入/输出、回调线程、取消和提交代次，不能用 `Task.detached` 直接包住当前 MainActor State。
 - 当前节点的 identity 快径不消除所有旧快照的语义搜索；规模较大的匿名桶需原生计数与耗时证明，再决定索引粒度。
