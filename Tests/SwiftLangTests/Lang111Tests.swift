@@ -26,12 +26,12 @@ final class Lang111Tests: XCTestCase {
         XCTAssertEqual(store.get("$total"), .number(6), "A computed default is not a reactive formula")
     }
 
-    func testSourceSplittingKeepsMultilineTernariesCommentsAndUTF16Boundaries() {
+    func testSourceSplittingKeepsMultilineTernariesCommentsAndUTF16Boundaries() throws {
         let conditional = "root = $show\n ? Box(\"🧭\")\n : Box(\"返回\")"
         let label = "label = \"值😀\" // trailing comment"
         let source = "// 💡 leading comment\n" + conditional + "\n" + label + "\n"
         XCTAssertEqual(splitStatementTexts(source), [conditional, label])
-        let merged = mergeStatements("$show = true\n" + conditional, "$show = false")
+        let merged = try mergeStatements("$show = true\n" + conditional, "$show = false")
         XCTAssertTrue(merged.contains(conditional), "Merging must keep the whole conditional statement")
         XCTAssertEqual(splitStatementTexts(merged), ["$show = false", conditional])
     }

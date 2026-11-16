@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 import { prepareCoreSource, lock } from '../upstream.mjs';
 import { readiness } from './readiness-compat.mjs';
-import { actionProvenance, propActionProvenance, validationOwnKeys } from './bridge-compat.mjs';
+import { actionProvenance, propActionProvenance, validationOwnKeys, messageBoundary } from './bridge-compat.mjs';
 import {
   serializer,
   replaceOnce,
@@ -68,6 +68,10 @@ const result = await build({
     {
       name: 'native-compatibility',
       setup(b) {
+        b.onLoad({ filter: /\/lang-core\/src\/message\.ts$/ }, (args) => ({
+          contents: messageBoundary(readFileSync(args.path, 'utf8')),
+          loader: 'ts',
+        }));
         b.onLoad({ filter: /\/parser\/materialize\.ts$/ }, (args) => ({
           contents: readiness(materializer(readFileSync(args.path, 'utf8'), join(bridge, 'budget.ts')), 'materialize', join(bridge, 'readiness.ts')),
           loader: 'ts',
@@ -94,10 +98,15 @@ const result = await build({
           if (kind === 'evaluator' || kind === 'evaluate-tree')
             source = evaluationBudget(source, kind, join(bridge, 'budget.ts'));
           if (kind === 'evaluator') source = actionProvenance(source, join(bridge, 'captures.ts'));
-          return { contents: readiness(source, kind, join(bridge, 'readiness.ts')), loader: 'ts' };
+          source = readiness(source, kind, join(bridge, 'readiness.ts'));
+          if (kind === 'lexer' || kind === 'expressions')
+            source = evaluationBudget(source, kind, join(bridge, 'budget.ts'));
+          return { contents: source, loader: 'ts' };
         });
         for (const [kind, filter] of [
           ['builtins', /\/parser\/builtins\.ts$/],
+          ['statements', /\/parser\/statements\.ts$/],
+          ['merge', /\/parser\/merge\.ts$/],
           ['evaluate-prop', /\/runtime\/evaluate-prop\.ts$/],
           ['query-manager', /\/runtime\/queryManager\.ts$/],
         ]) b.onLoad({filter}, args => {
@@ -221,10 +230,21 @@ writeFileSync(
         'serializer precedence and lossless keys',
         'materialization depth/node budgets',
         'shared evaluation work and expanded-output budgets',
+        'source limits reuse parser tokens; merge raw-input and cumulative-work limits; linear multiline-ternary lookahead',
         'native pre-encode budgets for tool/context values, Evaluator ASTs and high-level State inputs; conservative non-data metadata/AST costs',
       ],
       adaptations: JSON.parse(readFileSync(join(here, 'adaptations.json'), 'utf8')),
       retainedPatches: [
+        {
+          module: 'message.ts',
+          reason: 'The private Lang content entry protects its raw quote/comment prefix; the same message parser still handles frames and retries, while public parseMessage remains unchanged.',
+          removal: 'Equivalent upstream distinction between raw Lang content and transport headers.',
+        },
+        {
+          module: 'parser/lexer.ts, parser/expressions.ts, parser/statements.ts, parser/merge.ts, parser/parser.ts',
+          reason: 'Source checks reuse parser tokens and completed-statement counts; raw merge inputs and all merge work share one limit. Same-run newline lookahead avoids quadratic rescanning.',
+          removal: 'Equivalent upstream source and merge limits with explicit rejection, and linear statement lookahead.',
+        },
         {
           module: 'parser/serialize.ts',
           reason: 'Pinned serializer loses grouping and fails to quote nonidentifier keys during editing round trips.',

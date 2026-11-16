@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.7 · 更新日期：2026-11-16
+文档版本：1.8 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -162,9 +162,9 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 本次源码/所有权检查与 `git diff --check` 通过；`swift test` 实际因环境找不到 `swift` 返回 127，原生 XCTest 与客户端分块回放尚未执行，不能将源码修正称为 App 验收通过。执行结果与环境阻塞记录在忽略的 `outputs/verification/native-text-sync/`，不另建并行报告。
 
-### 本次内核追加修复与验证
+### 当前内核修复与验证
 
-本次代码只涉及 SwiftLang 的语言/运行时、Core 适配与对应回归；未修改两个组件库的 UI 源码、历史 fixture、公开 `push / complete / interrupt` 入口或业务回调协议。新增 29 个 XCTest 方法，均仍待 Apple 环境编译和运行。
+前轮内核修复已通过 `3310e3d8` 合入当时最新 main，并保留同期 UI 改动。本轮继续修复客户端 `c7310054` 定向审查中的问题：生产改动限于 SwiftLang 语言/运行时及 Core 适配，未修改组件库视觉、历史 fixture、`push / complete / interrupt` 或业务回调协议。本轮新增 19 个 XCTest 方法，前轮 29 个与这些新增项均仍待 Apple 环境编译运行。
 
 | 问题 | 实际修复及回归边界 |
 | --- | --- |
@@ -178,20 +178,28 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 直接绑定往返后改变内部类型 | ReactiveAssign 缓存命中使用与首次解码相同的分类；直接 `$value` 仍为 binding，真实表达式仍为 reactiveBinding。新增首次/缓存及 Store 往返的类型、值和身份回归，原生未运行 |
 | 取消任务中的 legacy 动作仍派发 | triggerAction 的公共执行入口检查 Task 取消，覆盖 legacy、plan 和默认动作；取消后的外部事件不能继续发送，正常动作不变，原生回归未运行 |
 | Lang 解析重复投影未使用的消息 context | Parser 和 StreamParser 只读取共享消息解析器选中的 content，避免逐块创建无用 Swift JSONValue。公开 parseMessage 保留完整 context；新增桥接枚举计数回归，原生未运行。未改消息协议，也未移除 JS 对 context 的解析 |
+| 普通 Lang 注释/字符串被误认成帧 | batch/set/push 共用增量 UTF-16 边界探测，首次真实帧前的引号、转义及行注释受保护；同一个消息算法继续处理真实封包与重试。新增 5 项实际 bundle 回归通过，4 项 Swift 回归待运行。原始 raw marker fixture 保留，纠正了用协议选帧器吞掉 raw 字符串再作为预期的旧 oracle；framed oracle 不变 |
+| applyPatch 原始输入与合并成本无上限 | 原始 existing/patch/rootId 在合并前各自检查，合并共用累计 work 及输出预算；原始 2,097,169 UTF-16 patch 从接受 after 改为 `limitExceeded=true,value=null,work=0`。底层 mergeStatements 原位 throws，不保留静默兼容入口；applyPatch 保留原签名、最后有效 root/Store 与恢复行为。8 项 merge/split JS 回归通过，9 项新增 Swift 回归待运行 |
+| 平铺大程序逐分片重扫整份源码 | 使用解析器已产生的 tokens 和 completed 声明计数，在递归前检查原有限额。旧全前缀预检已删除；重复 ID、pending 重读、fence/reset、精确 token 上限及恢复有回归。新增 5 项 source-budget JS 回归通过，相关 Swift 项待运行 |
+| 多行三元式换行扫描为平方级 | 同次 split 复用下一非换行位置；2000 换行的 token 索引读取从 2,007,023 降到 10,022，结果仍是同一合法表达式。线性访问上界及两个独立上游语义对照通过 |
+| 稳定 readiness 重复分配与跨桥属性读取 | 只共享冻结、无依赖的 open/closed 描述，Swift 直接识别；含 Query、observed、scope、slots、placeholder 的元数据仍完整投影。移除重复 identity 桥接调用并缓存只读 exports。4 项 JS 计数/语义回归通过；没有跨 push 缓存可能变化的 Lang 物化对象 |
+| 一次普通 push 两次整 State 通知 | presentationRoot 随 root 同次发布，保留公开 `$root`；尾部文字即时更新及 delimiter-only readiness 均有新增原生回归。两个 Swift 测试尚未执行，不能把源码次数推导当原生计数；共享 ComponentHost 订阅仍存在 |
+| 原生测试目标 String/OpenUIString 错误 | ActionWorkBudgetTests 的多字段 formState 显式构造 OpenUIString，保留全部事件/预算断言。源码类型修正已完成，原生 target 是否还有其他编译问题仍须 Swift 构建确认 |
 
 本次实际执行结果：
 
 | 检查 | 结果与限制 |
 | --- | --- |
-| 正式 Core 生成 | PASS；固定上游、锁文件及生成器生成 bundle/manifest。追加缓存清理后已重建并重新执行全套 JS 回归 |
-| Core 全套 JS 回归 | **119/119 PASS，0 failed、0 skipped**；包含 Query 22 项、MCP 6 项，以及原有流式分片、预算、readiness 等回归。最终缓存清理修复后已重新运行整套 |
+| 正式 Core 生成 | PASS；固定上游、锁文件及生成器生成 bundle/manifest，新增适配来源同步。对最终正式资源重新运行全套 JS 回归 |
+| Core 全套 JS 回归 | **141/141 PASS，0 failed、0 skipped**；包含前轮 119 项与本轮 22 项，子集数字不相加。覆盖 Query、MCP、真实分片、预算、readiness、原始消息边界与 merge |
 | 旧资源反证 | 旧 `c7310054` 的 Query 定向 **5 pass / 10 fail**；MCP 原 5 项 **1 pass / 4 fail**。相同用例在修复资源均通过。追加缓存清理回归在本轮前一候选 `39df813e…` 上为 22 项中的 4 项失败，最终资源已通过；新增合法深度对照不是旧失败案例 |
-| 独立兼容性 | PASS：51 parser、5 action、4 Query、6 serializer round-trip、21 Lang 1.1，`unexplainedDifferences=0`。对照源码与历史 fixture 预期未改 |
+| 独立兼容性 | PASS：51 parser、5 action、4 Query、6 serializer round-trip、21 Lang 1.1，另有 2 个独立 split/merge 对照，`unexplainedDifferences=0`。固定对照源码与历史 fixture 预期未改 |
 | 源码/所有权与 diff | `check_openui_integration.py` 和 `git diff --check` PASS；仅说明静态范围和格式 |
 | Swift 与完整模块图 | BLOCKED；本机 `swift test` 返回 127（找不到 swift），`check_module_boundaries.py` 同样无法取得 SwiftPM 模块图。新增/既有 XCTest 均未在本次运行 |
+| GitHub 原生门禁 | 合并基线 `3310e3d8` 的 [run 43827699067](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43827699067) 两个前置任务均失败且 steps 为空，native-sdk 为 skipped；未进入原生构建，不能当测试通过 |
 | App、Release、设备性能 | 未执行；不能据此关闭用户的实际分块回放、半句显示、帧率或长期内存验收 |
 
-最终 `lang-core.js` SHA-256 为 `52011d566280a76acb794ff2b1db5170be02f79ae0590bc7655e568379ac6715`；`core-manifest.json` SHA-256 为 `27f2924f2735144ef89ca4a9eeef12886b2aba1a1bb064681248ec3e79d6d00b`。执行证据保存在忽略的 `outputs/kernel-followup/`：正式生成、旧资源失败、修复后定向/全量以及独立兼容性日志均在该目录。Swift 未执行的项目仍是验收缺口，不以 JS 或静态检查替代。
+最终 `lang-core.js` SHA-256 为 `842e71ddeee6d73a7c04df90f9c80f01ca43f504de2495e448047b7a75004e16`；`core-manifest.json` SHA-256 为 `0f6cb4bfc02b8442ae1e9f1c7d61678a4ecaaa75b0dc5ffeb19b2c023cfc8335`。本轮正式构建/全量/独立对照在忽略的 `outputs/client-audit/`；前后工作计数在 `outputs/kernel-client-performance/`，原始 patch 与 split 反证在 `outputs/client-patch-budget-build/`，前轮证据仍保留在 `outputs/kernel-followup/`。Swift 未执行的项目仍是验收缺口，不以 JS 或静态检查替代。
 
 ### 客户端仍未关闭的验收
 
@@ -228,7 +236,21 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 这只量化 JS/V8 下更新频率的成本，不包含 Swift 预检、JavaScriptCore、原生桥接、live index 或布局，也不是用户设备帧率。不能据此宣称 SwiftUI 已有某个固定倍数的提速。
 
-前期另一个独立探针使用当时已修正资源预算的 bundle 和原生 `NativeExpressionGuard` 相同的判定，对实际 preprocess/tokenize/split 单独计时。在同样 8,439 UTF-16 units 的文档中，16-unit 分块触发 209 次完整前缀检查，累计扫描 1,417,847 UTF-16 units，检查本身三轮中位耗时 138.7 ms；128-unit 分块为 27 次、183,159 units、15.5 ms。SourceBudget 的快速包络超过保守阈值后，完整前缀检查会贡献重复工作；这不是 parser 已完成语句缓存被清空。本轮未改变该扫描路径。探针仍是 Node/V8，未包含 Swift 遍历、JavaScriptCore 调用与设备 UI，不与上表混为同一轮前后性能对比。
+前期另一个独立探针使用当时已修正资源预算的 bundle 和原生 `NativeExpressionGuard` 相同的判定，对实际 preprocess/tokenize/split 单独计时。在同样 8,439 UTF-16 units 的文档中，16-unit 分块触发 209 次完整前缀检查，累计扫描 1,417,847 UTF-16 units，检查本身三轮中位耗时 138.7 ms；128-unit 分块为 27 次、183,159 units、15.5 ms。它定位的是快速包络超过保守阈值后的额外前缀扫描，而非 parser 已完成语句缓存失效。本轮已删除这条额外扫描路径，改用同一 parser 已有 tokens；上述时间仅作为历史 Node/V8 证据保留，未包含 Swift/JavaScriptCore/设备 UI，不作新版本设备提速结论。
+
+客户端提供的 `c7310054` Apple Release 公开 API 记录显示：201 节点、24-unit 分片的 push p95 为 35.06ms、最大 63.06ms，整流同步计算 p50 为 4628.50ms；相同程序 128-unit 分片为 15.31ms、20.21ms 和 608.54ms。该消费者未挂载 SwiftUI。另一次实际 App Debug 被动回放报告平均进程 CPU 94.13%（100%=一个核心）、p95 117.16%，包含后台线程。这里保留用户报告，原始 Mac 产物未在本环境重新执行；不能把全部 CPU 归给 parser，也不能把 Debug CPU 换算为 FPS。
+
+本轮用仓库 benchmark 相同生成规则进行了工作量对照：基线 bundle `52011d56…` 与当前 `842e71dd…`。200 rows 流式程序为 10,841 UTF-16 units；24/128 units 分别为 452/85 块。这里沿用客户端的 rows 参数；流式生成器还包含变化尾部及容器，不将参数直接当成最终总节点数。旧额外检查按删除前 Swift 包络的完全相同条件调用实际固定 core 重放；新计数来自临时资源在真实 `checkSourceStatements` 循环内的两个计数器。元数据按实际 JS 对象身份计数，不是 Swift 分配或设备时间。
+
+| 200 rows 流式指标 | 24-unit 基线 → 当前 | 128-unit 基线 → 当前 |
+| --- | ---: | ---: |
+| 额外全前缀预检次数 | 201 → 0 | 38 → 0 |
+| 额外扫描 UTF-16 总量 | 1,698,041 → 0 | 323,417 → 0 |
+| 源预算 token 访问 | 225,110 → 13,688 | 42,688 → 3,659 |
+| 全部独立 readiness 对象 | 98,334 → 1,774 | 18,702 → 334 |
+| 元素投影访问 | 48,937 → 48,937 | 9,307 → 9,307 |
+
+源预算 token 访问减少 93.9% / 91.4%，但整树元素访问仍在。61 节点的小负载原本无需额外预检；新检查分别访问 1,872 / 595 个现有 tokens，同时独立 readiness 对象从 16,170 / 3,148 降到 866 / 161。不能只引用大负载计数就宣称全部规模的耗时均下降。证据为 `outputs/kernel-client-performance/work-counts.json`，计数资源只增加统计，不作为发布资源；本轮尚无新版本 Apple CPU、Swift push p95 或 App FPS 数字。
 
 计划累计预算的修复依据也保留为历史证据：修复前，128 个 Set 与 128 行 Each 的合法程序按原生控制流会产生 129 次 root 求值，Node 单次 root 为 1,549 work；另一份 100 个 Set 的程序逐步调用 boundedEvaluate 并写入 JS Store，每步 19,315 work、合计 1,931,500 work，仍无单步超限。前者是源码次数推导，后者是 JS 单步预算探针，都不是设备阻塞时长。本轮已加整条 action 额度与步骤间取消检查，原生累计拒绝的实际运行和响应效果仍待验收，不能继续将“完全没有计划预算”列为当前实现状态。
 
@@ -237,17 +259,16 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 以下仍是开放项，不能标为本次已解决：
 
 - `OpenUIState.push` 仍在 MainActor 同步解析、整 root 求值/投影并建立 live index。持续细分块仍会增加整轮工作次数；本轮没有自动按显示帧合并输入，也没有改客户端的 push/complete/interrupt 使用方式。
-- SourceBudget 超过快速包络阈值后仍再次扫描完整前缀。优化必须保留截断 token、注释、转义、消息封包和实际表达式深度限制，不能为降低次数删掉保护。
 - 多步 Action 的累计额度已经加入，但逐步 Set/Reset 引发的 root 更新及计划结束后的更新仍保留。尚未实现渲染合并或节点级依赖计算；必须保留每步 Store 可见性、Mutation 失败即停止和事件次序，不可直接删中间通知。
 - Query 快照比较仍重复序列化完整数据，上述计数已确认其规模增长；优化需保持 snapshot 值、正常通知及共享对象语义。Query 的内部通知投递已合并，实际原生执行次数和整 root 工作量尚未测量。旧 JS manager 探针中 100 个独立请求产生 100 次初始通知和 100 次完成通知；该计数不能直接换算成新实现的 MainActor 任务数，也不能宣称已测得“200 次变成 1 次”。不同执行时刻仍可能各产生一次呈现更新。
-- SwiftLangView 与各 ComponentHost 广泛订阅同一个 ObservableObject，尚未获得真实“尾部更新而稳定兄弟不重算”的 body 计数。不能仅加 `equatable()` 就假定依赖已被隔离。
+- 普通 push 的 readiness/root 双重通知已收敛到一次 root 发布；SwiftLangView 与各 ComponentHost 仍广泛订阅同一个 ObservableObject，尚未获得真实“尾部更新而稳定兄弟不重算”的 body 计数。字段 Store 读取、Query、readiness 和父环境均须正确更新，不能仅加 `equatable()` 或删掉订阅就假定依赖已被隔离。
 - SharedCore 用锁串行化共享 JavaScriptCore。锁保护线程安全，不会自动把工作移到后台；多个文档可能相互等待。迁移到 worker 需要同步定义不可变输入/输出、回调线程、取消和提交代次，不能用 `Task.detached` 直接包住当前 MainActor State。
 - 当前节点的 identity 快径不消除所有旧快照的语义搜索；规模较大的匿名桶需原生计数与耗时证明，再决定索引粒度。
 - 尚无本轮真机 Release 的帧耗时、输入响应和长期内存数据。文档拥有的编辑记录保留离屏草稿，不能为压低缓存数字随意淘汰用户未提交内容；动态字段的长期留存需要专项测量。
 
 编码前保护的范围以适配清单为准：高层 OpenUIState、Query/Mutation 输入输出、Evaluator 上下文和 AST，以及本轮补齐的 SDK CoreStore、手工 Query AST 与 ParseResult fallback 都在相应编码边界预检。底层 Store 保留原有 void 写入/初始化签名，拒绝时保留旧值，并通过内部失败状态供 OpenUIState 走已有错误渠道；没有新增客户端写入 API。自定义 Store 的策略、宿主函数返回前的自身计算，以及 provider 忽略取消后仍在进行的外部工作不能被库抢占。不能将这些限制解释为任意宿主代码的隔离沙箱。
 
-现有 [LanguageRuntime 基准](../Benchmarks/LanguageRuntime/README.md) 新增公开 MainActor State 的真实流式路径和宽对象构造，报告逐次 push、complete、整流、发布次数与耗时分位数；CI 已配置实际运行 32/256 两种分块并保存 JSON。配置完成不等于测量已执行。原生验收还必须同时检查 terminal flush、停止/换源后旧结果失效、超限前无工具派发、完整控件可用、未完整控件不可执行，以及 Release UI 的 body/布局/挂载和滚动交互。
+现有 [LanguageRuntime 基准](../Benchmarks/LanguageRuntime/README.md) 使用公开 MainActor State 的真实流式路径及宽对象构造，报告逐次 push、complete、整流、发布次数与耗时分位数；CI 分片调整为客户端对照的 24/128 units 并保存 JSON，README 给出同样 201 节点参数。配置完成不等于测量已执行。原生验收还必须同时检查 terminal flush、停止/换源后旧结果失效、超限前无工具派发、完整控件可用、未完整控件不可执行，以及 Release UI 的 body/布局/挂载和滚动交互。
 
 前轮纠正了旧基准调用与公共 API 的漂移：`Evaluator(context:store:schema:)` 的 `store` 实参已没有对应初始化器，基准改为当前 `Evaluator(context:schema:)`，状态仍由传入的 EvaluationContext 回调读取。YAML 及 workflow 内 shell 语法曾单独检查；这些检查不构成 Swift 编译通过的证明。
 

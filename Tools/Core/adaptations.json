@@ -4,7 +4,7 @@
     "category": "platform-bridge",
     "locations": [
       "Tools/Core/build.mjs",
-      "Resources/core-manifest.json"
+      "Sources/SwiftLang/Resources/core-manifest.json"
     ],
     "reason": "Pin and bundle the official core for JavaScriptCore",
     "observable": "Core identity, no runtime imports",
@@ -101,8 +101,8 @@
       "Sources/SwiftLang/Language/ValueConversion.swift"
     ],
     "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness in an evaluation-scoped snapshot without mutating shared native values",
-    "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Each descendant constraints travel with that output occurrence through core prop-array copies; native projection memoizes by value identity and scope, so unrelated occurrences of a shared native graph remain independent without cloning Lang values",
-    "verification": "Strict intermediate snapshots, independent document and synchronous nested-evaluation scopes, same-evaluation shared-graph sibling/Each/query isolation, immutable native projections with preserved JS identity and opaque action captures, bounded scope memoization and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
+    "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Each descendant constraints travel with that output occurrence through core prop-array copies; native projection memoizes by value identity and scope, so unrelated occurrences of a shared native graph remain independent without cloning Lang values. Dependency-free open/closed presentation descriptions are frozen shared metadata, recognized directly by the Swift bridge; query, occurrence, placeholder and structural metadata remain distinct",
+    "verification": "Strict intermediate snapshots, independent document and synchronous nested-evaluation scopes, same-evaluation shared-graph sibling/Each/query isolation, immutable native projections with preserved JS identity and opaque action captures, bounded scope memoization and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests, frozen presentation defaults and exact stable-sibling description counts",
     "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
   },
   {
@@ -175,11 +175,15 @@
     "locations": [
       "Sources/SwiftLang/Language/Message.swift",
       "Sources/SwiftLang/Language/Parser.swift",
-      "Sources/SwiftLang/Language/StreamingParser.swift"
+      "Sources/SwiftLang/Language/StreamingParser.swift",
+      "Tools/Core/bridge-compat.mjs",
+      "Tools/Core/entry.ts",
+      "Tools/Core/build.mjs",
+      "Tools/Core/native-message-selection.test.mjs"
     ],
-    "reason": "Feed push, set and batch the same content selected by the official message protocol, including a retry after a truncated frame",
-    "observable": "Raw Lang retains the incremental push path; framed and partial-marker input uses official message selection, preserves the full input budget, and selects the latest content. Internal Lang parsing projects only selected content into Swift, avoiding unused context conversion on each chunk; public parseMessage still returns the complete context",
-    "verification": "Every marker split, truncated retry, set-to-push, raw chunks, selected-content/public-context parity, large framed context and source-limit XCTest regressions",
+    "reason": "Recognize a first transport frame only outside raw Lang strings/comments; then let the same message parser own content selection, partial markers and retries",
+    "observable": "A single incremental UTF-16 transport probe protects the raw Lang prefix from marker reinterpretation. The private content bridge passes that boundary to the existing message parser; public parseMessage retains its original complete context/attributes/end contract. Framed retries, set-to-push and total raw input limits remain; raw Lang stays on the incremental parser path",
+    "verification": "Literal markers in comments and multiline/escaped strings, every marker split, Unicode and CRLF prefixes, first context/end preserving prior Lang, truncated retry, set-to-push, selected-content/public-context parity and source-limit regressions; raw fixtures use the direct Lang parser as oracle, framed fixtures retain the public message oracle",
     "removal": "Equivalent upstream streaming-message entry point"
   },
   {
@@ -187,12 +191,45 @@
     "category": "resource-limit",
     "locations": [
       "Sources/SwiftLang/Language/RuntimeLimits.swift",
-      "Sources/SwiftLang/Language/ProtocolTypes.swift"
+      "Sources/SwiftLang/Language/API.swift",
+      "Sources/SwiftLang/Language/StreamingParser.swift",
+      "Sources/SwiftLang/Language/ProtocolTypes.swift",
+      "Tools/Core/budget.ts",
+      "Tools/Core/compat.mjs"
     ],
-    "reason": "Bound source nesting/operators and JSON decoding",
-    "observable": "Existing parse-exception or native JSON error; no DSL additions",
-    "verification": "Boundary, comment and selected-message budget tests",
+    "reason": "Bound raw UTF-16 and parsed token/statement/depth/operator counts using the official parser token and completed-statement cache, without a second full-prefix lexer pass",
+    "observable": "Raw input remains capped at 1048576 UTF-16 units; before Pratt parsing, the existing tokens enforce 100000 received expression tokens, 4096 statement occurrences, depth 128 and 256 operators per expression. Completed counts include duplicate declarations and reset with the parser prefix cache. Pending auto-close delimiters are not incoming tokens. Budget failure remains marked and Swift preserves the last good prefix. Native JSON decoding remains bounded",
+    "verification": "Exact and exceeded token/statement/depth/operator limits, duplicates, comments, Unicode, pending-prefix repetition, fence/cache resets, selected messages, recovery and ordinary changing-tail streaming counts",
     "removal": "Equivalent bounded upstream parsing"
+  },
+  {
+    "id": "merge-input-work-budget",
+    "category": "resource-limit",
+    "locations": [
+      "Sources/SwiftLang/Language/Merge.swift",
+      "Sources/SwiftLang/Runtime/OpenUIState.swift",
+      "Tools/Core/entry.ts",
+      "Tools/Core/compat.mjs",
+      "Tools/Core/budget.ts",
+      "Tools/Core/native-merge-budget.test.mjs"
+    ],
+    "reason": "Refuse oversized raw patch input before stripping or merging, and share one work allowance across both source inputs and the official merge algorithm",
+    "observable": "Each raw existing/patch/rootId input is limited to 1048576 UTF-16 units. Raw scanning, lexing, splitting, expression recursion, graph traversal, deletion scans and output share one private bounded operation. A rejected merge returns no partial result. Swift mergeStatements throws MergeStatementsError.budgetExceeded; applyPatch keeps its signature, last good root/Store and existing interruption/recovery behavior",
+    "verification": "Original 2097169-unit whitespace patch is refused before work; exact limits, two individually valid 600k replacements, Unicode units, cumulative repeated deletion, recursion, output limits, original merge semantics and recovery",
+    "removal": "Equivalent upstream bounded merge with explicit failure propagation"
+  },
+  {
+    "id": "statement-newline-lookahead",
+    "category": "performance",
+    "locations": [
+      "Tools/Core/compat.mjs",
+      "Tools/Core/native-merge-budget.test.mjs",
+      "Tools/Core/verify-compatibility.mjs"
+    ],
+    "reason": "Avoid repeated scanning of the same newline run before a multiline ternary continuation",
+    "observable": "The existing split algorithm caches the next non-newline index within one invocation. Statement and ternary semantics are unchanged; no second splitter or fallback is retained",
+    "verification": "Linear token-access bounds for 250 through 5000 newlines, actual streaming prefixes, ordinary statement boundaries and independent pinned-source comparison",
+    "removal": "Equivalent linear upstream lookahead"
   },
   {
     "id": "transport-depth",

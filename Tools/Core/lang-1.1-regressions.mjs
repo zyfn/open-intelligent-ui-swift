@@ -277,3 +277,35 @@ export async function verifyLang111({official, native, bridge, schema, digest}) 
 
   return cases;
 }
+
+// Additional live comparisons keep the historical fixture corpus unchanged.
+export function verifyMergeSourceCompatibility({ official, native, schema, digest }) {
+  const cases = [
+    ['ternary-blank-line-runs', '$show=true\nroot=$show' + '\n'.repeat(32)
+      + '? Box("yes")' + '\n'.repeat(24) + ': Box("no")'],
+    ['ordinary-blank-line-boundaries', 'value="yes"' + '\n'.repeat(32) + 'root=Box(value)'],
+  ];
+  function snapshot(core, source) {
+    const result = core.createParser(schema).parse(source);
+    assert.equal(result.meta.errors.length, 0);
+    const store = core.createStore();
+    store.initialize(result.stateDeclarations, {});
+    const errors = [];
+    const tree = core.evaluateRoot(result, { store, errors,
+      library: { components: {}, toJSONSchema: () => schema },
+      ctx: { getState: name => store.get(name) ?? null, resolveRef: () => null } });
+    assert.equal(errors.length, 0);
+    assert.equal(tree.props.value, 'yes');
+    const stream = core.createStreamingParser(schema), snapshots = [];
+    for (let offset = 0; offset < source.length; offset += 7) {
+      snapshots.push(digest(stream.push(source.slice(offset, offset + 7))));
+    }
+    const final = stream.getResult(true);
+    assert.equal(final.meta.errors.length, 0);
+    return { result, snapshots, final };
+  }
+  for (const [id, source] of cases) {
+    assert.equal(digest(snapshot(native, source)), digest(snapshot(official, source)), id);
+  }
+  return cases.length;
+}

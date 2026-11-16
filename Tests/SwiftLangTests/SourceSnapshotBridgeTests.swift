@@ -2,6 +2,22 @@ import XCTest
 @testable import SwiftLang
 
 final class SourceSnapshotBridgeTests: XCTestCase {
+    func testClosedMetadataProjectionStillRetainsObservedQueryDependencies() throws {
+        let librarySchema = schema()
+        let result = createParser(schema: librarySchema).parse("root=Box(q)\nq=Query(\"load\",{},1)")
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .null },
+            resolveRef: { _ in .number(7) }), schema: librarySchema)
+        let root = try XCTUnwrap(evaluator.evaluateRoot(result))
+        XCTAssertTrue(root.isSourceComplete)
+        XCTAssertTrue(root.sourceReadiness.complete)
+        XCTAssertEqual(root.sourceReadiness.queryDependencies, ["q"])
+        XCTAssertTrue(root.sourceReadiness.queryDependenciesObserved)
+        XCTAssertEqual(PropValue.value(root, "value"), .number(7))
+        let settled = try XCTUnwrap(evaluator.evaluateRoot(createParser(schema: librarySchema).parse("root=Box(1)")))
+        XCTAssertEqual(settled.sourceReadiness, .init(complete: true, closed: true))
+        XCTAssertEqual(root.sourceReadiness.queryDependencies, ["q"], "The settled metadata singleton cannot rewrite old scoped metadata")
+    }
+
     private func schema(functions: [String: CallDef] = [:]) -> LibrarySchema {
         LibrarySchema(components: [
             "Box": [ParamDef(name: "value", required: true)],

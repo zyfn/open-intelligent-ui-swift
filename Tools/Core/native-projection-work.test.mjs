@@ -1,0 +1,104 @@
+// Count the actual metadata identities crossing the shipped-core boundary.
+// This is a work/allocation regression, not an Apple timing or FPS benchmark.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+import vm from 'node:vm';
+
+const script = readFileSync(process.env.OPENUI_NATIVE_CORE_JS
+  ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
+const schema = {
+  $defs: {
+    Text: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },
+    Stack: { type: 'object', properties: { children: {} }, required: ['children'] },
+    Image: { type: 'object', properties: { alt: { type: 'string' }, src: { type: 'string' } }, required: ['alt', 'src'] },
+    Box: { type: 'object', properties: { value: {} }, required: ['value'] },
+  },
+  properties: Object.fromEntries(['Text', 'Stack', 'Image', 'Box'].map(name => [name, { $ref: '#/$defs/' + name }])),
+};
+const plain = value => JSON.parse(JSON.stringify(value));
+function runtime() {
+  const realm = vm.createContext({
+    __utf8Encode: value => [...Buffer.from(value)],
+    __utf8Decode: value => Buffer.from(value).toString('utf8'),
+  });
+  vm.runInContext(script, realm, { timeout: 5000 });
+  const bridge = realm.SwiftCore;
+  return { bridge, library: bridge.library(schema, {}) };
+}
+
+for (const width of [24, 128]) {
+  test(`201 stable declarations share settled metadata through ${width}-unit chunks`, () => {
+    const { bridge, library } = runtime();
+    const [closed, open] = bridge.sourcePresentationDefaults();
+    assert(Object.isFrozen(closed));
+    assert(Object.isFrozen(open));
+    assert.deepEqual(plain(closed), { complete: true, closed: true });
+    assert.deepEqual(plain(open), { complete: false, closed: false });
+    const names = Array.from({ length: 200 }, (_, i) => 'row' + i);
+    const source = ['root=Stack([' + [...names, 'tail'].join(',') + '])',
+      ...names.map((name, i) => `${name}=Text("stable row ${i}")`),
+      'tail=Text("' + 'streaming text '.repeat(128) + '")'].join('\n');
+    const parser = bridge.api.createStreamingParser(schema);
+    let settledLeaves = 0, last;
+    const identities = new Set();
+    for (let offset = 0; offset < source.length; offset += width) {
+      const parsed = parser.push(source.slice(offset, offset + width));
+      assert.equal(bridge.nativeBudgetExceeded(parsed), false);
+      last = bridge.boundedRoot(parsed, { getState: () => null, resolveRef: () => null }, library, null, []);
+      assert.equal(last.limitExceeded, false);
+      for (const child of last.value?.props.children ?? []) {
+        const details = bridge.sourcePresentation(child, last.sourceSnapshot);
+        if (!details.complete || Object.keys(details).length !== 2) continue;
+        settledLeaves++;
+        identities.add(details);
+        assert.equal(details, closed, 'a settled sibling must not allocate another equivalent description');
+      }
+    }
+    assert(settledLeaves > 1000, 'exercise repeated siblings across a changing source, not a repeated final snapshot');
+    assert.equal(identities.size, 1);
+    assert.equal(last.value.props.children.length, 201);
+    assert.equal(last.value.props.children.at(-1).props.value, 'streaming text '.repeat(128));
+  });
+}
+
+test('complete query dependencies are not folded into the plain closed description', () => {
+  const { bridge, library } = runtime();
+  const [closed] = bridge.sourcePresentationDefaults();
+  const parsed = bridge.api.createParser(schema).parse('root=Box(q)\nq=Query("load",{},1)');
+  const before = bridge.sourcePresentation(parsed.root);
+  assert.equal(before.complete, true);
+  assert.notEqual(before, closed);
+  assert.deepEqual(Array.from(before.queries), ['q']);
+  const outcome = bridge.boundedRoot(parsed, { getState: () => null, resolveRef: () => 7 }, library, null, []);
+  assert.equal(outcome.limitExceeded, false);
+  const details = bridge.sourcePresentation(outcome.value, outcome.sourceSnapshot);
+  assert.notEqual(details, closed);
+  assert.equal(details.complete, true);
+  assert.deepEqual(Array.from(details.queries), ['q']);
+  assert.equal(details.observed, true);
+  assert.equal(outcome.value.props.value, 7);
+  assert.deepEqual(plain(closed), { complete: true, closed: true }, 'query attachment never mutates the shared default');
+});
+
+test('missing-image slots and separate library validation keep their detailed metadata', () => {
+  const { bridge } = runtime();
+  const [closed, open] = bridge.sourcePresentationDefaults();
+  const parsed = bridge.api.createStreamingParser(schema).set('root=Stack([Text("ready"),Image("alt"');
+  const details = bridge.sourcePresentation(parsed.root);
+  assert.notEqual(details, closed);
+  assert.notEqual(details, open);
+  const children = details.children.children;
+  assert.deepEqual(Array.from(children.slots), [0, null]);
+  assert.equal(children.pending['1'].placeholder.name, 'Image');
+  assert.equal(children.children['0'], closed);
+
+  const strict = structuredClone(schema);
+  strict.$defs.Text.properties.value.type = 'number';
+  const invalid = bridge.api.createParser(strict).parse('root=Text("ready")');
+  assert.equal(invalid.root, null);
+  assert(invalid.meta.errors.some(error => error.code === 'type-mismatch'));
+  const valid = bridge.api.createParser(schema).parse('root=Text("ready")');
+  assert.equal(valid.root.props.value, 'ready');
+  assert.equal(bridge.sourcePresentation(valid.root), closed);
+});

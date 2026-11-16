@@ -138,8 +138,8 @@ extension ProtocolRegressionTests {
 }
 
 extension ProtocolRegressionTests {
-    func testMergeKeepsOneUpdatedStatementForDuplicateSourceIDs() {
-        let merged = mergeStatements("root = Text(item)\nitem = \"old\"\nitem = \"new\"", "item = \"patched\"")
+    func testMergeKeepsOneUpdatedStatementForDuplicateSourceIDs() throws {
+        let merged = try mergeStatements("root = Text(item)\nitem = \"old\"\nitem = \"new\"", "item = \"patched\"")
         XCTAssertEqual(merged, "root = Text(item)\nitem = \"patched\"")
     }
     func testStreamingAtEveryScalarBoundaryAndSetReconciliation() throws {
@@ -190,10 +190,11 @@ extension ProtocolRegressionTests {
 
 extension ProtocolRegressionTests {
     func testNativeGuardUsesSharedTokenSemanticsForStringsCommentsAndOperators() {
-        XCTAssertFalse(sourceExceedsLimits("root=Text(\"" + String(repeating: "([+", count: 500) + "\")"))
-        XCTAssertFalse(sourceExceedsLimits("// " + String(repeating: "([+", count: 500) + "\nroot=Text(\"safe\")"))
-        XCTAssertTrue(sourceExceedsLimits("root=" + String(repeating: "(", count: 129) + "1" + String(repeating: ")", count: 129)))
-        XCTAssertTrue(sourceExceedsLimits("root=" + Array(repeating: "1", count: 258).joined(separator: "+")))
+        let parser = createParser(schema: schema)
+        XCTAssertFalse(parser.parse("root=Text(\"" + String(repeating: "([+", count: 500) + "\")").nativeLimitExceeded)
+        XCTAssertFalse(parser.parse("// " + String(repeating: "([+", count: 500) + "\nroot=Text(\"safe\")").nativeLimitExceeded)
+        XCTAssertTrue(parser.parse("root=" + String(repeating: "(", count: 129) + "1" + String(repeating: ")", count: 129)).nativeLimitExceeded)
+        XCTAssertTrue(parser.parse("root=" + Array(repeating: "1", count: 258).joined(separator: "+")).nativeLimitExceeded)
         XCTAssertFalse(OpenUIRuntimeBudget.acceptsSource(String(repeating: "x", count: OpenUIRuntimeBudget.maximumSourceUTF16 + 1)))
         XCTAssertTrue(OpenUIRuntimeBudget.acceptsSource(String(repeating: "x", count: OpenUIRuntimeBudget.maximumSourceUTF16)))
     }

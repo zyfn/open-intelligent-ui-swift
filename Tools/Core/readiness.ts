@@ -7,6 +7,14 @@ const syntax = Symbol('native.source.syntax');
 const closedSyntax = new WeakMap<object, boolean>();
 type Placeholder = { name: string; id?: string; props: Record<string, string | number | boolean> };
 type Presentation = { complete: boolean; closed: boolean; count?: number; queries?: string[]; observed?: boolean; children?: Record<string, Presentation>; slots?: (number | null)[]; pending?: Record<string, Presentation>; placeholder?: Placeholder };
+// Most settled leaves have exactly these two bits. Share immutable metadata,
+// never a Lang value: the native bridge can recognize it without projecting a
+// dozen absent fields for every stable sibling on every streaming update.
+const closedPresentation: Presentation = Object.freeze({ complete: true, closed: true });
+const openPresentation: Presentation = Object.freeze({ complete: false, closed: false });
+const presentationDefaults = Object.freeze([closedPresentation, openPresentation]);
+export const sourcePresentationDefaults = (): readonly Presentation[] => presentationDefaults;
+const defaultPresentation = (complete: boolean): Presentation => complete ? closedPresentation : openPresentation;
 const presentation = new WeakMap<object, Presentation>();
 const ready = new WeakMap<object, boolean>();
 const nativeValues = new WeakMap<object, boolean>();
@@ -93,7 +101,7 @@ export function sourceComplete(value: any, context?: SourceContext): boolean {
 export function sourcePresentation(value: any, context?: SourceContext): Presentation {
   const snapshot = context && snapshotOf(context), scope = scopeOf(context);
   const own = (value && typeof value === 'object' ? sourceRecord(snapshot, 'presentation', value) ?? presentation.get(value) : undefined)
-    ?? { complete: sourceComplete(value, context), closed: sourceComplete(value, context) };
+    ?? defaultPresentation(sourceComplete(value, context));
   const queries = scope?.queries.length ? [...new Set([...(own.queries ?? []), ...scope.queries])] : own.queries;
   if (scope?.pending) return { complete: false, closed: false, queries,
     observed: scope.queries.length ? true : own.observed };
@@ -171,7 +179,7 @@ export function finishMaterialization(node: any, ctx: any, value: any, scope: Re
 
 export function recordResult(result: any, ctx: any, node: any, id?: string): any {
   if (recordParseBudget(result, ctx)) {
-    presentation.set(result, { complete: false, closed: false });
+    presentation.set(result, openPresentation);
     return result;
   }
   if (result.root) presentation.set(result, sourcePresentation(result.root));
@@ -188,7 +196,7 @@ function describeSource(node: any, ctx: any, value: any, scope: ReadonlySet<stri
   const layoutProps = new Set(['height', 'imageSize', 'size', 'iconSize', 'variant', 'appearance', 'layout', 'direction', 'gap', 'align', 'justify', 'wrap', 'id', 'key', 'resourceId', 'category', 'name']);
   let budget = 0;
   const seen = new Set<any>();
-  const pending: Presentation = { complete: false, closed: false };
+  const pending = openPresentation;
   const shape = (n: any, v: any): Presentation => {
     if (!n || typeof n !== 'object') return pending;
     if (++budget > 100000 || seen.size > 256 || seen.has(n) || ctx.nativeLimit) return pending;
@@ -203,7 +211,7 @@ function describeSource(node: any, ctx: any, value: any, scope: ReadonlySet<stri
       }
       const component = n.k === 'Comp' && !getCallDefs(ctx.cat).has(n.name) ? ctx.cat?.get(n.name) : undefined;
       const omitted = n.k === 'Arr' && Array.isArray(v) && n.els.length !== v.length;
-      if (complete && !omitted && !(component && v === null)) return { complete: true, closed: true };
+      if (complete && !omitted && !(component && v === null)) return closedPresentation;
       const result: Presentation = { complete, closed: complete || closedSyntax.get(n) === true };
       const children: Record<string, Presentation> = Object.create(null);
       if (n.k === 'Arr') {
@@ -242,7 +250,7 @@ function describeSource(node: any, ctx: any, value: any, scope: ReadonlySet<stri
           const actual = v?.type === 'element' ? v.props?.[param.name]
             : supplied ? records.get(n.args[i]) : param.defaultValue;
           children[param.name] = supplied ? shape(n.args[i], actual)
-            : { complete: result.closed, closed: result.closed };
+            : defaultPresentation(result.closed);
           if (layoutProps.has(param.name) && children[param.name].complete
             && (typeof actual === 'string' || typeof actual === 'boolean' || (typeof actual === 'number' && Number.isFinite(actual)))) props[param.name] = actual;
         });
@@ -257,8 +265,7 @@ function describeSource(node: any, ctx: any, value: any, scope: ReadonlySet<stri
   };
   const result = shape(node, value);
   const queries = queryDependencies(node, ctx, scope);
-  if (queries.length) result.queries = queries;
-  return result;
+  return queries.length ? { ...result, queries } : result;
 }
 
 function queryDependencies(node: any, ctx: any, scope: ReadonlySet<string> = emptyScope): string[] {

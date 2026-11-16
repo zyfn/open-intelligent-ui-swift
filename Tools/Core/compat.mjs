@@ -131,7 +131,74 @@ function nativeMaterializeExpr(node:ASTNode,ctx:MaterializeCtx,scopedRefs:Readon
 // signal, caught before a native bridge call or asynchronous reader returns.
 export function evaluationBudget(source, kind, path) {
   const imports = `import {budgetFrame as nativeBudgetFrame,enterBudget as nativeEnterBudget,leaveBudget as nativeLeaveBudget,reserveWork as nativeReserveWork,budgetBuiltin as nativeBudgetBuiltin,budgetLiteral as nativeBudgetLiteral,budgetConcat as nativeBudgetConcat,budgetInput as nativeBudgetInput,budgetString as nativeBudgetString,budgetEqual as nativeBudgetEqual,isNativeBudgetError,hasActiveBudget as nativeHasBudget,runBudget as nativeRunBudget,nativeBudgetExceeded,markBudgetExceeded as nativeMarkBudgetExceeded,materializationEvaluation as nativeMaterializationEvaluation} from ${JSON.stringify(path)};\n`;
-  if (kind === 'parser') {
+  if (kind === 'lexer') {
+    // Raw source size is checked before the merge enters the lexer. One charge
+    // per outer iteration bounds token allocation and otherwise ignored input;
+    // long strings/comments/whitespace were already charged by UTF-16 size.
+    source = replaceOnce(source, '  const n = src.length;', '  const n = src.length;\n  const nativeBudgeted = nativeHasBudget();');
+    source = replaceOnce(source, '\n  while (i < n) {', '\n  while (i < n) {\n    if (nativeBudgeted) nativeReserveWork();');
+  } else if (kind === 'expressions') {
+    source = replaceOnce(source, 'export function parseExpression(tokens: Token[]): ASTNode {',
+      'export function parseExpression(tokens: Token[]): ASTNode {\n  const nativeBudgeted = nativeHasBudget();');
+    source = replaceOnce(source, '  function parseExpr(minPrec: number = 0): ASTNode {',
+      '  function parseExpr(minPrec: number = 0): ASTNode {\n    const nativeScope = nativeBudgeted ? nativeEnterBudget() : undefined;\n    try {');
+    source = replaceOnce(source, '  }\n\n  // ── Prefix / atoms',
+      '    } finally { if (nativeScope) nativeLeaveBudget(nativeScope); }\n  }\n\n  // ── Prefix / atoms');
+  } else if (kind === 'statements') {
+    source = replaceOnce(source, 'export function split(tokens: Token[]): RawStmt[] {',
+      'export function split(tokens: Token[]): RawStmt[] {\n  nativeReserveWork(tokens.length);\n  let nativeNextNonNewline = 0;');
+    // A run of newlines before a ternary operator used to be rescanned from
+    // every newline. Reuse the same endpoint inside this one split operation.
+    source = replaceOnce(source, '        let peek = pos + 1;', '        let peek = Math.max(pos + 1, nativeNextNonNewline);');
+    source = replaceOnce(source, '        while (peek < tokens.length && tokens[peek].t === T.Newline) peek++;',
+      '        while (peek < tokens.length && tokens[peek].t === T.Newline) peek++;\n        nativeNextNonNewline = peek;');
+  } else if (kind === 'merge') {
+    source = replaceOnce(source, '  return split(tokenize(input)).map((stmt) => ({',
+      '  const statements = split(tokenize(input));\n  nativeReserveWork(statements.length);\n  return statements.map((stmt) => ({');
+    source = replaceOnce(source, 'function collectRefs(node: ASTNode, out: Set<string>): void {',
+      'function collectRefs(node: ASTNode, out: Set<string>): void {\n  nativeBudgetInput(node);');
+    source = replaceOnce(source, '  walkAST(node, (current) => {', '  walkAST(node, (current) => {\n    nativeReserveWork();');
+    for (const header of [
+      '  while (queue.length > 0) {',
+      '    for (const ref of refs) {',
+      '  for (const id of order) {',
+      '  for (let i = order.length - 1; i >= 0; i--) {',
+      '  for (const stmt of existingStmts) {',
+      '  for (const stmt of patchStmts) {',
+    ]) source = replaceOnce(source, header, header + '\n    nativeReserveWork();');
+    source = replaceOnce(source, '      order.splice(i, 1);',
+      '      nativeReserveWork(order.length - i - 1);\n      order.splice(i, 1);');
+    // indexOf scans a prefix, then splice shifts its suffix. Their combined
+    // work is bounded by this full order length, including a missing ID.
+    source = replaceOnce(source, '      const idx = order.indexOf(stmt.id);',
+      '      nativeReserveWork(order.length);\n      const idx = order.indexOf(stmt.id);');
+    source = replaceOnce(source, '  return order\n', '  nativeReserveWork(order.length * 2);\n  return order\n');
+  } else if (kind === 'parser') {
+    source = `import {checkSourceStatements as nativeCheckSourceStatements,parseWithSourceBudget as nativeParseWithSourceBudget} from ${JSON.stringify(path)};\n` + source;
+    source = replaceOnce(source, 'export function parse(input: string, cat: ParamMap, rootName?: string): ParseResult {',
+      `export function parse(input: string, cat: ParamMap, rootName?: string): ParseResult {
+  return nativeParseWithSourceBudget(()=>nativeParseSource(input,cat,rootName),()=>nativeTagReady(emptyResult(true),false));
+}
+function nativeParseSource(input:string,cat:ParamMap,rootName?:string):ParseResult {`);
+    source = replaceOnce(source, '  const stmts = split(tokenize(text));',
+      '  const stmts = split(tokenize(text));\n  nativeCheckSourceStatements(stmts,0,0,nativeTokenComplete);');
+    source = replaceOnce(source, '  let completedCount = 0;',
+      '  let completedCount = 0;\n  let nativeCompletedTokens = 0;');
+    source = replaceOnce(source, '    for (const s of split(tokenize(t))) {',
+      `    const nativeStatements = split(tokenize(t));
+    nativeCompletedTokens = nativeCheckSourceStatements(nativeStatements,nativeCompletedTokens,completedCount);
+    for (const s of nativeStatements) {`);
+    source = replaceOnce(source, '      completedCount = 0;',
+      '      completedCount = 0;\n      nativeCompletedTokens = 0;');
+    source = replaceOnce(source, '    completedCount = 0;\n  }',
+      '    completedCount = 0;\n    nativeCompletedTokens = 0;\n  }');
+    source = replaceOnce(source, '  function currentResult(complete = false): ParseResult {',
+      `  function currentResult(complete = false): ParseResult {
+    return nativeParseWithSourceBudget(()=>nativeCurrentResult(complete),()=>nativeTagReady(emptyResult(true),false));
+  }
+  function nativeCurrentResult(complete = false): ParseResult {`);
+    source = replaceOnce(source, '    const stmts = split(tokenize(closed));',
+      '    const stmts = split(tokenize(closed));\n    nativeCheckSourceStatements(stmts,nativeCompletedTokens,completedCount,nativeTokenComplete);');
     source = replaceOnce(source, 'function extractStatements(', `function extractStatements(stmts:Statement[],ctx:MaterializeCtx,partialRef?:PartialRef) {
   return nativeMaterializationEvaluation(ctx,()=>nativeExtractStatements(stmts,ctx,partialRef),{
     stateDeclarations:{},queryStatements:[],mutationStatements:[],
