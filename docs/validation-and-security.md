@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.4 · 更新日期：2026-11-16
+文档版本：1.5 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -163,7 +163,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 5. React Native 基础验证
 
-基于 Swift 仓库 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 创建 `feat/react-native-foundation`。当前验证对象是该分支工作区中的 `Examples/ReactNative/` 私有工程；不是原有 Swift SDK 的新一轮原生验收。代码职责只在[架构第 7 节](architecture.md#7-react-native-基础验证分支)维护，组件完成度见 [OpenUI 验证子集](openui.md#react-native-验证子集)。
+基于 Swift 仓库 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 创建 `feat/react-native-foundation`。本节代码验证对应实现提交 [`8602bde`](https://github.com/zyfn/open-intelligent-ui-swift/commit/8602bde07fe18380afa2e7ac54af58265d87470a) 的 `Examples/ReactNative/` 私有工程，不是原有 Swift SDK 的新一轮原生验收。代码职责只在[架构第 7 节](architecture.md#7-react-native-基础验证分支)维护，组件完成度见 [OpenUI 验证子集](openui.md#react-native-验证子集)。
 
 依赖以工程内 `package.json` / `package-lock.json` 为准：Expo 55.0.32、RN 0.83.10、React 19.2.0、官方 lang-core / react-lang 1.1.1、Zod 4.6.7；Markdown 使用 marked 18.2.0 与 entities 8.1.0，系统主题使用 Expo 配套的 expo-system-ui 55.0.22。锁文件包含 registry 完整性值。react-dom 固定为同一 React 版本。实际安装包的 `react-native` 导出及 TypeScript native 类型入口已核对；Metro 只为复用照片增加已有 Gallery 图片目录的 watch folder，不修改 node_modules、模块条件或私有入口别名。
 
@@ -184,6 +184,7 @@ RN 使用 npm 分发的官方原包，不携带本项目 JavaScriptCore 桥接�
 | `npm run export:ios -- --max-workers 2` | iOS Metro / Hermes 导出通过，包含 721 modules 与现有照片；只证明 JS/资源/平台解析链路 |
 | `npm run export:android -- --max-workers 2` | Android Metro / Hermes 导出通过，包含 719 modules 与现有照片；不等于 APK 已构建 |
 | `npx expo prebuild --platform all --no-install` | 两端原生工程生成通过，package.json 未被改写；没有用工程生成替代原生编译 |
+| Android `:app:assembleRelease` | 本地实际通过，10m30s、283 tasks、exit 0；arm64-v8a / x86_64，内嵌 Hermes，无需 Metro。APK 38,941,070 bytes，apksigner v2 验证通过 |
 | 独立 RN workflow | YAML、所有 bash/内嵌 Python、job gate 与 actionlint 1.7.12 通过；四个 GitHub action tag 已实际核对。配置校验不等于 CI job 执行通过 |
 
 Jest 使用 Expo 标准 RN host mocks，Gallery 仅额外采用 safe-area-context 自带的窗口度量 mock。没有替换官方 Renderer/core 或 Markdown parser；对 ESM 的 marked/entities 使用真实代码转换。图片可访问角色曾在严格查询下失败并修复；保留断言。测试没有模拟原生 viewport，因此手动“卸载消息/恢复消息”的回归不能称为真实离屏滚动或软键盘验收。
@@ -192,4 +193,10 @@ Jest 使用 Expo 标准 RN host mocks，Gallery 仅额外采用 safe-area-contex
 
 构建配置依据 [Expo SDK 55](https://docs.expo.dev/versions/v55.0.0/) 和 [Expo 构建镜像](https://docs.expo.dev/build-reference/infrastructure/)：Android JDK 17 / API 36 / NDK 27.1.12297006，iOS Xcode 26.2 / CocoaPods 1.16.2。工作流在分支 push 就触发原生 job，不依赖只有默认分支才可手动触发的 workflow_dispatch。
 
-原生构建与设备状态在本节按实际结果记录。当前没有本地 Xcode，iOS 原生编译需由可用的 macOS runner 执行；Android 工具链已准备并开始 Release 编译。两端键盘/IME、屏幕阅读器、截图对照与 Release 帧率/内存仍需原生实测，不能宣称比现有 SwiftUI 更快或外观相同。工程没有真实模型、Query/Mutation provider 或生产业务事务，本轮也不代表全部 Swift 回归已通过。
+Android 冷构建首次在 Gradle wrapper 下载阶段因 Java 继承代理配置与现有环境不一致而失败；按当前环境的既有 HTTP(S) 代理及系统信任库配置后完成构建，没有关闭 TLS 或修改网络策略。上游库实际需要 Build Tools 35.0.0 与 36.0.0，CI 已显式安装两者。原 APK 位于 `Examples/ReactNative/android/app/build/outputs/apk/release/app-release.apk`；SHA256 为 `11c0b4cb99261d94571964d8a525065858a644d0108aba41de3c9fba660b0a99`，完整过程保留在 `outputs/verification/react-native/native-android.log`。
+
+实现提交已实际触发 [GitHub Actions run 43821194833](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43821194833)。前置 job 在执行任何步骤前失败（steps 为空），iOS / Android job 均被跳过。该 check 有一条注释，但已暴露接口未能读取正文；其 summary/text 为空、job log 为 404，浏览器 fallback 为未登录的私有仓库页面。因此本次根因未确认，不能把旧 run 的账户计费原因套用到这次，也不能把 skipped 写成原生构建通过。
+
+已准备官方 emulator 37.2.13 / API 36 Google APIs x86_64 镜像并尝试软件仿真。环境不提供 KVM；首段会话中 SwiftShader 初始化成功，但 105.2 秒时 adb 仍为 offline。调整会话控制方式后的启动受到 AVD 锁阻止，原会话已无法继续控制。没有删除锁、使用第二台只读 VM 或绕过执行隔离；没有完成系统 boot、APK 安装、Gallery 启动或原生截图。这是本次运行环境的未完成项，不能解释为 APK 已运行失败或 UI 已通过。准备和探测日志归档在 `outputs/verification/react-native/emulator/`。
+
+当前没有本地 Xcode，iOS 原生编译结果仍缺失。两端键盘/IME、屏幕阅读器、截图对照与 Release 帧率/内存仍需原生实测，不能宣称比现有 SwiftUI 更快或外观相同。工程没有真实模型、Query/Mutation provider 或生产业务事务，本轮也不代表全部 Swift 回归已通过。
