@@ -774,8 +774,14 @@ struct NativeCardItem: View {
                 value: [artworkLayoutScope: geometry.frame(in: .named(artworkLayoutScope)).minY > 0.5])
             }
             if usesArtworkOverlay {
-              LinearGradient(colors: [.black.opacity(0.62), .black.opacity(0.72)],
-                startPoint: .top, endPoint: .bottom).allowsHitTesting(false)
+              // Keep the photograph visible between the top label and bottom copy.
+              LinearGradient(stops: [
+                .init(color: .black.opacity(0.50), location: 0),
+                .init(color: .black.opacity(0.46), location: 0.20),
+                .init(color: .black.opacity(0.12), location: 0.45),
+                .init(color: .black.opacity(0.56), location: 0.78),
+                .init(color: .black.opacity(0.60), location: 1),
+              ], startPoint: .top, endPoint: .bottom).allowsHitTesting(false)
             }
           }
         }
