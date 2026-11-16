@@ -11,9 +11,11 @@ public struct MCPToolError: Error, CustomStringConvertible, Sendable {
 /// Extracts structuredContent first; otherwise joins text and attempts JSON.
 /// Transport owners can wrap an MCP SDK with ToolProvider and this function.
 public func extractToolResult(_ result: JSONValue) throws -> Value {
+    guard !nativeJSONExceedsLimits(result) else { throw MCPToolError(runtimeBudgetError().message) }
     let core = SharedCore.shared
     return try core.sync {
         let decoded = core.call("extract", [core.json(result)])
+        guard !decoded.forProperty("limitExceeded").toBool() else { throw MCPToolError(runtimeBudgetError().message) }
         if !decoded.forProperty("error").isUndefined { throw MCPToolError(core.string(decoded.forProperty("error"))) }
         return core.decode(decoded.forProperty("value"))
     }

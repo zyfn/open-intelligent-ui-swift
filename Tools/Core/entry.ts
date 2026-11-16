@@ -105,7 +105,10 @@ export const define = (object: any, key: string, value: any) =>
   });
 export function extract(result: any) {
   try {
-    return { value: core.extractToolResult(result) };
+    // Text blocks may decode into a much wider/deeper JSON value than their
+    // transport shape. Reject it before the native bridge projects that tree.
+    const outcome = runBudget(() => core.extractToolResult(result));
+    return outcome.limitExceeded ? { limitExceeded: true } : { value: outcome.value };
   } catch (error) {
     if (error instanceof core.McpToolError)
       return { error: error.toolErrorText };

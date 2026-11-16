@@ -247,8 +247,8 @@ writeFileSync(
         },
         {
           module: 'runtime/queryManager.ts',
-          reason: 'Pass a private declaration/cache-key validity predicate to the native tool bridge so asynchronous host preflight cannot dispatch a superseded queued query.',
-          removal: 'Equivalent upstream tool-dispatch validity token verified across native asynchronous preflight.',
+          reason: 'Use the existing cache entry identity and live consumers for request validity across native preflight, success, failure and finalization; preserve shared requests and reject retired completions.',
+          removal: 'Equivalent upstream shared-query lifecycle and native request validity verified across asynchronous preflight and completion.',
         },
         {
           module: 'parser/lexer.ts, parser/expressions.ts, parser/parser.ts, parser/materialize.ts, runtime/evaluator.ts, runtime/evaluate-tree.ts, runtime/evaluate-prop.ts',

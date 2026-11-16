@@ -27,6 +27,17 @@ public func parseMessage(_ text: String, streaming: Bool = false) -> ParsedMessa
     }
 }
 
+/// Lang parsing consumes only content. Keep message selection in the shared
+/// protocol parser without projecting its unused context into Swift on every
+/// streamed chunk. The public message API still returns the full context.
+func parseMessageContent(_ text: String, streaming: Bool = false) -> String {
+    let core = SharedCore.shared
+    return core.sync {
+        core.core("parseMessage", [text, ["streaming": streaming]])
+            .forProperty("content").toString()
+    }
+}
+
 public func buildMessage(content: String, context: JSONValue? = nil,
                          attributes: [(String, String)] = [], end: Bool = false) -> String {
     let core = SharedCore.shared

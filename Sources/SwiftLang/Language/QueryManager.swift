@@ -180,7 +180,7 @@ public final class QueryManager {
         notifyLimit?()
         completionCallbacks.forEach { $0() }
     }
-    private func mayEnterProvider(_ id: UUID) -> Bool { core.sync {
+    private func isCurrentToolRequest(_ id: UUID) -> Bool { core.sync {
         guard !disposed, let request = pending[id], activeOwners.contains(request.owner) else { return false }
         guard mutationWaiters[request.owner]?.isCancelled != true else { return false }
         if let check = request.canDispatch { return check.call(withArguments: [])?.toBool() == true }
@@ -200,7 +200,7 @@ public final class QueryManager {
                 }
                 // Look up the private JS check only after suspension. The task
                 // must not retain it across retirement of the pending request.
-                guard self?.mayEnterProvider(id) == true else { throw CancellationError() }
+                guard self?.isCurrentToolRequest(id) == true else { throw CancellationError() }
                 try Task.checkCancellation()
                 if let tools {
                     guard let fn = tools[tool] else { throw ToolNotFoundError(toolName: tool, availableTools: tools.keys.sorted { $0.codeUnits.lexicographicallyPrecedes($1.codeUnits) }) }
@@ -236,7 +236,19 @@ public final class QueryManager {
         return dispatchAccepted && !disposed
     } }
     private func finishTool(_ id: UUID, _ result: Result<Value, Error>) { core.sync {
+        let current = isCurrentToolRequest(id)
         guard let request = pending.removeValue(forKey: id), !disposed else { return }
+        // This transport Task enters JSC through a top-level resolve/reject
+        // call, which drains Promise jobs before returning. Retire requests
+        // after that whole reader update, never from an intermediate notify.
+        defer { retireObsoleteQueries() }
+        // A declaration or its arguments may have changed while the provider
+        // was suspended. Retire the old Promise before inspecting its result:
+        // even an oversized obsolete value must not stop the current document.
+        guard current else {
+            request.reject.call(withArguments: [core.call("error", ["Disposed"])])
+            return
+        }
         switch result {
         case .success(let value):
             guard !nativeValueExceedsLimits(value) else {
@@ -246,13 +258,36 @@ public final class QueryManager {
             }
             request.resolve.call(withArguments: [core.encode(value)])
         case .failure(let error):
-            let js: JSValue
-            if let error = error as? ToolNotFoundError { js = core.call("toolError", [core.string(error.toolName), core.array(error.availableTools.map(core.string))]) }
-            else if let error = error as? MCPToolError { js = core.call("mcpError", [core.string(error.toolErrorText)]) }
-            else { js = core.call("error", [String(describing: error)]) }
+            guard let js = encodeToolError(error) else {
+                retireForNativeLimit()
+                request.reject.call(withArguments: [core.call("error", [runtimeBudgetError().message])])
+                return
+            }
             request.reject.call(withArguments: [js])
         }
     } }
+    /// Provider failures cross the same allocation boundary as successful
+    /// values. Inspect the whole payload before creating any JS strings/arrays.
+    private func encodeToolError(_ error: Error) -> JSValue? {
+        if let error = error as? ToolNotFoundError {
+            var cost = NativeValueCost.container
+            cost.append(NativeValueCost(utf16: min(NativeValueCost.maximumUTF16 + 1, error.toolName.count)))
+            cost.append(.container)
+            guard !cost.exceeds, error.availableTools.count <= NativeValueCost.maximumNodes - cost.nodes else { return nil }
+            for name in error.availableTools {
+                cost.append(NativeValueCost(utf16: min(NativeValueCost.maximumUTF16 + 1, name.count)))
+                if cost.exceeds { return nil }
+            }
+            return core.call("toolError", [core.string(error.toolName), core.array(error.availableTools.map(core.string))])
+        }
+        if let error = error as? MCPToolError {
+            guard error.toolErrorText.count <= NativeValueCost.maximumUTF16 else { return nil }
+            return core.call("mcpError", [core.string(error.toolErrorText)])
+        }
+        let message = String(describing: error)
+        guard OpenUIRuntimeBudget.acceptsSource(message) else { return nil }
+        return core.call("error", [message])
+    }
     @discardableResult public func subscribe(_ listener: @escaping @Sendable () -> Void) -> () -> Void {
         let id = UUID();core.sync { if !disposed { listeners[id] = listener } }
         return { [weak self] in self?.core.sync { _ = self?.listeners.removeValue(forKey: id) } }
@@ -301,6 +336,7 @@ public final class QueryManager {
             core.call("boundedQueryStatements", [manager!, core.array(nodes), context, evaluator.nativeWorkAllowance])
         }
         if outcome == nil || evaluator.nativeLimitExceeded { retireForNativeLimit() }
+        else { retireObsoleteQueries() }
     }
     public func invalidateQuery(statementId: String) { invalidateQuery(statementId: statementId, workBudget: nil) }
     func invalidateQuery(statementId: String, workBudget: NativeActionWorkBudget?) { core.sync {
@@ -395,11 +431,26 @@ public final class QueryManager {
     }
     private func cancelPending(owners: Set<UUID>? = nil) {
         let ids = pending.compactMap { id, request in (owners?.contains(request.owner) ?? true) ? id : nil }
+        cancelPending(ids: ids)
+    }
+    /// Only complete query updates may retire requests. An intermediate notify
+    /// can temporarily hide a consumer while two declarations exchange keys.
+    private func retireObsoleteQueries() {
+        guard !disposed else { return }
+        let ids = pending.compactMap { id, request in
+            request.owner == queryOwner && !isCurrentToolRequest(id) ? id : nil
+        }
+        cancelPending(ids: ids)
+    }
+    private func cancelPending(ids: [UUID]) {
         let requests = ids.compactMap { pending.removeValue(forKey: $0) }
+        // A provider's cancellation handler can synchronously request an old
+        // key again. Settle every retired Promise before any handler can
+        // adopt another request's still-in-flight cache entry.
         for request in requests {
-            request.task?.cancel()
             request.reject.call(withArguments: [core.call("error", ["Disposed"])])
         }
+        requests.forEach { $0.task?.cancel() }
     }
     public func invalidateMutations() { core.sync {
         guard !disposed else { return }

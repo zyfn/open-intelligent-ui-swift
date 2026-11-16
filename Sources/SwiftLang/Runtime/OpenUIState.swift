@@ -129,12 +129,17 @@ public final class OpenUIState: ObservableObject {
         }
         if let root { visit(.element(root), depth: 0) }
     }
+    package func isElementCurrent(_ snapshot: EvaluatedElement) -> Bool {
+        liveElements.contains(liveElement(matching: snapshot))
+    }
     package func isElementReady(_ snapshot: EvaluatedElement) -> Bool {
         // A closed component may still contain an older, incomplete action
         // snapshot. Membership in the current projection, not the component's
         // own delimiter, determines whether its nested metadata is current.
+        // A removed component cannot keep acting on its old complete snapshot.
         let element = liveElement(matching: snapshot)
-        guard let result = latestResult, !result.nativeLimitExceeded, element.isSourceComplete else { return false }
+        guard liveElements.contains(element), let result = latestResult,
+              !result.nativeLimitExceeded, element.isSourceComplete else { return false }
         func ready(_ value: Value) -> Bool {
             switch value {
             case .actionPlan(let plan): return isPlanReady(plan)
@@ -471,13 +476,21 @@ public final class OpenUIState: ObservableObject {
     public func binding(for name: String) -> Binding<Value> {
         binding(for: name, expectedSourceRevision: nil)
     }
-    private func binding(for name: String, expectedSourceRevision: Int?) -> Binding<Value> {
+    private func acceptsWrite(expectedSourceRevision: Int?, source: EvaluatedElement?, presentation: Bool = false) -> Bool {
+        guard expectedSourceRevision == nil || streamGeneration == expectedSourceRevision else { return false }
+        guard let source else { return true }
+        return presentation ? isElementCurrent(source) : isElementReady(source)
+    }
+    private func binding(for name: String, expectedSourceRevision: Int?, source: EvaluatedElement? = nil,
+                         presentation: Bool = false) -> Binding<Value> {
         Binding(get: { [weak self] in self?.stateValue(name) ?? .null },
                 set: { [weak self] value in
-                    guard let self, expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+                    guard let self, self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
+                        source: source, presentation: presentation) else { return }
                     if self.queuedMutations.isEmpty && self.latestResult?.nativeLimitExceeded != false { return }
                     self.mutate {
-                        guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+                        guard self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
+                            source: source, presentation: presentation) else { return }
                         self.setStateNow(OpenUIString(name), value: value)
                     }
                 })
@@ -486,16 +499,25 @@ public final class OpenUIState: ObservableObject {
     public func binding(for element: EvaluatedElement, prop: String) -> Binding<Value>? {
         binding(for: element, prop: prop, expectedSourceRevision: nil)
     }
-    package func binding(for element: EvaluatedElement, prop: String, expectedSourceRevision: Int?) -> Binding<Value>? {
+    package func binding(for element: EvaluatedElement, prop: String, expectedSourceRevision: Int?,
+                         presentation: Bool = false) -> Binding<Value>? {
         guard let value = element.props.last(where: { $0.0 == prop })?.1 else { return nil }
-        if case .binding(let assignment) = value { return binding(for: assignment.target, expectedSourceRevision: expectedSourceRevision) }
+        // The revision-bearing overload belongs to a component callback. Public
+        // Host bindings remain independent of the current rendered controls.
+        let source = expectedSourceRevision == nil ? nil : element
+        if case .binding(let assignment) = value {
+            return binding(for: assignment.target, expectedSourceRevision: expectedSourceRevision,
+                           source: source, presentation: presentation)
+        }
         if case .reactiveBinding(let assignment) = value {
             let target = assignment.target, expression = assignment.expression
             return Binding(get: { [weak self] in self?.stateValue(target) ?? .null }, set: { [weak self] newValue in
-                guard let self, expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+                guard let self, self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
+                    source: source, presentation: presentation) else { return }
                 if self.queuedMutations.isEmpty && self.latestResult?.nativeLimitExceeded != false { return }
                 self.mutate {
-                    guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision,
+                    guard self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
+                              source: source, presentation: presentation),
                           let result = self.latestResult, !result.nativeLimitExceeded else { return }
                     let evaluator = self.makeEvaluator(result: result, extraScope: ["$value": newValue])
                     let value = evaluator.evaluate(expression)
@@ -521,18 +543,21 @@ public final class OpenUIState: ObservableObject {
         enqueueFieldValue(form: form, name: name, value: value, componentType: componentType, expectedSourceRevision: nil)
     }
     package func setFieldValue(form: OpenUIString?, name: OpenUIString, value: Value,
-                               componentType: String?, expectedSourceRevision: Int) {
+                               componentType: String?, expectedSourceRevision: Int,
+                               source: EvaluatedElement? = nil, presentation: Bool = false) {
         enqueueFieldValue(form: form, name: name, value: value, componentType: componentType,
-                          expectedSourceRevision: expectedSourceRevision)
+                          expectedSourceRevision: expectedSourceRevision, source: source, presentation: presentation)
     }
     private func enqueueFieldValue(form: OpenUIString?, name: OpenUIString, value: Value,
-                                   componentType: String?, expectedSourceRevision: Int?) {
-        guard expectedSourceRevision == nil || streamGeneration == expectedSourceRevision else { return }
+                                   componentType: String?, expectedSourceRevision: Int?,
+                                   source: EvaluatedElement? = nil, presentation: Bool = false) {
+        guard acceptsWrite(expectedSourceRevision: expectedSourceRevision, source: source, presentation: presentation) else { return }
         if queuedMutations.isEmpty {
             guard let result = latestResult, !result.nativeLimitExceeded else { return }
         }
         mutate {
-            guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+            guard self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
+                source: source, presentation: presentation) else { return }
             self.setFieldValueNow(form: form, name: name, value: value, componentType: componentType)
         }
     }
@@ -554,18 +579,18 @@ public final class OpenUIState: ObservableObject {
         enqueueInitialField(form: form, name: name, value: value, componentType: componentType, expectedSourceRevision: nil)
     }
     package func initializeField(form: OpenUIString?, name: OpenUIString, value: Value,
-                                 componentType: String, expectedSourceRevision: Int) {
+                                 componentType: String, expectedSourceRevision: Int, source: EvaluatedElement? = nil) {
         enqueueInitialField(form: form, name: name, value: value, componentType: componentType,
-                            expectedSourceRevision: expectedSourceRevision)
+                            expectedSourceRevision: expectedSourceRevision, source: source)
     }
     private func enqueueInitialField(form: OpenUIString?, name: OpenUIString, value: Value,
-                                     componentType: String, expectedSourceRevision: Int?) {
-        guard expectedSourceRevision == nil || streamGeneration == expectedSourceRevision else { return }
+                                     componentType: String, expectedSourceRevision: Int?, source: EvaluatedElement? = nil) {
+        guard acceptsWrite(expectedSourceRevision: expectedSourceRevision, source: source) else { return }
         if queuedMutations.isEmpty {
             guard !hasField(form: form, name: name), let result = latestResult, !result.nativeLimitExceeded else { return }
         }
         mutate {
-            guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+            guard self.acceptsWrite(expectedSourceRevision: expectedSourceRevision, source: source) else { return }
             self.initializeFieldNow(form: form, name: name, value: value, componentType: componentType)
         }
     }
@@ -584,10 +609,10 @@ public final class OpenUIState: ObservableObject {
         fieldBinding(form: form, name: name, fallback: fallback, componentType: componentType, expectedSourceRevision: nil)
     }
     package func fieldBinding(form: OpenUIString?, name: OpenUIString, fallback: Value,
-                              componentType: String, expectedSourceRevision: Int?) -> Binding<Value> {
+                              componentType: String, expectedSourceRevision: Int?, source: EvaluatedElement? = nil) -> Binding<Value> {
         Binding(get: { [weak self] in self?.fieldValue(form: form, name: name, fallback: fallback) ?? fallback },
                 set: { [weak self] in self?.enqueueFieldValue(form: form, name: name, value: $0,
-                    componentType: componentType, expectedSourceRevision: expectedSourceRevision) })
+                    componentType: componentType, expectedSourceRevision: expectedSourceRevision, source: source) })
     }
 
     private func formPayload(_ name: OpenUIString?) -> [(OpenUIString, Value)] {
@@ -601,7 +626,7 @@ public final class OpenUIState: ObservableObject {
         await triggerAction(userMessage, formName: formName, action: action, source: nil)
     }
     package func triggerAction(_ userMessage: String, formName: OpenUIString?, action: Value?, source: EvaluatedElement?, onDispatch: ((ActionEvent) -> Void)? = nil) async -> [ActionEvent] {
-        guard source.map(isElementReady) ?? canExecuteActions else { return [] }
+        guard !Task.isCancelled, source.map(isElementReady) ?? canExecuteActions else { return [] }
         if case .actionPlan(let plan) = action { return await perform(plan, formName: formName, source: source, onDispatch: onDispatch) }
         if case .object(let fields) = action {
             func field(_ key: String) -> Value? { fields.last(where: { $0.key == key })?.value }
