@@ -63,18 +63,55 @@ struct NativeSingleImagePreview: View {
     VStack(spacing: theme.spaceM) {
       NativeImagePreviewHeader(closeIdentifier: "openui.image.preview.close", close: { dismiss() })
       GeometryReader { _ in
-        NativeRemoteImage(src: source, alt: alt, layout: .fit, cachedImage: image, previewEnabled: false)
+        NativeRemoteImage(src: source, alt: alt, layout: .fit, role: .content,
+          cachedImage: image, previewEnabled: false)
           .modifier(NativeImageZoom())
       }
-      if !alt.isEmpty {
-        Text(alt).nativeTextStyle(theme.textStyle(.body)).lineLimit(2)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
+      NativeImagePreviewDescription(alt: alt)
     }
     .padding(theme.spaceML).frame(idealWidth: 720, idealHeight: 640)
     .foregroundStyle(theme.textNeutralPrimary)
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("openui.image.preview")
+  }
+}
+
+/// Preview copy stays complete without taking the image's entire viewport.
+/// Both single-image and gallery readers use the same bounded reading region.
+struct NativeImagePreviewDescription: View {
+  let alt: String
+  var details: String? = nil
+  @Environment(\.openUITheme) private var theme
+  @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
+  private var readableDetails: String? {
+    guard let details, !details.isEmpty, details != alt else { return nil }
+    return details
+  }
+  private var maximumHeight: CGFloat {
+    let height = theme.textStyle(.body).font.measuredLineHeight(scale: readingScale) * 5
+    return height.isFinite ? min(240, max(1, height)) : 120
+  }
+
+  var body: some View {
+    if !alt.isEmpty || readableDetails != nil {
+      ScrollView(.vertical) {
+        VStack(alignment: .leading, spacing: theme.spaceS) {
+          if !alt.isEmpty {
+            Text(alt).nativeTextStyle(theme.textStyle(.body))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          if let details = readableDetails {
+            Text(details).nativeTextStyle(theme.textStyle(.supporting))
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .lineLimit(nil)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .frame(maxHeight: maximumHeight)
+      .accessibilityElement(children: .contain)
+      .accessibilityIdentifier("openui.image.preview.description")
+    }
   }
 }
 

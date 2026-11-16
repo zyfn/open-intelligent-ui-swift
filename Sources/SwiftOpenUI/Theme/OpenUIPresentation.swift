@@ -30,7 +30,9 @@ public struct OpenUIPresentation {
     public var formShowsCardSurface = true
     public var minimumCardWidth: CGFloat = 240
     public var minimumCompactCardWidth: CGFloat = 160
-    public var minimumChoiceWidth: CGFloat = 136
+    /// Reading space per option card; the local proposal and Dynamic Type
+    /// determine column count. Hosts may opt into denser comparison layouts.
+    public var minimumChoiceWidth: CGFloat = 200
     public var chartGrid = NativeControlPalette.adaptive(light: 0xE8EAEE, dark: 0x34373C)
     public var chartAxis = NativeControlPalette.adaptive(light: 0x6A6F78, dark: 0xB4BBC6)
     // One shared thickness for drawing and sizing a single distribution strip.

@@ -1,5 +1,7 @@
 # OpenUI Gallery
 
+文档版本：1.0 · 更新日期：2026-11-16
+
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
 ## 启动
@@ -90,6 +92,10 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 未来的 Agent 后端与 iOS 客户端示例应放在独立的集成示例目录，负责网络、会话和服务端配置，并消费 SDK 公共接口。Gallery 继续负责本地可重复的组件、布局和运行时调试，不承接业务后端代码。
 
 ## 验证
+
+OpenUI 的设计规则与实施状态统一见 [OpenUI 组件指南](../../docs/openui.md)，此处只记录使用现有场景的原生验证入口。阅读解释用 `heat-pump`，图片选项用 `bedroom-style`，表单用 `contact-form`，地图用 `scene-discovery`，数据分析用 `monthly-spending`；商品卡和宽表分别用 `desk-lamp`、`code-isolation`。这些案例保留原始来源内容，不为视觉对照缩短文案。
+
+进入案例后在“展示设置”切换宽度、外观、字号与 locale，实际操作新的完整查看入口、表格阅读模式、字段和继续对话。涉及加载失败或流式边界时使用已有诊断和流式工具。执行环境、实际内容宽度、输入、截图及结果保存在根目录忽略的 `outputs/`，不另存设计规范副本；未执行的场景不能标为验收通过。
 
 ```sh
 ./Examples/Gallery/verify.sh

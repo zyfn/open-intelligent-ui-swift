@@ -24,6 +24,35 @@ enum NativeCalendarDate {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return .string(formatter.string(from: date))
     }
+    static func setting(_ date: Date, part: NativeDatePart, in value: Value,
+                        calendar: Calendar, timeZone: TimeZone) -> Value {
+        var calendar = calendar
+        calendar.timeZone = timeZone
+        let selected = calendar.startOfDay(for: date)
+        guard let key = part.key else { return encode(selected) }
+        var values: [ObjectField] = []
+        if case .object(let object) = value { values = Array(object).filter { $0.key != key } }
+        values.append(ObjectField(key: key, value: encode(selected)))
+        let from = values.first { $0.key == "from" }.flatMap { parse($0.value, timeZone: timeZone) }
+        let to = values.first { $0.key == "to" }.flatMap { parse($0.value, timeZone: timeZone) }
+        if let from, let to, from > to {
+            let other = key == "from" ? "to" : "from"
+            values.removeAll { $0.key == other }
+            values.append(ObjectField(key: other, value: encode(selected)))
+        }
+        return .object(values)
+    }
+    static func hasRangeSelection(_ value: Value, timeZone: TimeZone) -> Bool {
+        guard case .object(let object) = value else { return false }
+        return parse(object["from"], timeZone: timeZone) != nil || parse(object["to"], timeZone: timeZone) != nil
+    }
+    static func rangeSummary(_ value: Value, locale: Locale, calendar: Calendar, timeZone: TimeZone) -> String? {
+        guard case .object(let object) = value,
+              let from = parse(object["from"], timeZone: timeZone),
+              let to = parse(object["to"], timeZone: timeZone) else { return nil }
+        let format = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale, calendar: calendar, timeZone: timeZone)
+        return from.formatted(format) + " – " + to.formatted(format)
+    }
 }
 
 enum NativeDatePart: String {
@@ -44,11 +73,13 @@ struct NativeDateField: View {
     @Environment(\.locale) private var locale
     @Environment(\.calendar) private var calendar
     @Environment(\.timeZone) private var timeZone
+    @Environment(\.isEnabled) private var enabled
     @Environment(\.openUIFieldPresentation) private var fieldPresentation
     @EnvironmentObject private var runtime: OpenUIState
     @State private var request: NativeDateRequest?
     private var field: NativeFieldState { .init(context: context) }
     private var range: Bool { context.string("mode") == "range" }
+    private var canEdit: Bool { enabled && context.canInteract }
     private func date(_ part: NativeDatePart) -> Date? {
         if let key = part.key, case .object(let object) = field.value {
             return NativeCalendarDate.parse(object[key], timeZone: timeZone)
@@ -58,28 +89,11 @@ struct NativeDateField: View {
     private func write(_ selected: Date, part: NativeDatePart, context: OpenUIComponentContext) {
         let field = NativeFieldState(context: context)
         guard context.canInteract else { return }
-        var scopedCalendar = calendar
-        scopedCalendar.timeZone = timeZone
-        let selected = scopedCalendar.startOfDay(for: selected)
-        if let key = part.key {
-            var values: [ObjectField] = []
-            if case .object(let object) = field.value { values = Array(object).filter { $0.key != key } }
-            values.append(ObjectField(key: key, value: NativeCalendarDate.encode(selected)))
-            let from = values.first { $0.key == "from" }.flatMap { NativeCalendarDate.parse($0.value, timeZone: timeZone) }
-            let to = values.first { $0.key == "to" }.flatMap { NativeCalendarDate.parse($0.value, timeZone: timeZone) }
-            if let from, let to, from > to {
-                let other = key == "from" ? "to" : "from"
-                values.removeAll { $0.key == other }
-                values.append(ObjectField(key: other, value: NativeCalendarDate.encode(selected)))
-            }
-            field.write(.object(values))
-        } else {
-            field.write(NativeCalendarDate.encode(selected))
-        }
+        field.write(NativeCalendarDate.setting(selected, part: part, in: field.value, calendar: calendar, timeZone: timeZone))
     }
     var body: some View {
         presentation
-            .onChange(of: context.canInteract) { active in if !active { request = nil } }
+            .onChange(of: canEdit) { active in if !active { request = nil } }
             .onChange(of: runtime.sourceRevision) { _ in request = nil }
     }
     @ViewBuilder private var presentation: some View {
@@ -94,6 +108,16 @@ struct NativeDateField: View {
             if range {
                 dateControl(NativeControlText.localized("Start date", locale: locale), part: .from)
                 dateControl(NativeControlText.localized("End date", locale: locale), part: .to)
+                if let summary = NativeCalendarDate.rangeSummary(field.value, locale: locale, calendar: calendar, timeZone: timeZone) {
+                    VStack(alignment: .leading, spacing: context.theme.space2xs) {
+                        Text("Selected range", bundle: NativeControlResources.bundle)
+                            .nativeTextStyle(context.theme.textStyle(.caption))
+                        Text(summary).nativeTextStyle(context.theme.textStyle(.supporting),
+                            color: canEdit ? nil : context.theme.textNeutralTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }.accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("openui.date.range.\(field.name.displayString)")
+                }
             } else {
                 dateControl(label, part: .single)
             }
@@ -114,15 +138,23 @@ struct NativeDateField: View {
                             date.formatted(
                                 Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale, calendar: calendar, timeZone: timeZone)))
                     } else {
-                        Text("Select date", bundle: NativeControlResources.bundle).foregroundStyle(context.theme.textNeutralSecondary)
+                        Text("Select date", bundle: NativeControlResources.bundle)
+                            .foregroundStyle(canEdit ? context.theme.textNeutralSecondary : context.theme.textNeutralTertiary)
                     }
                     if fieldPresentation != .inline { Spacer(minLength: 8) }
-                    Image(systemName: "calendar").openUIFont(context.theme.textBodySm, role: .detail).foregroundStyle(context.theme.textNeutralSecondary)
+                    Image(systemName: "calendar").openUIFont(context.theme.textBodySm, role: .detail)
+                        .foregroundStyle(canEdit ? context.theme.textNeutralSecondary : context.theme.textNeutralTertiary)
+                        .accessibilityHidden(true)
                 }.frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .leading).modifier(
                     NativeFieldSurface(theme: context.theme))
-            }.buttonStyle(.plain).disabled(!context.canInteract).accessibilityLabel(title)
+            }.buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusL))
+                .disabled(!canEdit).accessibilityLabel(accessibleTitle(title, part: part))
                 .accessibilityIdentifier("openui.date.\(field.name.displayString).\(part.key ?? "value")")
         }
+    }
+    private func accessibleTitle(_ title: String, part: NativeDatePart) -> String {
+        let title = part == .single ? title : label + ", " + title
+        return field.isRequired ? title + ", " + NativeControlText.localized("Required", locale: locale) : title
     }
     private var minimumHeight: CGFloat {
         #if os(iOS)
@@ -134,13 +166,15 @@ struct NativeDateField: View {
     private func editor(_ value: NativeDateRequest) -> some View {
         NativeCalendarEditor(
             request: value, theme: context.theme, cancel: { request = nil },
-            clear: date(value.part) == nil
+            clear: !(range ? NativeCalendarDate.hasRangeSelection(field.value, timeZone: timeZone) : date(value.part) != nil)
                 ? nil
                 : {
+                    guard canEdit else { return }
                     NativeFieldState(context: value.context).write(.null)
                     request = nil
                 },
             commit: { selected in
+                guard canEdit else { return }
                 write(selected, part: value.part, context: value.context)
                 request = nil
             })
@@ -178,28 +212,31 @@ struct NativeCalendarEditor: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Button(action: cancel) { Text("Cancel", bundle: NativeControlResources.bundle) }
-                    .buttonStyle(NativeActionButtonStyle(theme: theme, variant: "tertiary", size: "small"))
-                    .keyboardShortcut(.cancelAction).accessibilityIdentifier("openui.date.cancel")
-                Spacer(minLength: 0)
-                Text(request.label).openUIFont(theme.textBodyDefaultHeavy, role: .title).foregroundStyle(theme.textNeutralPrimary).multilineTextAlignment(
-                    .center)
-                Spacer(minLength: 0)
-                Button {
-                    commit(selection)
-                } label: {
-                    Text("Done", bundle: NativeControlResources.bundle)
+            VStack(alignment: .leading, spacing: theme.spaceS) {
+                Text(request.label).openUIFont(theme.textBodyDefaultHeavy, role: .title)
+                    .foregroundStyle(theme.textNeutralPrimary).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading).accessibilityAddTraits(.isHeader)
+                HStack(spacing: theme.spaceS) {
+                    Button(action: cancel) { Text("Cancel", bundle: NativeControlResources.bundle) }
+                        .buttonStyle(NativeActionButtonStyle(theme: theme, variant: "tertiary", size: "small"))
+                        .keyboardShortcut(.cancelAction).accessibilityIdentifier("openui.date.cancel")
+                    Spacer(minLength: 0)
+                    Button { commit(selection) } label: {
+                        Text("Done", bundle: NativeControlResources.bundle)
+                    }
+                    .buttonStyle(NativeActionButtonStyle(theme: theme, size: "small"))
+                    .keyboardShortcut(.defaultAction).accessibilityIdentifier("openui.date.done")
                 }
-                .buttonStyle(NativeActionButtonStyle(theme: theme, size: "small"))
-                .keyboardShortcut(.defaultAction).accessibilityIdentifier("openui.date.done")
-            }.padding(.horizontal, 12).padding(.top, 16).padding(.bottom, 8)
+            }.padding(.horizontal, theme.spaceM).padding(.top, theme.spaceML).padding(.bottom, theme.spaceS)
             Divider()
             ScrollView {
                 DatePicker(request.label, selection: $selection, displayedComponents: .date)
                     .datePickerStyle(.graphical).labelsHidden().tint(theme.interactiveAccentDefault).padding(16)
                 if let clear {
-                    Button(action: clear) { Text("Clear", bundle: NativeControlResources.bundle) }
+                    Button(action: clear) {
+                        if request.part == .single { Text("Clear", bundle: NativeControlResources.bundle) }
+                        else { Text("Clear range", bundle: NativeControlResources.bundle) }
+                    }
                         .buttonStyle(
                             NativeActionButtonStyle(theme: theme, variant: "tertiary", size: "small")
                         )

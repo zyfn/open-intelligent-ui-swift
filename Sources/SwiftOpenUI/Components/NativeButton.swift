@@ -5,6 +5,7 @@ struct OpenUINativeButton: View {
     let context: OpenUIComponentContext
     private var role: ButtonRole? { context.string("type") == "destructive" ? .destructive : nil }
     private var variant: String { context.string("variant") ?? "primary" }
+    private var continuesConversation: Bool { NativeActionPresentation.button(context.element).continuesConversation }
     private var presentationReady: Bool {
         let source = context.element.sourceReadiness
         return context.codeUnitString("label") != nil && source.closed
@@ -27,12 +28,20 @@ struct OpenUINativeButton: View {
             context: context, message: context.string("label") ?? "", action: context.value("action"),
             role: role, useNativeStyle: true, validateForm: true, showsProgress: true
         ) {
-            Text(context.string("label") ?? "").fixedSize(horizontal: false, vertical: true)
+            Group {
+                if continuesConversation {
+                    NativeConversationActionLabel(text: context.string("label") ?? "", theme: context.theme,
+                        fillsWidth: context.fillsControlWidth)
+                } else {
+                    Text(context.string("label") ?? "").fixedSize(horizontal: false, vertical: true)
+                }
+            }
                 // The parent lays out the outer touch target. Expanding the label
                 // to that height would paint the invisible target as button fill.
                 // Keep natural text height (including wrapped lines), while column
                 // actions may still fill their proposed width.
                 .frame(maxWidth: context.fillsControlWidth ? .infinity : nil)
         }
+        .conversationAccessoryProgress(continuesConversation)
     }
 }

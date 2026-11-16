@@ -10,8 +10,6 @@
 "In progress" = "In progress";
 "On" = "On";
 "Off" = "Off";
-"Selected" = "Selected";
-"Not selected" = "Not selected";
 
 "Close" = "Close";
 
@@ -21,7 +19,6 @@
 
 "Save Changes" = "Save Changes";
 "Map" = "Map";
-"Expand map" = "Expand map";
 "Open place" = "Open place";
 "Swipe to change place" = "Swipe left or right to change place";
 "Loading image" = "Loading image";
@@ -49,17 +46,13 @@
 "Sources" = "Sources";
 "Value" = "Value";
 
-"Previous place" = "Previous place";
 
-"Next place" = "Next place";
 
-"Show all places" = "Show all places";
 
 "Places" = "Places";
 
 // Embedded SVG and WebView presentation.
 "Illustration unavailable" = "This illustration could not be displayed.";
-"Content unavailable" = "This content could not be displayed.";
 "Reload" = "Reload";
 "Scroll horizontally to see all columns" = "Scroll horizontally to see all columns";
 "More tabs" = "More tabs";
@@ -112,3 +105,24 @@
 "Use updated data" = "Use updated data";
 
 "Keep my edits" = "Keep my edits";
+
+// Reading and action presentation.
+"Required" = "Required";
+"Select one or more" = "Select one or more";
+"Minimum" = "Minimum";
+"Maximum" = "Maximum";
+"Clear range" = "Clear range";
+"Selected range" = "Selected range";
+"Earlier tabs" = "Earlier tabs";
+"Later tabs" = "Later tabs";
+"Place details" = "Place details";
+"View full graphic" = "View full graphic";
+"Graphic preview" = "Graphic preview";
+"Zoom and pan to inspect the graphic" = "Zoom and pan to inspect the graphic";
+"Send this question to continue" = "Send this question to continue";
+"Total is zero" = "Total is zero";
+"View chart data" = "View chart data";
+"View chart data for full details" = "View chart data for full details";
+"Chart data" = "Chart data";
+"Show table" = "Show table";
+"Read by row" = "Read by row";

@@ -12,6 +12,7 @@ public struct OpenUIActionSurface<Content: View>: View {
     private let useNativeStyle: Bool
     private let validateForm: Bool
     private let showsProgress: Bool
+    private var usesConversationAccessory = false
     // Source readiness can change interaction eligibility without changing props.
     @EnvironmentObject private var state: OpenUIState
     @Environment(\.openUIFormValidation) private var validation
@@ -28,6 +29,13 @@ public struct OpenUIActionSurface<Content: View>: View {
         self.context = context; self.dispatch = .value(message, action); self.content = content()
         self.role = role; self.useNativeStyle = useNativeStyle; self.validateForm = validateForm
         self.showsProgress = showsProgress
+    }
+
+    /// Internal presentation choice; the existing dispatch/validation path is unchanged.
+    func conversationAccessoryProgress(_ enabled: Bool = true) -> Self {
+        var copy = self
+        copy.usesConversationAccessory = enabled
+        return copy
     }
 
     @ViewBuilder public var body: some View {
@@ -58,12 +66,24 @@ public struct OpenUIActionSurface<Content: View>: View {
                 else { content.openUIControlTarget(alignment: .leading) }
             }.contentShape(Rectangle())
                 .environment(\.openUICardIsAction, true)
-                .modifier(NativeActionProgress(active: showsProgress && performing))
+                .modifier(NativeActionProgress(active: showsProgress && performing,
+                                               usesAccessory: usesConversationAccessory))
         }
-        .accessibilityValue(showsProgress && performing ? Text("In progress", bundle: NativeControlResources.bundle) : Text(""))
+        .accessibilityValue(accessibilityStatus)
         .disabled(!context.canInteract || performing)
         .environment(\.openUIActionAppearance,
             !hostEnabled ? .disabled : performing ? .performing : context.canInteract ? .ready : .pending)
+    }
+    @MainActor private var accessibilityStatus: Text {
+        if showsProgress && performing { return Text("In progress", bundle: NativeControlResources.bundle) }
+        if hostEnabled && !context.canInteract {
+            if context.hasDataFailure { return Text("Content unavailable", bundle: NativeControlResources.bundle) }
+            if context.hasInterruptedData || (!context.isStreaming && !context.hasPendingData) {
+                return Text("Content is incomplete", bundle: NativeControlResources.bundle)
+            }
+            return Text("Loading", bundle: NativeControlResources.bundle)
+        }
+        return Text("")
     }
     private var needsValidation: Bool {
         switch dispatch {

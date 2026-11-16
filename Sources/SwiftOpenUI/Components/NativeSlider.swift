@@ -155,6 +155,7 @@ struct NativeSliderField: View {
   @Environment(\.openUIFieldLabel) private var fieldLabel
   @Environment(\.openUIFieldError) private var presentedError
   @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.isEnabled) private var enabled
   @ScaledMetric(relativeTo: .body) private var valueWidth: CGFloat = 88
   @StateObject private var draft: NativeSliderDraft
   @MainActor init(context: OpenUIComponentContext) {
@@ -177,6 +178,7 @@ struct NativeSliderField: View {
   }
   private var target: NativeSliderTarget { .init(context: context) }
   private var label: String { fieldLabel ?? context.string("label") ?? field.name.displayString }
+  private var canEdit: Bool { enabled && context.canInteract }
   private var showsDots: Bool {
     #if os(macOS)
     configuration.discrete && context.canInteract
@@ -190,12 +192,13 @@ struct NativeSliderField: View {
       header
       if configuration.valid {
         NativeSliderTrack(values: draft.values.isEmpty ? external : draft.values,
-          configuration: configuration, enabled: context.canInteract,
+          configuration: configuration, enabled: canEdit,
           showsDots: showsDots, label: label,
           select: { value, index in context.recordUserInteraction(); draft.select(value, at: index) },
           ended: { draft.flush() })
         if let error = draft.inlineValidationError(presentedError: presentedError, configuration: configuration) {
-          Text(NativeControlText.localized(error, locale: locale)).nativeTextStyle(context.theme.textStyle(.fieldError))
+          Text(NativeControlText.localized(error, locale: locale)).nativeTextStyle(context.theme.textStyle(.fieldError),
+            color: canEdit ? nil : context.theme.textNeutralTertiary)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("openui.slider.validation.\(field.name.displayString)")
         }
@@ -210,7 +213,7 @@ struct NativeSliderField: View {
     .onChange(of: external) { draft.receive($0) }
     .onChange(of: draft.text) { _ in refreshPresentedValidation() }
     .onReceive(validation?.$focusRequest.eraseToAnyPublisher() ?? Empty<NativeFormValidation.FocusRequest?, Never>().eraseToAnyPublisher()) { request in
-      guard request?.name == field.name, draft.validationError() != nil, !configuration.discrete else { return }
+      guard request?.name == field.name, canEdit, draft.validationError() != nil, !configuration.discrete else { return }
       focusedValue = draft.text.indices.first { index in
         let value = Double(draft.text[index].trimmingCharacters(in: .whitespacesAndNewlines))
         return value?.isFinite != true || configuration.error(for: draft.values, index: index) != nil
@@ -218,7 +221,7 @@ struct NativeSliderField: View {
     }
     .onChange(of: focusedValue) { if $0 == nil { draft.flush() } }
     .onChange(of: context.presentationSourceRevision) { _ in picker = nil }
-    .onChange(of: context.canInteract) { ready in if !ready { picker = nil } }
+    .onChange(of: canEdit) { ready in if !ready { picker = nil } }
     .onChange(of: draft.values.count) { count in if let picker, picker.index >= count { self.picker = nil } }
     .onDisappear {
       draft.flush()
@@ -232,8 +235,8 @@ struct NativeSliderField: View {
         NativeSliderPicker(configuration: configuration, current: draft.values[request.index],
           lower: request.index == 1 ? draft.values.first : nil,
           upper: request.index == 0 && draft.values.count > 1 ? draft.values[1] : nil,
-          label: label) { value in
-            guard context.canInteract else { return }
+          label: endpointLabel(request.index)) { value in
+            guard canEdit else { return }
             draft.select(value, at: request.index)
             draft.flush()
             picker = nil
@@ -271,27 +274,47 @@ struct NativeSliderField: View {
       ? AnyLayout(VStackLayout(alignment: .leading, spacing: context.theme.spaceS))
       : AnyLayout(HStackLayout(alignment: .center, spacing: context.theme.spaceM))
     return layout {
-      Text(label).nativeTextStyle(context.theme.textStyle(.fieldLabel))
-        .fixedSize(horizontal: false, vertical: true)
+      NativeFieldHeading(label: label, required: field.isRequired, theme: context.theme)
         .frame(maxWidth: .infinity, alignment: .leading)
       if configuration.valid {
-        HStack(spacing: context.theme.spaceS) {
-          ForEach(Array(external.indices.prefix(2)), id: \.self) { index in
-            Group {
-              if context.canInteract && draft.values.indices.contains(index) {
-                valueControl(index)
-              } else {
-                HStack(spacing: context.theme.spaceXs) {
-                  Text(jsNumberString(external[index])).monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                  valueAccessorySpace
-                }.padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
-              }
-            }.frame(width: valueWidth)
+        if external.count > 1 {
+          NativeSliderEndpointsLayout(minimumWidth: valueWidth, gap: context.theme.spaceS,
+            forceVertical: typeSize.isAccessibilitySize) {
+            ForEach(Array(external.indices.prefix(2)), id: \.self) { endpoint($0) }
           }
-        }.openUIFont(context.theme.textNumbersDefaultHeavy)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let index = external.indices.first {
+          endpoint(index).frame(width: valueWidth)
+        }
       }
     }
+  }
+  private func endpointLabel(_ index: Int) -> String {
+    NativeSliderEndpointText.label(field: label, index: index, count: external.count, locale: locale)
+  }
+  private func endpoint(_ index: Int) -> some View {
+    VStack(alignment: .leading, spacing: context.theme.space2xs) {
+      if external.count > 1 {
+        Text(NativeControlText.localized(NativeSliderEndpointText.key(index: index), locale: locale))
+          .nativeTextStyle(context.theme.textStyle(.supporting),
+            color: canEdit ? nil : context.theme.textNeutralTertiary)
+          .fixedSize(horizontal: false, vertical: true).accessibilityHidden(true)
+      }
+      Group {
+        if canEdit && draft.values.indices.contains(index) {
+          valueControl(index)
+        } else {
+          HStack(spacing: context.theme.spaceXs) {
+            Text(jsNumberString(external[index])).monospacedDigit()
+              .frame(maxWidth: .infinity, alignment: .trailing)
+            valueAccessorySpace
+          }.padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
+            .foregroundStyle(canEdit ? context.theme.textNeutralPrimary : context.theme.textNeutralTertiary)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(endpointLabel(index)).accessibilityValue(jsNumberString(external[index]))
+        }
+      }.openUIFont(context.theme.textNumbersDefaultHeavy, role: .metric)
+    }.accessibilityIdentifier("openui.slider.endpoint.\(field.name.displayString).\(index)")
   }
   @ViewBuilder private func valueControl(_ index: Int) -> some View {
     VStack(alignment: .leading, spacing: context.theme.spacing("2xs")) {
@@ -304,15 +327,17 @@ struct NativeSliderField: View {
               .foregroundStyle(context.theme.textNeutralSecondary)
               .frame(width: context.theme.textBodyXs.size)
           }.padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
-        }.buttonStyle(.plain).accessibilityIdentifier("openui.slider.choice.\(field.name.displayString).\(index)")
+        }.buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusS))
+          .accessibilityLabel(endpointLabel(index)).accessibilityValue(jsNumberString(draft.values[index]))
+          .accessibilityIdentifier("openui.slider.choice.\(field.name.displayString).\(index)")
       } else {
         HStack(spacing: context.theme.spaceXs) {
           TextField("", text: Binding(get: { draft.text.indices.contains(index) ? draft.text[index] : "" },
             set: { context.recordUserInteraction(); draft.edit($0, at: index) }))
             .textFieldStyle(.plain).monospacedDigit().nativeSliderKeyboard()
-            .focused($focusedValue, equals: index).submitLabel(.done)
-            .onSubmit { draft.flush(); focusedValue = nil }
-            .multilineTextAlignment(.trailing).accessibilityLabel(label)
+            .focused($focusedValue, equals: index).submitLabel(index == 0 && external.count > 1 ? .next : .done)
+            .onSubmit { draft.flush(); focusedValue = index == 0 && external.count > 1 ? 1 : nil }
+            .multilineTextAlignment(.trailing).accessibilityLabel(endpointLabel(index))
             .accessibilityIdentifier("openui.slider.input.\(field.name.displayString).\(index)")
           valueAccessorySpace
         }.padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
@@ -324,6 +349,53 @@ struct NativeSliderField: View {
   private var valueAccessorySpace: some View {
     Color.clear.frame(width: context.theme.textBodyXs.size)
       .accessibilityHidden(true).allowsHitTesting(false)
+  }
+}
+
+enum NativeSliderEndpointText {
+  static func key(index: Int) -> String { index == 0 ? "Minimum" : "Maximum" }
+  static func label(field: String, index: Int, count: Int, locale: Locale) -> String {
+    count > 1 ? field + ", " + NativeControlText.localized(key(index: index), locale: locale) : field
+  }
+}
+
+/// Keep the same endpoint controls mounted while a local width or text-size
+/// change moves a range from two reading columns to one.
+struct NativeSliderEndpointsLayout: Layout {
+  let minimumWidth: CGFloat
+  let gap: CGFloat
+  var forceVertical = false
+
+  static func isVertical(width: CGFloat, minimumWidth: CGFloat, gap: CGFloat, count: Int, force: Bool) -> Bool {
+    force || width < max(1, minimumWidth) * CGFloat(count) + gap * CGFloat(max(0, count - 1))
+  }
+  private func frames(_ proposal: ProposedViewSize, _ views: Subviews) -> [CGRect] {
+    guard !views.isEmpty else { return [] }
+    let idealWidth = max(1, minimumWidth) * CGFloat(views.count) + gap * CGFloat(views.count - 1)
+    let width = proposal.width.flatMap { $0.isFinite ? max(1, $0) : nil } ?? idealWidth
+    let vertical = Self.isVertical(width: width, minimumWidth: minimumWidth, gap: gap,
+      count: views.count, force: forceVertical)
+    let cellWidth = vertical ? width : max(1, (width - gap * CGFloat(views.count - 1)) / CGFloat(views.count))
+    let sizes = views.map { $0.sizeThatFits(.init(width: cellWidth, height: nil)) }
+    var y: CGFloat = 0
+    return sizes.enumerated().map { index, size in
+      let x = CGFloat(index) * (cellWidth + gap)
+      defer { if vertical { y += size.height + gap } }
+      // Layout mirrors horizontal placement for RTL. Keep the logical source
+      // order here so endpoint labels retain their inherited text direction.
+      return CGRect(x: vertical ? 0 : x,
+        y: vertical ? y : 0, width: cellWidth, height: size.height)
+    }
+  }
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let frames = frames(proposal, subviews)
+    return CGSize(width: frames.map(\.maxX).max() ?? 0, height: frames.map(\.maxY).max() ?? 0)
+  }
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for (view, frame) in zip(subviews, frames(.init(width: bounds.width, height: nil), subviews)) {
+      view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+        anchor: .topLeading, proposal: .init(frame.size))
+    }
   }
 }
 
@@ -423,6 +495,7 @@ struct NativeSliderTrack: View {
   var ended: () -> Void = {}
   @Environment(\.openUITheme) private var theme
   @Environment(\.layoutDirection) private var direction
+  @Environment(\.locale) private var locale
   @State private var dragging: Int?
   var body: some View {
     GeometryReader { geometry in
@@ -457,7 +530,8 @@ struct NativeSliderTrack: View {
               Slider(value: Binding(get: { min(configuration.maximum, max(configuration.minimum, values[index])) },
                 set: { if enabled { select(configuration.snapped($0), index) } }),
                 in: configuration.minimum...configuration.maximum, step: configuration.step)
-                .accessibilityLabel(label).accessibilityValue(jsNumberString(values[index]))
+                .accessibilityLabel(NativeSliderEndpointText.label(field: label, index: index, count: values.count, locale: locale))
+                .accessibilityValue(jsNumberString(values[index]))
                 .accessibilityIdentifier("openui.slider.thumb.\(index)").disabled(!enabled)
                 .environment(\.layoutDirection, direction)
             }

@@ -6,6 +6,148 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class TableMountedViewTests:XCTestCase {
+  @MainActor func testReadingModeKeepsMountedCustomCellsInputDraftAndActions() throws {
+    _ = NSApplication.shared
+    let standard = try OpenUIComponents.library()
+    let button = try XCTUnwrap(standard.library.components.first { $0.name == "Button" })
+    let customCell = OpenUIComponent(name: "MountedTableValue", description: "Mounted cell evidence",
+      params: [OpenUIParameter.string("id"), OpenUIParameter.string("value")]) { context in
+        MountedTableValue(id: context.string("id") ?? "", value: context.string("value") ?? "")
+          .fixedSize()
+      }
+    let library = try standard.extending(adding: [customCell], overriding: [
+      OpenUIComponent(button) { context in
+        NativeComponentHost(context: context) { context in
+          OpenUINativeButton(context: context).background(MountedTableMarker(id: "action"))
+        }
+      }
+    ])
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.setSource("""
+      root=Table([
+        Col("Details",[
+          Stack([Input("draft",null,"text",null,"initial"),Button("Send",@ToAssistant("Original table message"))]),
+          TextContent("Second row")
+        ]),
+        Col("Amount",[MountedTableValue("short","12"),MountedTableValue("long","123456")],"number")
+      ])
+      """)
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    var received: [ActionEvent] = []
+    state.onAction = { received.append($0) }
+    let hosting = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .frame(width: 560).fixedSize(horizontal: false, vertical: true)
+      .background(MountedTableMarker(id: "bounds"))
+      .frame(width: 560, height: 620, alignment: .topLeading))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = hosting
+    window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+    window.orderFront(nil)
+    defer { window.close() }
+
+    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+    func marker(_ id: String) throws -> NSView {
+      let matches = descendants(hosting).filter { $0.identifier?.rawValue == "openui.test.table.\(id)" }
+      XCTAssertEqual(matches.count, 1, "A layout change must not create a second mounted \(id) cell")
+      return try XCTUnwrap(matches.first)
+    }
+    func inputs() -> [NSTextField] {
+      descendants(hosting).compactMap { $0 as? NSTextField }.filter(\.isEditable)
+    }
+    func settle() {
+      hosting.layoutSubtreeIfNeeded()
+      RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+      hosting.layoutSubtreeIfNeeded()
+    }
+    func frame(_ view: NSView) -> CGRect {
+      let rect = view.convert(view.bounds, to: hosting)
+      return CGRect(x: rect.minX,
+        y: hosting.isFlipped ? rect.minY : hosting.bounds.maxY - rect.maxY,
+        width: rect.width, height: rect.height)
+    }
+    // As in ReferenceRenderingTests, dispatch public AppKit events only to
+    // this offscreen window. Its inactive SwiftUI AX tree is not complete.
+    func click(_ point: NSPoint) throws {
+      let down = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: point,
+        modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+      let up = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: point,
+        modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime + 0.01,
+        windowNumber: window.windowNumber, context: nil, eventNumber: 2, clickCount: 1, pressure: 0))
+      NSApplication.shared.postEvent(up, atStart: false)
+      window.sendEvent(down)
+      window.sendEvent(up)
+      settle()
+    }
+    func sendAction(expectedCount: Int) throws {
+      let action = try marker("action")
+      try click(action.convert(NSPoint(x: action.bounds.midX, y: action.bounds.midY), to: nil))
+      let deadline = Date().addingTimeInterval(2)
+      while received.count < expectedCount && Date() < deadline { settle() }
+      XCTAssertEqual(received.count, expectedCount, "The real table Button must still dispatch exactly once")
+      XCTAssertEqual(received.last?.type, "continue_conversation")
+      XCTAssertEqual(received.last?.humanFriendlyMessage, "Original table message")
+    }
+
+    settle()
+    XCTAssertEqual(inputs().count, 1)
+    let input = try XCTUnwrap(inputs().first)
+    let short = try XCTUnwrap(try marker("short") as? NSTextField)
+    let long = try XCTUnwrap(try marker("long") as? NSTextField)
+    let action = try marker("action")
+    XCTAssertEqual(state.fieldValue(form: nil, name: "draft"), .string("initial"))
+    input.selectText(nil)
+    let editor = try XCTUnwrap(input.currentEditor() as? NSTextView)
+    editor.insertText("Edited table draft", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+    window.makeFirstResponder(nil)
+    settle()
+    XCTAssertEqual(state.fieldValue(form: nil, name: "draft"), .string("Edited table draft"),
+      "The draft must come through the mounted Input binding")
+    let revision = state.presentationRevision
+    try sendAction(expectedCount: 1)
+    let gridShort = frame(short), gridLong = frame(long)
+    XCTAssertGreaterThan(gridLong.width, gridShort.width)
+    XCTAssertEqual(gridShort.maxX, gridLong.maxX, accuracy: 1, "Numeric table cells share a trailing edge")
+    XCTAssertGreaterThan(gridShort.minX, frame(input).maxX, "The numeric column must not overlap the input")
+    XCTAssertGreaterThan(gridLong.minY, gridShort.maxY)
+
+    for (index, reading) in [true, false].enumerated() {
+      let table = try marker("bounds")
+      // The reading-mode Button is the first, leading control. The measured
+      // table origin plus half its minimum target stays inside its full label.
+      let inset = OpenUIPresentation().minimumControlTargetSize / 2
+      try click(table.convert(NSPoint(x: inset, y: inset), to: nil))
+      XCTAssertEqual(inputs().count, 1)
+      XCTAssertTrue(inputs().first === input, "Reading mode must retain the native editing field")
+      XCTAssertTrue(try marker("short") === short, "Custom cell identity must survive both layout directions")
+      XCTAssertTrue(try marker("long") === long)
+      XCTAssertTrue(try marker("action") === action)
+      XCTAssertEqual(input.stringValue, "Edited table draft")
+      XCTAssertEqual(state.fieldValue(form: nil, name: "draft"), .string("Edited table draft"))
+      XCTAssertEqual(short.stringValue, "12")
+      XCTAssertEqual(long.stringValue, "123456")
+      XCTAssertEqual(state.presentationRevision, revision, "Reading mode is presentation, not a new document")
+      let currentShort = frame(short), currentLong = frame(long)
+      for rect in [currentShort, currentLong, frame(input)] {
+        XCTAssertTrue(rect.minX.isFinite && rect.minY.isFinite && rect.width.isFinite && rect.height.isFinite)
+        XCTAssertGreaterThan(rect.width, 0)
+        XCTAssertGreaterThan(rect.height, 0)
+      }
+      if reading {
+        XCTAssertEqual(currentShort.minX, currentLong.minX, accuracy: 1)
+        XCTAssertLessThan(currentShort.minX, gridShort.minX, "The control must actually switch to row reading")
+        XCTAssertGreaterThan(currentShort.minY, frame(input).maxY, "Each value follows the previous cell vertically")
+      } else {
+        XCTAssertEqual(currentShort.maxX, currentLong.maxX, accuracy: 1)
+        XCTAssertEqual(currentShort.maxX, gridShort.maxX, accuracy: 1)
+        XCTAssertEqual(currentShort.minY, gridShort.minY, accuracy: 1)
+      }
+      try sendAction(expectedCount: index + 2)
+    }
+  }
+
   @MainActor func testMountedSourceObservationDoesNotClearRejectedDraft() async throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
@@ -35,5 +177,31 @@ final class TableMountedViewTests:XCTestCase {
     XCTAssertEqual(received,1)
     XCTAssertFalse(editing.draft.hasChanges)
   }
+}
+
+private struct MountedTableValue: NSViewRepresentable {
+  let id: String
+  let value: String
+  func makeNSView(context: Context) -> NSTextField {
+    let view = NSTextField(labelWithString: value)
+    view.identifier = NSUserInterfaceItemIdentifier("openui.test.table.\(id)")
+    view.font = .monospacedDigitSystemFont(ofSize: 16, weight: .regular)
+    return view
+  }
+  func updateNSView(_ view: NSTextField, context: Context) { view.stringValue = value }
+}
+
+private final class MountedTableMarkerView: NSView {
+  override var isFlipped: Bool { true }
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+private struct MountedTableMarker: NSViewRepresentable {
+  let id: String
+  func makeNSView(context: Context) -> MountedTableMarkerView {
+    let view = MountedTableMarkerView()
+    view.identifier = NSUserInterfaceItemIdentifier("openui.test.table.\(id)")
+    return view
+  }
+  func updateNSView(_ view: MountedTableMarkerView, context: Context) {}
 }
 #endif

@@ -193,6 +193,7 @@ struct NativeChart: View {
   @State private var progressiveData: NativeChartData?
   @State private var presentationCache = NativeChartPresentationCache()
   @State private var axisMeasurements = NativeChartAxisMeasurements()
+  @State private var showsDataDetails = false
   @ScaledMetric(relativeTo: .body) private var axisScale: CGFloat = 1
   @ScaledMetric(relativeTo: .body) private var legendMarkerSize: CGFloat = 8
   @Namespace private var measurementScope
@@ -274,6 +275,25 @@ struct NativeChart: View {
 
   private var chartBody: some View {
     VStack(alignment: .leading, spacing: context.theme.spaceM) {
+      chartContent
+      Button { showsDataDetails = true } label: {
+        Label {
+          Text("View chart data", bundle: NativeControlResources.bundle)
+        } icon: { Image(systemName: "list.bullet.rectangle").accessibilityHidden(true) }
+          .nativeTextStyle(context.theme.textStyle(.compactAction))
+          .openUIControlTarget(alignment: .leading)
+      }
+      .buttonStyle(NativeQuietButtonStyle(theme: context.theme))
+      .accessibilityIdentifier("openui.chart.data-details")
+    }
+    .sheet(isPresented: $showsDataDetails) {
+      NativeChartDataDetails(data: allData, palette: palette, theme: context.theme,
+        locale: locale, selectedIndex: visibility.hidden.isEmpty ? inspected : nil)
+    }
+  }
+
+  private var chartContent: some View {
+    VStack(alignment: .leading, spacing: context.theme.spaceM) {
       GeometryReader { geometry in
         Canvas { canvas, size in
           drawing.draw(
@@ -313,7 +333,16 @@ struct NativeChart: View {
             if visible { NativeLoadingIndicator().padding(context.theme.space2xs) }
           }
         }
-        .accessibilityValue(Text(waiting ? "Loading data" : incomplete ? "Chart is incomplete" : "", bundle: NativeControlResources.bundle))
+        .overlay {
+          if data.hasZeroTotal(for: name) {
+            Text("Total is zero", bundle: NativeControlResources.bundle)
+              .nativeTextStyle(context.theme.textStyle(.supporting))
+              .fixedSize(horizontal: false, vertical: true)
+              .padding(context.theme.spaceM).allowsHitTesting(false)
+          }
+        }
+        .accessibilityValue(Text(waiting ? "Loading data" : incomplete ? "Chart is incomplete"
+          : data.hasZeroTotal(for: name) ? "Total is zero" : "", bundle: NativeControlResources.bundle))
         .allowsHitTesting(data.hasContent(for: name))
       }.frame(height: NativeChartHeight.value(explicit: context.presentationNumber("height"),
         defaultHeight: defaultHeight, scale: axisScale,
@@ -333,7 +362,7 @@ struct NativeChart: View {
               Button { visibility.toggle(title, current: legend) } label: {
                 legendLabel(index: index, title: title).openUIControlTarget(alignment: .leading)
               }
-                .buttonStyle(.plain)
+                .buttonStyle(NativeQuietButtonStyle(theme: context.theme))
                 .opacity(visibility.hidden.contains(OpenUIString(title)) ? 0.3 : 1)
                 .accessibilityLabel(title)
                 .accessibilityValue(visibility.hidden.contains(OpenUIString(title))
@@ -356,8 +385,8 @@ struct NativeChart: View {
       }
     }.frame(maxWidth: .infinity, alignment: .leading)
       .background(alignment: .topLeading) { measuredAxisLabels }
-      // Inspection belongs above the complete chart, including its legend.
-      // The plot can be a short strip; it cannot own the tooltip's height.
+      // Inspection belongs above the plot and legend. The persistent data
+      // button stays outside this region, visible even for a tall inspection.
       .overlay(alignment: .topLeading) {
         GeometryReader { geometry in
           if let inspected, let details = data.inspection(at: inspected, locale: locale) {
@@ -383,9 +412,20 @@ struct NativeChart: View {
   }
   private func legendLabel(index: Int, title: String) -> some View {
     HStack(spacing: context.theme.spacing("xs")) {
-      Circle()
-        .fill(palette[allData.colorIndex(at: index) % palette.count])
-        .frame(width: legendMarkerSize, height: legendMarkerSize).accessibilityHidden(true)
+      if ["LineChart", "AreaChart"].contains(name) {
+        Path { path in
+          path.move(to: CGPoint(x: 0, y: legendMarkerSize / 2))
+          path.addLine(to: CGPoint(x: legendMarkerSize * 3, y: legendMarkerSize / 2))
+        }
+        .stroke(palette[allData.colorIndex(at: index) % palette.count],
+          style: StrokeStyle(lineWidth: 2, lineCap: .round,
+            dash: NativeChartSeriesStyle.dash(for: allData.colorIndex(at: index))))
+        .frame(width: legendMarkerSize * 3, height: legendMarkerSize).accessibilityHidden(true)
+      } else {
+        Circle()
+          .fill(palette[allData.colorIndex(at: index) % palette.count])
+          .frame(width: legendMarkerSize, height: legendMarkerSize).accessibilityHidden(true)
+      }
       Text(title).openUIFont(context.theme.textLabelSm, role: .control).foregroundStyle(context.theme.textNeutralSecondary)
         .fixedSize(horizontal: false, vertical: true)
       if ["PieChart", "RadialChart"].contains(name), allData.slices.indices.contains(index) {
@@ -517,13 +557,33 @@ private struct NativeChartTooltip: View {
   let anchor: CGPoint
   let bounds: CGSize
   let theme: OpenUIThemeValues
+  var body: some View {
+    NativeChartTooltipLayout(anchor: anchor, bounds: bounds) {
+      ViewThatFits(in: .vertical) {
+        NativeChartInspectionContent(details: details, palette: palette, theme: theme)
+          .fixedSize(horizontal: false, vertical: true)
+          .modifier(NativeOverlaySurface(theme: theme, compact: true))
+        Text("View chart data for full details", bundle: NativeControlResources.bundle)
+          .nativeTextStyle(theme.textStyle(.supporting))
+          .fixedSize(horizontal: false, vertical: true).padding(theme.spaceM)
+          .modifier(NativeOverlaySurface(theme: theme, compact: true))
+        // A very short explicit plot may not fit even the reading hint. Its
+        // persistent data button remains available without an overflowing card.
+        Color.clear.frame(width: 0, height: 0)
+      }
+      .accessibilityIdentifier("openui-chart-inspection")
+    }.allowsHitTesting(false)
+  }
+}
+
+/// The inspection overlay and full data reader share the same complete values.
+struct NativeChartInspectionContent: View {
+  let details: NativeChartInspection
+  let palette: [Color]
+  let theme: OpenUIThemeValues
   @Environment(\.displayScale) private var displayScale
   @ScaledMetric(relativeTo: .body) private var markerSize: CGFloat = 9
   var body: some View {
-    NativeChartTooltipLayout(anchor: anchor, bounds: bounds) { label }
-      .allowsHitTesting(false)
-  }
-  private var label: some View {
     VStack(alignment: .leading, spacing: theme.spacing("sm")) {
       if !details.title.isEmpty {
         HStack(spacing: theme.spacing("s")) {
@@ -544,15 +604,14 @@ private struct NativeChartTooltip: View {
               .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             Text(row.value).monospacedDigit().foregroundStyle(theme.textNeutralPrimary)
-              .multilineTextAlignment(.trailing).layoutPriority(1)
+              .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
+              .layoutPriority(1)
           }.accessibilityElement(children: .combine)
         }
       }.openUIFont(theme.textBodySm, role: .detail)
     }
       .padding(theme.spaceM)
-      .modifier(NativeOverlaySurface(theme: theme, compact: true))
       .accessibilityElement(children: .contain)
-      .accessibilityIdentifier("openui-chart-inspection")
   }
   private func marker(_ index: Int) -> some View {
     RoundedRectangle(cornerRadius: 2)
@@ -584,7 +643,10 @@ private struct NativeChartTooltipLayout: Layout {
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize { bounds }
   func placeSubviews(in rect: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
     guard let view = subviews.first else { return }
-    let size = view.sizeThatFits(ProposedViewSize(width: min(240, max(1, bounds.width - 16)), height: nil))
+    // Give ViewThatFits a real vertical budget. Larger inspections use the
+    // persistent full-data reader instead of covering neighboring content.
+    let size = view.sizeThatFits(ProposedViewSize(width: min(240, max(1, bounds.width - 16)),
+      height: max(0, min(320, bounds.height - 16))))
     let frame = NativeChartTooltipPlacement.frame(size: size, anchor: anchor, bounds: bounds)
     view.place(at: CGPoint(x: rect.minX + frame.minX, y: rect.minY + frame.minY), anchor: .topLeading,
       proposal: ProposedViewSize(frame.size))
@@ -721,7 +783,7 @@ struct NativeChartDrawing {
     guard !data.labels.isEmpty else { return nil }
     if ["PieChart", "RadialChart", "SingleStackedBarChart"].contains(name) {
       return NativePolarInspection.index(at: location, size: size, values: data.slices, name: name,
-        donut: variant == "donut", semi: semi)
+        donut: variant == "donut", semi: semi, singleStackedBarThickness: singleStackedBarThickness)
     }
     if name == "RadarChart" {
       let geometry = NativeRadarGeometry(size: size, scale: axisScale)
@@ -939,7 +1001,8 @@ struct NativeChartDrawing {
         }
         canvas.stroke(
           line, with: .color(color(s)),
-          style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+          style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round,
+            dash: NativeChartSeriesStyle.dash(for: data.colorIndex(at: s))))
         if let inspected, points.indices.contains(inspected) {
           let point = points[inspected]
           let marker = Path(ellipseIn: CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
@@ -987,18 +1050,15 @@ struct NativeChartDrawing {
     let total = values.reduce(0, +)
     guard total > 0 else { return }
     if name == "SingleStackedBarChart" {
-      let thickness = min(size.height, max(1, singleStackedBarThickness))
-      let top = (size.height - thickness) / 2
+      let bar = NativeStackedBarGeometry.frame(size: size, thickness: singleStackedBarThickness)
       var barCanvas = canvas
-      barCanvas.clip(to: Path(roundedRect:
-        CGRect(x: 4, y: top, width: max(0, size.width - 8), height: thickness),
-        cornerRadius: 6))
-      var x: CGFloat = 4
+      barCanvas.clip(to: Path(roundedRect: bar, cornerRadius: 6))
+      var x = bar.minX
       for i in values.indices {
-        let width = (size.width - 8) * values[i] / total
+        let width = bar.width * values[i] / total
         barCanvas.fill(
-          Path(CGRect(x: x, y: top, width: width, height: thickness)),
-          with: .color(color(i)))
+          Path(CGRect(x: x, y: bar.minY, width: width, height: bar.height)),
+          with: .color(color(i).opacity(inspected == nil || inspected == i ? 1 : 0.35)))
         x += width
       }
       return
@@ -1021,7 +1081,8 @@ struct NativeChartDrawing {
           center: center, radius: r, startAngle: .degrees(-90),
           endAngle: .degrees(-90 + 360 * values[i] / (values.max() ?? 1)), clockwise: false)
         canvas.stroke(
-          arc, with: .color(color(i)), style: StrokeStyle(lineWidth: thickness, lineCap: .round))
+          arc, with: .color(color(i).opacity(inspected == nil || inspected == i ? 1 : 0.35)),
+          style: StrokeStyle(lineWidth: thickness, lineCap: .round))
       } else {
         let end = start + sweep * values[i] / total
         var sector = Path()
@@ -1040,7 +1101,7 @@ struct NativeChartDrawing {
             clockwise: false)
         }
         sector.closeSubpath()
-        canvas.fill(sector, with: .color(color(i)))
+        canvas.fill(sector, with: .color(color(i).opacity(inspected == nil || inspected == i ? 1 : 0.35)))
         canvas.stroke(sector, with: .color(canvasColor), lineWidth: 1.5)
         start = end
       }

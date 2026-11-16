@@ -8,7 +8,7 @@ struct NativeHeading: View {
   var body: some View {
     VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
       if let title = context.string(compact ? "heading" : "title") {
-        Text(title).nativeTextStyle(context.theme.objectTitleStyle()).accessibilityAddTraits(
+        Text(title).nativeTextStyle(compact ? context.theme.objectTitleStyle() : context.theme.sectionTitleStyle()).accessibilityAddTraits(
           .isHeader)
       }
       if let detail = context.string(compact ? "description" : "subtitle") {
@@ -125,7 +125,7 @@ struct NativeImageBlock: View {
   let context: OpenUIComponentContext
   var body: some View {
     NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-      layout: .aspect(context.presentation.coverAspectRatio))
+      layout: .aspect(context.presentation.coverAspectRatio), role: .content)
       .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
   }
 }
@@ -497,7 +497,7 @@ struct NativeSteps: View {
           VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
             Text(NativeValue.string(item.value, "title") ?? "").openUIFont(context.theme.textBodyDefaultHeavy, role: .title)
             NativeMarkdownText(text: NativeValue.string(item.value, "details") ?? "",
-              style: context.theme.textStyle(.supporting).richText())
+              style: context.theme.textStyle(.body).richText())
           }
         }
         .padding(.bottom, index < items.count - 1 ? context.theme.spacing("m") : 0)
@@ -977,7 +977,7 @@ struct NativeCardBlock: View {
 struct NativeFollowUpBlock: View {
   let context: OpenUIComponentContext
   var body: some View {
-    NativeWrappingRow(gap: context.theme.spacing("s")) {
+    VStack(alignment: .leading, spacing: context.theme.space2xs) {
       ForEach(context.children("items")) { item in
         context.render(item.value)
       }
@@ -990,20 +990,14 @@ struct NativeFollowUpItem: View {
   let context: OpenUIComponentContext
   private var text: String { context.string("text") ?? "" }
   var body: some View {
-    OpenUIActionSurface(context: context, message: text, action: Self.action(for: text)) {
-      Text(text)
-        .fixedSize(horizontal: false, vertical: true)
-        .nativeTextStyle(context.theme.textStyle(.compactAction))
-        .padding(.horizontal, context.theme.spacing("m"))
-        .padding(.vertical, context.theme.spacing("s"))
-        .background(context.theme.sunk, in: Capsule(style: .continuous))
-        .overlay(
-          Capsule(style: .continuous).strokeBorder(context.theme.borderDefault,
-            lineWidth: context.presentation.borderWidth))
-        .openUIControlTarget(alignment: .leading)
+    OpenUIActionSurface(context: context, message: text, action: Self.action(for: text),
+      useNativeStyle: true, showsProgress: true) {
+      NativeConversationActionLabel(text: text, theme: context.theme, placement: .suggestion)
     }
-    .buttonStyle(.plain)
+    .conversationAccessoryProgress()
+    .buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusS))
     .accessibilityLabel(text)
+    .accessibilityHint(Text("Send this question to continue", bundle: NativeControlResources.bundle))
     .accessibilityIdentifier("openui.followup")
   }
   static func action(for text: String) -> Value {

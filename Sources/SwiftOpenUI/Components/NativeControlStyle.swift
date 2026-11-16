@@ -32,6 +32,7 @@ extension EnvironmentValues {
         get { self[NativeFormActionsKey.self] }
         set { self[NativeFormActionsKey.self] = newValue }
     }
+    @Entry var openUIFormActionGroup: ObjectIdentifier? = nil
     var openUIFieldError: String? {
         get { self[NativeFieldErrorKey.self] }
         set { self[NativeFieldErrorKey.self] = newValue }
@@ -198,6 +199,7 @@ struct NativeActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let foreground = foreground(pressed: configuration.isPressed)
         return configuration.label
+            .environment(\.openUIActionLabelFont, font)
             .openUIFont(font, role: .control)
             .foregroundStyle(foreground).tint(foreground)
             .padding(.horizontal, horizontalInset)
@@ -221,5 +223,32 @@ struct NativeActionButtonStyle: ButtonStyle {
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
             .animation(reduceMotion ? nil : .easeOut(duration: nativePresentation.motion.pressDuration), value: configuration.isPressed)
+    }
+}
+
+/// Shared feedback for quiet, already-styled surfaces such as tabs, choices
+/// and conversational suggestions. The caller keeps its own selection/disabled colors.
+struct NativeQuietButtonStyle: ButtonStyle {
+    let theme: OpenUIThemeValues
+    var cornerRadius: CGFloat? = nil
+    @Environment(\.isEnabled) private var enabled
+    @Environment(\.isFocused) private var focused
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openUIPresentation) private var presentation
+    @State private var hovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius ?? theme.radiusS, style: .continuous)
+        return configuration.label
+            .background(enabled && (configuration.isPressed || hovered) ? theme.highlight : .clear, in: shape)
+            .opacity(enabled && configuration.isPressed ? presentation.motion.pressedOpacity : 1)
+            .overlay {
+                shape.strokeBorder(theme.interactiveAccentDefault, lineWidth: 2)
+                    .padding(-2).opacity(enabled && focused ? 1 : 0).allowsHitTesting(false)
+            }
+            .contentShape(Rectangle())
+            .onHover { hovered = $0 }
+            .animation(reduceMotion ? nil : .easeOut(duration: presentation.motion.pressDuration),
+                       value: configuration.isPressed)
     }
 }

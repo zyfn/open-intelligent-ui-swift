@@ -47,7 +47,7 @@ struct NativeMetric: View {
     }
     private var value: some View {
         NativeMetricValue(text: context.string("value") ?? "",
-            font: inline ? context.theme.textNumbersDefaultHeavy : context.theme.textNumbersDefaultHeavy,
+            font: inline ? context.theme.textNumbersDefaultHeavy : context.theme.textHeadingSm.monospacedDigit(),
             theme: context.theme)
     }
     @ViewBuilder private var details: some View {
@@ -184,6 +184,7 @@ struct NativeDataTable: View {
     @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
     @State private var availableWidth: CGFloat = 0
     @State private var currentPage = 0
+    @State private var readsByRow = false
     @State private var stableColumns: [Column]?
     @Namespace private var measurementScope
     private let pageSize = 10 // Pinned upstream Table's DEFAULT_PAGE_SIZE.
@@ -255,6 +256,19 @@ struct NativeDataTable: View {
     }
     private var loadedTable: some View {
         VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
+            if columns.count > 1 && rowCount > 0 {
+                Button { readsByRow.toggle() } label: {
+                    Label {
+                        Text(readsByRow ? "Show table" : "Read by row", bundle: NativeControlResources.bundle)
+                    } icon: {
+                        Image(systemName: readsByRow ? "tablecells" : "list.bullet.rectangle").accessibilityHidden(true)
+                    }
+                    .nativeTextStyle(context.theme.textStyle(.compactAction))
+                    .openUIControlTarget(alignment: .leading)
+                }
+                .buttonStyle(NativeQuietButtonStyle(theme: context.theme))
+                .accessibilityIdentifier("openui.table.reading-mode")
+            }
             NativeTableViewport { tableContent }
             if !waiting && (rowCount == 0 || incomplete || context.hasDataFailure) { stateMessage }
             if pageCount > 1 {
@@ -281,12 +295,21 @@ struct NativeDataTable: View {
         .environment(\.openUIInteractionScopeReady, context.canInteract && !context.hasPendingData && !context.hasDataFailure)
         .environment(\.openUIActionDensity, .compact)
     }
-    @ViewBuilder private var tableContent: some View {
-        NativeDataTableLayout(
+    private var tableLayout: AnyLayout {
+        if readsByRow {
+            return AnyLayout(NativeTableReadingLayout(columns: columns.count,
+                width: max(minimumWidth, availableWidth), gap: context.theme.spaceXs,
+                rowGap: context.theme.spaceM))
+        }
+        return AnyLayout(NativeDataTableLayout(
             columns: columns.count, width: max(minimumWidth, availableWidth),
             minimum: minimumWidth, gap: columnGap,
             columnMinimums: columns.map { $0.numeric ? minimumWidth : context.presentation.minimumTextColumnWidth * textScale }
-        ) {
+        ))
+    }
+    @ViewBuilder private var tableContent: some View {
+        // Layout changes preserve the cell subtree, including custom controls.
+        tableLayout {
             ForEach(columns) { column in
                 Text(column.title).openUIFont(context.theme.textBodySmHeavy, role: .control)
                     .foregroundStyle(context.theme.textNeutralPrimary)
@@ -294,17 +317,26 @@ struct NativeDataTable: View {
                     .padding(.vertical, context.theme.spaceS)
                     .multilineTextAlignment(column.numeric ? .trailing : .leading)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
+                    .opacity(readsByRow ? 0 : 1).accessibilityHidden(readsByRow)
             }
             context.theme.borderDefault.frame(height: 1 / displayScale).layoutValue(key: NativeTableBoundaryKey.self, value: true)
-                .accessibilityHidden(true)
+                .opacity(readsByRow ? 0 : 1).accessibilityHidden(true)
             ForEach(visibleRows, id: \.self) { row in
                 ForEach(columns) { column in
-                    cell(column.data.indices.contains(row) ? column.data[row] : .null)
-                        .openUIFont(column.numeric ? context.theme.textBodyDefault.monospacedDigit() : context.theme.textBodyDefault)
-                        .multilineTextAlignment(column.numeric ? .trailing : .leading)
+                    VStack(alignment: column.numeric && !readsByRow ? .trailing : .leading,
+                        spacing: context.theme.space2xs) {
+                        if readsByRow && !column.title.isEmpty {
+                            Text(column.title).nativeTextStyle(context.theme.textStyle(.supporting))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        cell(column.data.indices.contains(row) ? column.data[row] : .null)
+                            .openUIFont(column.numeric ? context.theme.textBodyDefault.monospacedDigit() : context.theme.textBodyDefault)
+                    }
+                        .multilineTextAlignment(column.numeric && !readsByRow ? .trailing : .leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.vertical, context.theme.spaceSM)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
+                        .padding(.vertical, readsByRow ? context.theme.spaceXs : context.theme.spaceSM)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                            alignment: column.numeric && !readsByRow ? .topTrailing : .topLeading)
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("openui.table.cell.\(row).\(column.id)")
                 }
@@ -406,6 +438,44 @@ enum NativeTableColumnPlacement {
 }
 
 private struct NativeTableBoundaryKey: LayoutValueKey { static let defaultValue = false }
+
+/// A user-selected reading arrangement of the original cells, without
+/// assuming that a particular column is a row key or duplicating actions.
+private struct NativeTableReadingLayout: Layout {
+    let columns: Int
+    let width: CGFloat
+    let gap: CGFloat
+    let rowGap: CGFloat
+
+    private func frames(_ views: Subviews) -> [CGRect] {
+        var frames = Array(repeating: CGRect.zero, count: views.count)
+        var y: CGFloat = 0
+        for index in views.indices where index > columns {
+            if views[index][NativeTableBoundaryKey.self] {
+                y += rowGap
+                frames[index] = CGRect(x: 0, y: y, width: width, height: 0.5)
+                y += 0.5 + rowGap
+            } else {
+                let size = views[index].sizeThatFits(.init(width: width, height: nil))
+                let height = size.height.isFinite ? max(0, size.height) : 0
+                frames[index] = CGRect(x: 0, y: y,
+                    width: size.width.isFinite ? max(width, size.width) : width, height: height)
+                y += height + gap
+            }
+        }
+        return frames
+    }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let frames = frames(subviews)
+        return CGSize(width: frames.map(\.maxX).max() ?? width, height: frames.map(\.maxY).max() ?? 0)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (view, frame) in zip(subviews, frames(subviews)) {
+            view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                anchor: .topLeading, proposal: .init(frame.size))
+        }
+    }
+}
 
 private struct NativeDataTableLayout: Layout {
     let columns: Int

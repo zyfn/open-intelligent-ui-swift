@@ -16,12 +16,40 @@ final class NativeFormValidation: ObservableObject {
     // Owner identity prevents a disappearing view from unregistering its replacement.
     private var pendingWrites: [OpenUIString: (owner: UUID, flush: () -> Void, error: () -> String?)] = [:]
     private var fieldOrder: [OpenUIString] = []
+    private var focusOwners: [OpenUIString: UUID] = [:]
+    @Published private(set) var focusableFields: [OpenUIString] = []
     @Published private(set) var errors: [OpenUIString: String] = [:]
     @Published private(set) var firstInvalid: OpenUIString?
     struct FocusRequest { let name: OpenUIString; let id = UUID() }
     @Published private(set) var focusRequest: FocusRequest?
     func requestInvalidFieldFocus() {
         if let firstInvalid { focusRequest = FocusRequest(name: firstInvalid) }
+    }
+
+    /// Return-key navigation follows the form's existing declaration order and
+    /// only targets mounted, writable text controls. It never submits the form.
+    func registerFocusableField(_ name: OpenUIString, owner: UUID) {
+        guard !name.isEmpty, owners[name] == owner else { return }
+        focusOwners[name] = owner
+        updateFocusableFields()
+    }
+    func unregisterFocusableField(_ name: OpenUIString, owner: UUID) {
+        guard focusOwners[name] == owner else { return }
+        focusOwners.removeValue(forKey: name)
+        updateFocusableFields()
+    }
+    func nextFocusableField(after name: OpenUIString) -> OpenUIString? {
+        guard let index = focusableFields.firstIndex(of: name), index + 1 < focusableFields.count else { return nil }
+        return focusableFields[index + 1]
+    }
+    @discardableResult func requestNextFieldFocus(after name: OpenUIString) -> Bool {
+        guard let next = nextFocusableField(after: name) else { return false }
+        focusRequest = FocusRequest(name: next)
+        return true
+    }
+    private func updateFocusableFields() {
+        let next = fieldOrder.filter { focusOwners[$0] != nil }
+        if next != focusableFields { focusableFields = next }
     }
 
     static func containsField(_ name: OpenUIString, in value: Value, depth: Int = 0) -> Bool {
@@ -57,10 +85,17 @@ final class NativeFormValidation: ObservableObject {
     ) {
         if fields[name] == nil && !fieldOrder.contains(name) { fieldOrder.append(name) }
         fields[name] = Field(rules: rules, value: value)
+        if let owner, let previous = focusOwners[name], previous != owner {
+            focusOwners.removeValue(forKey: name)
+        }
         owners[name] = owner ?? owners[name] ?? UUID()
+        updateFocusableFields()
     }
     func unregister(_ name: OpenUIString, owner: UUID? = nil) {
         if let owner, owners[name] != owner { return }
+        if let focusOwner = focusOwners[name], owner == nil || owner == focusOwner {
+            unregisterFocusableField(name, owner: focusOwner)
+        }
         owners.removeValue(forKey: name)
         fields.removeValue(forKey: name)
         if declaredFields[name] == nil {
@@ -89,6 +124,7 @@ final class NativeFormValidation: ObservableObject {
     func setFieldOrder(_ names: [OpenUIString]) {
         var seen = Set<OpenUIString>()
         fieldOrder = (names + fieldOrder).filter { seen.insert($0).inserted }
+        updateFocusableFields()
         updateFirstInvalid()
     }
     private func updateFirstInvalid() {
@@ -173,6 +209,16 @@ struct NativeFieldState {
         guard let raw = context.value("rules"), let json = try? raw.jsonValue() else { return [] }
         if case .array = json { return parseRules(json) }
         return parseStructuredRules(json)
+    }
+    var isRequired: Bool { rules.contains { $0.type == "required" } }
+    /// A reading hint only; the selection/storage contract remains upstream's.
+    var selectionHint: String? {
+        switch componentType {
+        case "Chips", "OptionCards":
+            return NativeChoiceSelection.isSingle(context) ? nil : "Select one or more"
+        case "CheckBoxGroup": return "Select one or more"
+        default: return nil
+        }
     }
     var options: [EvaluatedElement] {
         context.children("items").compactMap {

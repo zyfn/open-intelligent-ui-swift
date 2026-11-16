@@ -12,6 +12,9 @@ enum NativeMediaStatus: Equatable { case loading, loaded, unavailable }
 enum NativeMediaLayout {
   case cover, aspect(CGFloat), thumbnail(CGSize), fit, fill, intrinsic
 }
+/// The component owns whether an image conveys content or only decorates it.
+/// This is native presentation policy, not another model-authored parameter.
+enum NativeMediaRole: Equatable { case artwork, content }
 
 /// Optional artwork is not an error message. A semantic fallback is supplied
 /// by its owning component; absent artwork otherwise leaves the declared slot
@@ -27,17 +30,10 @@ struct NativeUnavailableMedia: View {
         GeometryReader { geometry in
           let available = max(0, min(geometry.size.width, geometry.size.height))
           let side = min(glyphSize, available * 0.42)
-          ZStack {
-            theme.interactiveAccentDefault.opacity(0.08)
-            Circle()
-              .fill(theme.foreground)
-              .frame(width: side * 1.75, height: side * 1.75)
-              .overlay(Circle().strokeBorder(theme.interactiveAccentDefault.opacity(0.12), lineWidth: 1))
-            Image(systemName: systemImage)
-              .font(.system(size: side, weight: .medium))
-              .foregroundStyle(theme.interactiveAccentDefault)
-          }
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          Image(systemName: systemImage)
+            .font(.system(size: side, weight: .medium))
+            .foregroundStyle(theme.interactiveAccentDefault)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
       } else {
         Color.clear
@@ -61,6 +57,7 @@ struct NativeRemoteImage: View {
   let src: String?
   var alt = ""
   var layout: NativeMediaLayout = .cover
+  var role: NativeMediaRole = .artwork
   var fallbackSystemImage: String? = nil
   var cachedImage: Image?
   var attempt = 0
@@ -103,7 +100,8 @@ struct NativeRemoteImage: View {
       }
     }
     .modifier(NativeImageInteraction(source: src, image: displayedImage, alt: alt,
-      enabled: interactionEnabled && !hasHiddenFailure, previewEnabled: previewEnabled, failed: failed,
+      enabled: interactionEnabled && !hasHiddenFailure && !showsContentFailure,
+      previewEnabled: previewEnabled, failed: failed,
       retry: { localRetry.retry(baseRequestID) }))
     .task(id: NativeMediaTaskID(request: sourceReady ? requestID : nil, sourceReady: sourceReady, pixelSize: targetPixelSize)) {
       guard sourceReady, cachedImage == nil else { return }
@@ -135,7 +133,10 @@ struct NativeRemoteImage: View {
     return requestID.request != nil && !failed
   }
   private var hasHiddenFailure: Bool {
-    fallbackSystemImage == nil && presentedImage == nil && !waitingForImage
+    role == .artwork && fallbackSystemImage == nil && presentedImage == nil && !waitingForImage
+  }
+  private var showsContentFailure: Bool {
+    role == .content && fallbackSystemImage == nil && presentedImage == nil && !waitingForImage
   }
   private var displayedImage: Image? {
     if let cachedImage { return cachedImage }
@@ -199,32 +200,43 @@ struct NativeRemoteImage: View {
     .accessibilityElement(children: .ignore).accessibilityLabel(alt)
     .accessibilityAddTraits(.isImage).accessibilityHidden(alt.isEmpty && !interactionEnabled)
   }
-  private func placeholder(loading: Bool) -> some View {
-    canvas {
-      ZStack {
-        NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
-        if fallbackSystemImage == nil {
-          // This view survives loading -> failure. Opacity is local, respects
-          // Reduce Motion and uses the existing presentation motion token.
-          NativeLoadingSurface(active: loading, showsMediaSymbol: true)
-            .opacity(loading ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeOut(duration: nativePresentation.motion.mediaRevealDuration), value: loading)
+  @ViewBuilder private func placeholder(loading: Bool) -> some View {
+    if showsContentFailure {
+      // Keep the media slot, but let a content image explain its absence. The
+      // scrollable copy also fits explicitly short frames and large text sizes.
+      canvas(hidesContentAccessibility: false) {
+        NativeContentImageFailure(alt: alt,
+          canRetry: interactionEnabled && sourceReady && requestID.request != nil,
+          retry: { localRetry.retry(baseRequestID) })
+      }
+      .accessibilityIdentifier("openui.media.unavailable")
+    } else {
+      canvas {
+        ZStack {
+          NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
+          if fallbackSystemImage == nil {
+            // This view survives loading -> failure. Opacity is local, respects
+            // Reduce Motion and uses the existing presentation motion token.
+            NativeLoadingSurface(active: loading, showsMediaSymbol: true)
+              .opacity(loading ? 1 : 0)
+              .animation(reduceMotion ? nil : .easeOut(duration: nativePresentation.motion.mediaRevealDuration), value: loading)
+          }
         }
       }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel(alt.isEmpty ? Text("Loading image", bundle: NativeControlResources.bundle) : Text(alt))
+      .accessibilityValue(Text(loading && fallbackSystemImage == nil ? "Loading image" : "", bundle: NativeControlResources.bundle))
+      .accessibilityAddTraits(.isImage)
+      .accessibilityHidden(!loading && fallbackSystemImage == nil)
+      .allowsHitTesting(loading || fallbackSystemImage != nil)
+      .accessibilityIdentifier(loading ? "openui.media.loading" : "openui.media.unavailable")
     }
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(alt.isEmpty ? Text("Loading image", bundle: NativeControlResources.bundle) : Text(alt))
-    .accessibilityValue(Text(loading && fallbackSystemImage == nil ? "Loading image" : "", bundle: NativeControlResources.bundle))
-    .accessibilityAddTraits(.isImage)
-    .accessibilityHidden(!loading && fallbackSystemImage == nil)
-    .allowsHitTesting(loading || fallbackSystemImage != nil)
-    .accessibilityIdentifier(loading ? "openui.media.loading" : "openui.media.unavailable")
   }
   // Document illustrations retain their source proportions; photo previews
   // use the same declared role in every resource state.
-  @ViewBuilder private func canvas<Content: View>(sourceSize: CGSize? = nil,
+  @ViewBuilder private func canvas<Content: View>(sourceSize: CGSize? = nil, hidesContentAccessibility: Bool = true,
     @ViewBuilder _ content: () -> Content) -> some View {
-    let surface = Color.clear.overlay { content().accessibilityHidden(true) }.clipped().contentShape(Rectangle())
+    let surface = Color.clear.overlay { content().accessibilityHidden(hidesContentAccessibility) }.clipped().contentShape(Rectangle())
     switch layout {
     case .cover:
       surface.aspectRatio(nativePresentation.coverAspectRatio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)
@@ -236,6 +248,53 @@ struct NativeRemoteImage: View {
       surface.aspectRatio(NativeMediaPreview.aspectRatio(sourceSize: sourceSize ?? imageSize), contentMode: .fit)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+struct NativeContentImageFailure: View {
+  let alt: String
+  let canRetry: Bool
+  let retry: () -> Void
+  @Environment(\.openUITheme) private var theme
+  @Environment(\.isEnabled) private var enabled
+  @Environment(\.openUIActivationIntent) private var intent
+
+  var body: some View {
+    ScrollView(.vertical) {
+      VStack(alignment: .leading, spacing: theme.spaceS) {
+        Label {
+          Text("Image unavailable", bundle: NativeControlResources.bundle)
+        } icon: {
+          Image(systemName: "photo").accessibilityHidden(true)
+        }.nativeTextStyle(theme.textStyle(.supporting))
+        if !alt.isEmpty {
+          Text(alt).nativeTextStyle(theme.textStyle(.body))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("openui.media.alternative")
+        }
+        if canRetry {
+          Button {
+            guard enabled, intent?.permitsActivation != false else { return }
+            retry()
+          } label: {
+            Label {
+              Text("Retry", bundle: NativeControlResources.bundle)
+            } icon: {
+              Image(systemName: "arrow.clockwise").accessibilityHidden(true)
+            }
+            .openUIFont(theme.textLabelSm, role: .control)
+            .openUIControlTarget(alignment: .leading)
+          }
+          .buttonStyle(.plain)
+          .foregroundStyle(theme.interactiveAccentDefault)
+          .accessibilityIdentifier("openui.media.retry")
+        }
+      }
+      .padding(theme.spaceM)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .foregroundStyle(theme.textNeutralPrimary)
+    .accessibilityElement(children: .contain)
   }
 }
 
@@ -308,8 +367,8 @@ struct NativeImageGallery: View {
   @State private var selected: NativeGalleryResourceID?
   @State private var preview = false
   @State private var retries: [String: Int] = [:]
-  // Keep a compact inline preview. Any image opens the complete gallery, so
-  // additional photos remain reachable without a separate Show All control.
+  // Keep a compact inline preview. Its independent entry also reaches later
+  // images when every visible thumbnail is still loading or unavailable.
   private let previewLimit = 5
   @State private var stableImages: [NativeGalleryImage]?
   private var images: [NativeGalleryImage] {
@@ -384,6 +443,23 @@ struct NativeImageGallery: View {
             }
           }
         }
+        Button {
+          guard context.canActivate, let first = images.first else { return }
+          selected = first.key
+          preview = true
+        } label: {
+          HStack(spacing: context.theme.spaceS) {
+            Text("Show all photos", bundle: NativeControlResources.bundle)
+            Text("\(images.count)").monospacedDigit()
+            Image(systemName: "arrow.forward").accessibilityHidden(true)
+          }
+          .openUIFont(context.theme.textLabelSm, role: .control)
+          .openUIControlTarget(alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(context.theme.interactiveAccentDefault)
+        .disabled(!context.canInteract)
+        .accessibilityIdentifier("openui.gallery.show-all")
       }
     }
     .accessibilityElement(children: .contain).accessibilityIdentifier("openui.gallery")
@@ -434,7 +510,7 @@ private struct NativeGalleryPreview: View {
             get: { selected ?? image.key }, set: { selected = $0; zoomed = false }),
             enabled: !zoomed, identifier: "openui.gallery.preview", supportsAdjustment: false) { key in
             if let item = images.first(where: { $0.key == key }) {
-              NativeRemoteImage(src: item.src, alt: item.alt, layout: .fit,
+              NativeRemoteImage(src: item.src, alt: item.alt, layout: .fit, role: .content,
                 cachedImage: pictures[item.key], attempt: item.requestID.attempt,
                 onStatus: { record($0, $1, item.key) }, previewEnabled: false)
                 .modifier(NativeImageZoom(resetID: selected, zoomChanged: { value in
@@ -445,8 +521,7 @@ private struct NativeGalleryPreview: View {
           }
         }.accessibilityIdentifier("openui.gallery.preview.image")
           .accessibilityHint(Text(zoomed ? "Drag to move image" : "Swipe to change image", bundle: NativeControlResources.bundle))
-        if !image.alt.isEmpty { Text(image.alt).nativeTextStyle(theme.textStyle(.body)) }
-        if let details = image.details, details != image.alt { Text(details).nativeTextStyle(theme.textStyle(.supporting)) }
+        NativeImagePreviewDescription(alt: image.alt, details: image.details)
       }
       ScrollViewReader { reader in
         ScrollView(.horizontal, showsIndicators: false) {

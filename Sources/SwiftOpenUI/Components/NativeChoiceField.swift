@@ -40,6 +40,7 @@ struct NativeChoiceField: View {
   @Environment(\.dynamicTypeSize) private var typeSize
   @Environment(\.layoutDirection) private var direction
   @Environment(\.isEnabled) private var enabled
+  @Environment(\.openUIFieldError) private var error
   @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
   private var field: NativeFieldState { NativeFieldState(context: context) }
   private var selection: [OpenUIString] { NativeChoiceSelection.values(field.value) }
@@ -66,10 +67,11 @@ struct NativeChoiceField: View {
         } label: {
           choice(item, selected: selected).openUIControlTarget(alignment: .leading)
             .environment(\.openUICardIsAction, true)
-        }.buttonStyle(.plain).disabled(
+        }.buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: choiceRadius)).disabled(
           !context.canInteract || PropValue.value(item, "disabled") == .boolean(true)
         )
         .accessibilityLabel(PropValue.string(item, cards ? "title" : "label") ?? key.displayString)
+        .accessibilityHint(PropValue.string(item, "subtitle") ?? "")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("openui.choice.\(field.name.displayString).\(key.displayString)")
       }
@@ -92,7 +94,10 @@ struct NativeChoiceField: View {
     )
     .overlay(
       RoundedRectangle(cornerRadius: choiceRadius).strokeBorder(
-        selected && !isDisabled(item) ? context.theme.componentStyle.selectedBorder : context.theme.componentStyle.surfaceBorder, lineWidth: context.presentation.borderWidth))
+        isDisabled(item) ? context.theme.componentStyle.surfaceBorder
+          : error != nil ? context.theme.textDangerPrimary
+          : selected ? context.theme.componentStyle.selectedBorder : context.theme.componentStyle.surfaceBorder,
+        lineWidth: context.presentation.borderWidth))
   }
   private var choiceRadius: CGFloat { cards ? context.theme.componentStyle.optionRadius : context.theme.radiusFull }
   private func cardCopy(_ item: EvaluatedElement, selected: Bool) -> some View {

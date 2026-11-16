@@ -16,9 +16,8 @@ private struct NativeSVG: View {
     let context: OpenUIComponentContext
     @State private var downloaded: String?
     @State private var failed = false
-    @State private var drawingStatus = NativeMediaStatus.loading
+    @State private var preview = false
     @State private var documents = NativeSVGDocumentCache()
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.openUIResourceContext) private var resources
     private var document: NativeSVGDocument? {
         if context.string("content") != nil && context.string("src") != nil { return nil }
@@ -26,28 +25,43 @@ private struct NativeSVG: View {
         return documents.value(context.string("content") ?? downloaded)
     }
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: context.theme.spaceS) {
             if let document {
-                web(document).aspectRatio(document.viewportRatio, contentMode: .fit)
+                NativeSVGCanvas(document: document, alt: context.string("alt") ?? "")
+                    .aspectRatio(document.viewportRatio, contentMode: .fit)
                     .frame(maxHeight: 1024)
-                    .overlay {
-                        if drawingStatus == .loading {
-                            NativePendingContent(loading: true, message: "Loading")
-                        } else if drawingStatus == .unavailable {
-                            Text("Unable to load graphic", bundle: NativeControlResources.bundle)
-                                .nativeTextStyle(context.theme.textStyle(.supporting))
-                        }
+                Button { guard context.canInteract else { return }; preview = true } label: {
+                    Label {
+                        Text("View full graphic", bundle: NativeControlResources.bundle)
+                    } icon: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right").accessibilityHidden(true)
                     }
+                    .openUIFont(context.theme.textLabelSm, role: .control)
+                    .openUIControlTarget(alignment: .leading)
+                }
+                .buttonStyle(.plain).foregroundStyle(context.theme.interactiveAccentDefault)
+                .disabled(!context.canInteract)
+                .accessibilityIdentifier("openui.svg.expand")
             } else if !failed && (context.isStreaming || (context.string("src") != nil && context.string("content") == nil && downloaded == nil)) {
                 NativePendingContent(loading: true, message: "Loading")
             } else {
                 Text(failed ? "Unable to load graphic" : "Graphic requires a valid SVG viewBox", bundle: NativeControlResources.bundle)
                     .nativeTextStyle(context.theme.textStyle(.supporting))
+                if let alt = context.string("alt"), !alt.isEmpty {
+                    Text(alt).nativeTextStyle(context.theme.textStyle(.body))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(context.string("alt") ?? "SVG")
+        .accessibilityElement(children: .contain)
+        .sheet(isPresented: $preview) {
+            if let document {
+                NativeSVGPreview(document: document, alt: context.string("alt") ?? "")
+            }
+        }
+        .onChange(of: context.string("content")) { _ in preview = false }
+        .onChange(of: remoteRequest) { _ in preview = false }
         .task(id: NativeResourceRequestID(request: remoteRequest, loader: ObjectIdentifier(resources.loader), attempt: 0, authorizationScope: resources.loader.authorizationScopeID)) {
             downloaded = nil; failed = false
             guard context.element.sourceReadiness["src"].complete, context.string("src") != nil, context.string("content") == nil else { return }
@@ -65,13 +79,74 @@ private struct NativeSVG: View {
         guard context.element.sourceReadiness["src"].complete, context.string("content") == nil else { return nil }
         return NativeSVGResource.request(context.string("src"), resources: resources)
     }
-    private func web(_ document: NativeSVGDocument) -> SVGWebView {
-        SVGWebView(html: """
-        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'none'; connect-src 'none'; base-uri 'none'">
-        <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;color:\(NativeCSSColor.css(context.theme.textNeutralPrimary, scheme: scheme));font-family:-apple-system,sans-serif}svg{display:block;width:100%!important;height:100%!important}</style>
-        </head><body>\(document.markup)</body></html>
-        """, onStatus: { drawingStatus = $0 })
+}
+
+private struct NativeSVGCanvas: View {
+    let document: NativeSVGDocument
+    let alt: String
+    @State private var status = NativeMediaStatus.loading
+    @Environment(\.openUITheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        SVGWebView(html: document.html(textColor: NativeCSSColor.css(theme.textNeutralPrimary, scheme: scheme)),
+            onStatus: { status = $0 })
+            .overlay {
+                if status == .loading {
+                    NativePendingContent(loading: true, message: "Loading")
+                } else if status == .unavailable {
+                    Text("Unable to load graphic", bundle: NativeControlResources.bundle)
+                        .nativeTextStyle(theme.textStyle(.supporting))
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(alt.isEmpty ? "SVG" : alt)
+    }
+}
+
+struct NativeSVGPreview: View {
+    let document: NativeSVGDocument
+    let alt: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openUITheme) private var theme
+    @ScaledMetric(relativeTo: .body) private var descriptionHeight: CGFloat = 120
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spaceM) {
+            HStack(alignment: .firstTextBaseline, spacing: theme.spaceM) {
+                Text("Graphic preview", bundle: NativeControlResources.bundle)
+                    .nativeTextStyle(theme.objectTitleStyle())
+                Spacer(minLength: 0)
+                Button { dismiss() } label: { Image(systemName: "xmark").openUIControlTarget() }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Close", bundle: NativeControlResources.bundle))
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("openui.svg.preview.close")
+            }
+            ZStack {
+                NativeSVGCanvas(document: document, alt: alt).allowsHitTesting(false)
+                // Native gestures belong to the preview, never to SVG-authored
+                // links or WebKit scrolling. The validator/CSP stay unchanged.
+                Color.clear.contentShape(Rectangle()).accessibilityHidden(true)
+            }
+            .modifier(NativeImageZoom(resetID: document.markup))
+            .accessibilityIdentifier("openui.svg.preview.zoom")
+            if !alt.isEmpty {
+                ScrollView(.vertical) {
+                    Text(alt).nativeTextStyle(theme.textStyle(.body))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxHeight: descriptionHeight)
+            }
+            Text("Zoom and pan to inspect the graphic", bundle: NativeControlResources.bundle)
+                .nativeTextStyle(theme.textStyle(.caption))
+        }
+        .padding(theme.spaceML)
+        .frame(idealWidth: 840, idealHeight: 700)
+        .background(theme.background)
+        .foregroundStyle(theme.textNeutralPrimary)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("openui.svg.preview")
     }
 }
 

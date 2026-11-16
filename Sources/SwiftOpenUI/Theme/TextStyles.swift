@@ -48,6 +48,11 @@ struct NativeTextStyle {
 }
 
 extension OpenUIThemeValues {
+  func sectionTitleStyle() -> NativeTextStyle {
+    .init(font: textHeadingSm, color: textNeutralPrimary,
+      role: .section, emphasisWeight: textHeadingSm.weight)
+  }
+
   func objectTitleStyle(emphasized: Bool = true) -> NativeTextStyle {
     .init(font: emphasized ? textHeadingXs : textHeadingXs.weight(textBodyDefault.weight),
       color: textNeutralPrimary, role: .title, emphasisWeight: textHeadingXs.weight)

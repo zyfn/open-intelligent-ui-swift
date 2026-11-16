@@ -115,6 +115,15 @@ struct NativeChartInspection {
 }
 
 extension NativeChartData {
+  var inspectionCount: Int {
+    scatter.isEmpty ? labels.count : scatter.reduce(0) { $0 + $1.points.count }
+  }
+
+  func hasZeroTotal(for name: String) -> Bool {
+    ["PieChart", "RadialChart", "SingleStackedBarChart"].contains(name)
+      && hasContent(for: name) && slices.allSatisfy { $0 == 0 }
+  }
+
   func colorIndex(at index: Int) -> Int {
     colorIndices.indices.contains(index) ? colorIndices[index] : index
   }
@@ -203,17 +212,40 @@ extension NativeChartData {
   }
 }
 
+enum NativeStackedBarGeometry {
+  static func frame(size: CGSize, thickness: CGFloat) -> CGRect {
+    guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return .zero }
+    let height = min(size.height, thickness.isFinite ? max(1, thickness) : 28)
+    return CGRect(x: 4, y: (size.height - height) / 2,
+      width: max(0, size.width - 8), height: height)
+  }
+}
+
+/// Source identity controls line patterns as well as colors. The default
+/// eight-color cycle gets a different pattern on its next pass.
+enum NativeChartSeriesStyle {
+  static func dash(for sourceIndex: Int) -> [CGFloat] {
+    let index = max(0, sourceIndex)
+    switch (index + index / 8) % 4 {
+    case 1: return [6, 4]
+    case 2: return [1, 3]
+    case 3: return [8, 3, 2, 3]
+    default: return []
+    }
+  }
+}
+
 /// Touch hit testing uses the geometry actually painted, including unequal
 /// slices and donut holes, instead of dividing the viewport into equal columns.
 enum NativePolarInspection {
   static func index(at point: CGPoint, size: CGSize, values: [Double], name: String,
-                    donut: Bool, semi: Bool) -> Int? {
+                    donut: Bool, semi: Bool, singleStackedBarThickness: CGFloat = 28) -> Int? {
     let values = values.map { max(0, $0) }
     let total = values.reduce(0, +)
     guard total > 0, !values.isEmpty else { return nil }
     var fraction: Double
     if name == "SingleStackedBarChart" {
-      let bar = CGRect(x: 4, y: size.height / 2 - 14, width: max(0, size.width - 8), height: 28)
+      let bar = NativeStackedBarGeometry.frame(size: size, thickness: singleStackedBarThickness)
       guard bar.contains(point), bar.width > 0 else { return nil }
       fraction = (point.x - bar.minX) / bar.width
     } else {

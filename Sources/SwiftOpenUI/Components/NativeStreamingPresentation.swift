@@ -11,13 +11,15 @@ extension EnvironmentValues {
         get { self[NativeActionAppearanceKey.self] }
         set { self[NativeActionAppearanceKey.self] = newValue }
     }
+    @Entry var openUIActionAccessoryActive = false
 }
 
 /// A delayed indicator changes only pixels, never the action's measured size.
 struct NativeActionProgress: ViewModifier {
     let active: Bool
+    var usesAccessory = false
     func body(content: Content) -> some View {
-        NativeDelayedPresentation(active: active) { visible in
+        NativeDelayedPresentation(active: active && !usesAccessory) { visible in
           content.opacity(visible ? 0 : 1)
             .overlay {
                 if visible {
@@ -25,6 +27,7 @@ struct NativeActionProgress: ViewModifier {
                 }
             }
         }
+        .environment(\.openUIActionAccessoryActive, active && usesAccessory)
     }
 }
 

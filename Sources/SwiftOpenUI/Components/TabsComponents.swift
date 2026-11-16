@@ -52,11 +52,14 @@ struct NativeTabsSelection {
 struct NativeTabsView: View {
     let context: OpenUIComponentContext
     @Environment(\.dynamicTypeSize) private var textSize
+    @Environment(\.layoutDirection) private var direction
     @Environment(\.openUIUserInteraction) private var parentInteraction
     @Environment(\.openUIFormValidation) private var validation
     @State private var local = NativeTabsSelection()
     @State private var width: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
+    @State private var overflow = NativeTabsOverflow()
+    @StateObject private var measurements = NativeTabsMeasurements()
     @Namespace private var viewport
     private var panels: [NativeTabPanel] { NativeTabPanel.read(context.children("items")) }
     private var selected: OpenUIString? {
@@ -110,7 +113,8 @@ struct NativeTabsView: View {
                 HStack(spacing: context.theme.space2xs) {
                     ForEach(panels) { panel in
                         Button { nativeSelection.wrappedValue = panel.id } label: {
-                            NativeBoundedLabelLayout(maximumWidth: width > 0 ? min(width, 232) : 232) {
+                            NativeBoundedLabelLayout(maximumWidth: NativeTabsOverflow.maximumLabelWidth(
+                                viewportWidth: width, horizontalPadding: context.theme.spaceM)) {
                               Text(panel.label)
                                 .openUIFont(context.theme.textLabelDefaultHeavy, role: .control)
                                 .foregroundStyle(active?.id == panel.id ? context.theme.textNeutralPrimary : context.theme.textNeutralSecondary)
@@ -127,25 +131,31 @@ struct NativeTabsView: View {
                                     lineWidth: context.presentation.borderWidth))
                                 .openUIControlTarget()
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusFull))
                         .accessibilityAddTraits(active?.id == panel.id ? .isSelected : [])
                         .accessibilityIdentifier("openui.tab." + panel.id.displayString)
+                        .background(GeometryReader { geometry in
+                            Color.clear.preference(key: NativeTabsFramesKey.self,
+                                value: [panel.id: geometry.frame(in: .named(viewport))])
+                        })
                         .id(panel.id)
                     }
-                }.padding(.trailing, showsOverflowHint ? context.presentation.minimumControlTargetSize : 0)
-                .background(GeometryReader { geometry in
+                }.background(GeometryReader { geometry in
                     Color.clear.preference(key: NativeTabsContentWidthKey.self, value: [viewport: geometry.size.width])
                 })
+                // Measure actual tabs before adding edge room. The hint cannot
+                // keep itself alive by counting its own padding as overflow.
+                .padding(.horizontal, showsOverflowHint ? context.presentation.minimumControlTargetSize : 0)
+            }
+            .coordinateSpace(name: viewport)
+            .overlay(alignment: .leading) {
+                if showsOverflowHint, let target = overflow.earlier {
+                    overflowButton(earlier: true) { proxy.scrollTo(target, anchor: .center) }
+                }
             }
             .overlay(alignment: .trailing) {
-                if showsOverflowHint {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(context.theme.textNeutralSecondary)
-                        .padding(.trailing, 4)
-                        .accessibilityLabel(Text("More tabs", bundle: NativeControlResources.bundle))
-                        .accessibilityIdentifier("openui.tabs.overflow")
-                        .allowsHitTesting(false)
+                if showsOverflowHint, let target = overflow.later {
+                    overflowButton(earlier: false) { proxy.scrollTo(target, anchor: .center) }
                 }
             }
             .onChange(of: selected) { value in
@@ -160,6 +170,14 @@ struct NativeTabsView: View {
             .onPreferenceChange(NativeTabsContentWidthKey.self) { sizes in
                 if let next = sizes[viewport], next.isFinite, next >= 0, abs(next - contentWidth) > 0.5 { contentWidth = next }
             }
+            .onPreferenceChange(NativeTabsFramesKey.self) { frames in
+                // Raw scrolling coordinates do not become View state. Only an
+                // edge/target change invalidates the selector and its panel.
+                measurements.frames = frames
+                updateOverflow()
+            }
+            .onChange(of: width) { _ in updateOverflow() }
+            .onChange(of: direction) { _ in updateOverflow() }
             .task(id: NativeTabsLayoutKey(labels: panels.map(\.label), width: width, textSize: textSize)) {
                 // Wait for the changed font/container proposal to enter layout.
                 // Scroll offsets are deliberately not a task input: users can
@@ -168,6 +186,24 @@ struct NativeTabsView: View {
                 if !Task.isCancelled, let active { proxy.scrollTo(active.id, anchor: .center) }
             }
         }
+    }
+    private func updateOverflow() {
+        let next = NativeTabsOverflow.visibility(ids: panels.map(\.id), frames: measurements.frames,
+            viewportWidth: width, rightToLeft: direction == .rightToLeft)
+        if next != overflow { overflow = next }
+    }
+    private func overflowButton(earlier: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: NativeTabsOverflow.chevron(earlier: earlier, rightToLeft: direction == .rightToLeft))
+                .openUIFont(context.theme.textLabelSmHeavy, role: .control)
+                .foregroundStyle(context.theme.textNeutralSecondary)
+                .frame(width: context.presentation.minimumControlTargetSize,
+                       height: context.presentation.minimumControlTargetSize)
+                .background(context.theme.foreground, in: Circle())
+        }.buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusFull))
+            .accessibilityLabel(earlier ? Text("Earlier tabs", bundle: NativeControlResources.bundle)
+                : Text("Later tabs", bundle: NativeControlResources.bundle))
+            .accessibilityIdentifier(earlier ? "openui.tabs.overflow.earlier" : "openui.tabs.overflow.later")
     }
 }
 
@@ -188,8 +224,40 @@ private struct NativeTabsContentWidthKey: PreferenceKey {
         value.merge(nextValue(), uniquingKeysWith: { _, next in next })
     }
 }
-enum NativeTabsOverflow {
+private struct NativeTabsFramesKey: PreferenceKey {
+    static let defaultValue: [OpenUIString: CGRect] = [:]
+    static func reduce(value: inout [OpenUIString: CGRect], nextValue: () -> [OpenUIString: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, next in next })
+    }
+}
+/// Last measured rectangles support container/RTL changes without publishing
+/// a new document-view state for every pixel of native scrolling.
+private final class NativeTabsMeasurements: ObservableObject {
+    var frames: [OpenUIString: CGRect] = [:]
+}
+struct NativeTabsOverflow: Equatable {
+    var earlier: OpenUIString?
+    var later: OpenUIString?
+
     static func shouldShowHint(contentWidth: CGFloat, viewportWidth: CGFloat) -> Bool {
         contentWidth > viewportWidth + 1
+    }
+    static func maximumLabelWidth(viewportWidth: CGFloat, horizontalPadding: CGFloat) -> CGFloat {
+        guard viewportWidth.isFinite, viewportWidth > 0 else { return 232 }
+        return min(232, max(1, viewportWidth - 2 * max(0, horizontalPadding)))
+    }
+    static func visibility(ids: [OpenUIString], frames: [OpenUIString: CGRect], viewportWidth: CGFloat,
+                           rightToLeft: Bool) -> Self {
+        guard viewportWidth.isFinite, viewportWidth > 0 else { return .init() }
+        func outside(_ id: OpenUIString, earlier: Bool) -> Bool {
+            guard let frame = frames[id], frame.minX.isFinite, frame.maxX.isFinite else { return false }
+            let leftEdge = earlier != rightToLeft
+            return leftEdge ? frame.minX < -1 : frame.maxX > viewportWidth + 1
+        }
+        return .init(earlier: ids.last { outside($0, earlier: true) },
+                     later: ids.first { outside($0, earlier: false) })
+    }
+    static func chevron(earlier: Bool, rightToLeft: Bool) -> String {
+        earlier != rightToLeft ? "chevron.left" : "chevron.right"
     }
 }

@@ -22,6 +22,7 @@ final class ButtonLayoutContractTests: XCTestCase {
     let frames = ButtonFrames()
     let standard = try OpenUIComponents.library()
     let definition = try XCTUnwrap(standard.library.components.first { $0.name == "Button" })
+    let input = try XCTUnwrap(standard.library.components.first { $0.name == "Input" })
     let library = try standard.extending(overriding: [OpenUIComponent(definition) { context in
       let key = context.string("label") ?? ""
       // This probe replaces the standard factory, so retain its host boundary
@@ -34,6 +35,11 @@ final class ButtonLayoutContractTests: XCTestCase {
           }.onChange(of: geometry.frame(in: .global)) { frames.rects[key] = $0 }
         })
       }
+    }, OpenUIComponent(input) { _ in
+      Color.clear.frame(maxWidth: .infinity, minHeight: 32).background(GeometryReader { geometry in
+        Color.clear.onAppear { frames.field = geometry.frame(in: .global) }
+          .onChange(of: geometry.frame(in: .global)) { frames.field = $0 }
+      })
     }])
     let state = OpenUIState(schema: library.library.toSchema())
     state.setSource(source)
@@ -103,10 +109,60 @@ final class ButtonLayoutContractTests: XCTestCase {
       XCTAssertLessThan(try XCTUnwrap(values.rects["One"]).width, 160)
     }
   }
+
+  @MainActor func testSingleFormSubmissionFillsTheFieldColumnIncludingExplicitRow() throws {
+    for direction in ["", ",\"row\"", ",\"column\""] {
+      for (variant, role) in [("primary", "normal"), ("secondary", "normal"), ("tertiary", "destructive")] {
+        let source = "root=Form(\"f\",Buttons([Button(\"Send\",@ToAssistant(\"Full message\"),\"\(variant)\",\"\(role)\")]\(direction)),[FormControl(\"Email\",Input(\"email\"))])"
+        try inspect(source) { _, values, _ in
+          let button = try XCTUnwrap(values.rects["Send"]), field = try XCTUnwrap(values.field)
+          XCTAssertEqual(button.minX, field.minX, accuracy: 1)
+          XCTAssertEqual(button.maxX, field.maxX, accuracy: 1,
+            "A single Form submission fills its field column without promoting \(variant)/\(role)")
+        }
+      }
+    }
+  }
+
+  @MainActor func testFormNavigationAndLocalEditsDoNotGainSubmissionWidth() throws {
+    for action in ["@OpenUrl(\"https://example.invalid\")", "@Reset($x)", "@Set($x,2)"] {
+      let source = "$x=1\nroot=Form(\"f\",Buttons([Button(\"Do\",\(action))],\"row\"),[FormControl(\"Field\",Input(\"x\"))])"
+      try inspect(source) { _, values, _ in
+        let button = try XCTUnwrap(values.rects["Do"]), field = try XCTUnwrap(values.field)
+        XCTAssertLessThan(button.width, field.width - 40)
+      }
+    }
+  }
+
+  @MainActor func testMultipleFormActionsAndOutsideRowsKeepTheirExistingWidths() throws {
+    let source = "$x=1\nroot=Stack([Form(\"f\",Buttons([Button(\"Send\",@ToAssistant(\"send\")),Button(\"Reset\",@Reset($x),\"secondary\")],\"row\"),[FormControl(\"Field\",Input(\"x\"))]),Buttons([Button(\"Outside\",@ToAssistant(\"outside\"))],\"row\")])"
+    try inspect(source) { _, values, _ in
+      let field = try XCTUnwrap(values.field)
+      for label in ["Send", "Reset", "Outside"] {
+        XCTAssertLessThan(try XCTUnwrap(values.rects[label]).width, field.width - 20)
+      }
+      XCTAssertEqual(try XCTUnwrap(values.rects["Send"]).minY,
+                     try XCTUnwrap(values.rects["Reset"]).minY, accuracy: 1)
+    }
+  }
+
+  @MainActor func testChangingSingleActionIntentDoesNotRemountItsButton() throws {
+    let source = "$submit=false\n$x=1\nroot=Form(\"f\",Buttons([Button(\"Do\",$submit?@ToAssistant(\"send\"):@Reset($x))],\"row\"),[FormControl(\"Field\",Input(\"x\"))])"
+    try inspect(source) { state, values, settle in
+      let field = try XCTUnwrap(values.field)
+      XCTAssertLessThan(try XCTUnwrap(values.rects["Do"]).width, field.width - 40)
+      state.setState("$submit", value: .boolean(true)); settle()
+      XCTAssertEqual(try XCTUnwrap(values.rects["Do"]).width, field.width, accuracy: 1)
+      state.setState("$submit", value: .boolean(false)); settle()
+      XCTAssertLessThan(try XCTUnwrap(values.rects["Do"]).width, field.width - 40)
+      XCTAssertEqual(values.mounts["Do"], 1, "Only layout/label changes; the action control retains its identity")
+    }
+  }
 }
 
 private final class ButtonFrames {
   var rects: [String: CGRect] = [:]
   var mounts: [String: Int] = [:]
+  var field: CGRect?
 }
 #endif

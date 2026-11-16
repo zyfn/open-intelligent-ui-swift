@@ -5,12 +5,17 @@ import SwiftUI
 struct OpenUINativeForm: View {
     let context: OpenUIComponentContext
     @StateObject private var validation = NativeFormValidation()
+    private var actionGroup: ObjectIdentifier? {
+        guard case .element(let group) = context.value("buttons"), group.typeName == "Buttons" else { return nil }
+        return ObjectIdentifier(group)
+    }
     var body: some View {
         // Keep one field/action subtree. The native task-panel appearance reuses
         // Card's surface; it does not add a second form or change its submission.
         VStack(alignment: .leading, spacing: context.theme.spacing("ml")) {
             ForEach(context.children("fields")) { context.render($0.value) }
             context.slot("buttons").environment(\.openUIFormActions, true)
+                .environment(\.openUIFormActionGroup, actionGroup)
         }
         .environment(\.openUIFieldPresentation, .standalone)
         .environment(\.openUIExactFormName, context.codeUnitString("name"))
@@ -56,6 +61,10 @@ struct OpenUINativeForm: View {
 
 struct OpenUINativeFormControl: View {
     let context: OpenUIComponentContext
+    @MainActor private var field: NativeFieldState? {
+        guard case .element(let input) = context.value("input") else { return nil }
+        return NativeFieldState(context: context.childContext(input, form: context.exactFormName))
+    }
     private var inputOwnsLabel: Bool {
         let type: String?
         if case .element(let input) = context.value("input") { type = input.typeName }
@@ -65,8 +74,12 @@ struct OpenUINativeFormControl: View {
     var body: some View {
         VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
             if !inputOwnsLabel {
-                Text(context.string("label") ?? "")
-                    .nativeTextStyle(context.theme.textStyle(.fieldLabel))
+                NativeFieldHeading(label: context.string("label") ?? "",
+                    required: field?.isRequired == true, theme: context.theme)
+            }
+            if let hint = field?.selectionHint {
+                Text(LocalizedStringKey(hint), bundle: NativeControlResources.bundle)
+                    .nativeTextStyle(context.theme.textStyle(.supporting))
                     .fixedSize(horizontal: false, vertical: true)
             }
             context.slot("input")
@@ -84,16 +97,22 @@ struct OpenUINativeFormControl: View {
 struct OpenUINativeButtons: View {
     let context: OpenUIComponentContext
     @Environment(\.layoutDirection) private var direction
+    @Environment(\.openUIFormActionGroup) private var formActionGroup
+    private var column: Bool {
+        context.string("direction") == "column"
+            || (formActionGroup == ObjectIdentifier(context.element)
+                && NativeActionPresentation.fillsSingleFormSubmission(context.element))
+    }
     var body: some View {
-        NativeButtonsLayout(column: context.string("direction") == "column",
+        NativeButtonsLayout(column: column,
             rightToLeft: direction == .rightToLeft,
             rowGap: context.theme.spacing("m"), columnGap: context.theme.spacing("m")) { buttons }
     }
     private var buttons: some View {
         ForEach(context.presentationChildren("buttons")) {
             context.render($0.value)
-                .environment(\.openUIFillControlWidth, context.string("direction") == "column")
-                .environment(\.openUIStretchHeight, context.string("direction") != "column")
+                .environment(\.openUIFillControlWidth, column)
+                .environment(\.openUIStretchHeight, !column)
         }
     }
 }

@@ -2,6 +2,24 @@ import SwiftLang
 import SwiftUI
 import Combine
 
+/// The same required affordance is used by external FormControl labels and
+/// controls that own their heading. The marker comes from validation rules.
+struct NativeFieldHeading: View {
+    let label: String
+    let required: Bool
+    let theme: OpenUIThemeValues
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: theme.spaceXs) {
+            Text(label).nativeTextStyle(theme.textStyle(.fieldLabel))
+                .fixedSize(horizontal: false, vertical: true)
+            if required {
+                Text("Required", bundle: NativeControlResources.bundle)
+                    .nativeTextStyle(theme.textStyle(.caption)).fixedSize()
+            }
+        }.accessibilityElement(children: .combine)
+    }
+}
+
 struct OpenUINativeField: View {
     enum Kind { case input, textArea, select, radio, checkbox, switches, slider, date, chips, optionCards }
     let context: OpenUIComponentContext
@@ -25,13 +43,16 @@ struct OpenUINativeField: View {
     @State private var registeredName: OpenUIString?
     private var field: NativeFieldState { .init(context: context) }
     private var label: String { fieldLabel ?? field.name.displayString }
+    private var accessibleLabel: String {
+        field.isRequired ? label + ", " + NativeControlText.localized("Required", locale: locale) : label
+    }
     private var placeholder: String { context.string("placeholder") ?? "" }
     private var canEdit: Bool { enabled && context.canInteract }
 
     var body: some View {
         feedback.disabled(!context.canInteract)
             .onReceive(validation?.$focusRequest.eraseToAnyPublisher() ?? Empty<NativeFormValidation.FocusRequest?, Never>().eraseToAnyPublisher()) { request in
-                guard request?.name == field.name, validation?.errors[field.name] != nil else { return }
+                guard request?.name == field.name, canEdit else { return }
                 if kind == .input || kind == .textArea { focused = true }
                 accessibilityFocused = true
             }
@@ -40,11 +61,10 @@ struct OpenUINativeField: View {
                 register()
             }
             .onChange(of: context.canInteract) { complete in
-                if complete {
-                    field.initialize()
-                    register()
-                }
+                if complete { field.initialize() }
+                register()
             }
+            .onChange(of: enabled) { _ in register() }
             .onChange(of: context.element) { _ in
                 register()
                 field.mirror()
@@ -70,23 +90,36 @@ struct OpenUINativeField: View {
     }
     private func fieldBody(_ error: String?) -> some View {
         VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
+            if fieldLabel == nil, let hint = field.selectionHint {
+                Text(NativeControlText.localized(hint, locale: locale))
+                    .nativeTextStyle(context.theme.textStyle(.supporting),
+                        color: canEdit ? nil : context.theme.textNeutralTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             control.accessibilityIdentifier("openui.field.\(field.name.displayString)")
                 .accessibilityFocused($accessibilityFocused)
             if let error {
                 Label(NativeControlText.localized(error, locale: locale), systemImage: "exclamationmark.circle.fill")
-                    .nativeTextStyle(context.theme.textStyle(.fieldError))
+                    .nativeTextStyle(context.theme.textStyle(.fieldError),
+                        color: canEdit ? nil : context.theme.textNeutralTertiary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("openui.error.\(field.name.displayString)")
             }
         }.environment(\.openUIFieldError, error)
     }
     private func register() {
-        guard context.canInteract else { return }
         if let registeredName, registeredName != field.name {
             validation?.unregister(registeredName, owner: registration)
         }
+        if !canEdit || (kind != .input && kind != .textArea) {
+            validation?.unregisterFocusableField(field.name, owner: registration)
+        }
+        guard context.canInteract else { return }
         validation?.register(
             field.name, owner: registration, rules: field.rules, value: { field.validationValue })
+        if canEdit && (kind == .input || kind == .textArea) {
+            validation?.registerFocusableField(field.name, owner: registration)
+        }
         registeredName = field.name
     }
     @ViewBuilder private var control: some View {
@@ -100,19 +133,18 @@ struct OpenUINativeField: View {
                         context.string("type"))
                 }
             }
-            .textFieldStyle(.plain).focused($focused).accessibilityLabel(label)
+            .textFieldStyle(.plain).focused($focused).accessibilityLabel(accessibleLabel)
             .multilineTextAlignment(presentation == .inline ? .trailing : .leading)
-            .submitLabel(.done).onSubmit {
-                #if os(iOS)
-                    focused = false
-                #endif
+            .submitLabel(validation?.nextFocusableField(after: field.name) == nil ? .done : .next).onSubmit {
+                focused = false
+                validation?.requestNextFieldFocus(after: field.name)
             }
-            .modifier(NativeFieldSurface(theme: context.theme, focused: focused))
+            .modifier(NativeFieldSurface(theme: context.theme, focused: focused, size: context.string("size")))
         case .textArea:
             ZStack(alignment: .topLeading) {
                 TextEditor(text: field.text).openUIFont(inputFont).openUIEditorBackground().focused($focused)
                     .frame(minHeight: CGFloat(min(20, max(2, context.number("rows") ?? 4))) * lineHeight)
-                    .accessibilityLabel(label)
+                    .accessibilityLabel(accessibleLabel)
                 if field.text.wrappedValue.isEmpty {
                     Text(placeholder).openUIFont(inputFont).foregroundStyle(canEdit ? context.theme.textNeutralSecondary : context.theme.textNeutralTertiary)
                         .padding(.horizontal, 5).padding(.vertical, 8).allowsHitTesting(false)
@@ -140,10 +172,10 @@ struct OpenUINativeField: View {
                                 ? context.theme.textNeutralSecondary : context.theme.textNeutralPrimary)
                     if presentation != .inline { Spacer(minLength: 8) }
                     Image(systemName: "chevron.up.chevron.down").openUIFont(context.theme.textBodyXs.weight(.semibold)).foregroundStyle(
-                        context.theme.textNeutralSecondary)
+                        canEdit ? context.theme.textNeutralSecondary : context.theme.textNeutralTertiary)
                 }.frame(maxWidth: .infinity, alignment: .leading)
                     .modifier(NativeFieldSurface(theme: context.theme, size: context.string("size")))
-            }.buttonStyle(.plain).accessibilityLabel(label).accessibilityValue(selectionTitle)
+            }.buttonStyle(.plain).accessibilityLabel(accessibleLabel).accessibilityValue(selectionTitle)
         case .radio:
             #if os(macOS)
                 Picker(selection: field.selected) {
@@ -164,7 +196,7 @@ struct OpenUINativeField: View {
                         NativeWrappingRow(gap: context.theme.spaceML) { radioOptions(expanded: false) }
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .contain).accessibilityLabel(label)
+                    .accessibilityElement(children: .contain).accessibilityLabel(accessibleLabel)
             #endif
         case .checkbox, .switches:
             VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
@@ -173,7 +205,8 @@ struct OpenUINativeField: View {
                         VStack(alignment: .leading, spacing: context.theme.spacing("3xs")) {
                             Text(option.label).openUIFont(context.theme.textBodyDefault).foregroundStyle(canEdit ? context.theme.textNeutralPrimary : context.theme.textNeutralTertiary)
                             if !option.description.isEmpty {
-                                Text(option.description).nativeTextStyle(context.theme.textStyle(.supporting))
+                                Text(option.description).nativeTextStyle(context.theme.textStyle(.supporting),
+                                    color: canEdit ? nil : context.theme.textNeutralTertiary)
                             }
                         }.fixedSize(horizontal: false, vertical: true)
                     }.openUIToggleStyle(checkbox: kind == .checkbox, theme: context.theme)

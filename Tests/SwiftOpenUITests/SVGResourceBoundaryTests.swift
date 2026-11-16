@@ -25,6 +25,20 @@ final class SVGResourceBoundaryTests: XCTestCase {
     XCTAssertNil(NativeSVGDocument.parse(#"<!DOCTYPE svg [<!ENTITY e SYSTEM "https://example.com/">]><svg viewBox="0 0 10 10"/>"#))
     XCTAssertNil(NativeSVGDocument.parse(#"<svg viewBox="0 0 10 10"><script>bad()</script></svg>"#))
   }
+
+  func testInlineAndPreviewDocumentKeepSandboxAndAuthoredColors() throws {
+    let source = ##"<svg viewBox="0 0 320 180"><rect fill="#123456" stroke="currentColor" width="320" height="180"/><text x="10" y="30">原始说明</text></svg>"##
+    let document = try XCTUnwrap(NativeSVGDocument.parse(source))
+    for textColor in ["#15171A", "#ECEEF2"] {
+      let html = document.html(textColor: textColor)
+      XCTAssertTrue(html.contains(source), "Preview must preserve authored markup, labels and colors")
+      XCTAssertTrue(html.contains("script-src 'none'"))
+      XCTAssertTrue(html.contains("connect-src 'none'"))
+      XCTAssertTrue(html.contains("default-src 'none'"))
+      XCTAssertTrue(html.contains("background:transparent;color:" + textColor))
+      XCTAssertFalse(html.contains("filter:"), "Dark appearance must not invert authored SVG colors")
+    }
+  }
 }
 
 extension SVGResourceBoundaryTests {

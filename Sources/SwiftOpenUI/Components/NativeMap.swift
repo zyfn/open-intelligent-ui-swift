@@ -65,8 +65,6 @@ private struct NativeMap: View {
     @State private var fullscreenCamera: MapCameraPosition = .automatic
     @State private var expanded = false
     @ScaledMetric(relativeTo: .subheadline) private var textBlockHeight: CGFloat = 54
-    @Environment(\.openUIResourceContext) private var resources
-    @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var surfaceColor: Color {
         context.theme.foreground
@@ -272,20 +270,7 @@ private struct NativeMap: View {
             }
             .frame(maxWidth: .infinity, maxHeight: rowHeight, alignment: .leading)
             .clipped()
-            if let address = place.url, let url = NativeMapValue.url(address, baseURL: resources.baseURL) {
-                Button { openURL(url) } label: {
-                    Image(systemName: "chevron.right").font(.body.weight(.semibold))
-                        .foregroundStyle(.secondary).frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).disabled(!context.canInteract)
-                .accessibilityLabel(Text("Details for \(place.title)", bundle: NativeControlResources.bundle))
-                .accessibilityIdentifier("openui.map.details")
-            } else {
-                // Keep the text column stable while an optional source URL is
-                // still arriving, without showing an unavailable action.
-                Color.clear.frame(width: 44, height: 44).accessibilityHidden(true).allowsHitTesting(false)
-            }
+            NativeMapPlaceDetailsButton(place: place, enabled: context.canInteract) { select(place.id) }
         }
         // Reserve the same row for every card. Streaming or long descriptions
         // can change text, never the card's geometry or the photo column.
@@ -294,6 +279,99 @@ private struct NativeMap: View {
         .accessibilityIdentifier("openui.map.place-card." + place.id)
     }
 
+}
+
+/// Each visible card owns its presentation, so a detail sheet opens from the
+/// active inline/fullscreen map rather than competing with the other presenter.
+struct NativeMapPlaceDetailsButton: View {
+    let place: NativeMapPlace
+    let enabled: Bool
+    let select: () -> Void
+    @State private var showingDetails = false
+
+    var body: some View {
+        Button {
+            guard enabled else { return }
+            select()
+            showingDetails = true
+        } label: {
+            Image(systemName: "chevron.forward").font(.body.weight(.semibold))
+                .foregroundStyle(.secondary).frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).disabled(!enabled)
+        .accessibilityLabel(Text("Details for \(place.title)", bundle: NativeControlResources.bundle))
+        .accessibilityIdentifier("openui.map.details")
+        .sheet(isPresented: $showingDetails) {
+            NativeMapPlaceDetails(place: place, enabled: enabled)
+        }
+        .onChange(of: place.id) { _ in showingDetails = false }
+    }
+}
+
+struct NativeMapPlaceDetails: View {
+    let place: NativeMapPlace
+    var enabled = true
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openUITheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spaceM) {
+            HStack(alignment: .firstTextBaseline, spacing: theme.spaceM) {
+                Text("Place details", bundle: NativeControlResources.bundle)
+                    .nativeTextStyle(theme.objectTitleStyle())
+                Spacer(minLength: 0)
+                Button { dismiss() } label: { Image(systemName: "xmark").openUIControlTarget() }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Close", bundle: NativeControlResources.bundle))
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("openui.map.details.close")
+            }
+            ScrollView(.vertical) {
+                NativeMapPlaceDetailContent(place: place, enabled: enabled)
+            }
+        }
+        .padding(theme.spaceML)
+        .frame(idealWidth: 520, idealHeight: 440)
+        .background(theme.background)
+        .foregroundStyle(theme.textNeutralPrimary)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("openui.map.details.content")
+    }
+}
+
+/// Detail copy is independent of the compact card's row height and line limits.
+struct NativeMapPlaceDetailContent: View {
+    let place: NativeMapPlace
+    var enabled = true
+    @Environment(\.openUITheme) private var theme
+    @Environment(\.openUIResourceContext) private var resources
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.spaceM) {
+            Text(place.title).nativeTextStyle(theme.objectTitleStyle())
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            if let description = place.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(description).nativeTextStyle(theme.textStyle(.body))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("openui.map.details.description")
+            }
+            if let address = place.url, let url = NativeMapValue.url(address, baseURL: resources.baseURL) {
+                Button { guard enabled else { return }; openURL(url) } label: {
+                    Label {
+                        Text("Open place", bundle: NativeControlResources.bundle)
+                    } icon: { Image(systemName: "arrow.up.right").accessibilityHidden(true) }
+                        .openUIControlTarget(alignment: .leading)
+                }
+                .buttonStyle(.plain).foregroundStyle(theme.interactiveAccentDefault)
+                .disabled(!enabled)
+                .accessibilityIdentifier("openui.map.details.open-place")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 /// The location remains useful without photography. Reuse the same resource
 /// pipeline and fixed thumbnail slot for missing, pending and failed images;

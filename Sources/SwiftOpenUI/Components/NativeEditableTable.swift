@@ -113,6 +113,7 @@ struct NativeEditableTable: View {
   let context: OpenUIComponentContext
   @EnvironmentObject private var state: OpenUIState
   @StateObject private var editing: NativeTableEditingState
+  @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
   @MainActor init(context: OpenUIComponentContext) {
     self.context = context
     _editing = StateObject(wrappedValue: context.editingRecord(kind: "table",
@@ -215,7 +216,7 @@ struct NativeEditableTable: View {
   }
   private func width(_ index: Int) -> CGFloat {
     NativeEditableColumn.width(context.element.sourceReadiness["columns"][index]["width"].complete
-      ? NativeValue.number(columns[index], "width") : nil)
+      ? NativeValue.number(columns[index], "width") : nil, scale: readingScale)
   }
   private func alignment(_ definition: Value) -> Alignment {
     NativeValue.string(definition, "type") == "number" ? .trailing : .leading
@@ -257,7 +258,9 @@ struct NativeEditableTable: View {
       }.labelsHidden().pickerStyle(.menu).accessibilityLabel(label)
     case "date-single": NativeTableDateCell(value: text, label: label)
     default:
-      TextField(label, text: text).textFieldStyle(.plain).accessibilityLabel(label)
+      TextField(label, text: text,
+        axis: NativeValue.string(definition, "type") == "number" ? .horizontal : .vertical)
+        .lineLimit(1...6).textFieldStyle(.plain).accessibilityLabel(label)
         .multilineTextAlignment(
           NativeValue.string(definition, "type") == "number" ? .trailing : .leading)
     }
@@ -271,8 +274,10 @@ struct NativeEditableTable: View {
 }
 
 enum NativeEditableColumn {
-  static func width(_ declared: Double?) -> CGFloat {
-    guard let declared, declared.isFinite, declared > 0 else { return 160 }
+  static func width(_ declared: Double?, scale: CGFloat = 1) -> CGFloat {
+    guard let declared, declared.isFinite, declared > 0 else {
+      return 160 * (scale.isFinite ? max(1, scale) : 1)
+    }
     return CGFloat(declared)
   }
 }

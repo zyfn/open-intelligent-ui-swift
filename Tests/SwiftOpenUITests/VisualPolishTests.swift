@@ -277,14 +277,27 @@ final class VisualPolishTests: XCTestCase {
   }
 
   @MainActor func testMissingMapArtworkIsAPOISymbolNotABlankPhoto() throws {
+    var theme = OpenUITheme()
+    theme.interactiveAccentDefault = Color(red: 0, green: 0, blue: 1)
+    theme.foreground = Color(red: 1, green: 0, blue: 0)
     for direction in [LayoutDirection.leftToRight, .rightToLeft] {
       for scheme in [ColorScheme.light, .dark] {
         let (host, window) = artworkHost(NativeMapPlaceArtwork(source: nil, title: "地点", side: 72)
+          .openUITheme(theme)
           .environment(\.layoutDirection, direction).environment(\.colorScheme, scheme))
         defer { window.close() }
         let image = try artworkPixels(host, name: "map-poi-\(direction)-\(scheme)")
         XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 20,
           "A semantic location glyph must be visible, not merely an empty photo frame")
+        XCTAssertEqual(image.count { r, g, b in r > 180 && g < 100 && b < 100 }, 0,
+          "The POI glyph must not acquire a foreground-colored circular plate")
+        for (x, y) in [(0.1, 0.1), (0.5, 0.1), (0.9, 0.9)] {
+          let offset = (Int(Double(image.height) * y) * image.width + Int(Double(image.width) * x)) * 4
+          XCTAssertGreaterThanOrEqual(image.pixels[offset], 250)
+          XCTAssertGreaterThanOrEqual(image.pixels[offset + 1], 250)
+          XCTAssertGreaterThanOrEqual(image.pixels[offset + 2], 250,
+            "Outside the glyph, the thumbnail slot must expose the containing surface")
+        }
         XCTAssertEqual(host.fittingSize.width, 72, accuracy: 1)
         XCTAssertEqual(host.fittingSize.height, 72, accuracy: 1)
       }
@@ -321,6 +334,30 @@ final class VisualPolishTests: XCTestCase {
     XCTAssertEqual(host.fittingSize, before, "A failure must not move neighboring text")
     for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
     XCTAssertEqual(loader.calls, 1)
+  }
+
+  @MainActor func testContentImageFailureKeepsReadablePixelsWithoutChangingItsSlot() async throws {
+    let loader = ArtworkFailureLoader()
+    let loading = expectation(description: "content image loading")
+    let unavailable = expectation(description: "content image unavailable")
+    var sawLoading = false, sawFailure = false
+    let (host, window) = artworkHost(NativeRemoteImage(src: "https://artwork.test/fail",
+      alt: "这张内容图片展示完整的交通换乘说明。", layout: .aspect(1.5), role: .content,
+      onStatus: { status, _ in
+        if status == .loading && !sawLoading { sawLoading = true; loading.fulfill() }
+        if status == .unavailable && !sawFailure { sawFailure = true; unavailable.fulfill() }
+      }).openUIResourceContext(.init(loader: loader)), size: CGSize(width: 240, height: 160))
+    defer { window.close(); Task { await loader.releaseFailure() } }
+    await fulfillment(of: [loading], timeout: 3)
+    let before = host.fittingSize
+    await loader.releaseFailure()
+    await fulfillment(of: [unavailable], timeout: 3)
+    let image = try artworkPixels(host, name: "content-image-failed-readable")
+    XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 40,
+      "Content-image failure retains visible copy; the separate artwork test still requires transparency")
+    XCTAssertEqual(host.fittingSize, before, "Failure copy cannot move adjacent content")
+    for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
+    XCTAssertEqual(loader.calls, 1, "Re-measuring a recovery control must not retry the resource")
   }
 
   @MainActor func testSemanticArtworkIsIdenticalWhileLoadingAndAfterFailure() async throws {

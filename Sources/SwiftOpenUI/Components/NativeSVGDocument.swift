@@ -10,6 +10,18 @@ struct NativeSVGDocument {
     /// Bounded native viewport; SVG's own preserveAspectRatio still fits all
     /// artwork, rather than cropping or fabricating a different viewBox.
     var viewportRatio: CGFloat { min(8, max(0.25, ratio)) }
+
+    /// Both the inline view and its preview use the same validated markup and
+    /// restrictive document. Author-provided fills/strokes are never inverted.
+    func html(textColor: String) -> String {
+        """
+        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'none'; connect-src 'none'; base-uri 'none'">
+        <style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;color:\(textColor);font-family:-apple-system,sans-serif}svg{display:block;width:100%!important;height:100%!important}</style>
+        </head><body>\(markup)</body></html>
+        """
+    }
+
     static func parse(_ source: String) -> NativeSVGDocument? {
         guard source.utf8.count <= 1_000_000, !source.localizedCaseInsensitiveContains("<!DOCTYPE"),
               !source.localizedCaseInsensitiveContains("<!ENTITY") else { return nil }
