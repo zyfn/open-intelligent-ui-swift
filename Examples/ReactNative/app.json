@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "OpenUI Native Gallery",
+    "slug": "openui-rn-pilot",
+    "version": "0.0.0",
+    "platforms": ["ios", "android"],
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-system-ui"],
+    "ios": { "bundleIdentifier": "dev.openintelligentui.rnpilot" },
+    "android": { "package": "dev.openintelligentui.rnpilot" }
+  }
+}

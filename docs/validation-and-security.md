@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.2 · 更新日期：2026-11-16
+文档版本：1.4 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -160,3 +160,36 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 设备响应与资源 | 同一设备、Release 构建、同一工作负载记录分阶段 p50/p95/max、主线程连续占用、提交/body 次数、输入与滚动响应；重复创建/退休文档检查任务和引用是否释放。JS 耗时、进程 RSS 或一次截图不能单独作为通过依据 |
 
 帧耗时和响应阈值随目标设备及刷新率记录，并在前后比较前固定测试条件；当前尚未取得设备基线，不填写未经测量的达标数值。行为不变量必须通过，性能优化还需证明目标工作量减少且正常交互无退化。
+
+## 5. React Native 基础验证
+
+基于 Swift 仓库 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 创建 `feat/react-native-foundation`。当前验证对象是该分支工作区中的 `Examples/ReactNative/` 私有工程；不是原有 Swift SDK 的新一轮原生验收。代码职责只在[架构第 7 节](architecture.md#7-react-native-基础验证分支)维护，组件完成度见 [OpenUI 验证子集](openui.md#react-native-验证子集)。
+
+依赖以工程内 `package.json` / `package-lock.json` 为准：Expo 55.0.32、RN 0.83.10、React 19.2.0、官方 lang-core / react-lang 1.1.1、Zod 4.6.7；Markdown 使用 marked 18.2.0 与 entities 8.1.0，系统主题使用 Expo 配套的 expo-system-ui 55.0.22。锁文件包含 registry 完整性值。react-dom 固定为同一 React 版本。实际安装包的 `react-native` 导出及 TypeScript native 类型入口已核对；Metro 只为复用照片增加已有 Gallery 图片目录的 watch folder，不修改 node_modules、模块条件或私有入口别名。
+
+RN 使用 npm 分发的官方原包，不携带本项目 JavaScriptCore 桥接、readiness 和执行预算适配。组件目录仍使用现有来源 `9823ec05d4b29bc78d101676dc16b44fe17f1830`；其完整来源和许可继续由现有 catalog 与第三方声明维护。7 个组件的签名/schema 对齐不能推导为全部历史程序和 Apple 适配语义已经兼容。
+
+新增依赖的 package metadata 声明 marked 为 MIT、entities 为 BSD-2-Clause，OpenUI、React/RN、Expo 和 Zod 为 MIT；实际版本及其许可文本保留在对应 npm 包，完整依赖树以锁文件为准。样例照片复用现有 Gallery 的 Morio / CC BY-SA 4.0 资源及来源记录，不另存重复图片或虚构署名。契约导出 manifest 记录原 catalog SHA256、revision 和生成结果哈希。
+
+2026-11-16 在 Linux / Node 24.22.1 执行的检查：
+
+| 检查 | 结果与证明范围 |
+| --- | --- |
+| `npm ci` | 从锁文件重新安装成功，后续检查使用该干净安装；不等于全依赖安全审计 |
+| `npm run catalog:check` | 派生资源与已有权威目录一致 |
+| `npm test` | 25 项通过；包含 7 组件完整 signature/schema、原 fixture 与 3 组 Gallery 程序的分块等价性，以及合并、UTF-16、重入、完成/中断/错误、旧 epoch、输入限额、快照预算和释放 |
+| `npm run test:integration` | 6 suites / 27 项通过；真实已安装 native Renderer、parser、Store 和 marked，覆盖绑定、mount/library/epoch 隔离、停止和恢复、控件校验/动作失败、图片重试、Markdown 预算及真实 Gallery 的 StrictMode/主题/回放/退役操作 |
+| `npm run typecheck` | TypeScript 类型检查；不代表原生运行结果 |
+| `npm run contract` | 在普通 Node 中导出 7 组件 spec、prompt 和 manifest，不加载 React Native |
+| `npm run export:ios -- --max-workers 2` | iOS Metro / Hermes 导出通过，包含 721 modules 与现有照片；只证明 JS/资源/平台解析链路 |
+| `npm run export:android -- --max-workers 2` | Android Metro / Hermes 导出通过，包含 719 modules 与现有照片；不等于 APK 已构建 |
+| `npx expo prebuild --platform all --no-install` | 两端原生工程生成通过，package.json 未被改写；没有用工程生成替代原生编译 |
+| 独立 RN workflow | YAML、所有 bash/内嵌 Python、job gate 与 actionlint 1.7.12 通过；四个 GitHub action tag 已实际核对。配置校验不等于 CI job 执行通过 |
+
+Jest 使用 Expo 标准 RN host mocks，Gallery 仅额外采用 safe-area-context 自带的窗口度量 mock。没有替换官方 Renderer/core 或 Markdown parser；对 ESM 的 marked/entities 使用真实代码转换。图片可访问角色曾在严格查询下失败并修复；保留断言。测试没有模拟原生 viewport，因此手动“卸载消息/恢复消息”的回归不能称为真实离屏滚动或软键盘验收。
+
+本地检查日志位于忽略的 `outputs/verification/react-native/`；契约与 bundle 位于 `outputs/react-native/`。[独立 React Native CI](../.github/workflows/react-native.yml) 对功能分支 push 和相关 PR 先执行验证，再构建 Android Release 测试 APK 与 iOS Simulator Release，并在失败时保留日志。Android 使用 Expo 模板的开发签名；iOS generic simulator 关闭签名。它们不替代发行签名或设备交互。
+
+构建配置依据 [Expo SDK 55](https://docs.expo.dev/versions/v55.0.0/) 和 [Expo 构建镜像](https://docs.expo.dev/build-reference/infrastructure/)：Android JDK 17 / API 36 / NDK 27.1.12297006，iOS Xcode 26.2 / CocoaPods 1.16.2。工作流在分支 push 就触发原生 job，不依赖只有默认分支才可手动触发的 workflow_dispatch。
+
+原生构建与设备状态在本节按实际结果记录。当前没有本地 Xcode，iOS 原生编译需由可用的 macOS runner 执行；Android 工具链已准备并开始 Release 编译。两端键盘/IME、屏幕阅读器、截图对照与 Release 帧率/内存仍需原生实测，不能宣称比现有 SwiftUI 更快或外观相同。工程没有真实模型、Query/Mutation provider 或生产业务事务，本轮也不代表全部 Swift 回归已通过。

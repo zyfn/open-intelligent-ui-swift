@@ -1,0 +1,391 @@
+{
+  "generatedBy": "scripts/catalog.mjs; do not edit parameter contracts here",
+  "revision": "9823ec05d4b29bc78d101676dc16b44fe17f1830",
+  "catalogSHA256": "24d428b6fd5bc3c50939840a3649c68351106b6c82be9a0b1ee72b88a4e2f55e",
+  "root": "Stack",
+  "components": [
+    {
+      "name": "Stack",
+      "description": "Flex container. direction: \"row\"|\"column\" (default \"column\"). gap: \"none\"|\"xs\"|\"s\"|\"m\"|\"l\"|\"xl\"|\"2xl\" (default \"m\"). align: \"start\"|\"center\"|\"end\"|\"stretch\"|\"baseline\". justify: \"start\"|\"center\"|\"end\"|\"between\"|\"around\"|\"evenly\".",
+      "params": [
+        {
+          "name": "children",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        {
+          "name": "direction",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "row",
+              "column"
+            ]
+          }
+        },
+        {
+          "name": "gap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "none",
+              "xs",
+              "s",
+              "m",
+              "l",
+              "xl",
+              "2xl"
+            ]
+          }
+        },
+        {
+          "name": "align",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "start",
+              "center",
+              "end",
+              "stretch",
+              "baseline"
+            ]
+          }
+        },
+        {
+          "name": "justify",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "start",
+              "center",
+              "end",
+              "between",
+              "around",
+              "evenly"
+            ]
+          }
+        },
+        {
+          "name": "wrap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "name": "TextContent",
+      "description": "Text block. Supports markdown. Optional size: \"small\" | \"default\" | \"large\" | \"small-heavy\" | \"large-heavy\".",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "small",
+              "default",
+              "large",
+              "small-heavy",
+              "large-heavy"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CardHeader",
+      "description": "Header with optional title and subtitle",
+      "params": [
+        {
+          "name": "title",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Separator",
+      "description": "Visual divider between content sections",
+      "params": [
+        {
+          "name": "orientation",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ]
+          }
+        },
+        {
+          "name": "decorative",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Input",
+      "description": "",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "placeholder",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "text",
+              "email",
+              "password",
+              "number",
+              "url"
+            ]
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Button",
+      "description": "Clickable button",
+      "params": [
+        {
+          "name": "label",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "primary",
+              "secondary",
+              "tertiary"
+            ]
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "destructive"
+            ]
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "extra-small",
+              "small",
+              "medium",
+              "large"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Image",
+      "description": "Image with alt text and optional URL",
+      "params": [
+        {
+          "name": "alt",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "src",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  ],
+  "sources": {
+    "packages/react-ui/src/genui-lib/Button/schema.ts": "8b1874df92005ea42558ffa58b9ad1ec7061fa91938c47c4049df89c10c5d032",
+    "packages/react-ui/src/genui-lib/CardHeader/schema.ts": "b4ba2d68d0df622a6da8a4a2e0535f15be73a30b3c9cb66c14bbf25cc829b1b9",
+    "packages/react-ui/src/genui-lib/Image/schema.ts": "bfe6b11213dc21257ea1fc71a119b785150ff1d652d2d52d5b68ea91e8067e3d",
+    "packages/react-ui/src/genui-lib/Input/schema.ts": "de4c17eb7e55a3e1728f36ed7707776a65ba0a6c646d7718296e91e7dfd96abb",
+    "packages/react-ui/src/genui-lib/Separator/schema.ts": "be8f8e5014c492fcad3769926264a3be3709c497a615e13a84c9cecffb35e26e",
+    "packages/react-ui/src/genui-lib/Stack/schema.ts": "a371d8af8fd26d3f0e916e9ca687a2083acfc867ea9c6f35bbf29f3eb2ec1f2b",
+    "packages/react-ui/src/genui-lib/TextContent/schema.ts": "77529abb618bb696021d6fee6ddd4b13e8a35cd8862ac1eb5d91ca926b9439db"
+  }
+}

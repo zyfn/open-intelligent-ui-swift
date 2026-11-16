@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.2 · 更新日期：2026-11-16
+文档版本：1.4 · 更新日期：2026-11-16
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -199,3 +199,27 @@ python3 Tools/check_gallery_catalog.py
 标题 20/18 pt、OptionCards 最小阅读宽度 200 pt 是当前首版的可覆盖默认值，仍需整页原生对照。标题—说明间距、按图表类型进一步调整密度、照片卡遮罩和轮播留白暂保留原值；待真实样张和实际内容确认后在本文件继续修订，不提前把候选值写成已验收结论。
 
 验收使用同一来源内容和有限的代表场景：阅读解释、图片选项、联系表单、旅行地图、数据分析，另补商品卡和宽表。记录实际内容区宽度、字号、外观、RTL、输入与结果；覆盖流式列表闭合、长中文、动作状态、媒体加载/失败/恢复。候选参数的最终收口需要原生对照，静态检查或图片生成成功不等于视觉验收。
+
+## React Native 验证子集
+
+RN 验证工程沿用 `Sources/SwiftOpenUI/Resources/upstream-catalog.json` 中的参数定义。`Examples/ReactNative/scripts/catalog.mjs` 只选择已实现组件，派生资源记录原 catalog 的 SHA256 和上游 revision；参数顺序、枚举、默认值、ActionExpression 与绑定元数据不手写另一份。架构与生命周期见[架构第 7 节](architecture.md#7-react-native-基础验证分支)，启动见[工程入口](../Examples/ReactNative/README.md)。
+
+| 组件 | 当前 RN 实现 | 当前范围限制 |
+| --- | --- | --- |
+| `Stack` | 原生方向、间距、对齐、契约指定的换行与嵌套；文字包入 Text，子项允许收缩 | 不擅自改变 wrap 参数；复杂嵌套宽度及阅读顺序待设备检查 |
+| `TextContent` | 五档 size；原生 Markdown 的标题、段落、强调、链接、列表/任务状态、引用、代码、表格与图片；系统字体缩放与文本选择 | HTML 只显示为文字，不执行；无语法着色、数学公式或单条长文内部虚拟化 |
+| `CardHeader` | 标题、说明与标题语义；空内容不生成占位 | 字体、中文换行和大字号需两端视觉验证 |
+| `Separator` | 水平/垂直分隔与 decorative 无障碍语义 | 垂直高度依赖父容器约束，复杂布局待验证 |
+| `Input` | 官方字段绑定；文本/数字/邮箱/密码键盘；blur 后字段反馈、编辑修复、官方校验规则与 Reset 同步；保留未完成数字草稿 | 当前注册子集无 Form/FormControl，不承诺整表提交门禁；IME/选区草稿不随消息卸载保存 |
+| `Button` | 官方动作 hook；平台圆角/ripple；主题、触摸区、焦点、busy/disabled；重复触发隔离、失败展示与重试 | pending 覆盖官方 trigger Promise，不能代替宿主远程事务的状态、幂等与取消 |
+| `Image` | 同一参数契约的原生图片；alt、加载占位、失败/重试、比例约束；旧请求/旧 epoch 回调隔离 | 流式完成后才加载；默认 HTTPS，可信本地资源和 URL 改写由宿主 resolver 提供 |
+
+组件参数契约与原目录保持一致，不代表呈现语义已全部迁移。生成 prompt 只包含这 7 个已实现组件；Node 契约导出和原生注册共用同一 schema 适配路径。OpenIntelligentUI、地图、SVG、图表及完整表单容器尚未接入。
+
+`NativeThemeProvider` 提供系统/浅色/深色外观和语义 token 覆盖；控件默认触摸高度至少 48，正文、说明、边界、焦点和破坏性动作分别取色。平台文件承担 Button 的 iOS/Android 差异，其他组件共享设计。当前视觉仍需两端原生对照，不承诺与现有 SwiftUI 逐像素相同。
+
+Markdown 不使用 WebView。代码与宽表使用横向 ScrollView，图片从原生 Text 中分离并保留相邻文字样式，避免在 Text 内嵌原生 View。每段 TextContent 在 65,536 UTF-16 单元、4,096 个结构节点、24 层嵌套范围内进行富文本呈现；超限或 lexer 失败回退完整纯文本，不截断原始内容。解析预算发生在 lexer 后，不能作为抢占式 CPU 限制。
+
+`NativeContentProvider` 由宿主选择图片来源和错误上报方式。默认仅接收合法 HTTPS 图片；显式 resolver 可返回可信静态资源 ID，或允许的 HTTP/HTTPS 原生图片 source（含宿主头部）。链接仅允许合法 HTTP/HTTPS/mailto，禁止控制字符与 URL 凭据，再转成官方 OpenUrl 宿主事件；组件不会自行打开外部页面。资源错误不破坏正文。Gallery 使用现有西湖照片及 Morio / CC BY-SA 4.0 署名，不增加一份重复素材。
+
+当前仅 complete 阶段允许输入、按钮、链接和图片重试；streaming、interrupted、error 均为禁用预览。执行时再次检查文档身份，防止旧原生事件越过换消息或停止边界。卸载/重挂载只承诺已保存字段值的恢复，焦点、键盘和临时草稿需要原生设备验收。Gallery 提供阅读、交互、32 段长文、明暗主题、原始源码检查和有限多消息列表；宿主动作只在本地记录，不执行真实模型、导航或外部业务。

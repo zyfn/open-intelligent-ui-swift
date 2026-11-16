@@ -1,0 +1,292 @@
+name: React Native
+
+on:
+  push:
+    branches: [feat/react-native-foundation]
+    paths:
+      - Examples/ReactNative/**
+      - Examples/Gallery/Resources/Images/**
+      - Sources/SwiftOpenUI/Resources/upstream-catalog.json
+      - .github/workflows/react-native.yml
+  pull_request:
+    paths:
+      - Examples/ReactNative/**
+      - Examples/Gallery/Resources/Images/**
+      - Sources/SwiftOpenUI/Resources/upstream-catalog.json
+      - .github/workflows/react-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: react-native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: Examples/ReactNative
+    shell: bash
+
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+  RN_OUTPUT_DIR: ${{ github.workspace }}/outputs/react-native/ci
+
+jobs:
+  verify:
+    name: Contract, JavaScript and Metro
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare logs
+        run: mkdir -p "$RN_OUTPUT_DIR/verify"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Examples/ReactNative/package-lock.json
+      - name: Record environment
+        run: |
+          {
+            git rev-parse HEAD
+            node --version
+            npm --version
+          } 2>&1 | tee "$RN_OUTPUT_DIR/verify/environment.log"
+      - name: Install locked dependencies
+        run: npm ci 2>&1 | tee "$RN_OUTPUT_DIR/verify/npm-ci.log"
+      - name: Check the derived component catalog
+        run: npm run catalog:check 2>&1 | tee "$RN_OUTPUT_DIR/verify/catalog.log"
+      - name: Typecheck
+        run: npm run typecheck 2>&1 | tee "$RN_OUTPUT_DIR/verify/typecheck.log"
+      - name: Test message lifecycle and contracts
+        run: npm test 2>&1 | tee "$RN_OUTPUT_DIR/verify/unit-tests.log"
+      - name: Test the official Renderer integration
+        run: npm run test:integration -- --ci 2>&1 | tee "$RN_OUTPUT_DIR/verify/integration-tests.log"
+      - name: Export the generation contract
+        run: npm run contract 2>&1 | tee "$RN_OUTPUT_DIR/verify/contract.log"
+      - name: Export the iOS Metro bundle
+        run: npm run export:ios 2>&1 | tee "$RN_OUTPUT_DIR/verify/metro-ios.log"
+      - name: Export the Android Metro bundle
+        run: npm run export:android 2>&1 | tee "$RN_OUTPUT_DIR/verify/metro-android.log"
+      - name: Preserve verification logs, contract and bundles
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rn-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/react-native/ci/verify/
+            outputs/react-native/contract/
+            outputs/react-native/ios/
+            outputs/react-native/android/
+          if-no-files-found: warn
+          retention-days: 14
+
+  android:
+    name: Android Release test APK
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare logs
+        run: mkdir -p "$RN_OUTPUT_DIR/android"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Examples/ReactNative/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            Examples/ReactNative/package-lock.json
+            Examples/ReactNative/app.json
+            .github/workflows/react-native.yml
+      - name: Record environment
+        run: |
+          {
+            git rev-parse HEAD
+            node --version
+            java -version
+            javac -version
+          } 2>&1 | tee "$RN_OUTPUT_DIR/android/environment.log"
+      - name: Install locked dependencies
+        run: npm ci 2>&1 | tee "$RN_OUTPUT_DIR/android/npm-ci.log"
+      - name: Install the Android build tools
+        run: |
+          python3 - <<'PY' 2>&1 | tee "$RN_OUTPUT_DIR/android/sdk-install.log"
+          import os
+          import shutil
+          import subprocess
+          from pathlib import Path
+
+          sdk = Path(os.environ['ANDROID_HOME'])
+          bootstrap = shutil.which('sdkmanager') or str(sdk / 'cmdline-tools/latest/bin/sdkmanager')
+          subprocess.run([bootstrap, '--install', 'cmdline-tools;19.0'],
+                         input='y\n' * 100, text=True, check=True)
+          sdkmanager = str(sdk / 'cmdline-tools/19.0/bin/sdkmanager')
+          subprocess.run([sdkmanager, '--install', 'platform-tools', 'platforms;android-36',
+                          'build-tools;35.0.0', 'build-tools;36.0.0',
+                          'ndk;27.1.12297006', 'cmake;3.22.1'],
+                         input='y\n' * 100, text=True, check=True)
+          subprocess.run([sdkmanager, '--list_installed'], check=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              for key in ('ANDROID_NDK', 'ANDROID_NDK_HOME', 'ANDROID_NDK_ROOT'):
+                  output.write(f'{key}={sdk / "ndk/27.1.12297006"}\n')
+          PY
+      - name: Generate the Android project
+        run: |
+          npx expo prebuild --platform android --no-install \
+            --skip-dependency-update react,react-native \
+            2>&1 | tee "$RN_OUTPUT_DIR/android/prebuild.log"
+          git diff --exit-code -- package.json package-lock.json app.json \
+            2>&1 | tee "$RN_OUTPUT_DIR/android/prebuild-inputs.log"
+      - name: Compile Release for arm64 devices and x86_64 emulators
+        run: |
+          ./android/gradlew -p android :app:assembleRelease \
+            --no-daemon --stacktrace --console=plain --max-workers=2 \
+            -PreactNativeArchitectures=arm64-v8a,x86_64 \
+            2>&1 | tee "$RN_OUTPUT_DIR/android/gradle-release.log"
+      - name: Preserve Android logs and reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rn-android-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/react-native/ci/android/
+            Examples/ReactNative/android/build/reports/
+            Examples/ReactNative/android/app/build/reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload the development-signed Release APK
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rn-android-release-arm64-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Examples/ReactNative/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  ios:
+    name: iOS Simulator Release
+    needs: verify
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare logs
+        run: mkdir -p "$RN_OUTPUT_DIR/ios"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Examples/ReactNative/package-lock.json
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - name: Install the SDK 55 CocoaPods version
+        run: gem install cocoapods --version 1.16.2 --no-document 2>&1 | tee "$RN_OUTPUT_DIR/ios/cocoapods-install.log"
+      - name: Record environment
+        run: |
+          {
+            git rev-parse HEAD
+            uname -m
+            node --version
+            ruby --version
+            pod _1.16.2_ --version
+            xcodebuild -version
+          } 2>&1 | tee "$RN_OUTPUT_DIR/ios/environment.log"
+      - name: Install locked dependencies
+        run: npm ci 2>&1 | tee "$RN_OUTPUT_DIR/ios/npm-ci.log"
+      - name: Generate the iOS project
+        run: |
+          npx expo prebuild --platform ios --no-install \
+            --skip-dependency-update react,react-native \
+            2>&1 | tee "$RN_OUTPUT_DIR/ios/prebuild.log"
+          git diff --exit-code -- package.json package-lock.json app.json \
+            2>&1 | tee "$RN_OUTPUT_DIR/ios/prebuild-inputs.log"
+      - name: Install native pods
+        run: pod _1.16.2_ install --project-directory=ios 2>&1 | tee "$RN_OUTPUT_DIR/ios/pod-install.log"
+      - name: Resolve the generated workspace and app scheme
+        run: |
+          python3 - <<'PY' 2>&1 | tee "$RN_OUTPUT_DIR/ios/workspace.log"
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          workspaces = list(Path('ios').glob('*.xcworkspace'))
+          if len(workspaces) != 1:
+              raise RuntimeError(f'Expected one app workspace, found {workspaces}')
+          workspace = workspaces[0]
+          result = subprocess.run(['xcodebuild', '-list', '-json', '-workspace', str(workspace)],
+                                  text=True, capture_output=True)
+          print(result.stdout)
+          print(result.stderr, file=sys.stderr)
+          result.check_returncode()
+          schemes = json.loads(result.stdout)['workspace']['schemes']
+          scheme = workspace.stem if workspace.stem in schemes else schemes[0] if len(schemes) == 1 else None
+          if scheme is None:
+              raise RuntimeError(f'Cannot identify the app scheme in {schemes}')
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'RN_IOS_WORKSPACE={workspace}\nRN_IOS_SCHEME={scheme}\n')
+          PY
+      - name: Compile the unsigned Simulator Release app
+        run: |
+          xcodebuild -workspace "$RN_IOS_WORKSPACE" -scheme "$RN_IOS_SCHEME" \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RN_OUTPUT_DIR/ios/derived-data" \
+            -resultBundlePath "$RN_OUTPUT_DIR/ios/Build.xcresult" \
+            CODE_SIGNING_ALLOWED=NO build \
+            2>&1 | tee "$RN_OUTPUT_DIR/ios/xcodebuild-release.log"
+      - name: Archive the simulator app with executable permissions
+        run: |
+          python3 - <<'PY' 2>&1 | tee "$RN_OUTPUT_DIR/ios/archive.log"
+          import os
+          import subprocess
+          from pathlib import Path
+
+          output = Path(os.environ['RN_OUTPUT_DIR']) / 'ios'
+          products = output / 'derived-data/Build/Products/Release-iphonesimulator'
+          apps = list(products.glob('*.app'))
+          if len(apps) != 1:
+              raise RuntimeError(f'Expected one simulator app, found {apps}')
+          archive = output / 'OpenUIRN-simulator-Release.tar.gz'
+          subprocess.run(['tar', '-czf', str(archive), '-C', str(products), apps[0].name], check=True)
+          print(f'Archived {apps[0].name} to {archive}')
+          PY
+      - name: Preserve iOS logs and build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rn-ios-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/react-native/ci/ios/*.log
+            outputs/react-native/ci/ios/Build.xcresult/
+            Examples/ReactNative/ios/Podfile.lock
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload the simulator app archive
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rn-ios-simulator-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/react-native/ci/ios/OpenUIRN-simulator-Release.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

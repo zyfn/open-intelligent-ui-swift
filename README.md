@@ -1,5 +1,7 @@
 # OpenUI Swift SDK
 
+文档版本：1.1 · 更新日期：2026-11-16
+
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择OpenUI 或 OpenIntelligentUI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
 ## Lang 与 UI 独立引入
@@ -188,7 +190,7 @@ python3 Tools/check_localization.py
 python3 Tools/check_lang_compatibility.py
 ~~~
 
-日常调试使用独立的 [OpenUI Gallery](Examples/Gallery/README.md)，在同一入口浏览两套 UI 的精选案例、调整预览尺寸和倍率、编辑源码与回放流式内容。macOS 启动命令为 `swift run --package-path Examples/Gallery OpenUIGallery`；iOS 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 `OpenUIGallery`。Gallery 依赖本地根 SDK，根包仅导出四个库产品。
+日常调试使用独立的 [OpenUI Gallery](Examples/Gallery/README.md)，在同一入口浏览两套 UI 的精选案例、调整预览尺寸和倍率、编辑源码与回放流式内容。macOS 启动命令为 `swift run --package-path Examples/Gallery OpenUIGallery`；iOS 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 `OpenUIGallery`。Gallery 依赖本地根 SDK，根包仅导出三个库产品。
 
 独立消费者检查为 SwiftLang、OpenUI、OpenIntelligentUI 分别创建并运行一个单产品外部包，验证解析、流式、生成契约、原生宿主和状态读写。适配层消费者不链接两套组件库，两套 UI 也不链接对方。该检查不启动窗口，不能代替 UI 视觉验收。内部 Language 目录与 Runtime 目录的职责边界由源码检查验证，详见架构。
 
@@ -197,5 +199,7 @@ python3 Tools/check_lang_compatibility.py
 完整流水线见 [native-sdk.yml](.github/workflows/native-sdk.yml)。源码检查与测试配置不等同于 Apple 平台编译、交互或发布已经通过；验收证据绑定具体提交。
 
 ## 维护入口
+
+React Native 工程与离线 Gallery 见 [Examples/ReactNative](Examples/ReactNative/README.md)，运行链路见[架构](docs/architecture.md#7-react-native-基础验证分支)，组件范围见 [OpenUI](docs/openui.md#react-native-验证子集)，实际构建与测试状态见[验证说明](docs/validation-and-security.md#5-react-native-基础验证)。工程复用官方 OpenUI 运行时，提供 7 个原生组件、主题、消息恢复及契约导出；当前为私有集成工程，尚未发布 RN SDK。
 
 包、目录与职责只维护在 [架构](docs/architecture.md)。组件用法见 [OpenUI](docs/openui.md) 与 [OpenIntelligentUI](docs/openintelligentui.md)，构建及验收见 [验证说明](docs/validation-and-security.md)。

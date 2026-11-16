@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.2 · 更新日期：2026-11-16
+文档版本：1.4 · 更新日期：2026-11-16
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -73,11 +73,12 @@ flowchart TB
 | Sources/SwiftIntelligentUI/DesignSystem/、Functions/、Internal/、Resources/ | 该库的设计 token、阅读规则、固定计算函数、媒体/公式适配、本地化与许可 |
 | Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
 | Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
+| Examples/ReactNative/ | 私有 RN 验证工程；共享官方 JS 运行时与现有 OpenUI 目录的派生契约，范围与平台边界见第 7 节 |
 | Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
 | Benchmarks/、Validation/、Fixtures/ | 性能工作负载、静态/模型评测、固定语言输入与参考预期 |
 | docs/、outputs/ | 文档；已忽略的本地生成及验收材料 |
 
-源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport、LanguageRuntime 各自持有开发包，通过根 SDK 的公开产品接入。
+Swift SDK 源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport、LanguageRuntime 各自持有开发包，通过根 SDK 的公开产品接入。
 
 ### Swift 适配层的内部职责
 
@@ -92,7 +93,7 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 
 编译后的 LibrarySchema 是只读快照；结构修改通过 Library.extend 后重新编译。Query 只接受声明 AST，由内核管理依赖。JSON 语法和转义使用 JavaScriptCore 的 JSON.parse/stringify。Evaluator 通过 EvaluationContext 读取状态，不额外持有 Store。签名来自实际 LibrarySpec，不维护独立签名生成器、原生 materializer 上下文、可变 schema 编辑器或另一条 Query 请求调度链。
 
-## 3. 唯一的客户端运行链路
+## 3. Swift 客户端运行链路
 
 1. 宿主选择 OpenUILibrary.openUI() 或 .openIntelligentUI()；自建组件使用 OpenUILibrary(components:)。
 2. 同一个 library 提供 systemPrompt、specificationJSON 和 makeState(toolProvider:persistedState:)。
@@ -168,3 +169,58 @@ Swift 负责 lossless 数据传输、原生 async 与动作执行。当前还保
 架构、目录、职责和依赖只在本文维护。README 负责安装与公共接入；两套组件指南负责本库 API/视觉规则；验证文档负责命令、资源来源、安全与证据边界。AGENTS.md 仅保存工作规则和这些入口，不复制职责表。生成资源、版本和哈希由工具/锁文件负责，不在多处手填。
 
 架构变化需同步 Package、真实源码、独立消费者、目录检查、工具、Gallery 和文档引用。源码检查、Swift 编译、XCTest、原生交互、性能及真实模型评测分别报告；任一项通过都不能替代其他项。验收命令和依赖审计以 [验证说明](validation-and-security.md) 与 [CI](../.github/workflows/native-sdk.yml) 为入口。
+
+## 7. React Native 基础验证分支
+
+目标是验证官方 React 适配能否承担跨端 OpenUI 呈现，再以真实设备结果决定组件迁移范围。当前工程位于 `Examples/ReactNative/`，为私有 Expo 应用；根 Swift Package 仍只有原有三个公开产品，不发布新 SDK。组件外观、字段行为和性能的完成程度以 [OpenUI](openui.md#react-native-验证子集) 与[验证说明](validation-and-security.md#5-react-native-基础验证)为准。
+
+### 运行链路与所有权
+
+~~~mermaid
+flowchart TB
+    Host["宿主：传输、历史、业务动作"] --> Message["消息适配：输入、epoch、恢复快照"]
+    Message --> Runtime["官方 react-lang / lang-core"]
+    Catalog["现有 OpenUI 组件目录"] --> Registry["派生契约 + RN renderer 注册"]
+    Registry --> Runtime
+    Runtime --> Shared["共享 RN 组件与视觉 token"]
+    Shared --> IOS["iOS 平台组件"]
+    Shared --> Android["Android 平台组件"]
+~~~
+
+| 代码位置 | 唯一职责 |
+| --- | --- |
+| `src/runtime/message.ts` | 宿主消息记录、完整源码、输入合并、流句柄与 epoch、可序列化字段快照；不解析、不求值、不建立 Store |
+| `src/runtime/OpenUIDocument.tsx`、`interaction.tsx` | 连接消息记录与官方 Renderer，按实际文档句柄及 library 身份隔离挂载，恢复字段，在回调执行时拒绝退休文档的交互；根错误边界保留宿主页面 |
+| `@openuidev/lang-core` / `@openuidev/react-lang` | 同一份 JS 环境中的语言语义、parser、Store、React 绑定与组件分发；每个挂载文档的 Store 由官方 Renderer 拥有 |
+| `scripts/catalog.mjs`、`src/library/schema.ts`、`contract.ts` | 从已有 OpenUI catalog 选取已实现组件，统一恢复 Zod 参数、动作引用和绑定标记；同一 authoring 路径支持 RN 注册及无 React Native 依赖的宿主契约导出 |
+| `src/library/components.tsx`、`components/`、`theme.ts` | 共享布局、原生 Markdown、图片、字段与视觉 token；使用官方状态/动作 hooks，不维护第二个 Lang Store。资源 resolver 与主题通过 Provider 由宿主覆盖 |
+| `src/platform/*.ios.tsx`、`*.android.tsx` | 同一组件契约的不同平台呈现；当前用 Button 验证平台文件选择 |
+| `App.tsx`、`src/demo/`、`src/fixture.ts` | 离线 Gallery、有限消息历史、传输回放与生命周期检查；FlatList 的宿主记录拥有 controller，滚动离屏不取消传输。原固定 fixture 保留 |
+| `scripts/export-contract.ts` | 在普通 Node 进程导出当前启用组件的 schema、prompt 与来源/内容哈希；不初始化 React Native 或运行文档 |
+| `src/index.ts` | 私有工程的接入入口，不建立新发布包或另一层运行引擎 |
+
+两端共用组件名、参数顺序、枚举、绑定和动作含义。平台差异只改变 renderer；模型无需输出 `IOSButton` 或 `AndroidButton`。当前平台文件仍是 TypeScript / RN 组件，不是 SwiftUI 或 Compose。后续需要现有原生效果时，可通过 Expo 原生模块或 RN Native Component 包装特定 SwiftUI/UIKit、Compose/View 能力；这些包装尚未实现。
+
+### 文档与流生命周期
+
+1. 宿主按消息持有 controller；`begin` 退休旧 epoch 与旧字段，返回只属于该轮的句柄。普通 `append` 保留完整 UTF-16 输入，按显示帧合并发布。完成、中断和超限立即排空此前已接受输入。
+2. `OpenUIDocument` 以实际句柄对象及 library 对象的身份作为 React key，避免两个 controller 使用同名消息 ID/epoch 时错误复用 Store。追加输入不换 key；文档、controller 或 library 变更才重建官方 Renderer。一个消息不能同时由 SwiftLang 的 JSC Store 与 RN Store 驱动。
+3. 挂载期间官方 Renderer 的 Store 是唯一可写业务状态；`onStateUpdate` 只保存恢复快照，不再建立一套运行时或把快照反复反馈给 `initialState`。
+4. `complete` 以 `isStreaming=false` 提交完整尾部。`interrupt` 保留未完成解析模式并冻结预览交互；宿主显示停止状态。该策略尚不具备 Swift readiness 的已闭合节点继续交互语义。
+5. 卸载组件不删除宿主记录，重挂载恢复字段值。parser cache、查询状态、焦点、选区、IME 草稿和组件临时状态不在该保证中；不把字段恢复描述成完整运行会话永驻。
+6. 原生事件、动作完成和图片回调在执行时检查挂载及当前 epoch，覆盖 `begin` / `interrupt` 已发生但 React 尚未提交新界面的窗口。订阅通知允许同步重入，退订及 dispose 立即使旧订阅失效。
+7. fatal Renderer 错误进入 `error`，保留已接收源码及已保存字段；宿主发起新的 `begin` 才恢复。单组件错误仍由官方组件边界负责。永久删除宿主记录时才调用 `dispose`，释放输入、字段、错误和定时发布任务。
+
+当前输入上限为每条消息 256 Ki 个 UTF-16 code unit，包含待发布输入；字段快照限制为 JSON 数据、8192 节点、32 层、64 Ki 文本单位。超限明确失败，不丢弃已经接受的输入，也不把失败等同正常完成。这些是宿主输入/快照边界，不是官方语言运行时的 CPU、深度或动作总预算。
+
+当前只连接本地字段操作与宿主动作，不提供真实 Query/Mutation provider。组件按钮会等待官方 trigger Promise，显示 pending 并拒绝重复触发；上游不会等待宿主 `onAction` 返回的任意 Promise，宿主必须自行处理业务异步失败、取消与幂等。多步骤工具操作的完整会话语义仍需独立接入与验证。
+
+Markdown 语法由固定版本的 marked 提供，RN 层只呈现原生 Text/View/Image；不是另一套 Lang parser。组件渲染前检查文本、token 结构与深度上限，超限保留完整纯文本。这个检查不提供 lexer 的抢占式 CPU 预算。JS 解析仍可能占用 JS 执行线程，帧合并只减少提交次数，不代表后台计算或严格的增量复杂度。
+
+Gallery 最多保留 8 条消息，只有订阅叶子观察源码变化；添加消息、切换主题与视图装卸不重新创建既有 controller。它用 FlatList 虚拟化消息，单条消息内部仍完整呈现其组件树，不承诺无限长文档的内部分块虚拟化。已有 Gallery 照片通过宿主 resolver 和静态 require 复用，Metro 只额外观察该图片目录，不改官方模块解析入口。
+
+### 接入与后续范围
+
+第一步以完整 RN 页面验证，让该页面拥有内部滚动、键盘与消息布局。现有 iOS App 可随后接入一个 RN 功能页面；逐消息嵌入大量独立 RN 根视图的尺寸与生命周期成本尚未评估。
+
+OpenUI 与 OpenIntelligentUI 保持平级组件库，各自拥有契约与设计系统。当前 RN 子集只覆盖 OpenUI；未来 OpenIntelligentUI 接入应由它现有的注册/导出来源派生，并复用同一消息适配和官方 Renderer，不合并两套语言契约。完成两端真机验证后，再决定是否抽取可发布的 RN 包；此分支不预先建立多层空包。
