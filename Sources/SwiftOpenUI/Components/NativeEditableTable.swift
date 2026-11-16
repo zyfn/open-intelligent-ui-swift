@@ -111,12 +111,27 @@ struct NativeTableDraft {
 
 struct NativeEditableTable: View {
   let context: OpenUIComponentContext
-  @EnvironmentObject private var state: OpenUIState
-  @StateObject private var editing: NativeTableEditingState
-  @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
+  private let editing: NativeTableEditingState?
+
   @MainActor init(context: OpenUIComponentContext) {
     self.context = context
-    _editing = StateObject(wrappedValue: context.editingRecord(kind: "table",
+    self.editing = nil
+  }
+
+  var body: some View {
+    OpenUIContextContent(context: context) { context in
+      NativeEditableTableContent(context: context, editing: editing)
+    }
+  }
+}
+
+private struct NativeEditableTableContent: View {
+  let context: OpenUIComponentContext
+  @StateObject private var editing: NativeTableEditingState
+  @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
+  @MainActor init(context: OpenUIComponentContext, editing: NativeTableEditingState?) {
+    self.context = context
+    _editing = StateObject(wrappedValue: editing ?? context.editingRecord(kind: "table",
       name: context.codeUnitString("name") ?? "", create: NativeTableEditingState.init))
   }
   private var draft: NativeTableDraft { editing.draft }
@@ -124,7 +139,7 @@ struct NativeEditableTable: View {
   private var name: OpenUIString { context.codeUnitString("name") ?? "" }
   private var columns: [Value] { NativeValue.array(context.value("columns")) }
   private var source: Value {
-    state.fieldValue(form: name, name: name, fallback: context.value("data") ?? .array([]))
+    context.fieldValue(form: name, name: name, fallback: context.value("data") ?? .array([]))
   }
   private var changed: Int { draft.changes(columns: columns.count) }
   private struct RowIdentity: Identifiable {
@@ -210,9 +225,9 @@ struct NativeEditableTable: View {
         }.openUIFont(context.theme.textBodySm, role: .detail).disabled(!context.canInteract || saving)
       }
     }
-    .onAppear { editing.receive(source, revision: state.presentationRevision) }
-    .onChange(of: source) { value in editing.receive(value, revision: state.presentationRevision) }
-    .onChange(of: state.presentationRevision) { revision in editing.receive(source, revision: revision) }
+    .onAppear { editing.receive(source, revision: context.presentationRevision) }
+    .onChange(of: source) { value in editing.receive(value, revision: context.presentationRevision) }
+    .onChange(of: context.presentationRevision) { revision in editing.receive(source, revision: revision) }
   }
   private func width(_ index: Int) -> CGFloat {
     NativeEditableColumn.width(context.element.sourceReadiness["columns"][index]["width"].complete
@@ -284,8 +299,8 @@ enum NativeEditableColumn {
 
 extension NativeEditableTable {
   @MainActor init(context: OpenUIComponentContext, editing: NativeTableEditingState) {
-    self.init(context: context)
-    _editing = StateObject(wrappedValue: editing)
+    self.context = context
+    self.editing = editing
   }
 }
 

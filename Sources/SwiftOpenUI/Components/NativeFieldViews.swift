@@ -19,10 +19,17 @@ struct OpenUINativeField: View {
     enum Kind { case input, textArea, select, radio, checkbox, switches, slider, date, chips, optionCards }
     let context: OpenUIComponentContext
     let kind: Kind
-    // These controls keep their value in the document Store rather than props.
-    // Observe it at the editable leaf so a successful write updates the native
-    // selection even when the component's evaluated props remain identical.
-    @EnvironmentObject private var state: OpenUIState
+
+    var body: some View {
+        OpenUIContextContent(context: context) { context in
+            NativeFieldContent(context: context, kind: kind)
+        }
+    }
+}
+
+private struct NativeFieldContent: View {
+    let context: OpenUIComponentContext
+    let kind: OpenUINativeField.Kind
     @Environment(\.openUIFormValidation) private var validation
     @Environment(\.openUIFieldLabel) private var fieldLabel
     @Environment(\.locale) private var locale

@@ -90,6 +90,49 @@ final class NativeActionRenderingTests: XCTestCase {
         settle()
         XCTAssertFalse(button.isEnabled, "Reset must disable an action from the old source")
     }
+
+    @MainActor func testStandaloneActionKeepsItsContextOwnerAndRejectsReplacementEpoch() throws {
+        _ = NSApplication.shared
+        let library = try OpenUIComponents.library()
+        let owner = OpenUIState(schema: library.library.toSchema())
+        let ambient = OpenUIState(schema: library.library.toSchema())
+        defer { owner.reset(); ambient.reset() }
+        owner.push("root=Button(\"Save\"")
+        ambient.setSource("root=Button(\"Ambient\")")
+        let context = OpenUIComponentContext(element: try XCTUnwrap(owner.root), registry: library.registry, state: owner)
+        let hosting = NSHostingView(rootView: OpenUIActionSurface(context: context,
+            action: OpenUIActions.continueConversation("Save"), useNativeStyle: true) {
+            ActionEnabledMarker()
+        }.environmentObject(ambient))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 240, height: 100),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = hosting; window.orderFront(nil)
+        defer { window.close() }
+        func settle() {
+            hosting.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            hosting.layoutSubtreeIfNeeded()
+        }
+        func marker(_ view: NSView) -> NSButton? {
+            if let button = view as? NSButton, button.identifier?.rawValue == "openui.test.action-enabled" { return button }
+            return view.subviews.lazy.compactMap(marker).first
+        }
+        settle()
+        let button = try XCTUnwrap(marker(hosting))
+        XCTAssertFalse(button.isEnabled, "An unrelated ready ambient document cannot enable this Context")
+        owner.push(")")
+        owner.complete()
+        settle()
+        XCTAssertTrue(button.isEnabled)
+        XCTAssertTrue(marker(hosting) === button)
+        ambient.reset()
+        settle()
+        XCTAssertTrue(button.isEnabled, "Readiness belongs to the Context owner")
+        owner.setSource("$replacement=1\nroot=Button(\"Save\")")
+        settle()
+        XCTAssertFalse(button.isEnabled, "Observing a retained Context must not renew its original event epoch")
+        XCTAssertFalse(context.canInteract)
+    }
 }
 
 private struct EligibilityProbe: View {

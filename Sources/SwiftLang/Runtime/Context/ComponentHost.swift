@@ -32,6 +32,32 @@ public struct OpenUIComponentHost<Content: View>: View {
 
 final class NativeComponentContentIdentity {}
 
+/// Reuses the enclosing Host's reads. A standalone library surface creates one
+/// subscription for its supplied Context instead of observing every State
+/// publication. This is a presentation boundary, not another document owner.
+package struct OpenUIContextContent<Content: View>: View {
+    private let context: OpenUIComponentContext
+    private let content: (OpenUIComponentContext) -> Content
+
+    package init(context: OpenUIComponentContext,
+                 @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
+        self.context = context; self.content = content
+    }
+
+    package var body: some View {
+        if context.hasNativeReadScope { content(context) }
+        else { NativeStandaloneComponentContent(context: context, content: content) }
+    }
+}
+
+private struct NativeStandaloneComponentContent<Content: View>: View {
+    let context: OpenUIComponentContext
+    let content: (OpenUIComponentContext) -> Content
+    @StateObject private var subscription = NativeComponentSubscription()
+
+    var body: some View { content(context.observing(with: subscription)) }
+}
+
 /// EnvironmentObject resolution stays at the public entry for nested document
 /// overrides. Shared broadcasts stop before live lookup, readiness and Context
 /// construction; this mounted node receives its own committed update signal.

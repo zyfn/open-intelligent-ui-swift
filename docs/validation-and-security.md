@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.12 · 更新日期：2026-11-16
+文档版本：1.13 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -342,6 +342,44 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 执行证据集中保存在忽略的 `outputs/kernel-clarity-audit/`。本轮没有 Apple App 的 CPU、帧率、push 延迟或内存新结果；客户端 92.79% CPU 与 79.89–102.35ms 最大 push 的验收缺口继续保留。
 
+### 流式重复工作收敛
+
+本轮从已核对的 main `191c264540d4fde2ae3b05233b1c7ed47a254519` 创建 `codex/streaming-work-reduction`，保留该提交的全部组件视觉与目录变化。目标是在现有同步入口里减少重复工作；没有引入新 Store、客户端流句柄、后台执行协议或平行解析引擎。职责与保留边界见[架构](architecture.md#现有入口的性能边界与后续验证)。
+
+| 修改 | 对应边界与验证 |
+| --- | --- |
+| 增量行预处理替换每次全文清理及前缀比较 | 批量、流式和公开 fence helper 共用一份规则；固定官方 oracle 验证逐 UTF-16 前缀、160 组词法碎片、围栏切换、注释/字符串与尾部空白；已消费行不重扫，未完成长行仍可重复处理 |
+| 复用纯语法 metadata | 只记录已完成且无引用 AST 的闭合事实与高度；新回归保留跨轮新值、同轮 alias、声明身份、全局 partial、旧快照、自定义函数重新执行、诊断顺序与预算 reset |
+| 投影 metadata 按需并成组读取 | 普通已缓存对象/数组跳过 source scope 查询；需要 metadata 的值一次取得类型、子 scope、完整性与 readiness；原有 direct/Each/旧 scope 隔离断言保留，native 类型与反向编码身份不变 |
+| 函数/动作定义归文档所有 | 参数描述只准备一次；含对象或数组 default 的 params/returns/actions 每个执行 context 重新编码。原生回归明确区分同 context 默认值共享与跨 context 新身份，回调、失败观察者、工作预算和业务结果不缓存 |
+| 稳定标量叶子的呈现变化与实际 membership 分开 | 唯一候选且完整呈现输入相同才省略 capture；引用属性、歧义、字段、Query、执行状态和换源保留独立判断。单候选 lookup 不再自比，深度边界仍在 |
+| fallback 与字段观察收敛 | fallback 按快照身份保留最新 readiness，不发布额外更新；ActionSurface、字段、EditableTable 共用 Context 订阅。手工 Context 的 owner/epoch、派生子 Context、焦点、草稿和表格编辑记录懒创建均加入回归 |
+
+**实际结构计数。** 使用同一既有探针工作负载，对 main 的精确 bundle 与本轮正式 bundle 分别建立独立 Node realm。先输入稳定声明与未完成尾部，再连续追加 50 次 `abc`，总计 150 UTF-16 units。只记录实际调用与对象身份，没有 Swift、JavaScriptCore、SwiftUI 或设备时间测量。
+
+| 固定叶子数 | 全文按行切分次数：基线 → 本轮 | 切分输入累计 UTF-16 units：基线 → 本轮 | 以 Text/Stack 为键的 Map.get 次数：基线 → 本轮 |
+| ---: | ---: | ---: | ---: |
+| 1 | 50 → 0 | 6,375 → 0 | 1,700 → 1,500 |
+| 60 | 50 → 0 | 73,325 → 0 | 45,950 → 33,950 |
+| 200 | 50 → 0 | 244,325 → 0 | 150,950 → 110,950 |
+| 600 | 50 → 0 | 744,325 → 0 | 450,950 → 330,950 |
+
+零全文切分不表示零字符处理。单独的真实行消费者计数回归在 600 个稳定声明后追加同样 50 次片段，记录 50 次未完成行预览、少于 10,000 units 的行输入，没有重放完整前缀。Map 计数仅表示该工作负载中相关定义键的读取减少，不能换算为 CPU 降幅。两版固定叶子跨分片均没有保留物化对象身份；本轮仍执行完整物化/投影，不把缓存命中率当正确性目标。Query 快照序列化探针的重复工作仍在，本轮未因此关闭其开放项。
+
+| 最终本地检查 | 实际结果 |
+| --- | --- |
+| 正式 Core JS 全套 | **167/167 通过，0 failed、0 skipped** |
+| 独立锁定上游对照 | 51 parser、5 action、4 Query、6 serializer、21 Lang 1.1、2 merge；**0 unexplained differences** |
+| Validation / 组件契约 | **6/6、7/7 通过**；保持全部 84 个固定组件的参数与完整签名 |
+| 正常资源重建 | 连续重建的 JS、manifest、许可逐字节一致；JS 为 867,580 bytes，SHA-256 `3370c7cb7be0d9e7a1a60914c52547b5ae69b4c2d8f1703ebd275b7667bab485` |
+| 来源与所有权 | `check_openui_integration.py` 通过；新预处理模块进入构建与检查器相同的 adapter 指纹列表 |
+| 原生测试与 CI 配置 | 新增 **16 项 XCTest**，未删除旧测试方法；Release 相关子集保留原 14 类并扩为 24 类。YAML、过滤目标及 shell 静态检查通过，不代表这些测试执行通过 |
+| 原生编译 / XCTest | 实际尝试 `swift test`、Release fitting、模块图及公开产品消费者，均被本环境缺少 Swift/Xcode 阻塞；未编译、未执行，不能以 JS 结果替代 |
+
+新原生用例中，40 个由真实 `OpenUIState.push` 产生的稳定标量叶子在 4 次尾部追加中要求零订阅通知，并检查其呈现 delta 可跳过 capture；该用例尚待原生执行。即使通过，也不等于全部 SwiftUI body、布局或主线程工作为零。源码交叉复核修正了定义缓存可能复用对象默认值、旧 child Context 续期、表格 wrapper 提前创建编辑记录三处风险；这些审查不代替原生测试。
+
+执行证据保存在忽略的 `outputs/streaming-work-reduction/`，包括精确基线资源、完整测试日志、正常重建比对及前后处理计数。现有客户端约 92.8% CPU、79.89–102.35ms 最大 push 仍未重新验收；本轮没有 Apple App CPU、帧率或最长同步调用的新结果，也没有 RC20 同环境性能对照。接下来按同一真实 App、输入、分片、动画及 Release 环境复测解析/桥接/呈现、主线程 p95/max、布局与滚动响应。
+
 ### 客户端仍未关闭的验收
 
 以下保留较早的 SDK `9e05d888` 客户端记录及尚未关闭的复杂场景，不能当作 `a4808be3` 的同版本失败列表。原始 Mac 日志、录像和 xcresult 尚未取得。上节定向复测仅覆盖列出的功能、构建和性能样本，没有自动关闭此处其余历史失败；源码修复、JS 通过或合并同样不能代替复验。
@@ -402,7 +440,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 - `OpenUIState.push` 仍在 MainActor 同步解析、整 root 求值/投影并建立 live index。持续细分块仍会增加整轮工作次数；本轮没有自动按显示帧合并输入，也没有改客户端的 push/complete/interrupt 使用方式。
 - 多步 Action 的累计额度已经加入，但逐步 Set/Reset 引发的 root 更新及计划结束后的更新仍保留。内部呈现提交与节点字段订阅不等于语言求值的增量依赖计算，也未合并跨步骤的语义工作；必须保留每步 Store 可见性、Mutation 失败即停止和事件次序，不可直接删中间通知。
 - Query 快照比较仍重复序列化完整数据，上述计数已确认其规模增长；本轮批量错误提取只减少原生呈现读取，没有删减 JS 快照比较。优化需保持 snapshot 值、正常通知及共享对象语义。Query 的内部通知投递已合并，实际原生执行次数和整 root 工作量尚未测量。旧 JS manager 探针中 100 个独立请求产生 100 次初始通知和 100 次完成通知；该计数不能直接换算成新实现的 MainActor 任务数，也不能宣称已测得“200 次变成 1 次”。不同执行时刻仍可能各产生一次呈现更新。
-- 普通 push 的公开 readiness/root 双重通知已收敛到一次 root 发布；SwiftLangView 现观察完整内部提交，轻量 ComponentHost 仍观察最近 State。节点字段订阅和 mounted 回归已加入，但未执行 Apple 测试，尚未取得真实“尾部更新而稳定兄弟不重算”的 body 计数。全局 partial 翻转、引用属性变化以及保留的直接组件订阅仍会带来更新；不能宣称视图已完全隔离或 App CPU 已降低。
+- 普通 push 的公开 readiness/root 双重通知已收敛到一次 root 发布；SwiftLangView 现观察完整内部提交，轻量 ComponentHost 仍观察最近 State。节点字段订阅和 mounted 回归已加入，但未执行 Apple 测试，尚未取得真实“尾部更新而稳定兄弟不重算”的 body 计数。OpenUI 的 ActionSurface、字段和 EditableTable 已统一使用 Context 依赖；全局 partial 翻转、引用属性变化、Host 的环境观察和其他消费者仍会带来更新，不能宣称视图已完全隔离或 App CPU 已降低。
 - SharedCore 用锁串行化共享 JavaScriptCore。锁保护线程安全，不会自动把工作移到后台；多个文档可能相互等待。迁移到 worker 需要同步定义不可变输入/输出、回调线程、取消和提交代次，不能用 `Task.detached` 直接包住当前 MainActor State。
 - 当前节点的 identity 快径和匿名 scalar 属性分桶不消除复杂引用节点的旧快照语义搜索；变化键比较也有成本。当前内核普通流会重建 JS 引用，整树索引遍历及每轮挂载订阅检查仍需原生计时，不能假定其复杂度已经降到只与文字尾部有关。
 - 尚无本轮真机 Release 的帧耗时、输入响应和长期内存数据。文档拥有的编辑记录保留离屏草稿，不能为压低缓存数字随意淘汰用户未提交内容；动态字段的长期留存需要专项测量。

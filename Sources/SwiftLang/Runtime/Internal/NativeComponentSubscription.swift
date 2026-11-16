@@ -63,7 +63,8 @@ final class NativeComponentSubscription: ObservableObject {
 
     /// Called only when SwiftUI actually evaluates the component boundary.
     /// Recording dependencies does not publish, parse, or change business state.
-    func begin(element: EvaluatedElement, state: OpenUIState) -> (NativeComponentPresentation, NativeComponentReadScope) {
+    func begin(element: EvaluatedElement, state: OpenUIState,
+               expectedSourceRevision: Int? = nil) -> (NativeComponentPresentation, NativeComponentReadScope) {
         if self.state !== state {
             updates?.detach(self)
             self.state = state
@@ -78,7 +79,11 @@ final class NativeComponentSubscription: ObservableObject {
         hasRuntimeFailure = state.nativePresentation.hasRuntimeFailure
         generation &+= 1
         reads.removeAll(keepingCapacity: true)
-        return (current, NativeComponentReadScope(subscription: self, generation: generation))
+        // A directly mounted, retained Context keeps its original action epoch.
+        // It may still display/read the latest commit after replacement, but
+        // must not register old field dependencies against that new document.
+        let observesCurrentSource = expectedSourceRevision.map { $0 == current.sourceRevision } ?? true
+        return (current, NativeComponentReadScope(subscription: observesCurrentSource ? self : nil, generation: generation))
     }
 
     func refresh(state: OpenUIState, changes: NativeLiveElementIndex.Update, auxiliaryChanged: Bool) {
@@ -87,10 +92,11 @@ final class NativeComponentSubscription: ObservableObject {
         let storeChanged = storeRevision != commit.storeRevision
         let executionChanged = canExecuteActions != commit.canExecuteActions || hasRuntimeFailure != commit.hasRuntimeFailure
         let sourceChanged = previous.sourceRevision != commit.sourceRevision
-        // An unchanged candidate bucket needs no live lookup or action walk.
+        // An unchanged presentation bucket needs no live lookup or action walk.
+        // The index separately updates membership for recreated scalar leaves.
         // Document/Store/Query changes independently invalidate those derived
         // inputs, including a direct-mounted old snapshot losing membership.
-        guard auxiliaryChanged || storeChanged || executionChanged || changes.affectsLookup(for: source)
+        guard auxiliaryChanged || storeChanged || executionChanged || changes.affectsPresentation(for: source)
             || previous.streaming != (commit.isComplete == false) || previous.queryLoading != commit.isQueryLoading
             || sourceChanged
             || previous.presentationRevision != commit.presentationRevision else { return }
@@ -144,7 +150,7 @@ final class NativeComponentSubscription: ObservableObject {
 final class NativeComponentReadScope {
     private weak var subscription: NativeComponentSubscription?
     private let generation: UInt64
-    fileprivate init(subscription: NativeComponentSubscription, generation: UInt64) {
+    fileprivate init(subscription: NativeComponentSubscription?, generation: UInt64) {
         self.subscription = subscription; self.generation = generation
     }
 

@@ -246,27 +246,40 @@ public struct OpenUIRenderChild: Identifiable {
 /// without the registry reporting an error, and falls back to it when the
 /// current element has no registered component.
 public struct ElementErrorBoundary<Content: View>: View {
-    private let element: EvaluatedElement?
+    private let input: NativeBoundaryInput
     private let content: (EvaluatedElement) -> Content
-    @State private var lastGood: EvaluatedElement?
+    @StateObject private var lastGood = NativeBoundarySnapshot()
 
     public init(
         element: EvaluatedElement?,
         @ViewBuilder content: @escaping (EvaluatedElement) -> Content
     ) {
-        self.element = element
+        self.input = NativeBoundaryInput(element: element)
         self.content = content
     }
 
     public var body: some View {
         Group {
-            if let shown = element ?? lastGood {
+            if let shown = input.element ?? lastGood.element {
                 content(shown)
             } else {
                 EmptyView()
             }
         }
-        .onAppear { if let element { lastGood = element } }
-        .onChange(of: element) { if let element = $0 { lastGood = element } }
+        .onAppear { if let element = input.element { lastGood.element = element } }
+        .onChange(of: input) { if let element = $0.element { lastGood.element = element } }
     }
+}
+
+/// Snapshot identity includes readiness-only replacements without invoking
+/// EvaluatedElement's structural language-value equality on every render.
+private struct NativeBoundaryInput: Equatable {
+    let element: EvaluatedElement?
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.element === rhs.element }
+}
+
+/// Input changes already invalidate the boundary. Retaining its last successful
+/// input must not publish a second update; StateObject only owns this lifetime.
+private final class NativeBoundarySnapshot: ObservableObject {
+    var element: EvaluatedElement?
 }

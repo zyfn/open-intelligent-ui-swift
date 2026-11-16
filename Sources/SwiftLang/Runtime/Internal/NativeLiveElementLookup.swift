@@ -22,9 +22,6 @@ func nativeResolveLiveElement(_ element: EvaluatedElement, in index: NativeLiveE
     // A stable native child may hold an earlier readiness snapshot even
     // when its displayed props have not changed. Match nested values too;
     // never borrow readiness from a semantically different control.
-    let matches = index.candidates(for: element).filter {
-        props($0, element, depth: 0)
-    }
     func readiness(_ a: Value, _ b: Value, depth: Int) -> Bool {
         guard depth < 256 else { return false }
         switch (a, b) {
@@ -41,8 +38,17 @@ func nativeResolveLiveElement(_ element: EvaluatedElement, in index: NativeLiveE
         x.isSourceComplete == y.isSourceComplete && x.sourceReadiness == y.sourceReadiness && x.props.count == y.props.count
             && zip(x.props,y.props).allSatisfy { readiness($0.1,$1.1,depth:depth+1) }
     }
-    let current = matches.first.flatMap { first in
-        matches.allSatisfy { metadata(first,$0,depth:0) } ? first : nil
-    } ?? element
-    return current
+    var first: EvaluatedElement?
+    for candidate in index.candidates(for: element) {
+        guard props(candidate, element, depth: 0) else { continue }
+        if let first {
+            guard metadata(first, candidate, depth: 0) else { return element }
+        } else {
+            // The successful props walk already checked every Value path's
+            // depth. Comparing this first candidate's metadata with itself
+            // would only repeat that walk, even when it is the sole match.
+            first = candidate
+        }
+    }
+    return first ?? element
 }

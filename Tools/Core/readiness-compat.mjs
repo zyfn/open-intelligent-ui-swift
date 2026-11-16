@@ -1,6 +1,6 @@
 import { replaceOnce } from './compat.mjs';
 export function readiness(source, kind, path) {
-  const imports = `import {tokenComplete as nativeTokenComplete,tagSyntax as nativeTagSyntax,tagReady as nativeTagReady,evaluateSource as nativeEvaluateSource,finishEvaluation as nativeFinishEvaluation,finishMaterialization as nativeFinishMaterialization,copyPresentation as nativeCopyPresentation,copyEvaluationSource as nativeCopyEvaluationSource,recordResult as nativeRecordResult,observeQueries as nativeObserveQueries} from ${JSON.stringify(path)};\n`;
+  const imports = `import {tokenComplete as nativeTokenComplete,tagSyntax as nativeTagSyntax,tagReady as nativeTagReady,registerCompletedSyntax as nativeRegisterCompletedSyntax,evaluateSource as nativeEvaluateSource,finishEvaluation as nativeFinishEvaluation,finishMaterialization as nativeFinishMaterialization,copyPresentation as nativeCopyPresentation,copyEvaluationSource as nativeCopyEvaluationSource,recordResult as nativeRecordResult,observeQueries as nativeObserveQueries} from ${JSON.stringify(path)};\n`;
   if (kind === 'lexer') {
     source = replaceOnce(source, 'tokenize(src: string): Token[]', 'tokenize(src: string, sourceLength = src.length, sourceEnded = true): Token[]');
     source = source.replaceAll('tokens.push(', 'nativePush(');
@@ -17,6 +17,8 @@ export function readiness(source, kind, path) {
     source = replaceOnce(source, 'function parseExpr(minPrec: number = 0): ASTNode {', 'function parseExpr(minPrec: number = 0): ASTNode {\n    const nativeStart = pos;');
     source = replaceOnce(source, '    return left;\n  }\n\n  // ── Prefix', '    return nativeTagSyntax(left, nativeIncomplete[Math.min(nativeStart,tokens.length)] === nativeIncomplete[Math.min(pos,tokens.length)]);\n  }\n\n  // ── Prefix');
   } else if (kind === 'parser') {
+    source = replaceOnce(source, '      const stmt = classifyStatement(s, expr);\n      completedStmtMap.set(s.id, stmt);',
+      '      const stmt = classifyStatement(s, expr);\n      nativeRegisterCompletedSyntax(expr);\n      completedStmtMap.set(s.id, stmt);');
     source = replaceOnce(source, '  return {\n    root,\n', '  return nativeRecordResult({\n    root,\n');
     source = replaceOnce(source, '    mutationStatements,\n  };\n}', '    mutationStatements,\n  }, ctx, entry ? syms.get(entry.id) : undefined, entry?.id);\n}');
     source = replaceOnce(source, 'split(tokenize(text))', 'split(tokenize(text, trimmed.length, !wasIncomplete))');

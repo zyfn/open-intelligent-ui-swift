@@ -6,6 +6,7 @@ import {
   serializer,
   replaceOnce,
   materializer,
+  sourcePreprocessing,
   evaluationBudget,
   zodJSONSchemaCompatibility,
   zodJSONSchemaCompatibilityPlugin,
@@ -39,7 +40,7 @@ execFileSync('git', ['diff', '--quiet', 'HEAD', '--', 'packages/lang-core'], {
 const bridge = join(root, 'packages/swift-lang/scripts');
 mkdirSync(bridge, { recursive: true });
 cpSync(join(here, 'package.json'), join(bridge, 'package.json'));
-for (const file of ['entry.ts', 'captures.ts', 'authoring.ts', 'readiness.ts', 'budget.ts']) {
+for (const file of ['entry.ts', 'captures.ts', 'authoring.ts', 'readiness.ts', 'budget.ts', 'source-preprocess.ts']) {
   const source = readFileSync(join(here, file), 'utf8')
     .replaceAll("'@openui/core-source'", "'../../lang-core/src/index'")
     .replaceAll("'@openui/core-source/", "'../../lang-core/src/");
@@ -122,7 +123,7 @@ const result = await build({
       setup(b) {
         b.onLoad({ filter: /\/parser\/parser\.ts$/ }, (args) => ({
           contents:
-            readiness(evaluationBudget(readFileSync(args.path, 'utf8'), 'parser', join(bridge, 'budget.ts')), 'parser', join(bridge, 'readiness.ts')) +
+            readiness(evaluationBudget(sourcePreprocessing(readFileSync(args.path, 'utf8'), join(bridge, 'source-preprocess.ts')), 'parser', join(bridge, 'budget.ts')), 'parser', join(bridge, 'readiness.ts')) +
             '\nexport {preprocess as nativePreprocess};',
           loader: 'ts',
         }));
@@ -208,7 +209,7 @@ writeFileSync(
         .digest('hex'),
       adapterSha256: createHash('sha256')
         .update(
-          ['entry.ts', 'captures.ts', 'authoring.ts', 'compat.mjs', 'bridge-compat.mjs', 'budget.ts', 'readiness.ts', 'readiness-compat.mjs', 'adaptations.json', 'patches/serializer-roundtrip.patch', 'build.mjs', '../upstream.mjs', '../upstream.json', 'patches/positional-omittability.patch']
+          ['entry.ts', 'captures.ts', 'authoring.ts', 'compat.mjs', 'bridge-compat.mjs', 'budget.ts', 'readiness.ts', 'readiness-compat.mjs', 'source-preprocess.ts', 'adaptations.json', 'patches/serializer-roundtrip.patch', 'build.mjs', '../upstream.mjs', '../upstream.json', 'patches/positional-omittability.patch']
             .map((name) => readFileSync(join(here, name), 'utf8'))
             .join('\n'),
         )
@@ -235,6 +236,11 @@ writeFileSync(
       ],
       adaptations: JSON.parse(readFileSync(join(here, 'adaptations.json'), 'utf8')),
       retainedPatches: [
+        {
+          module: 'parser/parser.ts',
+          reason: 'One incremental line preprocessor replaces repeated full-source fence/comment normalization; completed reference-free ASTs retain only immutable closure/depth metadata, not Lang values.',
+          removal: 'Equivalent upstream preprocessing with independently verified intermediate semantics and metadata reuse.',
+        },
         {
           module: 'message.ts',
           reason: 'The private Lang content entry protects its raw quote/comment prefix; the same message parser still handles frames and retries, while public parseMessage remains unchanged.',
