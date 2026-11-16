@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.8 · 更新日期：2026-11-16
+文档版本：1.9 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -100,7 +100,9 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-早期以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线完成下表修复，经 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 合入 main，随后继续处理原生执行及文本同步。本次重新确认 main 为 `c7310054e5a58ecb7e42e9f37e4c77e7fed30ce7`，按用户要求沿用 `fix/kernel-stability-20261116`，仅修复内核；组件视觉由独立任务负责。下文保留历史执行证据，并单列本次追加修复与尚未关闭的客户端验收。设计约束见[架构](architecture.md#内核必须保持的约束)，依赖版本及兼容性检查仍按第 3 节记录。源码修改、JS 通过或合并均不代表原生验收已通过。
+本节保留各轮修复的执行证据。早期以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线完成下表修复，经 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 合入 main，随后继续处理原生执行及文本同步；`c7310054e5a58ecb7e42e9f37e4c77e7fed30ce7` 是后续客户端审查的历史基线，不是本节所记录的最新修复。
+
+最近一轮内核修复提交为 [`1063d9f2`](https://github.com/zyfn/open-intelligent-ui-swift/commit/1063d9f21466ffa9da2d53f1bb8e33ef1c3af4bd)，已通过 [`a4808be3`](https://github.com/zyfn/open-intelligent-ui-swift/commit/a4808be333598bb15a6990f47eeb0d23c930c1dd) 与同期 main 合并。当前状态是修复已合入、JS 回归通过、原生验收未完成；尚无该版本的 Apple Release / App CPU 对照，不能宣称高 CPU 已解决。具体执行结果见本节“当前内核修复与验证”，剩余工作见[性能证据与未完成项](#性能证据与未完成项)。设计约束见[架构](architecture.md#内核必须保持的约束)，依赖版本及兼容性检查仍按第 3 节记录。组件视觉由独立任务负责。
 
 | 问题 | 触发与依据 | 前轮处理及验证层级 |
 | --- | --- | --- |
@@ -196,7 +198,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 独立兼容性 | PASS：51 parser、5 action、4 Query、6 serializer round-trip、21 Lang 1.1，另有 2 个独立 split/merge 对照，`unexplainedDifferences=0`。固定对照源码与历史 fixture 预期未改 |
 | 源码/所有权与 diff | `check_openui_integration.py` 和 `git diff --check` PASS；仅说明静态范围和格式 |
 | Swift 与完整模块图 | BLOCKED；本机 `swift test` 返回 127（找不到 swift），`check_module_boundaries.py` 同样无法取得 SwiftPM 模块图。新增/既有 XCTest 均未在本次运行 |
-| GitHub 原生门禁 | 合并基线 `3310e3d8` 的 [run 43827699067](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43827699067) 两个前置任务均失败且 steps 为空，native-sdk 为 skipped；未进入原生构建，不能当测试通过 |
+| GitHub 原生门禁 | 合并版本 `a4808be3` 的 [run 43830544843](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43830544843) 两个前置任务均失败且 steps 为空，native-sdk 为 skipped；未进入原生构建，不能当测试通过。本条只记录该版本的实际结果，不将其他历史流水线的阻塞原因归到本次 |
 | App、Release、设备性能 | 未执行；不能据此关闭用户的实际分块回放、半句显示、帧率或长期内存验收 |
 
 最终 `lang-core.js` SHA-256 为 `842e71ddeee6d73a7c04df90f9c80f01ca43f504de2495e448047b7a75004e16`；`core-manifest.json` SHA-256 为 `0f6cb4bfc02b8442ae1e9f1c7d61678a4ecaaa75b0dc5ffeb19b2c023cfc8335`。本轮正式构建/全量/独立对照在忽略的 `outputs/client-audit/`；前后工作计数在 `outputs/kernel-client-performance/`，原始 patch 与 split 反证在 `outputs/client-patch-budget-build/`，前轮证据仍保留在 `outputs/kernel-followup/`。Swift 未执行的项目仍是验收缺口，不以 JS 或静态检查替代。
