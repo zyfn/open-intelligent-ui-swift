@@ -14,17 +14,20 @@ import SwiftIntelligentUI
     let direction: LayoutDirection
 
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
-            document
-                .frame(width: viewport.width, height: viewport.height)
-                .background(.background)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.25)))
-                .scaleEffect(viewport.zoom, anchor: .topLeading)
-                .frame(width: viewport.scaledWidth, height: viewport.scaledHeight, alignment: .topLeading)
-                .padding(24)
+        GeometryReader { geometry in
+            ScrollView([.horizontal, .vertical]) {
+                document
+                    .frame(width: viewport.width, height: viewport.height)
+                    .background(.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.16)))
+                    .scaleEffect(viewport.zoom, anchor: .topLeading)
+                    .frame(width: viewport.scaledWidth, height: viewport.scaledHeight, alignment: .topLeading)
+                    .padding(24)
+                    .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .top)
+            }
         }
-        .background(Color.secondary.opacity(0.07))
+        .background(Color.secondary.opacity(0.04))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -59,8 +62,10 @@ struct GalleryViewportControls: View {
     @Binding var viewport: GalleryViewport
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("画布").font(.headline)
+                Spacer(minLength: 0)
                 Menu {
                     ForEach(GalleryDevice.allCases) { device in
                         Button(device.rawValue) {
@@ -68,25 +73,30 @@ struct GalleryViewportControls: View {
                             viewport.height = device.size.1
                         }
                     }
-                } label: { Label("画布预设", systemImage: "iphone.and.ipad") }
+                } label: { Label("设备预设", systemImage: "iphone.and.ipad") }
+            }
+            HStack(spacing: 8) {
                 dimension("宽", value: $viewport.width, minimum: 240)
                 Text("×").foregroundStyle(.secondary)
                 dimension("高", value: $viewport.height, minimum: 320)
                 Text("pt").font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
                 Button { viewport.rotate() } label: { Label("横竖切换", systemImage: "rotate.right") }
                     .labelStyle(.iconOnly)
-                Divider().frame(height: 20)
-                Image(systemName: "magnifyingglass").accessibilityHidden(true)
-                Slider(value: $viewport.zoom, in: 0.5...1.5, step: 0.05) { Text("画布缩放") }
-                    .frame(width: 112)
+                    .help("横竖切换")
+            }
+            HStack {
+                Text("缩放").font(.subheadline)
+                Spacer(minLength: 0)
                 Text("\(Int((viewport.zoom * 100).rounded()))%")
-                    .font(.caption.monospacedDigit()).frame(width: 42)
+                    .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 12) {
+                Slider(value: $viewport.zoom, in: 0.5...1.5, step: 0.05) { Text("画布缩放") }
                 Button("100%") { viewport.zoom = 1 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 10)
         }
-        .scrollIndicators(.hidden)
-        .background(.bar)
+        .padding(16)
     }
 
     private func dimension(_ title: String, value: Binding<Double>, minimum: Double) -> some View {

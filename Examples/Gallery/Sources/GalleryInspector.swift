@@ -7,35 +7,59 @@ import SwiftLang
     @State private var showsComponentUsage = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("OpenUI Lang", systemImage: "curlybraces")
-                .font(.headline)
+        VStack(spacing: 0) {
+            HStack {
+                Text("OpenUI Lang").font(.headline)
+                Spacer()
+                ShareLink(item: session.draft) { Label("导出源码", systemImage: "square.and.arrow.up") }
+                    .labelStyle(.iconOnly)
+                    .help("导出源码")
+            }
+            .padding(16)
+            Divider()
             if let component {
                 DisclosureGroup("组件用法", isExpanded: $showsComponentUsage) {
-                    Text(component.definition.signature).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
-                    Text(component.definition.description).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(component.definition.signature)
+                                .font(.system(.caption, design: .monospaced))
+                            Text(component.definition.description)
+                                .font(.callout).foregroundStyle(.secondary)
+                            if component.supporting {
+                                Text(component.container.map { "在 \($0) 中展示 \(component.name) 的实际用法。" }
+                                     ?? "该定义没有独立视图，示例保留其源码用法。")
+                                    .font(.callout).foregroundStyle(.secondary)
+                            }
+                        }
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
+                    }
+                    .frame(maxHeight: 180)
                 }
+                .font(.subheadline.weight(.medium))
+                .padding(16)
+                Divider()
             }
-            Text("编辑草稿后点“应用源码”；切换案例或组件库会载入对应原稿。")
-                .font(.caption).foregroundStyle(.secondary)
             TextEditor(text: $session.draft)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(.body, design: .monospaced))
                 .autocorrectionDisabled()
                 .disabled(session.playback == .streaming || session.playback == .paused)
                 .scrollContentBackground(.hidden)
-                .padding(8)
-                .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-            HStack {
+                .padding(12)
+                .accessibilityLabel("OpenUI Lang 源码")
+            Divider()
+            HStack(spacing: 12) {
                 Button("应用源码") { session.render() }
                     .buttonStyle(.borderedProminent)
                     .disabled(session.playback == .streaming)
                 Button("恢复原稿") { session.restore() }
-                Spacer()
-                ShareLink(item: session.draft) { Label("导出源码", systemImage: "square.and.arrow.up") }
-                    .labelStyle(.iconOnly)
+                Spacer(minLength: 0)
             }
+            .padding(16)
         }
-        .padding(16)
+        .background(.background)
         .frame(minWidth: 280, idealWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -44,25 +68,47 @@ import SwiftLang
     @ObservedObject var session: GalleryDocumentSession
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 12) {
-                Text(session.playback.rawValue).font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                if session.pendingSuffix != nil {
-                    Button("追加流式后缀") { session.appendSuffix() }
-                } else if session.playback == .streaming {
-                    Button { session.pause() } label: { Label("暂停", systemImage: "pause") }
-                } else if session.playback == .paused {
-                    Button { session.resume() } label: { Label("继续", systemImage: "play") }
-                } else {
-                    Button { session.stream() } label: { Label("流式播放", systemImage: "play") }
+        let primary = primaryPresentation
+        return Menu {
+            Section(session.playback.rawValue) {
+                Button(action: performPrimaryAction) {
+                    Label(primary.title, systemImage: primary.symbol)
+                }
+                if session.playback == .streaming || session.playback == .paused {
+                    Button("从头播放") { session.stream() }
                 }
                 Button { session.interrupt() } label: { Label("中断", systemImage: "stop") }
                     .disabled(session.playback != .streaming && session.playback != .paused)
                 Button("完整渲染") { session.render() }
-                Text("动作仅记录 · 无交易执行").font(.caption).foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16).padding(.vertical, 8)
+        } label: {
+            Label(primary.title, systemImage: primary.symbol).labelStyle(.iconOnly)
+        } primaryAction: {
+            performPrimaryAction()
         }
-        .scrollIndicators(.hidden)
+        .accessibilityLabel(primary.title)
+        .accessibilityValue(session.playback.rawValue)
+        .help("\(session.playback.rawValue) · \(primary.title)")
+    }
+
+    private var primaryPresentation: (title: String, symbol: String) {
+        if session.pendingSuffix != nil { return ("追加流式后缀", "play") }
+        switch session.playback {
+        case .streaming: return ("暂停", "pause")
+        case .paused: return ("继续", "play")
+        default: return ("流式播放", "play")
+        }
+    }
+
+    private func performPrimaryAction() {
+        if session.pendingSuffix != nil {
+            session.appendSuffix()
+        } else if session.playback == .streaming {
+            session.pause()
+        } else if session.playback == .paused {
+            session.resume()
+        } else {
+            session.stream()
+        }
     }
 }

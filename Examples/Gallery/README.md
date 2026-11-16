@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.0 · 更新日期：2026-11-16
+文档版本：1.1 · 更新日期：2026-11-16
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -26,19 +26,20 @@ App 打包由 Xcode 处理，包括 Gallery 与依赖 SDK 的资源，不依靠�
 ## 浏览
 
 1. 在左侧选择 **OpenUI / OpenIntelligentUI**，整体切换场景、组件目录与文档。每套产品记住本窗口内上次浏览的位置；第一次切换优先保留同一场景。
-2. **场景**提供十个完整任务案例，按旅行出行、家居设计、购物选购、学习理解、账单分析、信息填写等用户任务类型分组。类型显示在分组标题中，场景行只显示案例标题；各产品使用自己的 Lang 程序。
+2. **场景**提供十个完整任务案例，按旅行出行、家居设计、购物选购、学习理解、账单分析、信息填写等用户任务类型分组。目录只保留分组与条目，不叠加数量统计或结构徽标；各产品使用自己的 Lang 程序。
 3. 不提供侧栏搜索。组件分组的展开状态按产品保存，折叠和重展开保留当前文档与选中状态。
 4. **组件库**按类别列出当前产品真实注册的全部组件。点击查看原生示例；嵌套组件在父组件中展示，数据节点明确说明没有独立视觉。名称、签名与描述从实际库读取。
-5. 工具栏 **源码**按需打开编辑器；组件的签名与说明收在“组件用法”中。编辑后点击“应用源码”或“恢复原稿”。
-6. **展示设置**中可展开画布或流式工具，也可修改外观、字号、locale 或导入源码。默认隐藏开发面板，把空间留给内容。
+5. 工具栏 **源码**按需打开编辑器；组件的签名、说明和结构节点用法收在默认展开的“组件用法”中。编辑区占据面板主体，顶部导出，底部“应用源码”或“恢复原稿”。macOS 使用可收起的右侧面板，iOS 使用 sheet。
+6. 画布尺寸、设备预设、旋转、缩放、外观、字号、locale 和导入集中在按需打开的预览设置中；macOS 使用 popover，iOS 使用 sheet，不在预览上方堆叠横向工具条。场景说明也在设置内查看。
+7. **流式播放**位于顶部工具栏，与画布同屏。直接点按即可播放、暂停、继续或追加已捕获的后缀；菜单提供当前状态、从头播放、中断和完整渲染，不必打开预览设置。
 
-画布宽高是实际逻辑尺寸，内容左右各留 20 pt。缩放仅改变观看倍率；尺寸、主题和倍率不重建文档、不清空输入。切换条目或产品会退役旧 session，创建匹配的新文档。
+画布在可用区域水平居中，超出空间时仍可滚动查看。宽高是实际逻辑尺寸，内容左右各留 20 pt；缩放仅改变观看倍率。Gallery 的导航、工具和画布边界使用系统语义样式，SDK 主题值不随外层美化改变。尺寸、主题和倍率不重建文档、不清空输入；切换条目或产品会退役旧 session，创建匹配的新文档。
 
 所有外部动作和链接仅在 Gallery 本地记录，不连接 Agent、不导航、不上传表单或执行交易。原专项诊断资源保留给回归验证及 CLI，不出现在浏览入口。组件示例存于 `Resources/Components/`，不进入 SDK 产品。
 
 ## 导入现有源码
 
-“展示设置 → 导入源码”读取 `.openui` 或含 `program` 的 JSON。先在左侧选择目标产品；JSON 可增加 `"library": "standard"` 或 `"intelligent"`，与当前选择不符时会报错。
+预览设置中的“导入源码”读取 `.openui` 或含 `program` 的 JSON。先在左侧选择目标产品；JSON 可增加 `"library": "openui"` 或 `"library": "openintelligentui"`，与当前选择不符时会报错。
 
 ```json
 {
@@ -63,9 +64,9 @@ swift run --package-path Examples/Gallery OpenUIGallery \
   --library openintelligentui --case monthly-spending --dark --accessibility
 ```
 
-重现一次已捕获的流式分割时，使用 `--program /absolute/prefix.openui --stream-suffix /absolute/suffix.openui --library openintelligentui`。前缀以未完成状态展示，点击“追加流式后缀”完成。后缀按原始文本读取，可从对象项或字符串中间开始；编辑器保留完整的前缀加后缀，因此恢复、中断后完整渲染及重新播放都不会把半个程序误当成完整文档。
+重现一次已捕获的流式分割时，使用 `--program /absolute/prefix.openui --stream-suffix /absolute/suffix.openui --library openintelligentui`。前缀以未完成状态展示，点击顶部播放控件的“追加流式后缀”完成。后缀按原始文本读取，可从对象项或字符串中间开始；编辑器保留完整的前缀加后缀，因此恢复、中断后完整渲染及重新播放都不会把半个程序误当成完整文档。
 
-`--library openui|openintelligentui` 同时兼容旧的 `standard|intelligent` 别名；JSON 的 library 字段保留旧标识以兼容已有文件。`--case` 也接受 `Components/Button` 这样的组件 ID。
+`--library` 与 JSON 的 library 字段均使用 `openui|openintelligentui`。`--case` 也接受 `Components/Button` 这样的组件 ID。
 
 可选参数还有 `--locale system|en|zh-Hans|ar`。`--help` 列出全部参数。外部文件限制为 1 MiB 以内的 UTF-8 文本。
 
@@ -95,7 +96,7 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 
 OpenUI 的设计规则与实施状态统一见 [OpenUI 组件指南](../../docs/openui.md)，此处只记录使用现有场景的原生验证入口。阅读解释用 `heat-pump`，图片选项用 `bedroom-style`，表单用 `contact-form`，地图用 `scene-discovery`，数据分析用 `monthly-spending`；商品卡和宽表分别用 `desk-lamp`、`code-isolation`。这些案例保留原始来源内容，不为视觉对照缩短文案。
 
-进入案例后在“展示设置”切换宽度、外观、字号与 locale，实际操作新的完整查看入口、表格阅读模式、字段和继续对话。涉及加载失败或流式边界时使用已有诊断和流式工具。执行环境、实际内容宽度、输入、截图及结果保存在根目录忽略的 `outputs/`，不另存设计规范副本；未执行的场景不能标为验收通过。
+进入案例后在预览设置中切换宽度、外观、字号与 locale，实际操作完整查看入口、表格阅读模式、字段和继续对话。涉及加载失败或流式边界时使用已有诊断和流式工具。执行环境、实际内容宽度、输入、截图及结果保存在根目录忽略的 `outputs/`，不另存设计规范副本；未执行的场景不能标为验收通过。
 
 ```sh
 ./Examples/Gallery/verify.sh
@@ -109,3 +110,5 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 ```
 
 输出文件为 `openui.json` 和 `openintelligentui.json`。导出使用实际 SDK 的 `readerSpecification`，不是手写的 schema 子集。CLI 校验覆盖解析和宿主求值，不代表界面截图或真实交互已经通过。XCTest 另覆盖状态隔离、流式取消、查询链和 Mac 预览尺寸变化；原生执行结果应以对应提交的日志为准。
+
+2026-11-16 的外层呈现调整通过目录和资源完整性检查，保留 10 个场景、9 个诊断、35 个程序、148 个组件示例及 6 张图片。当前执行环境没有 Swift/Xcode，`swift build --package-path Examples/Gallery` 返回 127；macOS/iOS 原生编译、设置与导入交互、画布及源码面板视觉仍待验收。

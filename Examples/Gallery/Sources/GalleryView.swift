@@ -2,10 +2,20 @@ import SwiftUI
 import UniformTypeIdentifiers
 import SwiftLang
 
-private enum GalleryPanel: String, Identifiable {
-    case source = "源码"
-    var id: String { rawValue }
+#if os(iOS)
+private enum GalleryPanel: Identifiable {
+    case source(GalleryDocumentSession, GalleryComponent?)
+    case settings
+
+    var id: String { title }
+    var title: String {
+        switch self {
+        case .source: return "源码"
+        case .settings: return "预览设置"
+        }
+    }
 }
+#endif
 
 @MainActor struct GalleryView: View {
     @StateObject private var model: GalleryModel
@@ -13,10 +23,14 @@ private enum GalleryPanel: String, Identifiable {
     @State private var appearance: String
     @State private var largeType: Bool
     @State private var localeName: String
-    @State private var panel: GalleryPanel?
     @State private var importing = false
-    @State private var showsCanvasTools = false
-    @State private var showsPlayback = false
+    #if os(macOS)
+    @State private var showsSource = false
+    @State private var showsSettings = false
+    #else
+    @State private var panel: GalleryPanel?
+    @State private var importAfterDismissal = false
+    #endif
     @Environment(\.dynamicTypeSize) private var systemType
     @Environment(\.locale) private var systemLocale
     @Environment(\.layoutDirection) private var systemDirection
@@ -28,7 +42,6 @@ private enum GalleryPanel: String, Identifiable {
         _appearance = State(initialValue: options.dark ? "深色" : "系统")
         _largeType = State(initialValue: options.accessibility)
         _localeName = State(initialValue: options.locale)
-        _panel = State(initialValue: nil)
     }
 
     var body: some View {
@@ -50,13 +63,24 @@ private enum GalleryPanel: String, Identifiable {
             }
         }
         #if os(iOS)
-        .sheet(item: $panel) { selected in
+        .sheet(item: $panel, onDismiss: {
+            if importAfterDismissal {
+                importAfterDismissal = false
+                importing = true
+            }
+        }) { selected in
             NavigationStack {
-                if let session = model.session {
-                    panelContent(selected, session: session)
-                        .navigationTitle(selected.rawValue)
-                        .toolbar { ToolbarItem { Button("完成") { panel = nil } } }
+                Group {
+                    switch selected {
+                    case .source(let session, let component):
+                        GallerySourceEditor(session: session, component: component)
+                    case .settings:
+                        previewSettings
+                    }
                 }
+                .navigationTitle(selected.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { panel = nil } } }
             }
         }
         #endif
@@ -65,48 +89,27 @@ private enum GalleryPanel: String, Identifiable {
 
     private var detail: some View {
         VStack(spacing: 0) {
-            if let component = model.selectedComponent {
-                VStack(alignment: .leading, spacing: 4) {
-                    if component.supporting {
-                        Text("结构 / 数据定义").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                        Text(component.container.map { "\(component.name) 由 \($0) 消费，以下展示它在父组件中的实际用法。" }
-                             ?? "\(component.name) 是保留的数据定义，没有独立的原生视图；以下展示其源码用法。")
-                            .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Text("\(component.name) · 原生组件示例").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.vertical, 10)
-            }
-            if let entry = model.selectedEntry {
-                HStack {
-                    Text(entry.item.summary).font(.callout).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 16).padding(.vertical, 10)
-            }
             if let failure = model.failure {
                 Text(failure).font(.callout).foregroundStyle(.orange).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(16)
             }
             if let session = model.session, let resources = model.resources {
-                if showsCanvasTools { GalleryViewportControls(viewport: $viewport) }
-                if showsPlayback { GalleryPlaybackControls(session: session) }
-                if showsCanvasTools || showsPlayback { Divider() }
                 #if os(macOS)
                 HSplitView {
                     preview(session: session, resources: resources).frame(minWidth: 280)
-                    if let selected = panel {
-                        panelContent(selected, session: session).frame(minWidth: 280, idealWidth: 360)
+                    if showsSource {
+                        GallerySourceEditor(session: session, component: model.selectedComponent)
+                            .id(session.id)
+                            .frame(minWidth: 280, idealWidth: 360, maxWidth: 520)
                     }
                 }
                 #else
                 preview(session: session, resources: resources)
                 #endif
             } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "rectangle.3.group").font(.largeTitle).foregroundStyle(.secondary)
-                    Text("从左侧选择场景或组件。")
+                VStack(spacing: 12) {
+                    Image(systemName: "rectangle.3.group").font(.title).foregroundStyle(.secondary)
+                    Text("选择场景或组件开始预览").foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -121,36 +124,89 @@ private enum GalleryPanel: String, Identifiable {
             .id(session.id)
     }
 
-    @ViewBuilder private func panelContent(_ selected: GalleryPanel, session: GalleryDocumentSession) -> some View {
-        Group {
-            switch selected {
-            case .source: GallerySourceEditor(session: session, component: model.selectedComponent)
+    private var previewSettings: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                if let entry = model.selectedEntry {
+                    Text(entry.item.summary).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                    Divider()
+                }
+                GalleryViewportControls(viewport: $viewport)
+                Divider()
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("显示").font(.headline)
+                    Picker("外观", selection: $appearance) {
+                        ForEach(["系统", "浅色", "深色"], id: \.self) { Text($0).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Toggle("辅助功能大字号", isOn: $largeType)
+                    Picker("文案与方向", selection: $localeName) {
+                        Text("跟随系统").tag("system")
+                        Text("简体中文").tag("zh-Hans")
+                        Text("English").tag("en")
+                        Text("العربية · RTL").tag("ar")
+                    }
+                    .pickerStyle(.menu)
+                }
+                .font(.callout)
+                .padding(16)
+                Divider()
+                Button(action: importSource) {
+                    Label("导入源码", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(16)
             }
+            .frame(maxWidth: 360)
+            .frame(maxWidth: .infinity)
         }
-        .id(session.id)
+    }
+
+    private func importSource() {
+        #if os(macOS)
+        showsSettings = false
+        importing = true
+        #else
+        // Present the file importer after the settings sheet has finished closing.
+        importAfterDismissal = true
+        panel = nil
+        #endif
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem {
-            Button { panel = panel == nil ? .source : nil } label: { Label("源码", systemImage: "chevron.left.forwardslash.chevron.right") }
+            Button {
+                #if os(macOS)
+                showsSource.toggle()
+                #else
+                if let session = model.session { panel = .source(session, model.selectedComponent) }
+                #endif
+            } label: { Label("源码", systemImage: "chevron.left.forwardslash.chevron.right") }
+            .disabled(model.session == nil)
+            .help("显示或隐藏源码")
+        }
+        if let session = model.session {
+            ToolbarItem {
+                GalleryPlaybackControls(session: session)
+            }
         }
         ToolbarItem {
-            Menu {
-                Toggle("画布工具", isOn: $showsCanvasTools)
-                Toggle("流式工具", isOn: $showsPlayback)
-                Button("导入源码") { importing = true }
-                Divider()
-                Picker("外观", selection: $appearance) {
-                    ForEach(["系统", "浅色", "深色"], id: \.self) { Text($0).tag($0) }
-                }
-                Toggle("辅助功能大字号", isOn: $largeType)
-                Picker("SDK 文案与方向", selection: $localeName) {
-                    Text("跟随系统").tag("system")
-                    Text("简体中文").tag("zh-Hans")
-                    Text("English").tag("en")
-                    Text("العربية · RTL").tag("ar")
-                }
-            } label: { Label("展示设置", systemImage: "slider.horizontal.3") }
+            Button {
+                #if os(macOS)
+                showsSettings.toggle()
+                #else
+                panel = .settings
+                #endif
+            } label: { Label("预览设置", systemImage: "slider.horizontal.3") }
+            .help("预览设置")
+            #if os(macOS)
+            .popover(isPresented: $showsSettings, arrowEdge: .top) {
+                previewSettings.frame(width: 320, height: 560)
+            }
+            #endif
         }
     }
 }

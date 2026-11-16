@@ -24,23 +24,17 @@ struct GallerySidebarState {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    Text("产品").font(.body).foregroundStyle(.secondary)
-                    Picker("产品", selection: Binding(get: { model.selectedLibrary }, set: {
-                        model.selectLibrary($0)
-                    })) {
-                        ForEach(GalleryLibrary.allCases) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .accessibilityLabel("选择产品")
-                    .accessibilityHint("整体切换场景和组件库")
-                    .frame(maxWidth: .infinity)
-                }
-
+            Picker("组件库", selection: Binding(get: { model.selectedLibrary }, set: {
+                model.selectLibrary($0)
+            })) {
+                ForEach(GalleryLibrary.allCases) { Text($0.title).tag($0) }
             }
-            .padding(14)
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .accessibilityLabel("选择产品")
+            .accessibilityHint("整体切换场景和组件库")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18).padding(.vertical, 14)
             Divider()
             #if os(macOS)
             ScrollViewReader { proxy in
@@ -76,45 +70,31 @@ struct GallerySidebarState {
     private var categories: [String] {
         GalleryComponent.categories.filter { category in model.components.contains { $0.category == category } }
     }
-    private var rowFont: Font {
-        #if os(macOS)
-        .system(size: 14)
-        #else
-        .body
-        #endif
-    }
-
     @ViewBuilder private var navigationItems: some View {
         if scenes.isEmpty && model.components.isEmpty {
             Text("没有可浏览的内容").font(.headline).padding(10)
         } else {
             if !scenes.isEmpty {
-                sectionTitle("场景", count: scenes.count)
+                sectionTitle("场景")
                 ForEach(sceneCategories, id: \.self) { category in
                     Text(category)
-                        .font(rowFont.weight(.medium)).foregroundStyle(.secondary)
+                        .font(.caption.weight(.medium)).foregroundStyle(.secondary)
                         .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 3)
                         .accessibilityAddTraits(.isHeader)
                     ForEach(scenes.filter { $0.item.category == category }) { entry in
-                        item(entry.id, title: entry.item.title).padding(.leading, 14)
+                        item(entry.id, title: entry.item.title)
                     }
                 }
             }
             if !model.components.isEmpty {
-                sectionTitle("组件库", count: model.components.count)
+                sectionTitle("组件库")
                     .padding(.top, scenes.isEmpty ? 0 : 16)
-                let supporting = model.components.filter(\.supporting).count
-                if supporting > 0 {
-                    Text("\(model.components.count - supporting) 个可视 · \(supporting) 个结构 / 数据")
-                        .font(.callout).foregroundStyle(.secondary)
-                        .padding(.horizontal, 10).padding(.bottom, 5)
-                }
                 ForEach(categories, id: \.self) { category in
                     categoryHeader(category)
                     if navigation.isExpanded(category, in: model.selectedLibrary) {
                         ForEach(model.components.filter { $0.category == category }) { component in
                             item(component.id, title: component.name, supporting: component.supporting)
-                                .padding(.leading, 14)
+                                .padding(.leading, 18)
                                 .transition(.identity)
                         }
                     }
@@ -123,14 +103,11 @@ struct GallerySidebarState {
         }
     }
 
-    private func sectionTitle(_ title: String, count: Int) -> some View {
-        HStack {
-            Text(title).font(.title3.weight(.semibold))
-            Spacer()
-            Text("\(count)")
-                .font(.callout).monospacedDigit().foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 7)
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title).font(.headline)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func categoryHeader(_ category: String) -> some View {
@@ -140,10 +117,8 @@ struct GallerySidebarState {
             HStack(spacing: 8) {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.caption.weight(.semibold)).frame(width: 10)
-                Text(category).font(rowFont.weight(.medium))
-                Spacer(minLength: 4)
-                Text("\(count)")
-                    .font(.callout).monospacedDigit().foregroundStyle(.secondary)
+                Text(category).font(.body.weight(.medium))
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -154,15 +129,11 @@ struct GallerySidebarState {
         .accessibilityIdentifier("gallery.category.\(category)")
     }
 
-    private func itemLabel(_ title: String, supporting: Bool) -> some View {
-        HStack(spacing: 8) {
-            Text(title).font(rowFont).lineLimit(2).multilineTextAlignment(.leading)
-            Spacer(minLength: 0)
-            if supporting { Text("子项").font(.caption).opacity(0.7) }
-        }
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
+    private func itemLabel(_ title: String) -> some View {
+        Text(title).font(.body).lineLimit(2).multilineTextAlignment(.leading)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
     }
 
     @ViewBuilder private func item(_ id: String, title: String, supporting: Bool = false) -> some View {
@@ -172,17 +143,20 @@ struct GallerySidebarState {
             model.select(id)
             focusedID = id
         } label: {
-            itemLabel(title, supporting: supporting)
+            itemLabel(title)
                 .foregroundStyle(selected ? Color.white : Color.primary)
                 .background(selected ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
         .focused($focusedID, equals: id)
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityHint(supporting ? "在所属组件中查看用法" : "")
         .accessibilityIdentifier("gallery.item.\(id)")
         .id(id)
         #else
-        NavigationLink(value: id) { itemLabel(title, supporting: supporting) }.tag(id)
+        NavigationLink(value: id) { itemLabel(title) }
+            .accessibilityHint(supporting ? "在所属组件中查看用法" : "")
+            .tag(id)
         #endif
     }
 
