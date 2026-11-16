@@ -91,6 +91,42 @@ final class RuntimeReentrancyTests: XCTestCase {
         XCTAssertTrue(state.errors.isEmpty)
     }
 
+    @MainActor func testErrorCallbacksDistinguishRawUnicodeAndStillDeduplicateUnchangedErrors() throws {
+        let message = ParamDef(name: "message", required: true)
+        let schema = LibrarySchema(components: ["Box": [ParamDef(name: "value", required: true)]],
+            callDefs: builtinCallDefs.merging(["Fail": CallDef(kind: .function, params: [message])]) { _, new in new })
+        let state = OpenUIState(schema: schema,
+            functions: ["Fail": CustomFunction(params: [message], fn: { args in
+                guard let value = args["message"], case .string(let text) = value, !text.isEmpty else { return .null }
+                throw CallbackDiagnostic(description: text.displayString)
+            })])
+        defer { state.reset() }
+        var reports: [[OpenUIError]] = []
+        state.onError = { reports.append($0) }
+        state.setSource("$value=\"\u{00E9}\"\nroot=Box(@Fail($value))")
+        let first = try XCTUnwrap(state.errors.first)
+        XCTAssertEqual(reports.count, 1)
+        XCTAssertFalse(state.isInterrupted, "An ordinary root property error remains recoverable")
+        XCTAssertFalse(state.nativePresentation.hasRuntimeFailure)
+
+        let decomposed = Value.string("e\u{301}")
+        state.setState("$value", value: decomposed)
+        let second = try XCTUnwrap(state.errors.first)
+        XCTAssertEqual(first.message, second.message, "Swift considers the two spellings canonically equivalent")
+        XCTAssertFalse(first.message.utf16.elementsEqual(second.message.utf16))
+        XCTAssertEqual(reports.count, 2, "A changed raw diagnostic must reach the host")
+        XCTAssertTrue(try XCTUnwrap(reports.last?.first).message.utf16.elementsEqual(second.message.utf16))
+        XCTAssertTrue(state.canExecuteActions)
+        XCTAssertFalse(state.nativePresentation.hasRuntimeFailure)
+
+        state.setState("$value", value: decomposed)
+        XCTAssertEqual(reports.count, 2, "The same full error still has one notification")
+        state.setState("$value", value: .string(""))
+        XCTAssertEqual(reports.count, 3)
+        XCTAssertTrue(try XCTUnwrap(reports.last).isEmpty)
+        XCTAssertTrue(state.errors.isEmpty)
+    }
+
     @MainActor func testParseCallbackCanAppendTheNextChunkBeforeOuterPushReturns() {
         let state = OpenUIState(schema: schema())
         var parses = 0
@@ -213,4 +249,8 @@ final class RuntimeReentrancyTests: XCTestCase {
         XCTAssertEqual(state.fieldValue(form: "form", name: "first"), .string("A"))
         XCTAssertEqual(state.fieldValue(form: "form", name: "second"), .string("B"))
     }
+}
+
+private struct CallbackDiagnostic: Error, CustomStringConvertible {
+    let description: String
 }

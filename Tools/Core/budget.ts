@@ -6,9 +6,12 @@ export const nativeBudgetLimits = Object.freeze({
 });
 type Cost = { nodes: number; depth: number; elements: number; utf16: number };
 type Reason = 'work' | 'depth' | 'output';
-type Scope = { work: number; maximumWork: number; depth: number; reason?: Reason; memo: WeakMap<object, Cost> };
+type Failure = Reason | { error: unknown };
+type Scope = { work: number; maximumWork: number; depth: number; failure?: Failure;
+  memo: WeakMap<object, Cost>; diagnostics?: Cost };
 export type BudgetOutcome<T> = { value: T | null; limitExceeded: boolean; work: number };
-const failedValues = new WeakSet<object>();
+type ParseBudgetError = { source: string; code: string; message: string; hint?: string; statementId?: string };
+const failedValues = new WeakMap<object, ParseBudgetError | undefined>();
 const materializationScopes = new WeakMap<object, Scope>();
 // Only parser-owned static root snapshots are reusable across operations.
 // Values supplied by state/tool/custom-function callbacks always use a local memo.
@@ -28,16 +31,53 @@ const oversized: Cost = { nodes: nativeBudgetLimits.nodes + 1, depth: nativeBudg
 export function nativeBudgetExceeded(value: unknown): boolean {
   return object(value) && failedValues.has(value);
 }
-export function markBudgetExceeded<T extends object>(value: T): T {
-  failedValues.add(value); return value;
+export function markBudgetExceeded<T extends object>(value: T, error?: ParseBudgetError): T {
+  failedValues.set(value, error); return value;
+}
+export function parseBudgetError(value: object): ParseBudgetError {
+  const error = failedValues.get(value);
+  if (error && !exceeds(cost(error, new WeakMap()))) return error;
+  return { source: 'parser', code: 'parse-exception',
+    message: 'Native materialization or output budget exceeded.',
+    hint: 'The last valid prefix remains readable but is not executable. Replace or reset this document to resume.' };
 }
 export function isNativeBudgetError(error: unknown): boolean { return error === limit; }
 // Native callbacks obtain the private token without throwing through the
 // bridge's call/assert boundary, then install it as the JSContext exception.
 // Also poison the active scope so swallowing the exception cannot resume work.
 export function nativeInputFailure(): object {
-  if (active) active.reason ??= 'output';
+  if (active) active.failure ??= 'output';
   return limit;
+}
+function throwFailure(state: Scope): never {
+  if (typeof state.failure === 'object') throw state.failure.error;
+  throw limit;
+}
+
+// Only an exception that escaped a native execution boundary is terminal.
+// Ordinary prop/function diagnostics already handled by the core stay local.
+// Poison an outer scope too: a native callback may inspect an inner outcome
+// without throwing it, but that must not let the outer operation continue.
+export function nativeExecutionFailure(error: unknown) {
+  if (typeof active?.failure === 'object') error = active.failure.error;
+  const budgetFailure = () => {
+    if (active) active.failure ??= 'output';
+    return { value: null, limitExceeded: true as const, work: active?.work ?? 0 };
+  };
+  if (isNativeBudgetError(error) || typeof active?.failure === 'string') return budgetFailure();
+  const message = error instanceof Error && typeof error.message === 'string' ? error.message
+    : typeof error === 'string' ? error : 'Unknown shared-core execution error.';
+  const prefix = 'Native execution failed: ';
+  const hint = 'The last valid prefix remains readable but is not executable. Replace or reset this document to resume.';
+  // Check before constructing/crossing the diagnostic envelope, including its
+  // fixed keys/metadata. An exception is not an unlimited output channel.
+  if (message.length + prefix.length + hint.length + 64 > nativeBudgetLimits.utf16) return budgetFailure();
+  if (active) active.failure ??= { error };
+  return { error: { source: 'runtime', code: 'runtime-error', message: prefix + message, hint } };
+}
+export function nativeExecution<T>(body: () => T): T | ReturnType<typeof nativeExecutionFailure> {
+  try { return body(); }
+  catch (error) { return nativeExecutionFailure(error); }
 }
 export function hasActiveBudget(): boolean { return active !== undefined; }
 const sourceOpenings = new Set([T.LParen, T.LBrack, T.LBrace]);
@@ -75,14 +115,15 @@ export function parseWithSourceBudget<T extends { meta: { errors: unknown[] } }>
   catch (error) {
     if (!isNativeBudgetError(error)) throw error;
     const result = empty();
-    result.meta.errors.push({ source: 'parser', code: 'parse-exception',
+    const diagnostic = { source: 'parser', code: 'parse-exception',
       message: 'Native input budget exceeded (100,000 tokens, 4,096 statements, 128 nesting levels or 256 operators per expression).',
-      hint: 'The last valid prefix remains readable but is not executable. Replace or reset this document to resume.' });
-    return markBudgetExceeded(result);
+      hint: 'The last valid prefix remains readable but is not executable. Replace or reset this document to resume.' };
+    result.meta.errors.push(diagnostic);
+    return markBudgetExceeded(result, diagnostic);
   }
 }
 function fail(state: Scope, reason: Reason): never {
-  state.reason ??= reason; throw limit;
+  state.failure ??= reason; throwFailure(state);
 }
 function exceeds(cost: Cost): boolean {
   return cost.nodes > nativeBudgetLimits.nodes || cost.depth > nativeBudgetLimits.depth
@@ -143,33 +184,47 @@ function inspect(value: unknown, state: Scope, fresh = false): Cost {
   return measured;
 }
 
+export function budgetDiagnostic<T>(value: T): T {
+  if (!active) return value;
+  const measured = inspect(value, active, true);
+  const total = active.diagnostics ??= { nodes: 1, depth: 1, elements: 0, utf16: 0 };
+  total.nodes += measured.nodes;
+  total.depth = Math.max(total.depth, measured.depth + 1);
+  total.elements += measured.elements;
+  total.utf16 += measured.utf16;
+  if (exceeds(total)) fail(active, 'output');
+  reserveWork(measured.nodes + Math.ceil(measured.utf16 / 64));
+  return value;
+}
+
 export function runBudget<T>(body: () => T, maximumWork?: number): BudgetOutcome<T> {
   // Native action batches can lend their remaining allowance to this call.
   // Recursive/nested calls keep the active counter and cannot reset its cap.
   const previous = active, state = previous ?? scope(maximumWork);
   active = state;
   try {
-    if (state.reason) throw limit;
+    if (state.failure) throwFailure(state);
     const value = body();
-    if (state.reason) throw limit;
+    if (state.failure) throwFailure(state);
     // A fresh final pass also sees any in-place changes made by a host callback.
     inspect(value, state, true);
     return { value, limitExceeded: false, work: state.work };
   } catch (error) {
     if (!isNativeBudgetError(error)) throw error;
+    if (typeof state.failure === 'object') throw state.failure.error;
     return { value: null, limitExceeded: true, work: state.work };
   } finally { active = previous; }
 }
 export function reserveWork(amount = 1): void {
   if (!active) return;
-  if (active.reason) throw limit;
+  if (active.failure) throwFailure(active);
   active.work = add(active.work, Math.max(0, amount), active.maximumWork);
   if (active.work > active.maximumWork) fail(active, 'work');
 }
 export function enterBudget(): Scope | undefined {
   const state = active;
   if (!state) return undefined;
-  if (state.reason) throw limit;
+  if (state.failure) throwFailure(state);
   // This hot path consumes exactly one unit. A live scope cannot already be
   // over the limit, so the first rejection is cap + 1 without bulk arithmetic.
   if (++state.work > state.maximumWork) fail(state, 'work');
@@ -188,7 +243,7 @@ export function budgetFrame<T>(body: () => T, context?: any): T {
   const state = enterBudget()!;
   try {
     const value = body();
-    if (state.reason) throw limit;
+    if (state.failure) throwFailure(state);
     return value;
   } finally { leaveBudget(state); }
 }
@@ -241,8 +296,10 @@ export function budgetConcat(left: unknown, right: unknown): string {
 function materializationFailure(ctx: any): void {
   if (ctx.nativeLimit) return;
   ctx.nativeLimit = true;
-  ctx.errors.push({ source: 'parser', code: 'parse-exception',
-    message: 'Native materialization or output budget exceeded.', statementId: ctx.currentStatementId });
+  const diagnostic = { source: 'parser', code: 'parse-exception',
+    message: 'Native materialization or output budget exceeded.', statementId: ctx.currentStatementId };
+  ctx.errors.push(diagnostic);
+  markBudgetExceeded(ctx, diagnostic);
 }
 export function materializationEvaluation<T>(ctx: any, body: () => T, fallback: T): T {
   if (ctx.nativeLimit) return fallback;
@@ -301,5 +358,5 @@ export function recordParseBudget(result: any, ctx: any): boolean {
     if (measured) staticRoots.set(result.root, measured);
   }
   if (!ctx.nativeLimit) return false;
-  markBudgetExceeded(result); return true;
+  markBudgetExceeded(result, failedValues.get(ctx)); return true;
 }

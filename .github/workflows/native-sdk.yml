@@ -2,9 +2,8 @@ name: Native SDK and lang compatibility
 
 on:
   push:
-    branches: [main, codex/sdk-baseline, codex/swift-sdk-consolidation-rc21, refactor/openui-four-module-foundation]
+    branches: [main, 'codex/**', 'refactor/**']
   pull_request:
-    branches: [main, codex/sdk-baseline, codex/intelligentui-design-revamp, codex/swift-sdk-consolidation-rc21]
   workflow_dispatch:
 
 permissions:
@@ -176,6 +175,13 @@ jobs:
           set -euo pipefail
           swift test -c release --filter 'HostSizingIsolationTests|RuntimeHostIsolationTests' \
             2>&1 | tee outputs/verification/release-fitting.log
+      - name: Release streaming, failure and resource boundaries
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test -c release --filter 'StreamingRenderIsolationTests|MountedStreamingTextProgressTests|ComponentRenderInputTests|NativeComponentSubscriptionTests|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|ActionWorkBudgetTests|RuntimeReentrancyTests|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceStoreTests' \
+            2>&1 | tee outputs/verification/release-streaming.log
       - name: Standalone Gallery tests
         if: ${{ !cancelled() }}
         shell: bash
@@ -254,3 +260,33 @@ jobs:
           path: outputs/verification/
           if-no-files-found: warn
           retention-days: 7
+
+  native-acceptance:
+    name: Native SDK acceptance
+    # A skipped native job must not count as an accepted SDK revision.
+    needs: [reproducible-inputs, dependency-security, native-sdk]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every prerequisite to succeed
+        shell: bash
+        env:
+          VERIFIED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          INPUTS_RESULT: ${{ needs.reproducible-inputs.result }}
+          SECURITY_RESULT: ${{ needs.dependency-security.result }}
+          NATIVE_RESULT: ${{ needs.native-sdk.result }}
+        run: |
+          set -euo pipefail
+          {
+            printf '## Native SDK acceptance\n\n'
+            printf 'Commit: `%s`\n\n' "$VERIFIED_SHA"
+            printf '| Required job | Result |\n| --- | --- |\n'
+            printf '| reproducible-inputs | %s |\n' "$INPUTS_RESULT"
+            printf '| dependency-security | %s |\n' "$SECURITY_RESULT"
+            printf '| native-sdk | %s |\n' "$NATIVE_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$INPUTS_RESULT" != success || "$SECURITY_RESULT" != success || "$NATIVE_RESULT" != success ]]; then
+            printf '::error::Native SDK acceptance requires all three jobs to succeed; failed, cancelled, skipped or missing results do not pass.\n'
+            exit 1
+          fi

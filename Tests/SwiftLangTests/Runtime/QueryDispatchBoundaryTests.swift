@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import XCTest
 @testable import SwiftLang
 
@@ -533,6 +534,191 @@ final class QueryDispatchBoundaryTests: XCTestCase {
         XCTAssertTrue(evaluator.nativeLimitExceeded)
         XCTAssertTrue(manager.nativeLimitExceeded)
         XCTAssertTrue(manager.isDisposed)
+    }
+
+    @MainActor func testQueryCoercionFailureStopsBeforeDispatchAndKeepsTheLastRoot() async throws {
+        let called = expectation(description: "Failed query must not enter a provider")
+        called.isInverted = true
+        let provider = PendingDispatchProvider { _ in called.fulfill() }
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        defer { state.onParseResult = nil; state.reset() }
+        state.setSource("root=Box(\"kept\")")
+        let previous = try XCTUnwrap(state.root)
+        var parsed: ParseResult?
+        state.onParseResult = { parsed = $0 }
+        state.setSource("$bad={toString:1,valueOf:2}\nq=Query($bad+\"x\",{},null)\nroot=Box(q)")
+        XCTAssertTrue(state.isInterrupted)
+        XCTAssertFalse(state.canExecuteActions)
+        XCTAssertTrue(state.root === previous)
+        XCTAssertTrue(state.nativePresentation.hasRuntimeFailure)
+        XCTAssertFalse(try XCTUnwrap(parsed).nativeLimitExceeded, "A coercion error is not budget exhaustion")
+        XCTAssertEqual(state.errors.first?.code, .runtimeError)
+        XCTAssertNotEqual(state.errors.first?.message, runtimeBudgetError().message)
+        await fulfillment(of: [called], timeout: 0.1)
+        let calls = await provider.calls
+        XCTAssertTrue(calls.isEmpty)
+
+        state.setSource("root=Box(\"recovered\")")
+        XCTAssertEqual(PropValue.value(try XCTUnwrap(state.root), "value"), .string("recovered"))
+        XCTAssertTrue(state.canExecuteActions)
+        XCTAssertFalse(state.nativePresentation.hasRuntimeFailure)
+        XCTAssertTrue(state.errors.isEmpty)
+    }
+
+    func testExplicitQueryCoercionFailureSettlesItsRegisteredCallback() {
+        let parsed = createParser(schema: schema()).parse("$tool=\"load\"\nq=Query($tool+\"\",{},null)\nroot=Box(q)")
+        let store = createStore()
+        store.initialize(defaults: parsed.stateDeclarations, persisted: [:])
+        let evaluator = Evaluator(context: EvaluationContext(getState: { store.get($0) ?? .null }, resolveRef: { _ in .null }), schema: schema())
+        let manager = QueryManager(provider: nil)
+        defer { manager.dispose(); store.dispose() }
+        manager.evaluateStatements(parsed.queryStatements, evaluator: evaluator)
+        XCTAssertNil(evaluator.nativeFailure)
+        store.set("$tool", value: objectWithoutPrimitiveConversion(), pristine: false)
+        let settled = expectation(description: "Explicit query error settles its callback")
+        manager.runQuery(statementId: "q", tool: "load", args: .object([]), defaults: .null,
+            onSettled: { settled.fulfill() })
+        wait(for: [settled], timeout: 1)
+        XCTAssertNotNil(evaluator.nativeFailure)
+        XCTAssertNotNil(manager.nativeFailure)
+        XCTAssertFalse(evaluator.nativeLimitExceeded)
+        XCTAssertFalse(manager.nativeLimitExceeded)
+        XCTAssertTrue(manager.isDisposed)
+        XCTAssertEqual(manager.nativeFailure?.error.message, evaluator.nativeFailure?.error.message)
+    }
+
+    func testAsyncReaderCoercionFailureRetiresAwaitersWithoutProviderCooperation() async throws {
+        let started = expectation(description: "Upstream query and independent mutation started")
+        started.expectedFulfillmentCount = 2
+        let unexpected = expectation(description: "Failed reader must not enter a provider")
+        unexpected.isInverted = true
+        let retired = expectation(description: "Automatic reader failure retires its native manager")
+        let returned = expectation(description: "Mutation waiter returns before its provider")
+        let provider = ControlledResponseProvider { index in
+            if index < 2 { started.fulfill() } else { unexpected.fulfill() }
+        }
+        let manager = QueryManager(provider: provider)
+        defer { manager.dispose(); provider.finishAll() }
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .null },
+            resolveRef: { [weak manager] in manager?.queryState(for: $0)?.data ?? .null }), schema: schema())
+        let parsed = createParser(schema: schema()).parse("""
+        upstream=Query("load",{version:0},null)
+        next=Query("reader",{version:1,value:upstream+"x"},null)
+        root=Box(next)
+        """)
+        manager.setNativeFailureHandler { _ in retired.fulfill() }
+        manager.evaluateStatements(parsed.queryStatements, evaluator: evaluator)
+        manager.registerMutations(["save": "save"])
+        let mutation = Task {
+            let result = await manager.runMutation(statementId: "save", tool: "save",
+                args: .object([ObjectField(key: "version", value: .number(99))]))
+            returned.fulfill()
+            return result
+        }
+        await fulfillment(of: [started], timeout: 2)
+        let upstream = try XCTUnwrap(provider.callVersions.firstIndex(of: .number(0)))
+        let saving = try XCTUnwrap(provider.callVersions.firstIndex(of: .number(99)))
+        provider.finish(upstream, value: objectWithoutPrimitiveConversion())
+        await fulfillment(of: [retired, returned], timeout: 2)
+        await fulfillment(of: [unexpected], timeout: 0.1)
+        XCTAssertEqual(provider.cancelledIndices, [saving])
+        // The expectations above require retirement before this cooperative
+        // cleanup, which also lets a failed assertion finish without a hang.
+        provider.finishAll()
+        let outcome = await mutation.value
+        XCTAssertEqual(outcome.status, .error)
+        XCTAssertEqual(outcome.error?.message, manager.nativeFailure?.error.message)
+        XCTAssertNotNil(outcome.error)
+        XCTAssertFalse(manager.nativeLimitExceeded)
+        XCTAssertTrue(manager.isDisposed)
+        XCTAssertEqual(provider.callCount, 2)
+        XCTAssertNil(manager.queryState(for: "next"))
+    }
+
+    @MainActor func testAsyncReaderCoercionFailurePreservesPresentationAndResetRecovers() async throws {
+        let started = expectation(description: "Upstream query started")
+        let reader = expectation(description: "Failed reader must not enter a provider")
+        reader.isInverted = true
+        let stopped = expectation(description: "Reader failure reaches the document")
+        let provider = ReaderProvider(onRows: { started.fulfill() }, onReader: { reader.fulfill() })
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        defer { state.onError = nil; state.reset(); provider.finishRows(.null) }
+        var reported = false
+        state.onError = { [weak state] errors in
+            if !reported, !errors.isEmpty, state?.isInterrupted == true {
+                reported = true
+                stopped.fulfill()
+            }
+        }
+        state.setSource("rows=Query(\"rows\",{},null)\nnext=Query(\"reader\",{value:rows+\"x\"},\"preview\")\nroot=Box(next)")
+        await fulfillment(of: [started], timeout: 2)
+        var lastGoodRoot = state.nativePresentation.root
+        let commits = state.presentationStore.$snapshot.dropFirst().sink { incoming in
+            if !incoming.hasRuntimeFailure { lastGoodRoot = incoming.root }
+        }
+        defer { commits.cancel() }
+        provider.finishRows(objectWithoutPrimitiveConversion())
+        await fulfillment(of: [stopped], timeout: 2)
+        await fulfillment(of: [reader], timeout: 0.1)
+        let previous = try XCTUnwrap(lastGoodRoot)
+        XCTAssertTrue(state.root === previous, "Keep the last committed root, including legitimate loading updates before the failure")
+        XCTAssertEqual(PropValue.value(previous, "value"), .string("preview"))
+        XCTAssertTrue(state.nativePresentation.hasRuntimeFailure)
+        XCTAssertFalse(state.canExecuteActions)
+        XCTAssertEqual(state.errors.first?.code, .runtimeError)
+        XCTAssertNotEqual(state.errors.first?.message, runtimeBudgetError().message)
+        let calls = await provider.calls
+        XCTAssertEqual(calls, ["rows"])
+
+        state.reset()
+        state.push("root=Box(\"fresh\")")
+        state.complete()
+        XCTAssertEqual(PropValue.value(try XCTUnwrap(state.root), "value"), .string("fresh"))
+        XCTAssertTrue(state.canExecuteActions)
+        XCTAssertFalse(state.nativePresentation.hasRuntimeFailure)
+        XCTAssertTrue(state.errors.isEmpty)
+    }
+
+    @MainActor func testActionCoercionFailureCannotWriteNullOrContinueToAMutation() async throws {
+        let called = expectation(description: "A failed action must not run its later mutation")
+        called.isInverted = true
+        let provider = PendingDispatchProvider { _ in called.fulfill() }
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        defer { state.reset() }
+        state.setSource("""
+        $bad={toString:1,valueOf:2}
+        $result="kept"
+        save=Mutation("save",{})
+        root=Button(Action([@Set($result,$bad+"x"),@Run(save),@ToAssistant("must not emit")]))
+        """)
+        let previous = try XCTUnwrap(state.root)
+        let plan = try XCTUnwrap(PropValue.actionPlan(previous, "action"))
+        let snapshot = state.snapshotState()
+        var lastGoodRoot = state.nativePresentation.root
+        let commits = state.presentationStore.$snapshot.dropFirst().sink { incoming in
+            if !incoming.hasRuntimeFailure { lastGoodRoot = incoming.root }
+        }
+        defer { commits.cancel() }
+        var changed = 0, dispatched = 0
+        state.onStateUpdate = { _ in changed += 1 }
+        state.onAction = { _ in dispatched += 1 }
+        let events = await state.perform(plan)
+        XCTAssertTrue(events.isEmpty)
+        XCTAssertEqual(changed, 0)
+        XCTAssertEqual(dispatched, 0)
+        XCTAssertTrue(state.root === (try XCTUnwrap(lastGoodRoot)))
+        XCTAssertEqual(state.snapshotState(), snapshot)
+        XCTAssertTrue(state.isInterrupted)
+        XCTAssertTrue(state.nativePresentation.hasRuntimeFailure)
+        XCTAssertEqual(state.errors.first?.code, .runtimeError)
+        XCTAssertNotEqual(state.errors.first?.message, runtimeBudgetError().message)
+        await fulfillment(of: [called], timeout: 0.1)
+        let calls = await provider.calls
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    private func objectWithoutPrimitiveConversion() -> Value {
+        .object([ObjectField(key: "toString", value: .number(1)), ObjectField(key: "valueOf", value: .number(2))])
     }
 
     private func query(version: Double, defaults: ASTNode = .null, id: String = "q") -> QueryStatementInfo {

@@ -156,15 +156,16 @@ function create(input: any): any {
 function describe(lib: any): any {
   const spec = lib.toSpec();
   const schema = spec.schema;
-  const reg = z.registry();
-  for (const [name, c] of Object.entries(lib.components) as any) reg.add(c.props, { id: name });
-  for (const [name, ref] of Object.entries(ACTION_DEFS)) if (!lib.components[name]) reg.add(ref as any, { id: name });
-  for (const [name, a] of Object.entries(lib.actions) as any) reg.add(a.ref, { id: name });
-  const params = (raw: any, obj: any) => Object.entries(obj.shape).map(([name, field]: any) => {
-    const p = compileSchema({ $defs: { P: raw } } as any).get('P')!.params.find(p => p.name === name)!;
-    return { name, required: p.required, hasDefault: own(raw.properties[name], 'default'), defaultValue: p.defaultValue ?? null,
-      isBindable: core.isReactiveSchema(field), schema: raw.properties[name] };
-  });
+  const params = (raw: any, obj: any) => {
+    const fields = Object.entries(obj.shape);
+    if (!fields.length) return [];
+    const compiled = new Map(compileSchema({ $defs: { P: raw } } as any).get('P')!.params.map(p => [p.name, p]));
+    return fields.map(([name, field]: any) => {
+      const p = compiled.get(name)!;
+      return { name, required: p.required, hasDefault: own(raw.properties[name], 'default'), defaultValue: p.defaultValue ?? null,
+        isBindable: core.isReactiveSchema(field), schema: raw.properties[name] };
+    });
+  };
   const components = Object.entries(lib.components).map(([name, c]: any) => ({ name, description: c.description, params: params(schema.$defs[name], c.props) }));
   const functions = Object.entries(lib.functions).map(([name, f]: any) => ({ name, description: f.description, params: params(schema.functions[name].params, f.params), ...(schema.functions[name].returns ? { returns: schema.functions[name].returns } : {}) }));
   const actions = Object.entries(lib.actions).map(([name, a]: any) => ({ name, description: a.description, params: params(schema.actions[name].params, a.params) }));

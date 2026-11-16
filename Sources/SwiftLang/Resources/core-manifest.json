@@ -16,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "a949bbb8ad880dba88a8ed7a09ccf2d50cb3c3194f38f7872d19daf041108a6b",
-  "bytes": 863070,
+  "sha256": "8a9ecc205893d7b00868e7864000a1ff1a6c4fcf128e80ef59a0c1a3d77b6731",
+  "bytes": 864539,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "d7f87638e5cfada0179387af13917445b29ecbc9bd3d5e938582ab0189f3c2dc",
+  "adapterSha256": "cc48d5146aafcb474f44cecec85b2b832192ef22159bbea420297d742279382b",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -168,8 +168,8 @@
         "Sources/SwiftLang/Language/SharedCore.swift"
       ],
       "reason": "Bound native materialization and the entire state-default evaluation batch to 256 levels and 100000 work units",
-      "observable": "Private failure metadata reaches Swift before state/default/root projection; a failed result is incomplete and cannot start actions or tools",
-      "verification": "Alias-depth, repeated-subtree, single and cumulative expression-default regressions; no null-default tool dispatch; separate from strict equivalence cases",
+      "observable": "Private failure metadata reaches Swift before any rejected diagnostic/state/default/root graph is projected. The same failure record carries one bounded parser budget reason; accepted results retain all ordinary diagnostics. A failed result is incomplete and cannot start actions or tools",
+      "verification": "Alias-depth, repeated-subtree, single and cumulative expression-default regressions; no null-default tool dispatch; an 8192-unknown-call error graph is rejected before native enumeration while ordinary diagnostics remain intact; separate from strict equivalence cases",
       "removal": "Equivalent upstream or platform execution bounds"
     },
     {
@@ -177,18 +177,38 @@
       "category": "resource-limit",
       "locations": [
         "Tools/Core/budget.ts",
+        "Tools/Core/captures.ts",
         "Tools/Core/compat.mjs",
         "Tools/Core/entry.ts",
         "Sources/SwiftLang/Language/Evaluator.swift",
         "Sources/SwiftLang/Language/Actions.swift",
         "Sources/SwiftLang/Language/MCP.swift",
         "Tools/Core/native-mcp-budget.test.mjs",
+        "Tools/Core/native-execution-failure.test.mjs",
         "Sources/SwiftLang/Runtime/OpenUIState.swift"
       ],
       "reason": "Bound dynamic Each, recursive evaluation, builtin work, implicit primitive conversions, string growth, and expanded native/render output before large allocations or tool dispatch",
-      "observable": "100000 work units and expanded value nodes, 256 levels, 4096 element occurrences and 1048576 UTF16 output units; repeated aliases add cached subtree cost rather than bypassing the budget. Private bridge evaluation/query entries report work and accept a smaller remaining native action allowance; nested calls share the existing scope. MCP extraction checks the expanded result after the official helper parses text as JSON and explicitly rejects excess before Swift projection. Public core API values, parameters and callback ordering stay unchanged. Evaluation exhaustion preserves the previous bounded presentation and retires execution; standalone MCP extraction reports MCPToolError",
-      "verification": "Normal and excessive nested Each, DAG occurrence counting, implicit comparison/index/action coercion and cumulative builtin conversion work, string growth, automatic Query reevaluation, individually allowed defaults that exceed one batch, borrowed remaining work and nested non-resetting scopes, synchronous invalidation notification work, native action side-effect regressions, and MCP text/structured-output depth/node limits with independent recovery",
+      "observable": "100000 work units and expanded value nodes, 256 levels, 4096 element occurrences and 1048576 UTF16 output units; repeated aliases add cached subtree cost rather than bypassing the budget. Private bridge evaluation/query entries report work and accept a smaller remaining native action allowance; nested calls share the existing scope. Recoverable reports and root diagnostics share a cumulative bounded output channel and consume work, including each native error envelope's fields and nodes. Terminal exception text is checked before its error envelope is built. MCP extraction checks the expanded result after the official helper parses text as JSON and explicitly rejects excess before Swift projection. Public core API values, parameters and callback ordering stay unchanged. Evaluation exhaustion preserves the previous bounded presentation and retires execution; standalone MCP extraction reports MCPToolError",
+      "verification": "Normal and excessive nested Each, DAG occurrence counting, implicit comparison/index/action coercion and cumulative builtin conversion work, string growth, automatic Query reevaluation, individually allowed defaults that exceed one batch, borrowed remaining work and nested non-resetting scopes, synchronous invalidation notification work, three individually allowed 500000-unit reports and short diagnostic envelopes, cumulative root diagnostics and oversized exception text, native action side-effect regressions, and MCP text/structured-output depth/node limits with independent recovery",
       "removal": "Equivalent bounded official evaluation and Apple projection with explicit failure propagation"
+    },
+    {
+      "id": "native-execution-failure",
+      "category": "platform-bridge",
+      "locations": [
+        "Tools/Core/entry.ts",
+        "Tools/Core/budget.ts",
+        "Tools/Core/compat.mjs",
+        "Sources/SwiftLang/Language/Evaluator.swift",
+        "Sources/SwiftLang/Language/QueryManager.swift",
+        "Sources/SwiftLang/Language/RuntimeLimits.swift",
+        "Sources/SwiftLang/Runtime/OpenUIState.swift",
+        "Tools/Core/native-execution-failure.test.mjs"
+      ],
+      "reason": "An exception escaping a native runtime entry or automatic query reader must not cross JavaScriptCore as an undefined success value",
+      "observable": "Private bounded entries return an explicit runtime diagnostic distinct from a budget outcome. Owners retain one first failure, retire execution and preserve the last presentation; nested scopes cannot hide an inner failure. Automatic readers report and dispose before dependent dispatch. Official recoverable prop/function diagnostics keep their existing behavior. Malformed MCP envelopes use the existing MCPToolError channel. Public signatures and nativeLimitExceeded budget-only meaning remain",
+      "verification": "Initial and asynchronous query coercion, direct and nested expression failure, no later provider/action work, recovery after source replacement, unaffected recoverable root props, and malformed MCP extraction followed by a valid result",
+      "removal": "Equivalent explicit shared-core/native execution failure transport"
     },
     {
       "id": "native-input-projection-budget",
@@ -197,17 +217,19 @@
         "Sources/SwiftLang/Language/RuntimeLimits.swift",
         "Sources/SwiftLang/Language/Evaluator.swift",
         "Sources/SwiftLang/Language/QueryManager.swift",
+        "Sources/SwiftLang/Language/Store.swift",
         "Sources/SwiftLang/Language/MCP.swift",
         "Sources/SwiftLang/Runtime/OpenUIState.swift",
         "Tests/SwiftLangTests/MCPInputBudgetTests.swift",
+        "Tests/SwiftLangTests/StoreAggregateBudgetTests.swift",
         "Tests/SwiftLangTests/Runtime/QueryDispatchBoundaryTests.swift",
         "Tools/Core/budget.ts",
         "Tools/Core/entry.ts"
       ],
       "reason": "Check provider results and failure payloads, MCP JSON envelopes, explicit query/mutation inputs, evaluation-context values, public Evaluator ASTs and high-level State writes/restoration before their JavaScriptCore allocation; this is a native transport boundary separate from the JS execution/output guard",
-      "observable": "Plain-data limits match expanded JS output cost: 100000 nodes, 256 container levels, 4096 element occurrences and 1048576 UTF16 key/value units. Immutable DAG costs are memoized but charged at every occurrence. MCP JSONValue input uses the same aggregate native cost before encoding; provider failure messages and available-tool lists are checked as a whole before JS strings/arrays are allocated. Native readiness, action/transport ASTs and captures are conservatively charged even when hidden or simplified by encoding; this narrows the accepted native transport domain without changing normal Lang results. Callback failure retires the evaluator and poisons the active JS budget with its private token, preventing later native callbacks; positive input caches are weak, context-local and bounded",
+      "observable": "Plain-data limits match expanded JS output cost: 100000 nodes, 256 container levels, 4096 element occurrences and 1048576 UTF16 key/value units. Immutable DAG costs are memoized but charged at every occurrence. MCP JSONValue input uses the same aggregate native cost before encoding; provider failure messages, available-tool lists and native custom-function error descriptions are checked before JS allocation. Store aggregate accounting follows actual snapshot changes, preserving the old cost after an upstream shallow no-op without overwriting accepted reentrant writes or pristine. Native readiness, action/transport ASTs and captures are conservatively charged even when hidden or simplified by encoding; this narrows the accepted native transport domain without changing normal Lang results. Callback failure retires the evaluator and poisons the active JS budget with its private token, preventing later native callbacks; positive input caches are weak, context-local and bounded",
       "verification": "Native wide/deep/shared-graph, UTF16, action/binding/readiness, direct/nested opaque captures, aggregate extra-scope/persisted-state, MCP JSON input, aggregate provider-failure payload and weak-cache tests; JS callback/prop/query failure-token regressions assert no later dispatch and independent-scope recovery",
-      "removal": "Equivalent bounded native transport verified before allocation. This boundary does not limit host computation or value construction, raw Store.set/initialize writes, or hand-built ParseResult fallback projection"
+      "removal": "Equivalent bounded native transport verified before allocation. This boundary cannot preempt host computation, value construction or an Error description getter itself"
     },
     {
       "id": "validation-own-keys",
@@ -244,7 +266,7 @@
       "category": "resource-limit",
       "locations": [
         "Sources/SwiftLang/Language/RuntimeLimits.swift",
-        "Sources/SwiftLang/Language/API.swift",
+        "Sources/SwiftLang/Language/Parser.swift",
         "Sources/SwiftLang/Language/StreamingParser.swift",
         "Sources/SwiftLang/Language/ProtocolTypes.swift",
         "Tools/Core/budget.ts",

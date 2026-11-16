@@ -68,4 +68,17 @@ final class MCPInputBudgetTests: XCTestCase {
             XCTAssertEqual(($0 as? MCPToolError)?.toolErrorText, "provider failed")
         }
     }
+
+    func testMalformedEnvelopesThrowWithoutPoisoningTheNextExtraction() throws {
+        let inputs: [JSONValue] = [.null, .object([.init(key: "content", value: .number(7))])]
+        for input in inputs {
+            XCTAssertThrowsError(try extractToolResult(input)) { error in
+                XCTAssertTrue((error as? MCPToolError)?.toolErrorText.displayString
+                    .hasPrefix("Tool result extraction failed: ") == true)
+            }
+        }
+        XCTAssertEqual(try extractToolResult(.object([
+            .init(key: "structuredContent", value: .number(42))
+        ])), .number(42))
+    }
 }

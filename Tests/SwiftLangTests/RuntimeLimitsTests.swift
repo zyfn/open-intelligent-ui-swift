@@ -1,4 +1,5 @@
 import XCTest
+import JavaScriptCore
 @testable import SwiftLang
 
 final class RuntimeLimitsTests: XCTestCase {
@@ -110,6 +111,39 @@ final class RuntimeLimitsTests: XCTestCase {
         let rejected = stream.push("\nextra=0", complete: true)
         XCTAssertTrue(rejected.nativeLimitExceeded)
         XCTAssertEqual(rejected.root, boundary.root)
+    }
+
+    func testRejectedParserGraphDoesNotProjectItsOversizedDiagnosticList() {
+        let schema = LibrarySchema(components: ["Box": [ParamDef(name: "value", required: true)]],
+                                   callDefs: builtinCallDefs)
+        let source = "root=Box([" + Array(repeating: "@Missing()", count: 8192).joined(separator: ",") + "])"
+        let core = SharedCore.shared
+        core.sync {
+            let parser = core.core("createParser", [core.json(core.schemaJSON(schema))])
+            let raw = parser.invokeMethod("parse", withArguments: [source])!
+            XCTAssertTrue(core.call("nativeBudgetExceeded", [raw]).toBool())
+            let expected = core.error(core.call("parseBudgetError", [raw]))
+            let meta = raw.forProperty("meta")!
+            XCTAssertGreaterThan(meta.forProperty("errors").forProperty("length").toInt32(), 8192)
+            var reads = 0
+            let getter: @convention(block) () -> Bool = { reads += 1; return false }
+            let descriptor = core.object()
+            descriptor.setObject(getter, forKeyedSubscript: "get" as NSString)
+            let object = core.context.objectForKeyedSubscript("Object")!
+            for key in ["errors", "unresolved", "orphaned"] {
+                _ = object.invokeMethod("defineProperty", withArguments: [meta, key, descriptor])
+            }
+            let result = core.parseResult(raw)
+            XCTAssertEqual(reads, 0, "Rejected diagnostic graphs must never be enumerated across the bridge")
+            XCTAssertTrue(result.nativeLimitExceeded)
+            XCTAssertNil(result.root)
+            XCTAssertEqual(result.meta.errors.count, 1)
+            XCTAssertEqual(result.meta.errors.first?.message, expected.message)
+            XCTAssertEqual(result.meta.errors.first?.statementId, expected.statementId)
+        }
+        let ordinary = createParser(schema: schema).parse("root=Box([@Missing(),@Missing()])")
+        XCTAssertFalse(ordinary.nativeLimitExceeded)
+        XCTAssertGreaterThan(ordinary.meta.errors.count, 1, "Accepted diagnostic graphs retain every ordinary error")
     }
 
 }

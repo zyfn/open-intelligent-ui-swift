@@ -121,4 +121,117 @@ final class ActionWorkBudgetTests: XCTestCase {
         XCTAssertEqual(dispatched, 0)
         XCTAssertTrue(store.getSnapshot().isEmpty)
     }
+
+    @MainActor func testLegacyActionRejectsOversizedInputsBeforeAnyCallback() async throws {
+        let oversized = String(repeating: "x", count: OpenUIRuntimeBudget.maximumSourceUTF16 + 1)
+        let legacy = Value.object([ObjectField(key: "type", value: .string("open_url")),
+                                   ObjectField(key: "url", value: .string("https://example.com"))])
+        let cases: [(message: String, action: Value, form: OpenUIString?)] = [
+            (oversized, legacy, nil),
+            ("Open", .object([ObjectField(key: "unused", value: .string(oversized))]), nil),
+            ("Open", legacy, OpenUIString(oversized)),
+        ]
+        for input in cases {
+            let schema = LibrarySchema(components: ["Button": [ParamDef(name: "action", required: true)]], callDefs: builtinCallDefs)
+            let state = OpenUIState(schema: schema)
+            defer { state.reset() }
+            state.setSource("$note=\"kept\"\nroot=Button(@ToAssistant(\"ready\"))")
+            let root = try XCTUnwrap(state.root)
+            let snapshot = state.snapshotState()
+            var callbacks = 0
+            state.onAction = { _ in callbacks += 1 }
+            let events = await state.triggerAction(input.message, formName: input.form,
+                action: input.action, source: nil, onDispatch: { _ in callbacks += 1 })
+            XCTAssertTrue(events.isEmpty)
+            XCTAssertEqual(callbacks, 0, "Rejected input must not send a receipt or a host event")
+            XCTAssertTrue(state.root === root)
+            XCTAssertEqual(state.snapshotState(), snapshot)
+            XCTAssertTrue(state.isInterrupted)
+            XCTAssertFalse(state.canExecuteActions)
+            XCTAssertEqual(state.errors.first?.message, runtimeBudgetError().message)
+        }
+    }
+
+    @MainActor func testLegacyActionChecksTheCombinedFormAndEventPayload() async throws {
+        let schema = LibrarySchema(components: ["Button": [ParamDef(name: "action", required: true)]], callDefs: builtinCallDefs)
+        let state = OpenUIState(schema: schema)
+        defer { state.reset() }
+        state.setSource("$note=\"kept\"\nroot=Button(@ToAssistant(\"ready\"))")
+        state.setState("$large", value: .string(String(repeating: "f", count: 600_000)))
+        XCTAssertTrue(state.canExecuteActions)
+        let root = try XCTUnwrap(state.root)
+        let snapshot = state.snapshotState()
+        let legacy = Value.object([ObjectField(key: "context", value: .string(String(repeating: "p", count: 600_000)))])
+        XCTAssertFalse(nativeValueExceedsLimits(legacy), "The action's own input is bounded")
+        var callbacks = 0
+        state.onAction = { _ in callbacks += 1 }
+        let events = await state.triggerAction("Send", formName: nil, action: legacy, source: nil,
+            onDispatch: { _ in callbacks += 1 })
+        XCTAssertTrue(events.isEmpty)
+        XCTAssertEqual(callbacks, 0, "Form state and parameters share the outbound event limit")
+        XCTAssertTrue(state.root === root)
+        XCTAssertEqual(state.snapshotState(), snapshot)
+        XCTAssertTrue(state.isInterrupted)
+        XCTAssertEqual(state.errors.first?.message, runtimeBudgetError().message)
+    }
+
+    @MainActor func testLegacyActionAccumulatesInputAndOutboundWork() async throws {
+        let schema = LibrarySchema(components: ["Button": [ParamDef(name: "action", required: true)]], callDefs: builtinCallDefs)
+        let state = OpenUIState(schema: schema)
+        defer { state.reset() }
+        state.setSource("$note=\"kept\"\nroot=Button(@ToAssistant(\"ready\"))")
+        let root = try XCTUnwrap(state.root)
+        let snapshot = state.snapshotState()
+        let payload = Value.array(Array(repeating: .number(1), count: 60_000))
+        let legacy = Value.object([ObjectField(key: "context", value: payload)])
+        XCTAssertFalse(nativeValueExceedsLimits(legacy))
+        XCTAssertFalse(nativeActionEventCost(ActionEvent(type: "continue_conversation", params: [("context", payload)],
+            humanFriendlyMessage: "Send", formState: [("$note", .string("kept"))])).exceeds)
+        var callbacks = 0
+        state.onAction = { _ in callbacks += 1 }
+        let events = await state.triggerAction("Send", formName: nil, action: legacy, source: nil,
+            onDispatch: { _ in callbacks += 1 })
+        XCTAssertTrue(events.isEmpty)
+        XCTAssertEqual(callbacks, 0, "Input and event work cannot each receive a fresh action allowance")
+        XCTAssertTrue(state.root === root)
+        XCTAssertEqual(state.snapshotState(), snapshot)
+        XCTAssertTrue(state.isInterrupted)
+    }
+
+    @MainActor func testLegacyActionKeepsParameterPrecedenceSnapshotAndCallbackOrder() async throws {
+        let schema = LibrarySchema(components: ["Button": [ParamDef(name: "action", required: true)]], callDefs: builtinCallDefs)
+        let state = OpenUIState(schema: schema)
+        defer { state.reset() }
+        state.setSource("$note=\"before\"\nroot=Button(@ToAssistant(\"ready\"))")
+        let legacy = Value.object([
+            ObjectField(key: "type", value: .string("open_url")),
+            ObjectField(key: "params", value: .object([
+                ObjectField(key: "url", value: .string("old")),
+                ObjectField(key: "context", value: .string("retained")),
+                ObjectField(key: "extra", value: .number(7)),
+            ])),
+            ObjectField(key: "url", value: .string("https://example.com")),
+            ObjectField(key: "context", value: .boolean(false)),
+        ])
+        var callbacks: [String] = []
+        state.onAction = { _ in
+            callbacks.append("action")
+            state.setState("$note", value: .string("after"))
+        }
+        defer { state.onAction = nil }
+        let events = await state.triggerAction("Open", formName: nil, action: legacy, source: nil,
+            onDispatch: { _ in callbacks.append("dispatch") })
+        XCTAssertEqual(callbacks, ["dispatch", "action"])
+        XCTAssertEqual(events.count, 1)
+        let event = try XCTUnwrap(events.first)
+        XCTAssertEqual(event.type, "open_url")
+        XCTAssertEqual(event.humanFriendlyMessage, "Open")
+        XCTAssertEqual(event.params.first(where: { $0.0 == "url" })?.1, .string("https://example.com"))
+        XCTAssertEqual(event.params.first(where: { $0.0 == "context" })?.1, .string("retained"))
+        XCTAssertEqual(event.params.first(where: { $0.0 == "extra" })?.1, .number(7))
+        XCTAssertEqual(event.formState?.first(where: { $0.0 == "$note" })?.1, .string("before"))
+        XCTAssertEqual(state.stateValue("$note"), .string("after"))
+        XCTAssertFalse(state.isInterrupted)
+        XCTAssertTrue(state.canExecuteActions)
+    }
 }

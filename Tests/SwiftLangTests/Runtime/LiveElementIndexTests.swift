@@ -8,7 +8,7 @@ final class LiveElementIndexTests: XCTestCase {
     let first = element("TextContent", "first")
     let second = element("TextContent", "second")
     let otherType = element("Button", "first")
-    [first, second, otherType].forEach { index.insert($0) }
+    index.replaceRoot(container([first, second, otherType]))
     assertIdentities(index.candidates(for: first), [first])
     assertIdentities(index.candidates(for: second), [second])
     assertIdentities(index.candidates(for: otherType), [otherType])
@@ -19,7 +19,7 @@ final class LiveElementIndexTests: XCTestCase {
     var index = NativeLiveElementIndex()
     let unnamed = element("TextContent", nil)
     let empty = element("TextContent", "")
-    index.insert(unnamed); index.insert(empty)
+    index.replaceRoot(container([unnamed, empty]))
     assertIdentities(index.candidates(for: unnamed), [unnamed])
     assertIdentities(index.candidates(for: empty), [empty])
   }
@@ -28,7 +28,7 @@ final class LiveElementIndexTests: XCTestCase {
     var index = NativeLiveElementIndex()
     let first = element("Text|a", "b")
     let second = element("Text", "a|b")
-    index.insert(first); index.insert(second)
+    index.replaceRoot(container([first, second]))
     assertIdentities(index.candidates(for: first), [first])
     assertIdentities(index.candidates(for: second), [second])
   }
@@ -39,7 +39,7 @@ final class LiveElementIndexTests: XCTestCase {
     let ready = element("Button", "shared", complete: true)
     let differentProps = EvaluatedElement(typeName: "Button", props: [("label", .string("different"))],
       statementId: "shared")
-    [pending, ready, differentProps].forEach { index.insert($0) }
+    index.replaceRoot(container([pending, ready, differentProps]))
     // The index must not choose the first or last candidate, nor discard one
     // because its props/readiness differ. OpenUIState owns that decision.
     assertIdentities(index.candidates(for: pending), [pending, ready, differentProps])
@@ -49,7 +49,7 @@ final class LiveElementIndexTests: XCTestCase {
     var index = NativeLiveElementIndex()
     let first = element("TextContent", nil)
     let second = element("TextContent", nil)
-    index.insert(first); index.insert(second)
+    index.replaceRoot(container([first, second]))
     assertIdentities(index.candidates(for: first), [first, second])
   }
 
@@ -58,16 +58,16 @@ final class LiveElementIndexTests: XCTestCase {
     let current = element("TextContent", "same", complete: false)
     let older = element("TextContent", "same", complete: false)
     let ready = element("TextContent", "same", complete: true)
-    index.insert(current); index.insert(ready)
+    index.replaceRoot(container([current, ready]))
     XCTAssertTrue(index.contains(current))
     XCTAssertTrue(index.contains(ready))
     XCTAssertFalse(index.contains(older), "Equal props and statement ID do not prove current membership")
     assertIdentities(index.candidates(for: older), [current, ready],
       file: #filePath, line: #line)
-    index.removeAll(keepingCapacity: true)
+    index.replaceRoot(nil)
     XCTAssertFalse(index.contains(current))
     XCTAssertFalse(index.contains(ready))
-    index.insert(older)
+    index.replaceRoot(older)
     XCTAssertTrue(index.contains(older))
     XCTAssertFalse(index.contains(current), "Rebuilding must retire the previous snapshot")
   }
@@ -77,31 +77,31 @@ final class LiveElementIndexTests: XCTestCase {
     let composed = element("TextContent", "\u{00E9}")
     let decomposed = element("TextContent", "e\u{0301}")
     XCTAssertEqual(composed.statementId, decomposed.statementId)
-    index.insert(composed); index.insert(decomposed)
+    index.replaceRoot(container([composed, decomposed]))
     assertIdentities(index.candidates(for: composed), [composed, decomposed])
   }
 
-  func testClearReleasesCandidatesEvenWhenKeepingDictionaryCapacity() {
+  func testClearingTheRootReleasesCandidates() {
     var index = NativeLiveElementIndex()
     weak var retained: EvaluatedElement?
     do {
       let value = element("TextContent", "old")
       retained = value
-      index.insert(value)
+      index.replaceRoot(value)
     }
     XCTAssertNotNil(retained)
-    index.removeAll(keepingCapacity: true)
+    index.replaceRoot(nil)
     XCTAssertNil(retained)
     XCTAssertTrue(index.candidates(for: element("TextContent", "old")).isEmpty)
     let replacement = element("TextContent", "old")
-    index.insert(replacement)
+    index.replaceRoot(replacement)
     assertIdentities(index.candidates(for: replacement), [replacement])
   }
 
   func testOneThousandDistinctDeclarationsDoNotShareATypeOnlyBucket() {
     var index = NativeLiveElementIndex()
     let values = (0..<1000).map { element("TextContent", "item\($0)") }
-    values.forEach { index.insert($0) }
+    index.replaceRoot(container(values))
     for value in values {
       let expected = values.filter {
         $0.typeName == value.typeName && $0.statementId == value.statementId
@@ -170,7 +170,7 @@ final class LiveElementIndexTests: XCTestCase {
     let ready = EvaluatedElement(typeName: "TextContent", props: [("e\u{301}", .string("Same"))],
       isSourceComplete: true)
     var index = NativeLiveElementIndex()
-    index.insert(pending); index.insert(ready)
+    index.replaceRoot(container([pending, ready]))
     assertIdentities(index.candidates(for: pending), [pending, ready])
     let schema = LibrarySchema(components: [
       "Stack": [ParamDef(name: "children", required: true)],
@@ -198,6 +198,10 @@ final class LiveElementIndexTests: XCTestCase {
 
   private func element(_ type: String, _ statement: String?, complete: Bool = true) -> EvaluatedElement {
     EvaluatedElement(typeName: type, statementId: statement, isSourceComplete: complete)
+  }
+
+  private func container(_ children: [EvaluatedElement]) -> EvaluatedElement {
+    EvaluatedElement(typeName: "IndexRoot", props: [("children", .array(children.map { .element($0) }))])
   }
 
   private func assertIdentities(_ actual: [EvaluatedElement], _ expected: [EvaluatedElement],

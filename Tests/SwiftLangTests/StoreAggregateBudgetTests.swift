@@ -137,4 +137,47 @@ final class StoreAggregateBudgetTests: XCTestCase {
         XCTAssertNil(store.get("$second"))
         XCTAssertFalse(nativeStateExceedsLimits(store.getSnapshot()))
     }
+
+    func testShallowNoOpRetainsStoredCostAndUpdatesPristine() {
+        let store = createStore()
+        let largeKey = OpenUIString(String(repeating: "k", count: 600_000))
+        let original = Value.object([.init(key: largeKey, value: .undefined)])
+        let notifications = Counter()
+        let unsubscribe = store.subscribe { notifications.increment() }
+        defer { unsubscribe(); store.dispose() }
+        store.set("$data", value: original, pristine: true)
+        store.set("$data", value: .object([.init(key: "x", value: .undefined)]), pristine: false)
+        XCTAssertTrue(store.get("$data")?.isSameValue(as: original) == true,
+            "The official shallow comparison keeps the original object")
+        XCTAssertEqual(notifications.value, 1)
+        store.initialize(defaults: [("$data", .value(.number(7)))], persisted: [:])
+        XCTAssertTrue(store.get("$data")?.isSameValue(as: original) == true,
+            "A no-op still changes pristine, so a later default must stay ignored")
+
+        store.set("$extra", value: .string(OpenUIString(String(repeating: "v", count: 600_000))), pristine: false)
+        XCTAssertTrue(store.nativeLimitExceeded,
+            "An ignored smaller candidate must not return the stored object's allowance")
+        XCTAssertNil(store.get("$extra"))
+        XCTAssertEqual(notifications.value, 1)
+        XCTAssertFalse(nativeStateExceedsLimits(store.getSnapshot()))
+    }
+
+    func testAcceptedWriteDoesNotRestoreCostsOverReentrantSameAndOtherKeyWrites() {
+        let store = createStore(), large = array(60_000), small = array(30_000)
+        let unsubscribe = store.subscribe {
+            if store.get("$first")?.isSameValue(as: large) == true {
+                store.set("$first", value: small, pristine: false)
+                store.set("$second", value: large, pristine: false)
+            }
+        }
+        defer { unsubscribe(); store.dispose() }
+        store.set("$first", value: large, pristine: false)
+        XCTAssertFalse(store.nativeLimitExceeded)
+        XCTAssertTrue(store.get("$first")?.isSameValue(as: small) == true)
+        XCTAssertTrue(store.get("$second")?.isSameValue(as: large) == true)
+        store.set("$third", value: array(20_000), pristine: false)
+        XCTAssertTrue(store.nativeLimitExceeded)
+        XCTAssertNil(store.get("$third"))
+        XCTAssertFalse(nativeStateExceedsLimits(store.getSnapshot()))
+    }
 }

@@ -9,6 +9,10 @@ final class ComponentRenderInputTests: XCTestCase {
             partial: partial, isSourceComplete: complete, sourceReadiness: readiness)
     }
 
+    private func indexRoot(_ elements: [EvaluatedElement]) -> EvaluatedElement {
+        EvaluatedElement(typeName: "IndexRoot", props: [("children", .array(elements.map { .element($0) }))])
+    }
+
     func testRenderComparisonPreservesPrimitiveAndPresentationDistinctions() {
         XCTAssertTrue(nativePresentationInputsEqual(element(.string("same")), element(.string("same"))))
         XCTAssertFalse(nativePresentationInputsEqual(element(.string("é")), element(.string("e\u{301}"))))
@@ -40,27 +44,40 @@ final class ComponentRenderInputTests: XCTestCase {
         XCTAssertFalse(nativePresentationInputsEqual(element(.binding("$field")), element(.binding("$field"))))
     }
 
-    @MainActor func testTextChunksDoNotBroadcastAuxiliaryStateButLateDefaultsAndEditsDo() {
+    @MainActor func testUnchangedFieldReaderIgnoresTextButReceivesLateDefaultsEditsAndLifecycle() throws {
         let schema = LibrarySchema(components: ["Probe": [ParamDef(name: "value", required: true)]],
                                    callDefs: builtinCallDefs)
         let state = OpenUIState(schema: schema)
         defer { state.reset() }
-        state.push("root=Probe(\"")
+        state.push("root=Probe(\"stable\")\nnote=Probe(\"")
+        let node = NativeComponentSubscription()
+        func readField(_ name: OpenUIString) throws {
+            let element = try XCTUnwrap(state.root)
+            let (presentation, reads) = node.begin(element: element, state: state)
+            let context = OpenUIComponentContext(element: element, registry: [:], state: state,
+                values: OpenUIContextValues(), resources: [:], nativePresentation: presentation, readScope: reads)
+            XCTAssertEqual(context.fieldValue(name), .null)
+        }
+        try readField("$late")
         var changes = 0
-        let subscription = state.componentUpdates.objectWillChange.sink { changes += 1 }
+        let subscription = node.objectWillChange.sink { changes += 1 }
         defer { subscription.cancel() }
-        for chunk in ["SHANGHAI", " → ", "SUZHOU", "\")\n"] { state.push(chunk) }
+        for chunk in ["SHANGHAI", " → ", "SUZHOU"] { state.push(chunk) }
         XCTAssertEqual(changes, 0)
+        state.push("\")\n")
+        XCTAssertEqual(changes, 1, "Closing the pending declaration changes the root's visible partial flag")
         state.push("$late=\"first\"\n")
-        XCTAssertEqual(changes, 1, "A State default arriving in the stream must notify field readers")
+        XCTAssertEqual(changes, 2, "A State default arriving in the stream must notify field readers")
         state.setState("$late", value: .string("edited"))
-        XCTAssertEqual(changes, 2)
-        state.complete()
         XCTAssertEqual(changes, 3)
-        state.reset()
+        state.complete()
         XCTAssertEqual(changes, 4)
-        state.push("root=Probe(\"new\")\n$new=1\n")
-        XCTAssertEqual(changes, 5, "The replacement Store must have its own live subscription")
+        state.reset()
+        XCTAssertEqual(changes, 5)
+        state.push("root=Probe(\"new\")\n")
+        try readField("$new")
+        state.push("$new=1\n")
+        XCTAssertEqual(changes, 6, "The replacement Store must have its own live subscription")
     }
 
     func testAuxiliaryQueryComparisonKeepsMissingDataAndErrorChangesObservable() {
@@ -83,13 +100,15 @@ final class ComponentRenderInputTests: XCTestCase {
 
     func testAnonymousScalarCandidatesAreNarrowedWithoutDiscardingAmbiguity() {
         var index = NativeLiveElementIndex()
-        for number in 0..<200 { index.insert(element(.string(OpenUIString("row \(number)")), id: nil)) }
+        var elements = (0..<200).map { element(.string(OpenUIString("row \($0)")), id: nil) }
+        index.replaceRoot(indexRoot(elements))
         var candidates = 0
         for number in 0..<200 {
             candidates += index.candidates(for: element(.string(OpenUIString("row \(number)")), id: nil)).count
         }
         XCTAssertEqual(candidates, 200, "Each old scalar leaf searches one candidate, not all 200 anonymous leaves")
-        index.insert(element(.string("row 0"), complete: false, id: nil))
+        elements.append(element(.string("row 0"), complete: false, id: nil))
+        index.replaceRoot(indexRoot(elements))
         XCTAssertEqual(index.candidates(for: element(.string("row 0"), id: nil)).count, 2,
                        "Readiness ambiguity remains for the existing live-element check to resolve")
     }
@@ -121,9 +140,7 @@ final class ComponentRenderInputTests: XCTestCase {
         var index = NativeLiveElementIndex()
         let values: [Value] = [.number(0), .number(-0.0), .number(.nan), .number(-Double.nan),
                                .string("é"), .string("e\u{301}"), .null, .undefined]
-        for value in values {
-            index.insert(element(value, id: nil))
-        }
+        index.replaceRoot(indexRoot(values.map { element($0, id: nil) }))
         XCTAssertEqual(index.candidates(for: element(.number(0), id: nil)).count, 2)
         XCTAssertEqual(index.candidates(for: element(.number(.nan), id: nil)).count, 2)
         XCTAssertEqual(index.candidates(for: element(.string("é"), id: nil)).count, 1)

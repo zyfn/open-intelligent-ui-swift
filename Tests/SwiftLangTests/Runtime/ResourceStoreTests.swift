@@ -246,6 +246,110 @@ private final class ResourceFixtureProtocol: URLProtocol {
 
 
 extension ResourceStoreTests {
+  // These transport gates exercise independent cancellation and retirement.
+  // They do not control the scheduler gap between resuming a completed waiter
+  // and that waiter running again; the post-await lease check covers that gap.
+  @MainActor func testCancelledDataSubscriberFailsWhileAnotherReceivesTheSharedResult() async throws {
+    let store = NativeResourceStore()
+    let started = expectation(description: "one byte transport")
+    let owner = ControlledImageLoader(started: started)
+    let scope = store.scoped(.init(loader: owner))
+    let request = try XCTUnwrap(scope.request(for: "https://resource.example/shared"))
+    let first = Task { try await scope.loader.data(for: request) }
+    let second = Task { try await scope.loader.data(for: request) }
+    defer { first.cancel(); second.cancel(); store.removeAll() }
+    await fulfillment(of: [started], timeout: 3)
+    let joined = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in store.pendingSubscriberCount == 2 }, object: nil)
+    await fulfillment(of: [joined], timeout: 3)
+    first.cancel()
+    let returned = expectation(description: "cancelled byte subscriber returned")
+    let observer = Task { @MainActor in
+      do { _ = try await first.value; XCTFail("A cancelled subscriber returned shared bytes") }
+      catch { XCTAssertTrue(error is CancellationError) }
+      returned.fulfill()
+    }
+    await fulfillment(of: [returned], timeout: 2)
+    XCTAssertEqual(store.pendingSubscriberCount, 1)
+    await owner.gate.release(id: 1)
+    let bytes = try await second.value
+    await observer.value
+    XCTAssertFalse(bytes.isEmpty)
+    XCTAssertEqual(store.pendingSubscriberCount, 0)
+    let cached = try await scope.loader.data(for: request)
+    XCTAssertEqual(cached, bytes)
+    let counts = await owner.gate.counts
+    XCTAssertEqual(counts.started, 1)
+    XCTAssertEqual(counts.cancelled, 0, "The live subscriber retains the shared transport and completed cache")
+  }
+
+  @MainActor func testDataStoreResetRejectsOldResultsAndLetsTheNewScopeRefetch() async throws {
+    let store = NativeResourceStore()
+    let started = expectation(description: "old and new byte requests started")
+    started.expectedFulfillmentCount = 2
+    let firstStarted = expectation(description: "old byte transport started")
+    let owner = ControlledImageLoader(started: started, firstStarted: firstStarted, honorsCancellation: false)
+    let oldScope = store.scoped(.init(loader: owner))
+    let request = try XCTUnwrap(oldScope.request(for: "https://resource.example/reset"))
+    let old = Task { try await oldScope.loader.data(for: request) }
+    await fulfillment(of: [firstStarted], timeout: 3)
+    store.removeAll()
+    let returned = expectation(description: "retired byte subscriber returned before old transport")
+    let observer = Task { @MainActor in
+      do { _ = try await old.value; XCTFail("A retired byte subscriber returned success") }
+      catch { XCTAssertTrue(error is CancellationError) }
+      returned.fulfill()
+    }
+    await fulfillment(of: [returned], timeout: 2)
+    let scope = store.scoped(.init(loader: owner))
+    let next = Task { try await scope.loader.data(for: request) }
+    defer { old.cancel(); next.cancel(); store.removeAll() }
+    await fulfillment(of: [started], timeout: 3)
+    let currentBytes = Data("current scope".utf8)
+    await owner.gate.release(id: 1, data: Data("retired scope".utf8))
+    await owner.gate.release(id: 2, data: currentBytes)
+    let bytes = try await next.value
+    await observer.value
+    XCTAssertEqual(bytes, currentBytes)
+    XCTAssertEqual(store.pendingSubscriberCount, 0)
+    let cached = try await scope.loader.data(for: request)
+    XCTAssertEqual(cached, bytes, "Only the current request may populate the replacement scope")
+    let counts = await owner.gate.counts
+    XCTAssertEqual(counts.started, 2)
+  }
+
+  @MainActor func testRetiredResourceScopeCannotReadCompletedPixelsAndNewScopeCanRefetch() async throws {
+    let store = NativeResourceStore(), cache = NativeMediaCache()
+    let started = expectation(description: "old and new image requests started")
+    started.expectedFulfillmentCount = 2
+    let firstStarted = expectation(description: "old image transport started")
+    let owner = ControlledImageLoader(started: started, firstStarted: firstStarted)
+    let oldScope = store.scoped(.init(loader: owner))
+    let request = try XCTUnwrap(oldScope.request(for: "https://image.test/retired-scope"))
+    let oldKey = NativeResourceRequestID(request: request, loader: ObjectIdentifier(oldScope.loader), attempt: 0,
+      authorizationScope: oldScope.loader.authorizationScopeID)
+    let initial = Task { try await cache.resource(oldKey, loader: oldScope.loader) }
+    await fulfillment(of: [firstStarted], timeout: 3)
+    await owner.gate.release(id: 1)
+    _ = try await initial.value
+    XCTAssertNotNil(cache[oldKey])
+    store.removeAll()
+    do { _ = try await cache.resource(oldKey, loader: oldScope.loader); XCTFail("Retired scopes cannot read cached pixels") }
+    catch { XCTAssertTrue(error is CancellationError) }
+
+    let scope = store.scoped(.init(loader: owner))
+    let key = NativeResourceRequestID(request: request, loader: ObjectIdentifier(scope.loader), attempt: 0,
+      authorizationScope: scope.loader.authorizationScopeID)
+    let next = Task { try await cache.resource(key, loader: scope.loader) }
+    defer { next.cancel(); cache.removeAll(); store.removeAll() }
+    await fulfillment(of: [started], timeout: 3)
+    await owner.gate.release(id: 2)
+    let image = try await next.value
+    XCTAssertGreaterThan(image.cost, 0)
+    XCTAssertNotNil(cache[key])
+    let counts = await owner.gate.counts
+    XCTAssertEqual(counts.started, 2)
+  }
+
   @MainActor func testCancelledImageSubscriberFailsWhileOtherSubscriberGetsSharedResult() async throws {
     let cache = NativeMediaCache()
     let started = expectation(description: "one image transport")
@@ -402,9 +506,10 @@ private actor ControlledImageGate {
     cancellationCount += 1; cancelled?.fulfill()
     if honorsCancellation { pending.removeValue(forKey: id)?.resume(throwing: CancellationError()) }
   }
-  func release(id: Int) {
-    // Same valid 1x1 PNG used by native transport fixtures. No network is used.
-    let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")!
-    pending.removeValue(forKey: id)?.resume(returning: png)
+  func release(id: Int, data: Data? = nil) {
+    // Image tests keep the same valid 1x1 PNG. Byte-store tests can distinguish
+    // old/new generations by their payload without using a network or a clock.
+    let value = data ?? Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")!
+    pending.removeValue(forKey: id)?.resume(returning: value)
   }
 }

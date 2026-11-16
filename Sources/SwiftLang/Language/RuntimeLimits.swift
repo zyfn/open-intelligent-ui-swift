@@ -1,6 +1,5 @@
 // Bounded recursive work: model output must not exhaust the native call stack.
 import Foundation
-import JavaScriptCore
 
 /// Native safety budget, not a new language parameter or an upstream parser.
 public enum OpenUIRuntimeBudget {
@@ -544,11 +543,37 @@ func runtimeBudgetError() -> OpenUIError {
         hint: "The last valid prefix remains readable but is not executable. Replace or reset this document to resume.")
 }
 
-func limitedParseResult(preserving previous: ParseResult? = nil, error: OpenUIError? = nil) -> ParseResult {
-    var result = previous ?? emptyParseResult(incomplete: true)
-    result.nativeLimitExceeded = true
+/// A terminal native operation failure is distinct from an ordinary recoverable
+/// expression diagnostic. Keep its first cause without relabeling it as a limit.
+enum NativeExecutionFailure: Sendable {
+    case budget
+    case runtime(OpenUIError)
+
+    var isBudget: Bool {
+        if case .budget = self { return true }
+        return false
+    }
+    var error: OpenUIError {
+        switch self {
+        case .budget: return runtimeBudgetError()
+        case .runtime(let error): return error
+        }
+    }
+}
+
+func failedParseResult(preserving previous: ParseResult? = nil, failure: NativeExecutionFailure) -> ParseResult {
+    var result = previous ?? ParseResult(root: nil, rootExpression: nil,
+        meta: ParseMeta(incomplete: true, unresolved: [], orphaned: [], statementCount: 0, errors: []),
+        stateDeclarations: [], queryStatements: [], mutationStatements: [])
+    result.nativeFailure = failure
     result.meta.incomplete = true
     result.queryStatements = []; result.mutationStatements = []
+    result.meta.errors = [failure.error]
+    return result
+}
+
+func limitedParseResult(preserving previous: ParseResult? = nil, error: OpenUIError? = nil) -> ParseResult {
+    var result = failedParseResult(preserving: previous, failure: .budget)
     result.meta.errors = [error ?? OpenUIError(source: .parser, code: .parseException,
         message: "Native input budget exceeded (1,048,576 UTF-16 units, 100,000 tokens, 4,096 statements, 128 nesting levels or 256 operators per expression).",
         hint: "The last valid prefix remains readable but is not executable. Replace or reset this document to resume.")]

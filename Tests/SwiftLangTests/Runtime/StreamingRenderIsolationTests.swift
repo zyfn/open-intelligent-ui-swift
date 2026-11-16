@@ -243,6 +243,103 @@ final class StreamingRenderIsolationTests: XCTestCase {
         harness.settle()
         XCTAssertGreaterThan(log.raw, 0)
     }
+
+    @MainActor func testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone() throws {
+        let log = SelectiveFieldLog()
+        let library = try OpenUIComponentLibrary(components: [
+            OpenUIComponent(name: "Group", description: "Children", params: [ParamDef(name: "children", required: true)]) { context in
+                VStack { ForEach(context.children()) { context.render($0.value) } }
+            },
+            OpenUIComponent(name: "Reader", description: "One field reader", params: [
+                OpenUIParameter.string("id"), OpenUIParameter.string("field")
+            ]) { SelectiveFieldComponent(context: $0, log: log) }
+        ])
+        let state = OpenUIState(schema: library.library.toSchema())
+        defer { state.reset() }
+        state.setSource("root=Group([left,right,plain])\nleft=Reader(\"left\",\"left field\")\nright=Reader(\"right\",\"right field\")\nplain=Reader(\"plain\",\"\")")
+        state.setFieldValue(form: nil, name: "left field", value: .string("left before"))
+        state.setFieldValue(form: nil, name: "right field", value: .string("right before"))
+        let harness = RenderHarness(AnyView(SwiftLangView(state: state, registry: library.registry)))
+        defer { harness.close() }
+        harness.settle()
+        let builders = log.builders, bodies = log.bodies
+        XCTAssertEqual(log.values["left"], "left before")
+        XCTAssertEqual(log.values["right"], "right before")
+        XCTAssertGreaterThan(builders["plain", default: 0], 0)
+        state.setFieldValue(form: nil, name: "left field", value: .string("left after"))
+        harness.settle()
+        XCTAssertEqual(log.values["left"], "left after")
+        XCTAssertGreaterThan(log.builders["left", default: 0], builders["left", default: 0])
+        XCTAssertGreaterThan(log.bodies["left", default: 0], bodies["left", default: 0])
+        for id in ["right", "plain"] {
+            XCTAssertEqual(log.builders[id], builders[id])
+            XCTAssertEqual(log.bodies[id], bodies[id])
+        }
+        let afterBuilders = log.builders, afterBodies = log.bodies
+        state.setFieldValue(form: nil, name: "unobserved", value: .string("no component reads this"))
+        harness.settle()
+        XCTAssertEqual(log.builders, afterBuilders)
+        XCTAssertEqual(log.bodies, afterBodies)
+    }
+
+    @MainActor func testReplacingNearestEnvironmentObjectRebindsTheMountedSubscription() throws {
+        let log = RenderLog(), library = try self.library(log)
+        let first = OpenUIState(schema: library.library.toSchema()), second = OpenUIState(schema: library.library.toSchema())
+        defer { first.reset(); second.reset() }
+        for state in [first, second] { state.setSource("root=Probe(\"direct\",\"same source\")") }
+        first.setFieldValue(form: nil, name: "shared", value: .string("first document"))
+        second.setFieldValue(form: nil, name: "shared", value: .string("second document"))
+        let node = try XCTUnwrap(first.root)
+        let harness = RenderHarness(AnyView(RenderNode(element: node, registry: library.registry).environmentObject(first)))
+        defer { harness.close() }
+        harness.settle()
+        XCTAssertEqual(log.shown["direct"]?.field, "first document")
+        harness.host.rootView = AnyView(RenderNode(element: node, registry: library.registry).environmentObject(second))
+        harness.settle()
+        XCTAssertEqual(log.shown["direct"]?.field, "second document")
+        let bodies = log.bodies["direct"]
+        first.setFieldValue(form: nil, name: "shared", value: .string("retired owner"))
+        harness.settle()
+        XCTAssertEqual(log.shown["direct"]?.field, "second document")
+        XCTAssertEqual(log.bodies["direct"], bodies)
+        second.setFieldValue(form: nil, name: "shared", value: .string("current owner"))
+        harness.settle()
+        XCTAssertEqual(log.shown["direct"]?.field, "current owner")
+    }
+}
+
+@MainActor private final class SelectiveFieldLog {
+    var builders: [String: Int] = [:]
+    var bodies: [String: Int] = [:]
+    var values: [String: String] = [:]
+}
+
+@MainActor private struct SelectiveFieldComponent: View {
+    let context: OpenUIComponentContext
+    let log: SelectiveFieldLog
+
+    init(context: OpenUIComponentContext, log: SelectiveFieldLog) {
+        self.context = context; self.log = log
+        log.builders[context.string("id") ?? "unknown", default: 0] += 1
+    }
+
+    var body: some View {
+        let id = context.string("id") ?? "unknown", field = context.string("field") ?? ""
+        let value = field.isEmpty ? Value.string("static") : context.fieldBinding(field).wrappedValue
+        let text = displayString(value)
+        let _ = record(id: id, text: text)
+        Text(text)
+    }
+
+    private func displayString(_ value: Value) -> String {
+        if case .string(let string) = value { return string.displayString }
+        return ""
+    }
+
+    private func record(id: String, text: String) {
+        log.bodies[id, default: 0] += 1
+        log.values[id] = text
+    }
 }
 
 private enum ProbeEnvironmentKey: OpenUIContextKey { static let defaultValue = "default environment" }

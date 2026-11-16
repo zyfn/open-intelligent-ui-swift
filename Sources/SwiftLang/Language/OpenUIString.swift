@@ -42,10 +42,6 @@ extension Token { @_disfavoredOverload public static func str<S: StringProtocol>
 extension JSONValue { @_disfavoredOverload public static func string<S: StringProtocol>(_ text: S) -> JSONValue { .string(OpenUIString(String(text))) } }
 extension ValidationRuleParameter { @_disfavoredOverload public static func string<S: StringProtocol>(_ text: S) -> Self { .string(OpenUIString(String(text))) } }
 
-func jsStringEqual(_ a: OpenUIString, _ b: OpenUIString) -> Bool { a == b }
-func jsStringEqual(_ a: OpenUIString, _ b: String) -> Bool { a == OpenUIString(b) }
-func jsStringEqual(_ a: String, _ b: OpenUIString) -> Bool { OpenUIString(a) == b }
-
 /// JavaScriptCore owns JSON escaping, including isolated UTF-16 surrogates.
 public func jsonStringLiteral(_ text: OpenUIString) -> String {
     let core = SharedCore.shared

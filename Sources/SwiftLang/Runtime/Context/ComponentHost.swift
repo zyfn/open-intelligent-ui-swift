@@ -25,23 +25,21 @@ public struct OpenUIComponentHost<Content: View>: View {
     }
 
     public var body: some View {
-        let current = state.liveElement(matching: element)
-        NativeComponentContent(element: current, registry: registry, state: state,
-            updates: state.componentUpdates, ready: state.isElementReady(current),
+        NativeComponentContent(element: element, registry: registry, state: state,
             contentIdentity: contentIdentity, content: content).equatable()
     }
 }
 
 final class NativeComponentContentIdentity {}
 
-/// Keep EnvironmentObject resolution at the entry so a nested host can replace
-/// its document. Broad root notifications stop here when presentation is equal.
+/// EnvironmentObject resolution stays at the public entry for nested document
+/// overrides. Shared broadcasts stop before live lookup, readiness and Context
+/// construction; this mounted node receives its own committed update signal.
 private struct NativeComponentContent<Content: View>: View, Equatable {
     let element: EvaluatedElement
     let registry: OpenUIComponentRegistry
     let state: OpenUIState
-    @ObservedObject var updates: NativeComponentUpdates
-    let ready: Bool
+    @StateObject private var subscription = NativeComponentSubscription()
     let contentIdentity: NativeComponentContentIdentity
     let content: (OpenUIComponentContext) -> Content
     @Environment(\.openUIContextValues) private var values
@@ -55,14 +53,16 @@ private struct NativeComponentContent<Content: View>: View, Equatable {
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.state === rhs.state && lhs.contentIdentity === rhs.contentIdentity
-            && lhs.registry.renderRevision == rhs.registry.renderRevision && lhs.ready == rhs.ready
+            && lhs.registry.renderRevision == rhs.registry.renderRevision
             && nativePresentationInputsEqual(lhs.element, rhs.element)
     }
 
     var body: some View {
-        let element = state.liveElement(matching: self.element)
+        let (presentation, reads) = subscription.begin(element: element, state: state)
+        let element = presentation.element
         var context = OpenUIComponentContext(element: element, registry: registry, state: state,
-            values: values, resources: resources, formName: formName, exactFormName: exactFormName)
+            values: values, resources: resources, formName: formName, exactFormName: exactFormName,
+            nativePresentation: presentation, readScope: reads)
         context.interactionScopeReady = interactionScopeReady
         context.activationIntent = activationIntent
         context.onUserInteraction = userInteraction
@@ -74,7 +74,7 @@ private struct NativeComponentContent<Content: View>: View, Equatable {
         return Group {
             if programScoped == ObjectIdentifier(state) { view }
             else {
-                OpenUIProgramScope(owner: ObjectIdentifier(state), revision: state.presentationRevision,
+                OpenUIProgramScope(owner: ObjectIdentifier(state), revision: presentation.presentationRevision,
                     resources: state.resourceStore,
                     content: view.environment(\.openUIMediaCache, state.mediaCache))
             }
