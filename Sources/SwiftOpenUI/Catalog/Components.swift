@@ -2,7 +2,7 @@ import SwiftLang
 import SwiftUI
 
 public enum OpenUIComponents {
-    /// Official examples and rules for the complete, pinned general-purpose library.
+    /// General composition guidance for the complete native OpenUI library.
     /// Pass explicitly to prompt(_:); curate them when deriving a component subset.
     public static var promptOptions: PromptOptions { OpenUIReference.promptOptions }
 
