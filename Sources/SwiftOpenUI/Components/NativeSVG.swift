@@ -23,6 +23,8 @@ struct NativeSVG: View {
     @State private var preview = false
     @State private var documents = NativeSVGDocumentCache()
     @Environment(\.openUIResourceContext) private var resources
+    @Environment(\.openUICardIsAction) private var cardIsAction
+    @Environment(\.isEnabled) private var hostEnabled
     private var document: NativeSVGDocument? {
         if context.string("content") != nil && context.string("src") != nil { return nil }
         guard context.string("content") == nil || context.element.sourceReadiness["content"].complete else { return nil }
@@ -31,30 +33,28 @@ struct NativeSVG: View {
     }
     private var failed: Bool { remoteTarget != nil && failedTarget == remoteTarget }
     var body: some View {
-        VStack(alignment: .leading, spacing: context.theme.spaceS) {
+        Group {
             if let document {
-                NativeSVGCanvas(document: document, alt: context.string("alt") ?? "")
+                NativeSVGCanvas(document: document, alt: context.string("alt") ?? "", onOpen: {
+                    guard context.canActivate else { return }
+                    preview = true
+                })
                     .aspectRatio(document.viewportRatio, contentMode: .fit)
                     .frame(maxHeight: 1024)
-                Button { guard context.canInteract else { return }; preview = true } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .openUIFont(context.theme.textLabelSm, role: .control)
-                        .openUIControlTarget()
-                }
-                .buttonStyle(.plain).foregroundStyle(context.theme.interactiveAccentDefault)
-                .disabled(!context.canInteract)
-                .accessibilityLabel(Text("View full graphic", bundle: NativeControlResources.bundle))
-                .accessibilityIdentifier("openui.svg.expand")
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                    .disabled(!context.canInteract)
             } else {
                 if failed, retryableTarget == remoteTarget {
-                    Button {
-                        guard context.canActivate, let target = baseTarget else { return }
-                        retryState.retry(target)
-                    } label: {
-                        placeholder(loading: false)
+                    Group {
+                        if cardIsAction {
+                            placeholder(loading: false)
+                                .highPriorityGesture(TapGesture().onEnded { retry() },
+                                    including: context.canInteract && hostEnabled ? .all : .subviews)
+                                .accessibilityAction(named: Text("Tap image to retry", bundle: NativeControlResources.bundle), retry)
+                        } else {
+                            Button(action: retry) { placeholder(loading: false) }
+                                .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
                     .disabled(!context.canInteract)
                     .accessibilityHint(Text("Tap image to retry", bundle: NativeControlResources.bundle))
                     .accessibilityIdentifier("openui.svg.retry")
@@ -106,6 +106,10 @@ struct NativeSVG: View {
             .aspectRatio(context.presentation.coverAspectRatio, contentMode: .fit)
             .fixedSize(horizontal: false, vertical: true)
     }
+    private func retry() {
+        guard hostEnabled, context.canActivate, let target = baseTarget else { return }
+        retryState.retry(target)
+    }
     private var baseTarget: NativeMediaResourceTarget? {
         guard context.element.sourceReadiness["src"].complete, context.string("content") == nil,
               let source = context.string("src") else { return nil }
@@ -139,44 +143,94 @@ private struct NativeSVGPlaceholder: View {
 private struct NativeSVGCanvas: View {
     let document: NativeSVGDocument
     let alt: String
+    var onOpen: (() -> Void)? = nil
     @State private var status = NativeMediaStatus.loading
     @State private var renderAttempt = 0
     @Environment(\.openUITheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.openUIActivationIntent) private var intent
+    @Environment(\.openUICardIsAction) private var cardIsAction
+    @Environment(\.isEnabled) private var hostEnabled
 
     private func retry() {
-        guard intent?.permitsActivation != false else { return }
+        guard hostEnabled, status == .unavailable, intent?.permitsActivation != false else { return }
         status = .loading
         renderAttempt += 1
     }
+    private func openPreview() {
+        guard hostEnabled, status == .loaded, intent?.permitsActivation != false else { return }
+        onOpen?()
+    }
 
     var body: some View {
-        SVGWebView(html: document.html(textColor: NativeCSSColor.css(theme.textNeutralPrimary, scheme: scheme)),
-            onStatus: { status = $0 })
-            .id(renderAttempt)
-            // Authored WebKit content is display-only; native recovery and
-            // preview gestures remain outside that noninteractive surface.
-            .allowsHitTesting(false)
-            .overlay {
-                if status == .loading {
-                    NativeSVGPlaceholder(alt: alt, loading: true)
-                } else if status == .unavailable {
+        ZStack {
+            SVGWebView(html: document.html(textColor: NativeCSSColor.css(theme.textNeutralPrimary, scheme: scheme)),
+                onStatus: { status = $0 })
+                .id(renderAttempt)
+                // Authored WebKit content is display-only; native recovery and
+                // preview gestures remain outside that noninteractive surface.
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            if status == .loading {
+                NativeSVGPlaceholder(alt: alt, loading: true)
+            } else if status == .unavailable {
+                if cardIsAction {
+                    NativeSVGPlaceholder(alt: alt, loading: false)
+                        .highPriorityGesture(TapGesture().onEnded { retry() },
+                            including: hostEnabled ? .all : .subviews)
+                        .accessibilityAction(named: Text("Tap image to retry", bundle: NativeControlResources.bundle), retry)
+                        .accessibilityHint(Text("Tap image to retry", bundle: NativeControlResources.bundle))
+                } else {
                     Button(action: retry) {
                         NativeSVGPlaceholder(alt: alt, loading: false)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(alt.isEmpty
+                        ? Text("Unable to load graphic", bundle: NativeControlResources.bundle) : Text(alt))
+                    .accessibilityValue(Text(alt.isEmpty ? "" : "Unable to load graphic",
+                        bundle: NativeControlResources.bundle))
+                    .accessibilityHint(Text("Tap image to retry", bundle: NativeControlResources.bundle))
                 }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(alt.isEmpty ? "SVG" : alt)
-            .accessibilityValue(Text(status == .loaded ? "" : status == .loading ? "Loading" : "Unable to load graphic",
-                bundle: NativeControlResources.bundle))
-            .accessibilityActions {
-                if status == .unavailable {
-                    Button(action: retry) { Text("Tap image to retry", bundle: NativeControlResources.bundle) }
+            } else if onOpen != nil {
+                // The graphic itself is the target. Keep WebKit mounted
+                // while its one native action changes from retry to preview.
+                if cardIsAction {
+                    // An action card owns the primary tap. Its graphic remains
+                    // inspectable without placing another button in the label.
+                    Color.clear.contentShape(Rectangle())
+                        .contextMenu {
+                            Button(action: openPreview) {
+                                Label { Text("View full graphic", bundle: NativeControlResources.bundle) }
+                                    icon: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(alt.isEmpty ? "SVG" : alt)
+                        .accessibilityAddTraits(.isImage)
+                        .accessibilityAction(named: Text("View full graphic", bundle: NativeControlResources.bundle), openPreview)
+                        .accessibilityHint(Text("Touch and hold to preview", bundle: NativeControlResources.bundle))
+                        .accessibilityIdentifier("openui.svg.expand")
+                } else {
+                    Button(action: openPreview) {
+                        Color.clear.contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(alt.isEmpty
+                        ? Text("View full graphic", bundle: NativeControlResources.bundle) : Text(alt))
+                    .accessibilityHint(Text("Tap to preview", bundle: NativeControlResources.bundle))
+                    .accessibilityIdentifier("openui.svg.expand")
                 }
+            } else {
+                Color.clear
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(alt.isEmpty ? "SVG" : alt)
+                    .accessibilityAddTraits(.isImage)
+                    .allowsHitTesting(false)
             }
+        }
+        .accessibilityElement(children: .contain)
     }
 }
 

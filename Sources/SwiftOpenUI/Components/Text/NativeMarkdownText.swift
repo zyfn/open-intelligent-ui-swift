@@ -23,18 +23,11 @@ struct NativeMarkdownText: View {
   @Environment(\.openUIActivationIntent) private var activationIntent
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.multilineTextAlignment) private var textAlignment
-  @ScaledMetric private var scale: CGFloat
-  @ScaledMetric(relativeTo: .body) private var markdownBodyScale: CGFloat = 1
+  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
   @StateObject private var math = NativeMathRenderer()
   @StateObject private var streamText = NativeStreamingTextBuffer()
   @StateObject private var document = NativeMarkdownDocument()
   @State private var citation: NativeCitationSelection?
-
-  init(text: String, mode: NativeRichTextMode = .markdown, style: NativeRichTextStyle = .init()) {
-    self.text = text; self.mode = mode; self.style = style
-    _scale = ScaledMetric(wrappedValue: 1, relativeTo: style.role.textStyle)
-  }
-
   private var foreground: Color { style.color ?? theme.textNeutralPrimary }
   private var frameAlignment: Alignment {
     switch textAlignment {
@@ -45,9 +38,6 @@ struct NativeMarkdownText: View {
   }
   private var font: OpenUIFont { style.resolvedFont(theme: theme, inherited: inheritedFont) }
   private var mathSize: CGFloat { font.size * scale }
-  // MarkdownUI 2.4.1 scales its root FontSize relative to body. Compensate
-  // that one scale so glyphs and attachments receive the same role-sized font.
-  private var markdownPointSize: CGFloat { mathSize / max(.leastNonzeroMagnitude, markdownBodyScale) }
   private var mathColor: String { NativeCSSColor.css(foreground, scheme: colorScheme) }
   private struct StreamingInput: Equatable {
     let source: OpenUIString
@@ -69,7 +59,8 @@ struct NativeMarkdownText: View {
       .markdownTextStyle {
         ForegroundColor(foreground)
         FontFamily(font.family.map(FontProperties.Family.custom) ?? .system(font.design))
-        FontSize(markdownPointSize)
+        // MarkdownUI applies the shared body scale once to this base size.
+        FontSize(font.size)
         FontWeight(font.weight)
         TextTracking(font.letterSpacing * mathSize)
         FontDigitVariant(style.numeric || font.monospacedDigits ? .monospaced : .normal)
@@ -130,40 +121,20 @@ struct NativeMarkdownText: View {
       .onDisappear { document.cancel(); streamText.cancel(); math.cancel() }
   }
   private func heading<Content: View>(_ content: Content, level: Int, before: CGFloat) -> some View {
-    NativeMarkdownHeading(content: content, style: theme.markdownHeadingStyle(level),
-      bodyPointSize: mathSize, before: before, after: theme.spaceS)
-  }
-}
-
-private struct NativeMarkdownHeading<Content: View>: View {
-  let content: Content
-  let style: NativeTextStyle
-  let bodyPointSize: CGFloat
-  let before: CGFloat
-  let after: CGFloat
-  @ScaledMetric private var scale: CGFloat
-
-  init(content: Content, style: NativeTextStyle, bodyPointSize: CGFloat, before: CGFloat, after: CGFloat) {
-    self.content = content; self.style = style; self.bodyPointSize = bodyPointSize
-    self.before = before; self.after = after
-    _scale = ScaledMetric(wrappedValue: 1, relativeTo: style.role.textStyle)
-  }
-
-  var body: some View {
-    let font = style.font
-    content
+    let headingFont = theme.markdownHeadingStyle(level).font
+    return content
       .fixedSize(horizontal: false, vertical: true)
       // The text-style modifier must surround this relative-size reader so its
       // em units use the heading's font, including custom leading and tracking.
-      .relativeLineSpacing(.em(font.additionalLineSpacing() / max(1, font.size)))
+      .relativeLineSpacing(.em(headingFont.additionalLineSpacing() / max(1, headingFont.size)))
       .markdownTextStyle {
-        FontFamily(font.family.map(FontProperties.Family.custom) ?? .system(font.design))
-        FontSize(.em(font.size * scale / max(1, bodyPointSize)))
-        FontWeight(font.weight)
-        TextTracking(font.letterSpacing * font.size * scale)
-        FontDigitVariant(font.monospacedDigits ? .monospaced : .normal)
+        FontFamily(headingFont.family.map(FontProperties.Family.custom) ?? .system(headingFont.design))
+        FontSize(.em(headingFont.size / max(1, font.size)))
+        FontWeight(headingFont.weight)
+        TextTracking(headingFont.letterSpacing * headingFont.size * scale)
+        FontDigitVariant(headingFont.monospacedDigits ? .monospaced : .normal)
       }
-      .markdownMargin(top: before, bottom: after)
+      .markdownMargin(top: before, bottom: theme.spaceS)
   }
 }
 

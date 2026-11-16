@@ -36,13 +36,19 @@ final class GalleryReadingWidthTests: XCTestCase {
       "Future records outside the five-photo preview must not make the first visible photo narrower")
   }
 
-  @MainActor func testAdditionalImagesDoNotAddAnInlineButtonOrExpandThePreview() throws {
+  @MainActor func testAdditionalImagesKeepOneAllPhotosEntryWithoutExpandingThePreview() throws {
     func source(_ count: Int) -> String {
       let images = (1...count).map { "{src:\"\",alt:\"Photo \($0)\"}" }.joined(separator: ",")
       return "root=Stack([ImageGallery([\(images)])])"
     }
-    // At one column a sixth image or an extra button would increase height.
-    XCTAssertEqual(try height(source(6), width: 240), try height(source(5), width: 240), accuracy: 1)
+    // Only photos beyond the five inline slots need a separate entry. It must
+    // remain reachable even when all visible sources are unavailable.
+    let five = try height(source(5), width: 240)
+    let six = try height(source(6), width: 240)
+    XCTAssertEqual(six - five,
+      OpenUIThemeValues().spaceM + OpenUIPresentation().minimumControlTargetSize, accuracy: 1)
+    XCTAssertEqual(try height(source(9), width: 240), six, accuracy: 1,
+      "Additional photos belong in the viewer, not extra inline rows or controls")
   }
 }
 #endif

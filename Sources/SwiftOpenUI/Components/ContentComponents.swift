@@ -61,7 +61,6 @@ struct NativeCallout: View {
   var authoredDescription: String? { authoredCopy(context.string("description")) }
   var statusIcon: String? {
     switch context.string("variant") {
-    case "info": return "info.circle"
     case "success": return "checkmark.circle"
     case "warning": return "exclamationmark.circle"
     case "error", "danger": return "xmark.circle"
@@ -78,16 +77,17 @@ struct NativeCallout: View {
   var body: some View {
     Group {
       if visible && hasCopy {
-        HStack(alignment: .firstTextBaseline, spacing: context.theme.spaceXs) {
+        HStack(alignment: .firstTextBaseline, spacing: context.theme.spaceM) {
           if let statusIcon {
             Image(systemName: statusIcon)
-              .openUIFont(context.theme.textLabelSm, role: .label)
+              .openUIFont(context.theme.textLabelDefaultHeavy, role: .control)
               .foregroundStyle(semanticColor(context.string("variant"), theme: context.theme))
               .accessibilityHidden(true)
           }
           VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
             if let title = authoredTitle {
-              Text(title).nativeTextStyle(context.theme.objectTitleStyle())
+              Text(title).openUIFont(context.theme.textBodyDefaultHeavy, role: .title)
+                .foregroundStyle(context.theme.textNeutralPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             }
             if let detail = authoredDescription {
@@ -97,10 +97,16 @@ struct NativeCallout: View {
           .frame(maxWidth: .infinity, alignment: .leading)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .padding(context.theme.componentStyle.objectInset)
+        .padding(.leading, statusIcon == nil ? context.theme.spaceML : 0)
+        .padding(.vertical, context.theme.spaceS)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(context.theme.sunk,
-          in: RoundedRectangle(cornerRadius: context.theme.radiusXl, style: .continuous))
+        .background(alignment: .leading) {
+          if statusIcon == nil {
+            RoundedRectangle(cornerRadius: context.theme.radius3xs, style: .continuous)
+              .fill(context.theme.borderDefault).frame(width: 3)
+              .padding(.vertical, context.theme.space2xs).accessibilityHidden(true)
+          }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityValue(Text(statusLabel, bundle: NativeControlResources.bundle))
       }

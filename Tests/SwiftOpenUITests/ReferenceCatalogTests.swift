@@ -174,7 +174,7 @@ final class ReferenceCatalogTests: XCTestCase {
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
     let examples: [(String, String, String?)] = [
-      ("TextCallout", "neutral", nil), ("TextCallout", "info", "info.circle"),
+      ("TextCallout", "neutral", nil), ("TextCallout", "info", nil),
       ("TextCallout", "success", "checkmark.circle"), ("TextCallout", "warning", "exclamationmark.circle"),
       ("TextCallout", "danger", "xmark.circle"), ("Callout", "error", "xmark.circle")
     ]

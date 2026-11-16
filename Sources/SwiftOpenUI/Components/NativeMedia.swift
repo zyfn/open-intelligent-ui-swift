@@ -452,23 +452,25 @@ struct NativeImageGallery: View {
             }
           }
         }
-        Button {
-          guard context.canActivate, let first = images.first else { return }
-          selected = first.key
-          preview = true
-        } label: {
-          HStack(spacing: context.theme.spaceS) {
-            Text("Show all photos", bundle: NativeControlResources.bundle)
-            Text("\(images.count)").monospacedDigit()
-            Image(systemName: "arrow.forward").accessibilityHidden(true)
+        if images.count > previewLimit {
+          Button {
+            guard context.canActivate, let first = images.first else { return }
+            selected = first.key
+            preview = true
+          } label: {
+            HStack(spacing: context.theme.spaceS) {
+              Text("Show all photos", bundle: NativeControlResources.bundle)
+              Text("\(images.count)").monospacedDigit()
+              Image(systemName: "arrow.forward").accessibilityHidden(true)
+            }
+            .openUIFont(context.theme.textLabelSm, role: .control)
+            .openUIControlTarget(alignment: .leading)
           }
-          .openUIFont(context.theme.textLabelSm, role: .control)
-          .openUIControlTarget(alignment: .leading)
+          .buttonStyle(.plain)
+          .foregroundStyle(context.theme.interactiveAccentDefault)
+          .disabled(!context.canInteract)
+          .accessibilityIdentifier("openui.gallery.show-all")
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(context.theme.interactiveAccentDefault)
-        .disabled(!context.canInteract)
-        .accessibilityIdentifier("openui.gallery.show-all")
       }
     }
     .accessibilityElement(children: .contain).accessibilityIdentifier("openui.gallery")

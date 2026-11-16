@@ -1,41 +1,22 @@
 import SwiftLang
 import SwiftUI
 
-/// Reading roles resolve leading and Dynamic Type without rewriting a host font.
+/// Reading roles resolve leading without rewriting a complete host font.
 enum NativeTextRole: Equatable {
-    case display, section, title, label, body, largeBody, detail, caption, control, metric, code
+    case display, section, title, label, body, detail, caption, control, metric, code
 
-    var textStyle: Font.TextStyle {
-        switch self {
-        case .display, .metric: return .title2
-        case .section, .largeBody: return .title3
-        case .title: return .headline
-        case .detail: return .subheadline
-        case .caption: return .footnote
-        case .label, .body, .control, .code: return .body
-        }
-    }
+    /// Text and geometry keep the established shared Dynamic Type scale.
+    var textStyle: Font.TextStyle { .body }
 
     var lineHeight: CGFloat {
-        #if os(iOS)
-        switch self {
-        case .display, .metric: return 28.0 / 22
-        case .section, .largeBody: return 25.0 / 20
-        case .title, .label, .body, .control: return 22.0 / 17
-        case .detail: return 20.0 / 15
-        case .caption: return 18.0 / 13
-        case .code: return 1.50
-        }
-        #else
         switch self {
         case .display, .control, .metric: return 1.25
         case .section: return 1.30
         case .title, .label: return 1.35
         case .detail: return 1.45
         case .caption: return 1.40
-        case .body, .largeBody, .code: return 1.50
+        case .body, .code: return 1.50
         }
-        #endif
     }
 }
 

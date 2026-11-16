@@ -4,7 +4,7 @@ import SwiftUI
 /// Complete, internal text recipes for slots whose purpose is already explicit.
 /// The same resolved font feeds native text, rich text and geometry measurement.
 struct NativeTextStyle {
-  enum Purpose: Equatable { case body, largeBody, compactBody, supporting, caption, fieldLabel, action, compactAction, fieldError }
+  enum Purpose: Equatable { case body, compactBody, supporting, caption, fieldLabel, action, compactAction, fieldError }
 
   let font: OpenUIFont
   let color: Color
@@ -17,9 +17,6 @@ struct NativeTextStyle {
     case .body:
       font = theme.textBodyDefault; role = .body
       color = theme.textNeutralPrimary; emphasisWeight = theme.textBodyDefaultHeavy.weight
-    case .largeBody:
-      font = theme.textBodyLg; role = .largeBody
-      color = theme.textNeutralPrimary; emphasisWeight = theme.textBodyLgHeavy.weight
     case .compactBody:
       font = theme.textBodySm; role = .detail
       color = theme.textNeutralPrimary; emphasisWeight = theme.textBodySmHeavy.weight
@@ -84,7 +81,7 @@ extension OpenUIThemeValues {
   }
 
   func inlineTextStyle(_ size: String?, emphasized: Bool = false, numeric: Bool = false) -> NativeRichTextStyle {
-    let base = textStyle(size == "lg" ? .largeBody : size == "xs" ? .compactBody : .body)
+    let base = textStyle(size == "xs" ? .compactBody : .body)
     return .init(font: inlineFont(size, emphasized: emphasized, numeric: numeric),
       numeric: numeric, color: base.color, role: base.role,
       emphasisWeight: inlineFont(size, emphasized: true, numeric: numeric).weight)
@@ -152,7 +149,7 @@ struct NativeRichTextStyle {
     // Size variants select a reading scale, not an information-priority color.
     let small = size == "small" || size == "small-heavy"
     let large = size == "large" || size == "large-heavy"
-    let base = theme.textStyle(large ? .largeBody : small ? .compactBody : .body)
+    let base = theme.textStyle(small ? .compactBody : .body)
     return .init(font: font, color: base.color, role: base.role,
       emphasisWeight: small ? theme.textBodySmHeavy.weight : large ? theme.textBodyLgHeavy.weight : theme.textBodyDefaultHeavy.weight)
   }

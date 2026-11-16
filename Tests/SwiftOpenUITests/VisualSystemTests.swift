@@ -12,13 +12,7 @@ final class VisualSystemTests: XCTestCase {
         font.monospacedDigits = true
         let title = font.resolved(for: .title)
         let body = font.resolved(for: .body)
-        #if os(iOS)
-        XCTAssertEqual(title.lineHeight!, 22.0 / 17, accuracy: 0.001)
-        XCTAssertEqual(body.lineHeight!, 22.0 / 17, accuracy: 0.001,
-            "The native headline and body styles share their baseline leading")
-        #else
         XCTAssertLessThan(title.lineHeight!, body.lineHeight!)
-        #endif
         XCTAssertEqual(title.size, font.size)
         XCTAssertEqual(title.weight, font.weight)
         XCTAssertEqual(title.family, font.family)

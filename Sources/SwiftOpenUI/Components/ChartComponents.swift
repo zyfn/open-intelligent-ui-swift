@@ -253,8 +253,8 @@ struct NativeChart: View {
       }
     }.fixedSize().hidden().allowsHitTesting(false).accessibilityHidden(true)
   }
-  /// Touch scrolling remains native until a deliberate press activates
-  /// inspection. Desktop pointer dragging has no competing touch-scroll intent.
+  /// Touch scrolling stays native; a tap inspects a point and a touch-and-hold
+  /// opens the chart's data menu. Desktop pointer dragging inspects the plot.
   @ViewBuilder var body: some View {
     Group {
       if !allData.hasContent(for: name) {
@@ -275,22 +275,20 @@ struct NativeChart: View {
   }
 
   private var chartBody: some View {
-    VStack(alignment: .leading, spacing: context.theme.spaceM) {
-      chartContent
-      Button { showsDataDetails = true } label: {
-        Label {
-          Text("View chart data", bundle: NativeControlResources.bundle)
-        } icon: { Image(systemName: "list.bullet.rectangle").accessibilityHidden(true) }
-          .nativeTextStyle(context.theme.textStyle(.compactAction))
-          .openUIControlTarget(alignment: .leading)
+    chartContent
+      .sheet(isPresented: $showsDataDetails) {
+        NativeChartDataDetails(data: allData, palette: palette, theme: context.theme,
+          locale: locale, selectedIndex: visibility.hidden.isEmpty ? inspected : nil)
       }
-      .buttonStyle(NativeQuietButtonStyle(theme: context.theme))
-      .accessibilityIdentifier("openui.chart.data-details")
+  }
+
+  private var dataDetailsAction: some View {
+    Button { showsDataDetails = true } label: {
+      Label {
+        Text("View chart data", bundle: NativeControlResources.bundle)
+      } icon: { Image(systemName: "list.bullet.rectangle") }
     }
-    .sheet(isPresented: $showsDataDetails) {
-      NativeChartDataDetails(data: allData, palette: palette, theme: context.theme,
-        locale: locale, selectedIndex: visibility.hidden.isEmpty ? inspected : nil)
-    }
+    .accessibilityIdentifier("openui.chart.data-details")
   }
 
   private var chartContent: some View {
@@ -317,6 +315,7 @@ struct NativeChart: View {
         .accessibilityChildren {
           ForEach(Array(data.accessibilityRows.enumerated()), id: \.offset) { _, row in Text(row) }
         }
+        .accessibilityActions { dataDetailsAction }
         .overlay(alignment: .topLeading) {
           if ["BarChart", "LineChart", "AreaChart"].contains(name) {
             NativeChartCategoryAxis(labels: data.labels, layout: drawing.layout(geometry.size), theme: context.theme)
@@ -348,6 +347,9 @@ struct NativeChart: View {
       }.frame(height: NativeChartHeight.value(explicit: context.presentationNumber("height"),
         defaultHeight: defaultHeight, scale: axisScale,
         minimumHeight: name == "SingleStackedBarChart" ? 0 : 100))
+        // The data menu also covers an empty plot after all series are hidden.
+        .contentShape(Rectangle())
+        .contextMenu { dataDetailsAction }
       if name == "RadarChart" {
         NativeRadarCategoryKey(labels: data.labels, theme: context.theme)
       }
@@ -386,8 +388,8 @@ struct NativeChart: View {
       }
     }.frame(maxWidth: .infinity, alignment: .leading)
       .background(alignment: .topLeading) { measuredAxisLabels }
-      // Inspection belongs above the plot and legend. The persistent data
-      // button stays outside this region, visible even for a tall inspection.
+      // Inspection stays within the chart; complete data remains available
+      // through the plot's context menu and accessibility action.
       .overlay(alignment: .topLeading) {
         GeometryReader { geometry in
           if let inspected, let details = data.inspection(at: inspected, locale: locale) {
@@ -565,12 +567,8 @@ private struct NativeChartTooltip: View {
         NativeChartInspectionContent(details: details, palette: palette, theme: theme)
           .fixedSize(horizontal: false, vertical: true)
           .modifier(NativeOverlaySurface(theme: theme, compact: true))
-        Text("View chart data for full details", bundle: NativeControlResources.bundle)
-          .nativeTextStyle(theme.textStyle(.supporting))
-          .fixedSize(horizontal: false, vertical: true).padding(theme.spaceM)
-          .modifier(NativeOverlaySurface(theme: theme, compact: true))
-        // A very short explicit plot may not fit even the reading hint. Its
-        // persistent data button remains available without an overflowing card.
+        // A bounded inspection never covers neighboring content. The chart's
+        // menu and accessibility action retain access to the complete values.
         Color.clear.frame(width: 0, height: 0)
       }
       .accessibilityIdentifier("openui-chart-inspection")
@@ -645,8 +643,8 @@ private struct NativeChartTooltipLayout: Layout {
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize { bounds }
   func placeSubviews(in rect: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
     guard let view = subviews.first else { return }
-    // Give ViewThatFits a real vertical budget. Larger inspections use the
-    // persistent full-data reader instead of covering neighboring content.
+    // Give ViewThatFits a real vertical budget. Larger inspections remain
+    // available in the data reader instead of covering neighboring content.
     let size = view.sizeThatFits(ProposedViewSize(width: min(240, max(1, bounds.width - 16)),
       height: max(0, min(320, bounds.height - 16))))
     let frame = NativeChartTooltipPlacement.frame(size: size, anchor: anchor, bounds: bounds)

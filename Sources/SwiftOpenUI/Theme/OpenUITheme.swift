@@ -276,22 +276,6 @@ public struct OpenUIThemeValues {
     public var radius8xl: CGFloat = 40
     public var radius9xl: CGFloat = 48
     public var radiusFull: CGFloat = 9999
-    #if os(iOS)
-    public var textHeadingMd: OpenUIFont = OpenUIFont(size: 22, weight: .semibold)
-    public var textHeadingSm: OpenUIFont = OpenUIFont(size: 20, weight: .semibold)
-    public var textHeadingXs: OpenUIFont = OpenUIFont(size: 17, weight: .semibold)
-    public var textBodyDefault: OpenUIFont = OpenUIFont(size: 17, weight: .regular)
-    public var textBodyDefaultHeavy: OpenUIFont = OpenUIFont(size: 17, weight: .semibold)
-    public var textBodySm: OpenUIFont = OpenUIFont(size: 15, weight: .regular)
-    public var textBodySmHeavy: OpenUIFont = OpenUIFont(size: 15, weight: .semibold)
-    public var textBodyLg: OpenUIFont = OpenUIFont(size: 20, weight: .regular)
-    public var textBodyLgHeavy: OpenUIFont = OpenUIFont(size: 20, weight: .semibold)
-    public var textLabelSm: OpenUIFont = OpenUIFont(size: 15, weight: .regular)
-    public var textBodyXs: OpenUIFont = OpenUIFont(size: 13, weight: .regular)
-    public var textNumbersDefaultHeavy: OpenUIFont = OpenUIFont(size: 17, weight: .medium).monospacedDigit()
-    public var textLabelSmHeavy: OpenUIFont = OpenUIFont(size: 15, weight: .medium)
-    public var textLabelDefaultHeavy: OpenUIFont = OpenUIFont(size: 17, weight: .medium)
-    #else
     public var textHeadingMd: OpenUIFont = OpenUIFont(size: 26, weight: .semibold)
     public var textHeadingSm: OpenUIFont = OpenUIFont(size: 20, weight: .semibold)
     public var textHeadingXs: OpenUIFont = OpenUIFont(size: 18, weight: .semibold)
@@ -306,7 +290,6 @@ public struct OpenUIThemeValues {
     public var textNumbersDefaultHeavy: OpenUIFont = OpenUIFont(size: 16, weight: .medium).monospacedDigit()
     public var textLabelSmHeavy: OpenUIFont = OpenUIFont(size: 14, weight: .medium)
     public var textLabelDefaultHeavy: OpenUIFont = OpenUIFont(size: 16, weight: .medium)
-    #endif
     public var textCodeDefault: OpenUIFont = OpenUIFont(size: 14, weight: .regular, design: .monospaced)
     public var defaultChartPalette: [Color]? = nil
     public var barChartPalette: [Color]? = nil

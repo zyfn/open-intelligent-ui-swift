@@ -4,9 +4,9 @@ import SwiftUI
 import UIKit
 #endif
 
-/// Inspection is a deliberate hold on touch platforms. Using the native hold
-/// recognizer lets a containing UIScrollView fail the hold when a swipe begins;
-/// a zero-distance SwiftUI drag can otherwise capture that swipe immediately.
+/// A native tap inspects a point without capturing a containing scroll view's
+/// swipe. Touch-and-hold belongs to the chart's context menu; desktop dragging
+/// keeps its existing continuous inspection behavior.
 struct NativeChartInteraction: ViewModifier {
     let inspect: (CGPoint?, Bool) -> Void
     #if !os(iOS)
@@ -42,17 +42,9 @@ private struct NativeChartTouchInspection: UIViewRepresentable {
         view.isOpaque = false
         view.isAccessibilityElement = false
         view.accessibilityElementsHidden = true
-        let hold = UILongPressGestureRecognizer(target: context.coordinator,
-            action: #selector(Coordinator.changed(_:)))
-        hold.minimumPressDuration = 0.2
-        hold.allowableMovement = 10
-        hold.delaysTouchesBegan = false
-        hold.delaysTouchesEnded = false
-        hold.cancelsTouchesInView = false
-        view.addGestureRecognizer(hold)
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
+        tap.name = "openui.chart.inspection.tap"
         tap.cancelsTouchesInView = false
-        tap.require(toFail: hold)
         view.addGestureRecognizer(tap)
         return view
     }
@@ -63,23 +55,10 @@ private struct NativeChartTouchInspection: UIViewRepresentable {
 
     final class Coordinator: NSObject {
         var inspect: (CGPoint?, Bool) -> Void
-        private var holding = false
         init(inspect: @escaping (CGPoint?, Bool) -> Void) { self.inspect = inspect }
 
         @objc func tapped(_ tap: UITapGestureRecognizer) {
             if tap.state == .ended { inspect(tap.location(in: tap.view), true) }
-        }
-
-        @objc func changed(_ hold: UILongPressGestureRecognizer) {
-            switch hold.state {
-            case .began:
-                holding = true
-                inspect(hold.location(in: hold.view), false)
-            case .changed where holding: inspect(hold.location(in: hold.view), false)
-            case .ended, .cancelled, .failed:
-                if holding { holding = false; inspect(nil, false) }
-            default: break
-            }
         }
     }
 }
