@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.4 · 更新日期：2026-11-16
+文档版本：1.5 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -144,6 +144,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 源码与所有权检查 | PASS；确认源码职责/归属约束，属于静态检查，不是 Swift 编译或并发时序测试 |
 | Gallery 目录完整性检查 | PASS；确认目录完整性，不代表 Gallery 的窗口、拖动、图片升级或内存已通过原生验收 |
 | 本地化与文档链接 | PASS；检查既有资源键、调用位置与修改文档的本地链接 |
+| 本轮 GitHub Actions 原生流水线 | BLOCKED；已对代码提交 `5f4ed69b0eb7815e07704fc36f12449c6caa4db9` 的新分支手动触发 [run 43815639524](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43815639524)。两个前置任务的 runner/steps 均为空，页面明确提示账户付款或支出限额阻止启动；`native-sdk` 为 skipped，未进入 Swift 编译/XCTest，不能视为源码测试失败或通过 |
 
 本轮 `lang-core.js` SHA-256 为 `ebabf51a466bc64aa250579397ffa635332ac8153d0867b28f26fb6528b293a8`，`core-manifest.json` SHA-256 为 `4cd06294b0bd03e903848cf1d9bcc62407f2751fd5e3adfbf2813468376f1fb8`。bundle、manifest 与适配清单由固定输入重新生成。预算新增参数和 readiness scope 仅存在于私有 SwiftCore bridge，不要求客户端采用新的 Lang 语法、公开参数或调用方式。
 
