@@ -1,26 +1,34 @@
 # 架构
 
-文档版本：1.1 · 更新日期：2026-11-16
+文档版本：1.2 · 更新日期：2026-11-16
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
-## 1. 与官方分层对应
+## 1. SDK 目标与职责
 
-官方以 [lang-core](https://github.com/thesysdev/openui/tree/main/packages/lang-core)、[react-lang](https://github.com/thesysdev/openui/tree/main/packages/react-lang) 和 [react-ui](https://github.com/thesysdev/openui/tree/main/packages/react-ui) 分工：通用语言内核、框架适配、组件库。react-lang 包含组件定义、Renderer、Context、字段与动作入口，并公开所需的内核契约；它不只是 TypeScript 类型包装。react/vue 指框架，而不是另一套 DSL。
+SDK 为持续生成的内容提供稳定的原生呈现：输入不能丢失，状态不能串代，异常能停止并恢复，计算与内存有边界，用户输入和滚动保持响应。设计取舍以这些目标和本项目的实测结果为依据。
 
-本 SDK 采用同样的三层职责：
+每层只拥有一类权威数据和行为：
 
 | 层 | 本项目名称 | 职责 |
 | --- | --- | --- |
-| 官方内核 | 官方 lang-core 1.1.1，随包分发的 lang-core.js | 词法、解析、流式补全、求值、Store、Query 依赖调度、Schema、签名与 Prompt 规则 |
-| Swift/SwiftUI 适配 | SwiftLang | 官方内核桥接、Swift 数据契约、文档状态、组件注册、Context、原生递归渲染、绑定、动作与异步生命周期 |
+| 语言执行 | 固定版本 lang-core，随包分发的 lang-core.js | 词法、解析、流式补全、求值、Store、Query 依赖调度、Schema、签名与 Prompt 规则 |
+| 原生运行时 | SwiftLang | 内核桥接、Swift 数据契约、文档状态、输入调度边界、快照投影与发布、组件注册、Context、原生渲染、绑定、动作与异步生命周期 |
 | 组件库 | SwiftOpenUI、SwiftIntelligentUI | OpenUI 与 OpenIntelligentUI 各自的组件目录、设计系统、布局、媒体呈现、特有函数及模型生成契约 |
 
-### React Native 对照的准确范围
+### 内核必须保持的约束
 
-固定官方提交中的 [React Native 入口](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/packages/react-lang/src/index.native.ts) 继续导出同一 React 状态和 Renderer，仅将基础组件解析到原生实现。其 [状态 hook](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/packages/react-lang/src/hooks/useOpenUIState.ts) 通过 `useSyncExternalStore` 读取 Store/Query 快照，将 Query 派发放在 effect；[Renderer](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/packages/react-lang/src/Renderer.tsx) 用 `React.memo` 和显示值比较跳过未变节点，但 Store/Query/Context 变化仍可能刷新多个节点。不能将其描述为所有更新都已具备属性级订阅。
+| 约束 | 要求 |
+| --- | --- |
+| 输入完整 | 分块合并保留全部 UTF-16 内容与顺序，完成和停止分别处理尾部，换源后旧缓冲失效 |
+| 单一状态所有者 | 每份文档只有一个可写 Store；UI 快照是只读投影，组件通过 Context 发出写入与动作 |
+| 提交一致 | 同一可见提交的 root、readiness、字段与执行状态来自同一有效更新；旧计算不能覆盖较新的提交 |
+| 局部更新 | 数据或交互状态没有变化的稳定节点应避免重复投影和 body 工作；字段编辑不能因无关更新重置 |
+| 副作用有效 | 工具调用和外部动作在有效状态及预算检查之后发生；等待结束后重新核对所属文档和请求 |
+| 工作有界 | 输入、计算、原生投影、排队和整条动作计划分别有边界；正常合法输入也要控制累计工作量 |
+| 恢复确定 | 失败保留最后一次有效呈现并停止该轮执行；替换或 reset 能恢复，等待者能结束 |
 
-官方 [RN 示例的 streamStore](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/examples/app-frameworks/react-native/chat-app/store/streamStore.ts) 用 `requestAnimationFrame` 合并视图更新；这是示例宿主调度，不是 `lang-core` 自动节流。React Native 框架的 [Render/Commit/Mount](https://reactnative.dev/architecture/render-pipeline) 与 [线程模型](https://reactnative.dev/architecture/threading-model) 属于另一层：不可变树、计算和提交分离、原生视图在 UI 线程更新。这些原则适用于 Swift 适配，但复用相同 Lang 核心不会自动获得 Fabric 调度或独立 JS 执行线程。
+上表定义目标契约，不表示全部已经实现。当前实现与后续落地范围在第 3 节分别标明；验收结果只记录在[验证说明](validation-and-security.md#4-内核稳定性审查与当前验收状态)。
 
 ### 产品与依赖
 
@@ -40,7 +48,7 @@ flowchart TB
     UI["SwiftOpenUI · OpenUI 组件"]
     IUI["SwiftIntelligentUI · OpenIntelligentUI 组件"]
     Lang["SwiftLang · Swift/SwiftUI 适配"]
-    Engine["官方 lang-core · JavaScriptCore"]
+    Engine["lang-core · JavaScriptCore"]
     App --> UI
     App --> IUI
     App --> Lang
@@ -55,9 +63,9 @@ flowchart TB
 
 | 目录 | 职责与边界 |
 | --- | --- |
-| Sources/SwiftLang/Language/ | 官方核心的类型与桥接、解析/求值门面、Store/Query 适配、原生动作执行、UTF-16 与对象身份、序列化和执行预算；此目录不导入 SwiftUI/UIKit/AppKit |
+| Sources/SwiftLang/Language/ | 语言数据类型与桥接、解析/求值门面、Store/Query 适配、原生动作执行、UTF-16 与对象身份、序列化和执行预算；此目录不导入 SwiftUI/UIKit/AppKit |
 | Sources/SwiftLang/Runtime/ | OpenUILibrary、OpenUIState、OpenUIView、无主题的 SwiftLangView、注册表、递归渲染、Context、绑定、身份与生命周期，以及通用资源/媒体基础设施 |
-| Sources/SwiftLang/Resources/ | 固定官方 JS bundle、manifest 和许可；应用运行时不下载代码 |
+| Sources/SwiftLang/Resources/ | 固定版本 JS bundle、manifest 和许可；应用运行时不下载代码 |
 | Sources/SwiftOpenUI/Catalog/ | OpenUI 组件注册、固定上游目录与原生绑定，从实际定义导出契约 |
 | Sources/SwiftOpenUI/Components/、Theme/、Context/、Internal/ | OpenUI 的视觉、控件、布局、文本/媒体、主题与呈现策略 |
 | Sources/SwiftIntelligentUI/Catalog/、Generation/ | OpenIntelligentUIComponents、组件参数、reader/writer、Prompt、manifest 和组件生成诊断 |
@@ -73,33 +81,33 @@ flowchart TB
 
 ### Swift 适配层的内部职责
 
-Language 中的文件按调用职责保留，不再镜像一套官方算法：
+Language 中的文件按调用职责组织，语言语义由单一内核维护：
 
 - ProtocolTypes、OpenUIString、ReferenceValues、ValueConversion、JSSemantics：公开数据契约、顺序、UTF-16、引用身份与类型投影。
-- SharedCore、LibraryBridge：串行 JavaScriptCore 环境、JS 对象/回调、资源加载与官方 authoring 传输。
-- API、Lexer、Parser、StreamingParser、Evaluator、Store、Library、Prompt、Serialize、Merge、Message、Forms、MCP：对固定官方实现的类型化调用。
-- QueryManager、Actions：Swift async 工具、取消与原生动作步骤执行；调度与状态语义继续由官方实现负责。
+- SharedCore、LibraryBridge：串行 JavaScriptCore 环境、JS 对象/回调、资源加载与 authoring 传输。
+- API、Lexer、Parser、StreamingParser、Evaluator、Store、Library、Prompt、Serialize、Merge、Message、Forms、MCP：对内核实现的类型化调用。
+- QueryManager、Actions：Swift async 工具、取消与原生动作步骤执行；依赖调度与状态语义由内核管理器负责。
 - NativeSourceReadiness：源数据闭合、依赖、数组位置和占位提示；不进入 Lang 值、AST 字段或持久化协议。
 - RuntimeLimits、RegExp：原生输入、深度和正则执行预算。
 
-编译后的 LibrarySchema 是只读快照；结构修改通过官方 Library.extend 后重新编译。Query 只接受声明 AST，由官方管理依赖。JSON 语法和转义使用 JavaScriptCore 的 JSON.parse/stringify。Evaluator 通过 EvaluationContext 读取状态，不额外持有 Store。签名来自实际 LibrarySpec，不维护独立签名生成器、原生 materializer 上下文、可变 schema 编辑器或另一条 Query 请求调度链。
+编译后的 LibrarySchema 是只读快照；结构修改通过 Library.extend 后重新编译。Query 只接受声明 AST，由内核管理依赖。JSON 语法和转义使用 JavaScriptCore 的 JSON.parse/stringify。Evaluator 通过 EvaluationContext 读取状态，不额外持有 Store。签名来自实际 LibrarySpec，不维护独立签名生成器、原生 materializer 上下文、可变 schema 编辑器或另一条 Query 请求调度链。
 
 ## 3. 唯一的客户端运行链路
 
 1. 宿主选择 OpenUILibrary.openUI() 或 .openIntelligentUI()；自建组件使用 OpenUILibrary(components:)。
 2. 同一个 library 提供 systemPrompt、specificationJSON 和 makeState(toolProvider:persistedState:)。
 3. 宿主长期持有每份文档的 OpenUIState，输入完整源码或 push 增量，并明确 complete、interrupt、reset 或替换。
-4. State 调用官方 parser/Store/evaluator，并同步声明 Query；工具、取消和定时器通过 Swift 桥接。
+4. State 调用 parser/Store/evaluator，并同步声明 Query；工具、取消和定时器通过 Swift 桥接。
 5. OpenUIView(state:library:) 交给同一适配层 renderer，按选定库的注册表构建原生组件。
 6. 组件通过 OpenUIComponentContext 读取值、渲染子项、编辑字段和触发动作；业务结果经宿主回填。
 
-每份文档拥有独立的 parser、Store、查询和 revision/epoch。共享官方代码及 JS 执行环境不代表共享用户状态。旧文档回调、工具结果和资源结果不得写回替换后的文档。
+每份文档拥有独立的 parser、Store、查询和 revision/epoch。共享代码及 JS 执行环境不代表共享用户状态。旧文档回调、工具结果和资源结果不得写回替换后的文档。
 
 ### 求值、发布与外部副作用
 
 `OpenUIState` 最外层同步调用在返回前排空本次重入请求。宿主在同步发布回调中再次调用换源、reset 或状态写入时，重入调用先入队，等当前 setter 完成后顺序执行，防止 `@Published` 的旧赋值覆盖新文档。过期轮次不能继续派发工具或投递解析回调；组件捕获的 revision 在实际执行排队写入时再次验证。这个短队列只处理同步重入，不是分块节流器，也不使解析后台化；宿主不得在每次状态通知中无条件再写入同一状态，队列不替代回声循环的终止条件。
 
-Query 依赖排序继续由官方管理器拥有。原生首次同步 Query 批次先暂缓 provider，再检查呈现预算；所有 Query 进入 provider 前等待当前同步发布及重入队列完成，已检查批次只复核存活状态，异步结果触发的自动下游派发还要重验 root。官方 Query 实例和请求 key 的私有有效性回调拒绝改参、删除与重建后的旧请求，同 key 的有效请求可跨 patch 保留。它不新增请求调度器，也不能撤回已经进入外部 provider 的工作。
+Query 依赖排序由内核管理器拥有。原生首次同步 Query 批次先暂缓 provider，再检查呈现预算；所有 Query 进入 provider 前等待当前同步发布及重入队列完成，已检查批次只复核存活状态，异步结果触发的自动下游派发还要重验 root。Query 实例和请求 key 的私有有效性回调拒绝改参、删除与重建后的旧请求，同 key 的有效请求可跨 patch 保留。它不新增请求调度器，也不能撤回已经进入外部 provider 的工作。
 
 工具输入/返回、Evaluator 上下文及原生 AST、State 写入/恢复在对应桥接入口检查图大小与深度；不能等整份数据编码或下游派发完成后才拒绝。失败传播到文档的只读末次有效呈现，不能把预算失败产生的 `null` 当业务结果提交。原生 AST、捕获及 readiness 成本比最终 JS 数据图更保守，边界与仍未统一防护的底层入口见[验证说明](validation-and-security.md#性能证据与未完成项)。
 
@@ -107,14 +115,31 @@ Query 依赖排序继续由官方管理器拥有。原生首次同步 Query 批�
 
 两套库始终使用同一个 OpenUILibrary、OpenUIState、OpenUIView、ActionEvent 和组件 Context。产品特有主题、服务和呈现参数使用 OpenUI / OpenIntelligentUI 前缀；不再提供产品专属 State/Event 别名或旧工厂转发入口。
 
-### 尚未落地的性能收敛方向
+### 执行与呈现的目标设计
 
-下列是后续实现约束，不是当前能力声明；完成条件见[内核验收](validation-and-security.md#性能证据与未完成项)。
+以下定义待实现的性能收敛方案。当前仍为 MainActor 同步求值、多个 Published 渠道和共享 State 观察；重入队列及派发前检查已经落到修复候选，但不等于完成了本节的调度、提交与订阅设计。
 
-1. 输入调度在宿主/流式适配入口合并同一显示周期内收到的分块，保留全部 UTF-16 内容与顺序；不能丢弃中间增量后只取最后一块。正常完成先处理全部已收内容再 `complete`，停止保留已收内容的未完成语义，换源清理旧队列。现有同步 `push` 的返回和回调契约应保留，调度能力通过显式入口接入。
-2. 后台化必须同时划清计算和提交：官方 parser、Store、Query 与 JS 值由一个串行执行域拥有；跨域传输不可变原生快照和有代次的命令，主线程只提交当前文档快照和原生 UI。不要复制出第二个 Store，不把 JSValue 或旧回调任意投递到全局线程池。宿主自定义函数的执行域与取消边界须一起定义。
-3. 发布范围需要与节点语义身份、显示元数据和表单/Query 状态分开验证。值未变的稳定兄弟应能跳过重复投影与 body 工作，readiness、动作可用性和查询状态变化仍必须送达。单纯增加 `equatable()` 或只比较 Lang 的 `SameValue` 不能满足这个条件。
-4. 以上调整按相同 workload 做 Release 前后比较：细分块、长尾文本、共享 DAG、匿名重复节点、多文档并行、输入中换源与取消。先获得逐阶段耗时、发布/body 次数和设备帧数据，再决定工作线程数量与订阅粒度；不以单次微基准或 JS 耗时推断整个 App 的帧率。
+**输入调度。** 保留现有同步 `push` 契约，合并调度通过显式入口接入。每个显示周期至多提交一次合并后的普通流式呈现；运行中只保留一个计算批次和有上限的待处理输入，避免每个 token 创建一个任务。增量逐块连接，完整缓冲仅在同一文档内且确认为前缀扩展时合并；非前缀替换建立新的文档有效性边界。累计输入包括尚未解析的缓冲，达到上限要明确拒绝，不静默丢块。
+
+complete、interrupt 和换源等边界可立即提交，不受普通帧合并延迟。调度入口必须绑定流的文档句柄，停止或替换后拒绝该句柄的晚到分块。现有裸 `push` 在完成后可以自动开启新流；拒绝旧流迟到输入的保证由带句柄的入口提供，不能靠一个无来源的字符串判断。
+
+| 事件 | 调度与提交要求 |
+| --- | --- |
+| 普通增量 | 合并未处理内容，保持输入顺序；不因网络分块更细就重复提交完整呈现 |
+| complete | 作为顺序屏障，处理该文档此前接收的全部内容后完成解析；不等待下一次显示回调，不丢最后一个 token |
+| interrupt | 停止该流的接收与自动/延迟工具派发，保留此前已接收内容的未完成语义；已闭合节点的操作继续按 readiness 判断。不能隐式 complete，也不能靠等待外部 provider 返回才结束 |
+| 替换或 reset | 退休旧缓冲、待提交结果和异步回调。reset 清理业务状态及草稿；换源按现有 Store 保留/初始化规则处理业务状态，并建立新的呈现草稿生命周期 |
+| 输入或计算超限 | 停止该轮排队与执行，保留最后有效呈现，向调用方报告失败并结束等待 |
+
+**计算所有权与提交。** parser、Store、Query 和 JS 值由一个串行执行域拥有，UI 只读不可变原生投影；这是同一权威状态的读模型。每份候选投影关联文档身份和更新序号，提交前检查当前有效性，过期结果直接退休。root、readiness、字段、Query/Mutation 状态及错误应形成一致的可见提交，再发出外部通知；不能让订阅者组合出不同更新的字段。现有分散 Published 的兼容迁移和同步调用的返回语义必须一起落实，不能只把计算包进后台 Task。
+
+**节点与交互更新。** 节点身份、业务值相等和呈现状态分开判断。变化尾部只使实际依赖它的节点失效；readiness、错误、Query 加载和动作可用性即使不改变 Lang 值也必须送达。输入草稿和焦点按文档及字段身份保留，不从无关的 root 发布反复初始化。视图 body 和布局测量只读取已提交投影，不调用 parser、写 Store 或触发工具。已有同源码重放/尺寸拟合回归不足以证明稳定兄弟隔离，必须增加 body 与投影计数。
+
+**动作计划。** Set/Reset 的业务状态按步骤立即对后续表达式可见，纯写入连续段的 UI 呈现可以合并。Query 同步、外部事件、Mutation 等待和影响后续步骤的宿主回调是需要明确处理的观察边界；边界前检查当前状态与预算。整条计划累计表达式、转换和重复 root 工作，主动调度让步只能发生在合法边界，并在恢复后重查文档有效性。预算失败或 Mutation 失败停止剩余步骤，已完成的合法步骤和已发生的外部效果不被假称为回滚。现有逐步 onStateUpdate 的交付时机不能被悄悄合并，业务回调与 UI 发布的兼容策略需要显式定义和测试。
+
+**资源与失败边界。** 执行预算、输入队列、投影缓存和工具等待分别受到约束；保留数据身份不能演变成永久强引用。文档退休、预算失败和请求取消时释放对应任务与回调；正常 complete 只结束输入，有效文档的 Query、刷新、控件及资源回调继续工作。已失效结果只能被丢弃，不能借用新文档恢复执行。直接底层写入及手工构造解析结果的未覆盖入口，要补齐与高层一致的显式失败契约后才能宣称完整保护。用户未提交草稿按生命周期管理，不以任意 LRU 淘汰代替设计。宿主代码自身的计算和忽略取消的外部工作仍不具备抢占保证。
+
+**落地次序。** 先完成修复候选的原生正确性验收；随后实现有界输入合并与动作呈现合并，保留同步接入和必要观察边界；再用节点级计数验证发布范围收敛。执行域迁移最后实施，基于前面的实测选择调度方式，并同步明确宿主函数、回调与读取 API 的执行域。每一步使用相同 Release 工作负载比较，验收条件见[内核目标验收](validation-and-security.md#内核目标验收)。
 
 ## 4. 适配层、组件与宿主的边界
 
@@ -128,15 +153,15 @@ Query 依赖排序继续由官方管理器拥有。原生首次同步 Query 批�
 
 reader 提供读取契约，writer 提供当前生成范围。两者从同一注册来源派生，不能维护第二份手写权威 schema。组件名、参数顺序、枚举与绑定属于输入契约；收敛 Swift 包/API 名称不等于改写已存 Lang 程序。两套产品的组件语法分别维护，不通过替换组件名假定互换。
 
-## 5. 官方来源、原生适配与语言版本
+## 5. 依赖来源、原生适配与语言版本
 
-实际来源以 [Tools/upstream.json](../Tools/upstream.json)、[资源 manifest](../Sources/SwiftLang/Resources/core-manifest.json) 和 [适配清单](../Tools/Core/adaptations.json) 为准。构建提取固定官方源码，核对原始源码树、显式补丁及生成指纹；客户端不安装 npm 包或追踪 latest。
+实际来源以 [Tools/upstream.json](../Tools/upstream.json)、[资源 manifest](../Sources/SwiftLang/Resources/core-manifest.json) 和 [适配清单](../Tools/Core/adaptations.json) 为准。构建提取锁定来源的源码，核对原始源码树、显式补丁及生成指纹；客户端不安装 npm 包或追踪 latest。
 
-Swift 负责 lossless 数据传输、原生 async 与动作执行。当前还保留有来源记录的 readiness 注入、serializer 修复、依赖 schema 表示适配与执行预算。这是官方核心加显式 Apple 适配，不能宣称官方代码零修改或任意输入下完全等价。
+Swift 负责 lossless 数据传输、原生 async 与动作执行。当前还保留有来源记录的 readiness 注入、serializer 修复、依赖 schema 表示适配与执行预算。这些 Apple 适配随依赖升级逐项复核，使用固定回归和独立语义检查验证兼容性。
 
 ### 语言版本与参考规范
 
-运行资源为官方 lang-core 1.1.1。docs/language 下 Overview、Language、Prompt 标注的 1.0 是保留的规范参考，与版本化 fixtures 对应，不是当前运行版本。模型生成使用所选库当前导出的 Prompt/spec。1.1.1 的 Query 依赖、失败重试、表达式默认值和数组数学行为，以及原生预算和对照验证范围，统一记录在 [验证说明](validation-and-security.md#3-语言版本与验证边界)。
+运行资源为 lang-core 1.1.1。docs/language 下 Overview、Language、Prompt 标注的 1.0 是保留的规范参考，与版本化 fixtures 对应，不是当前运行版本。模型生成使用所选库当前导出的 Prompt/spec。1.1.1 的 Query 依赖、失败重试、表达式默认值和数组数学行为，以及原生预算和对照验证范围，统一记录在 [验证说明](validation-and-security.md#3-语言版本与验证边界)。
 
 ## 6. 文档与验证维护
 
