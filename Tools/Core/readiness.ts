@@ -261,8 +261,12 @@ export function finishEvaluation(node: any, value: any, observed?: Set<string>):
   // A lazy template can be closed while its input declaration is unfinished.
   // Its generated controls must wait for that input, including nested controls.
   if (node.k === 'Comp' && node.name === 'Each' && !complete) {
+    // This metadata write is idempotent. Shared values need one visit; the
+    // separate output budget still counts every occurrence of the subtree.
+    const seen = new Set<object>();
     const invalidate = (item: any) => {
-      if (!item || typeof item !== 'object') return;
+      if (!item || typeof item !== 'object' || seen.has(item)) return;
+      seen.add(item);
       tagReady(item, false);
       const own = sourcePresentation(item);
       presentation.set(item, { complete: false, closed: false, queries: own.queries, observed: own.observed });

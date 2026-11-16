@@ -2,7 +2,7 @@ import SwiftLang
 import SwiftUI
 
 struct NativeArtworkImageState: Equatable {
-  let request: NativeResourceRequestID
+  let target: NativeMediaResourceTarget
   let status: NativeMediaStatus
 }
 

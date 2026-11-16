@@ -677,17 +677,20 @@ struct NativeCardItem: View {
       !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
     return source
   }
-  private var artworkRequest: NativeResourceRequestID? {
+  private var artworkTarget: NativeMediaResourceTarget? {
     guard let source = artworkSource else { return nil }
-    var request = artworkResources.request(for: source)
-    if artworkAttempt > 0 { request?.cachePolicy = .reloadIgnoringLocalCacheData }
-    return .init(request: request,
-      loader: ObjectIdentifier(artworkResources.loader), attempt: artworkAttempt, authorizationScope: artworkResources.loader.authorizationScopeID)
+    return .init(source: source, resources: artworkResources, attempt: artworkAttempt)
   }
   private var hasLoadedArtwork: Bool {
-    guard context.element.sourceReadiness["bgImageSrc"].complete, let request = artworkRequest else { return false }
-    return artworkCache?[request] != nil
-      || (artworkImageState?.request == request && artworkImageState?.status == .loaded)
+    guard context.element.sourceReadiness["bgImageSrc"].complete,
+      let target = artworkTarget, target.isCurrent else { return false }
+    return target.cachedImage(in: artworkCache) != nil
+      || (artworkImageState?.target == target && artworkImageState?.status == .loaded)
+  }
+  private var displayedArtwork: Image? {
+    guard hasLoadedArtwork, let target = artworkTarget else { return nil }
+    if artworkImageState?.target == target, artworkImageState?.status == .loaded, let artworkPicture { return artworkPicture }
+    return target.cachedImage(in: artworkCache)?.image
   }
   private var usesArtworkOverlay: Bool {
     hasLoadedArtwork && !typeSize.isAccessibilitySize && !copyBelowArtwork
@@ -716,9 +719,9 @@ struct NativeCardItem: View {
       else { content.clipShape(RoundedRectangle(cornerRadius: itemTheme.radius3xl, style: .continuous)) }
     }
     .modifier(NativeImageInteraction(source: artworkSource,
-      image: hasLoadedArtwork ? (artworkPicture ?? artworkRequest.flatMap { artworkCache?[$0]?.image }) : nil,
+      image: displayedArtwork,
       alt: context.string("bgImageAlt") ?? "", enabled: artworkSource != nil && context.canInteract,
-      failed: artworkImageState?.request == artworkRequest && artworkImageState?.status == .unavailable,
+      failed: artworkImageState?.target == artworkTarget && artworkImageState?.status == .unavailable,
       previewTheme: context.theme, retry: { artworkAttempt += 1 }))
     .environment(\.openUITheme, contentTheme)
     .foregroundStyle(contentTheme.textNeutralPrimary)
@@ -740,16 +743,16 @@ struct NativeCardItem: View {
       value: kind == "Overview" && context.value("bottom") != nil && context.value("bottom") != .null)
   }
   @ViewBuilder private var content: some View {
-      if let source = artworkSource, let request = artworkRequest {
+      if let source = artworkSource, let target = artworkTarget {
         NativeArtworkCardLayout(aspectRatio: context.presentation.coverAspectRatio,
           fallbackWidth: context.presentation.minimumCardWidth, accessibility: typeSize.isAccessibilitySize) {
           ZStack {
             context.theme.sunk
             NativeRemoteImage(src: source, alt: context.string("bgImageAlt") ?? "", layout: .cover, attempt: artworkAttempt,
               onStatus: { status, image in
-                guard context.isCurrentPresentation else { return }
+                guard context.isCurrentPresentation, target.isCurrent else { return }
                 if let image { artworkPicture = image }
-                let next = NativeArtworkImageState(request: request, status: status)
+                let next = NativeArtworkImageState(target: target, status: status)
                 if artworkImageState != next { artworkImageState = next }
               }, interactionEnabled: false)
               .environment(\.openUITheme, context.theme)

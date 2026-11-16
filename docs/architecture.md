@@ -1,5 +1,7 @@
 # 架构
 
+文档版本：1.0 · 更新日期：2026-11-16
+
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
 ## 1. 与官方分层对应
@@ -90,7 +92,7 @@ Language 中的文件按调用职责保留，不再镜像一套官方算法：
 ## 4. 适配层、组件与宿主的边界
 
 - 适配层统一拥有运行机制。组件不另建 parser/Store/state，不重复观察整份文档，不绕过 Context 直接派发动作或写入业务状态。
-- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。文档语义只在公共 host 观察一次。
+- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。当前 SwiftLangView 与各 OpenUIComponentHost 都观察同一个 OpenUIState，尚不能描述为只在公共 host 观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
 - 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
 - typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
 - 通用资源 Context 管理地址、宿主 loader、鉴权作用域、预算和文档生命周期。各 UI 的图片缓存/解码、占位、重试、预览和地图交互保持在所属组件库。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。

@@ -304,17 +304,25 @@ final class VisualPolishTests: XCTestCase {
     }
   }
 
-  @MainActor func testMissingOrdinaryArtworkIsTransparentAndPreservesDeclaredGeometry() throws {
+  @MainActor func testMissingOrdinaryArtworkHasVisiblePlaceholderAndPreservesDeclaredGeometry() throws {
     let (host, window) = artworkHost(NativeRemoteImage(src: nil, alt: "描述", layout: .aspect(1.5)),
       size: CGSize(width: 180, height: 120))
     defer { window.close() }
-    let image = try artworkPixels(host, name: "media-missing-transparent")
-    XCTAssertEqual(image.count { r, g, b in min(r, g, b) < 250 }, 0,
-      "No photo symbol, error copy or sunk rectangle is painted when artwork is absent")
+    let image = try artworkPixels(host, name: "media-missing-placeholder")
+    XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 20,
+      "An ordinary missing image keeps a visible photo symbol instead of an empty slot")
+    for (x, y) in [(0.1, 0.1), (0.5, 0.1), (0.9, 0.9)] {
+      let offset = (Int(Double(image.height) * y) * image.width + Int(Double(image.width) * x)) * 4
+      XCTAssertGreaterThanOrEqual(image.pixels[offset], 250)
+      XCTAssertGreaterThanOrEqual(image.pixels[offset + 1], 250)
+      XCTAssertGreaterThanOrEqual(image.pixels[offset + 2], 250,
+        "The compact photo symbol does not add a background tile")
+    }
+    XCTAssertEqual(host.fittingSize.width, 180, accuracy: 1)
     XCTAssertEqual(host.fittingSize.height, 120, accuracy: 1)
   }
 
-  @MainActor func testFailedPhotoBecomesTransparentWithoutRefetchingOnFitting() async throws {
+  @MainActor func testFailedPhotoKeepsVisiblePlaceholderWithoutRefetchingOnFitting() async throws {
     let loader = ArtworkFailureLoader()
     let loading = expectation(description: "loading presented")
     let unavailable = expectation(description: "failure presented")
@@ -329,11 +337,60 @@ final class VisualPolishTests: XCTestCase {
     let before = host.fittingSize
     await loader.releaseFailure()
     await fulfillment(of: [unavailable], timeout: 3)
-    let image = try artworkPixels(host, name: "media-failed-transparent")
-    XCTAssertEqual(image.count { r, g, b in min(r, g, b) < 250 }, 0)
+    let image = try artworkPixels(host, name: "media-failed-placeholder")
+    XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 20,
+      "A terminal image failure must leave a visible recovery target")
     XCTAssertEqual(host.fittingSize, before, "A failure must not move neighboring text")
     for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
     XCTAssertEqual(loader.calls, 1)
+  }
+
+  @MainActor func testFailedPhotoCanBeRetriedByClickingItsPlaceholder() async throws {
+    let loader = ArtworkFailureLoader(succeedsOnRetry: true)
+    let unavailable = expectation(description: "first image request failed")
+    let loaded = expectation(description: "manual retry loaded the image")
+    var sawFailure = false, sawSuccess = false
+    let (host, window) = artworkHost(NativeRemoteImage(src: "https://artwork.test/retry", alt: "描述",
+      layout: .aspect(1.5), onStatus: { status, _ in
+        if status == .unavailable && !sawFailure { sawFailure = true; unavailable.fulfill() }
+        if status == .loaded && !sawSuccess { sawSuccess = true; loaded.fulfill() }
+      }).openUIResourceContext(.init(loader: loader)), size: CGSize(width: 180, height: 120))
+    defer { window.close(); Task { await loader.releaseFailure() } }
+    await loader.releaseFailure()
+    await fulfillment(of: [unavailable], timeout: 3)
+    let before = host.fittingSize
+    let failureImage = try artworkPixels(host, name: "media-before-manual-retry")
+    XCTAssertGreaterThan(failureImage.count { r, g, b in min(r, g, b) < 180 }, 20)
+    for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
+    XCTAssertEqual(loader.calls, 1, "Only a user retry may start the next request")
+
+    try clickArtworkCenter(host, window: window)
+    await fulfillment(of: [loaded], timeout: 3)
+    let recoveredImage = try artworkPixels(host, name: "media-after-manual-retry")
+    XCTAssertNotEqual(recoveredImage.pixels, failureImage.pixels)
+    XCTAssertEqual(host.fittingSize, before, "Retry must retain the declared image slot")
+    XCTAssertEqual(loader.calls, 2, "One click must cause exactly one retry of the same source")
+    XCTAssertEqual(loader.lastCachePolicy, .reloadIgnoringLocalCacheData)
+    for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
+    XCTAssertEqual(loader.calls, 2, "Rendering the recovered image must not fetch it again")
+  }
+
+  @MainActor private func clickArtworkCenter(_ host: NSHostingView<AnyView>, window: NSWindow) throws {
+    // Use the existing offscreen AppKit event path, not a direct call to the
+    // retry closure: this also checks that the failed image remains hittable.
+    host.layoutSubtreeIfNeeded()
+    let point = host.convert(NSPoint(x: host.bounds.midX, y: host.bounds.midY), to: nil)
+    let down = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: point,
+      modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+      windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    let up = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: point,
+      modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime + 0.01,
+      windowNumber: window.windowNumber, context: nil, eventNumber: 2, clickCount: 1, pressure: 0))
+    NSApplication.shared.postEvent(up, atStart: false)
+    window.sendEvent(down)
+    window.sendEvent(up)
+    RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+    host.layoutSubtreeIfNeeded()
   }
 
   @MainActor func testContentImageFailureKeepsReadablePixelsWithoutChangingItsSlot() async throws {
@@ -354,7 +411,7 @@ final class VisualPolishTests: XCTestCase {
     await fulfillment(of: [unavailable], timeout: 3)
     let image = try artworkPixels(host, name: "content-image-failed-readable")
     XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 40,
-      "Content-image failure retains visible copy; the separate artwork test still requires transparency")
+      "Content-image failure retains visible alternative copy")
     XCTAssertEqual(host.fittingSize, before, "Failure copy cannot move adjacent content")
     for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
     XCTAssertEqual(loader.calls, 1, "Re-measuring a recovery control must not retry the resource")
@@ -430,15 +487,23 @@ private final class ArtworkFailureLoader: OpenUIResourceLoading {
   }
   private let gate = Gate()
   private let lock = NSLock()
+  private let succeedsOnRetry: Bool
   private var count = 0
+  private var cachePolicy: URLRequest.CachePolicy?
+  init(succeedsOnRetry: Bool = false) { self.succeedsOnRetry = succeedsOnRetry }
   var calls: Int { lock.lock(); defer { lock.unlock() }; return count }
-  private func record() { lock.lock(); defer { lock.unlock() }; count += 1 }
+  var lastCachePolicy: URLRequest.CachePolicy? { lock.lock(); defer { lock.unlock() }; return cachePolicy }
+  private func record(_ request: URLRequest) -> Int {
+    lock.lock(); defer { lock.unlock() }
+    count += 1; cachePolicy = request.cachePolicy
+    return count
+  }
   func request(for source: String, relativeTo baseURL: URL?) -> URLRequest? {
     OpenUIURLSessionResourceLoader.shared.request(for: source, relativeTo: baseURL)
   }
   func data(for request: URLRequest) async throws -> Data {
-    record()
-    if request.url?.lastPathComponent == "success" {
+    let attempt = record(request)
+    if request.url?.lastPathComponent == "success" || (succeedsOnRetry && attempt > 1) {
       return Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=")!
     }
     return try await withTaskCancellationHandler(operation: { try await gate.wait() },

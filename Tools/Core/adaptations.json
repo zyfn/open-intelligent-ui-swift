@@ -97,8 +97,8 @@
       "Sources/SwiftLang/Language/NativeSourceReadiness.swift"
     ],
     "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness",
-    "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs, and survive official memoized statement-alias copies",
-    "verification": "Strict intermediate snapshots, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
+    "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs, and survive official memoized statement-alias copies. Incomplete Each invalidates shared values once by identity without changing expanded-output occurrence accounting",
+    "verification": "Strict intermediate snapshots, shared-subtree visit counts and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
     "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
   },
   {

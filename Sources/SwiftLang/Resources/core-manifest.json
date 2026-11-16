@@ -16,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "8041a1aee0a68047b7771993417ae3dd854b0edfae0e7e706b946f0215d2bd85",
-  "bytes": 858928,
+  "sha256": "436d5a80241a9fe35512e4909332fa2d71bc6a4b6f781a5b0dfca032c5c247ad",
+  "bytes": 858957,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "df51931ce9a6acbed01a91cee60cad60527bfdb0568f25ead3ce699340f556f0",
+  "adapterSha256": "551b0b09ad563e887b8b155e746a2cb8441cb883c17e63c946517dc083147de0",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -148,8 +148,8 @@
         "Sources/SwiftLang/Language/NativeSourceReadiness.swift"
       ],
       "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness",
-      "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs, and survive official memoized statement-alias copies",
-      "verification": "Strict intermediate snapshots, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
+      "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live in WeakMaps, outside protocol values and serialized ASTs, and survive official memoized statement-alias copies. Incomplete Each invalidates shared values once by identity without changing expanded-output occurrence accounting",
+      "verification": "Strict intermediate snapshots, shared-subtree visit counts and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
       "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
     },
     {

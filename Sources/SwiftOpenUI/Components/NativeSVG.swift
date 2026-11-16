@@ -15,15 +15,18 @@ enum OpenUIGraphicComponents {
 private struct NativeSVG: View {
     let context: OpenUIComponentContext
     @State private var downloaded: String?
-    @State private var failed = false
+    @State private var downloadedTarget: NativeMediaResourceTarget?
+    @State private var failedTarget: NativeMediaResourceTarget?
     @State private var preview = false
     @State private var documents = NativeSVGDocumentCache()
     @Environment(\.openUIResourceContext) private var resources
     private var document: NativeSVGDocument? {
         if context.string("content") != nil && context.string("src") != nil { return nil }
         guard context.string("content") == nil || context.element.sourceReadiness["content"].complete else { return nil }
-        return documents.value(context.string("content") ?? downloaded)
+        let remoteText = downloadedTarget == remoteTarget && remoteTarget?.isCurrent == true ? downloaded : nil
+        return documents.value(context.string("content") ?? remoteText)
     }
+    private var failed: Bool { remoteTarget != nil && failedTarget == remoteTarget }
     var body: some View {
         VStack(alignment: .leading, spacing: context.theme.spaceS) {
             if let document {
@@ -42,7 +45,7 @@ private struct NativeSVG: View {
                 .buttonStyle(.plain).foregroundStyle(context.theme.interactiveAccentDefault)
                 .disabled(!context.canInteract)
                 .accessibilityIdentifier("openui.svg.expand")
-            } else if !failed && (context.isStreaming || (context.string("src") != nil && context.string("content") == nil && downloaded == nil)) {
+            } else if !failed && (context.isStreaming || remoteTarget?.isCurrent == true) {
                 NativePendingContent(loading: true, message: "Loading")
             } else {
                 Text(failed ? "Unable to load graphic" : "Graphic requires a valid SVG viewBox", bundle: NativeControlResources.bundle)
@@ -61,23 +64,33 @@ private struct NativeSVG: View {
             }
         }
         .onChange(of: context.string("content")) { _ in preview = false }
-        .onChange(of: remoteRequest) { _ in preview = false }
-        .task(id: NativeResourceRequestID(request: remoteRequest, loader: ObjectIdentifier(resources.loader), attempt: 0, authorizationScope: resources.loader.authorizationScopeID)) {
-            downloaded = nil; failed = false
-            guard context.element.sourceReadiness["src"].complete, context.string("src") != nil, context.string("content") == nil else { return }
-            guard var request = remoteRequest else { failed = true; return }
+        .onChange(of: remoteTarget) { _ in preview = false }
+        .task(id: remoteTarget) {
+            downloaded = nil; downloadedTarget = nil; failedTarget = nil
+            guard !Task.isCancelled, let target = remoteTarget, target.isCurrent else { return }
+            guard var request = NativeSVGResource.request(target.source,
+              resources: OpenUIResourceContext(baseURL: target.baseURL, loader: target.loader)) else {
+                failedTarget = target; return
+            }
             do {
                 request.timeoutInterval = 20
-                let data = try await resources.loader.data(for: request)
+                let data = try await target.loader.data(for: request)
+                try Task.checkCancellation()
+                guard target.isCurrent, context.isCurrentPresentation else { return }
                 guard data.count <= 1_000_000,
-                      let text = String(data: data, encoding: .utf8), NativeSVGDocument.parse(text) != nil else { failed = true; return }
-                try Task.checkCancellation(); downloaded = text
-            } catch is CancellationError { } catch { if !Task.isCancelled { failed = true } }
+                      let text = String(data: data, encoding: .utf8), NativeSVGDocument.parse(text) != nil else {
+                    failedTarget = target; return
+                }
+                downloaded = text; downloadedTarget = target
+            } catch is CancellationError { } catch {
+                if !Task.isCancelled, target.isCurrent, context.isCurrentPresentation { failedTarget = target }
+            }
         }
     }
-    private var remoteRequest: URLRequest? {
-        guard context.element.sourceReadiness["src"].complete, context.string("content") == nil else { return nil }
-        return NativeSVGResource.request(context.string("src"), resources: resources)
+    private var remoteTarget: NativeMediaResourceTarget? {
+        guard context.element.sourceReadiness["src"].complete, context.string("content") == nil,
+              let source = context.string("src") else { return nil }
+        return NativeMediaResourceTarget(source: source, resources: resources)
     }
 }
 

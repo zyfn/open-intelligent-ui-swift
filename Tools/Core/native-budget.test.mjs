@@ -65,6 +65,56 @@ test('24.3 million Each leaves stop by the deterministic work budget', () => {
   assert.equal(render(parse('root=Box("recovered")')).value.props.value, 'recovered');
 });
 
+test('incomplete Each visits shared metadata once and still counts every output occurrence', () => {
+  const { bridge, parse, render } = runtime();
+  const size = 500;
+  const source = `$items=${list(size)}\nroot=Box(@Each($items,item,$items`;
+  const result = parse(source);
+  assert.equal(bridge.nativeBudgetExceeded(result), false);
+  assert.deepEqual(plain(result.meta.errors), []);
+  let traversals = 0, visits = 0;
+  const shared = new Proxy(Array.from({ length: size }, (_, i) => i), {
+    get(target, key, receiver) {
+      if (key === 'forEach') return (callback, thisArg) => {
+        traversals++;
+        return target.forEach((value, index) => {
+          visits++;
+          callback.call(thisArg, value, index, receiver);
+        });
+      };
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  const outcome = render(result, { getState: name => name === '$items' ? shared : null, resolveRef: () => null });
+  assert.equal(traversals, 1, 'idempotent readiness traversal must not revisit the shared array');
+  assert.equal(visits, size, 'count actual child visits instead of imposing a machine timing threshold');
+  assert.equal(bridge.sourceComplete(shared), false);
+  assert.equal(outcome.limitExceeded, true, '500 repeated 500-value arrays still exceed the expanded output budget');
+  assert.equal(outcome.value, null);
+  assert(outcome.work <= 100001);
+  assert.equal(render(parse('root=Box("next")')).value.props.value, 'next');
+});
+
+test('incomplete Each preserves values and invalidates nested shared controls', () => {
+  const { bridge, parse, render } = runtime();
+  const result = parse('root=Box(@Each($items,item,$shared');
+  const child = { type: 'element', typeName: 'Button', props: { label: 'Go' }, partial: false };
+  const nested = [child];
+  const shared = [child, nested];
+  const outcome = render(result, {
+    getState: name => name === '$items' ? [1, 2, 3, 4] : name === '$shared' ? shared : null,
+    resolveRef: () => null,
+  });
+  assert.equal(outcome.limitExceeded, false);
+  assert.equal(outcome.value.props.value.length, 4);
+  for (const item of outcome.value.props.value) assert.equal(item, shared);
+  for (const value of [shared, nested, child]) {
+    assert.equal(bridge.sourceComplete(value), false);
+    assert.equal(bridge.sourcePresentation(value).complete, false);
+  }
+  assert.equal(child.props.label, 'Go');
+});
+
 test('the prop fallback does not swallow budget exhaustion', () => {
   const { realm, parse, render } = runtime();
   const result = parse(`$items=${list(30)}\nroot=Stack([Box(${nestedEach('$items')}),Box("tail")])`);

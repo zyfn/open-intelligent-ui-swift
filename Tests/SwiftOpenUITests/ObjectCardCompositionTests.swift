@@ -94,8 +94,8 @@ final class ObjectCardCompositionTests: XCTestCase {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
     var theme = OpenUIThemeValues()
-    // Geometry must be measured with loaded artwork. Missing artwork is quiet
-    // and transparent, so a placeholder color cannot establish image bounds.
+    // Geometry must be measured with loaded artwork. A compact placeholder
+    // glyph cannot establish the image's full bounds.
     theme.sunk = .blue; theme.foreground = .white
     let imageSource = "https://fixture.invalid/card.png"
     let pixels = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,

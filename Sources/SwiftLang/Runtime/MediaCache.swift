@@ -28,6 +28,15 @@ import CoreGraphics
   }
   private var entries: [NativeResourceRequestID: Entry] = [:]
   private var order: [NativeResourceRequestID] = []
+  private struct RequestSnapshot {
+    let request: NativeResourceRequestID
+    let owner: any OpenUIResourceLoading
+    let limits: OpenUIResourceLimits
+  }
+  // Stable presentation identities point to complete, already resolved
+  // requests. A nonce-bearing URL is never reconstructed for cache lookup.
+  private var requestSnapshots: [AnyHashable: RequestSnapshot] = [:]
+  private var requestSnapshotOrder: [AnyHashable] = []
   private struct DecodeKey: Hashable { let resource: NativeResourceRequestID; let pixelSize: Int }
   private final class Pending {
     let id = UUID()
@@ -40,6 +49,22 @@ import CoreGraphics
   private let maximumCost = 32 * 1024 * 1024
   package private(set) var generation = 0
   package subscript(_ key: NativeResourceRequestID) -> Entry? { entries[key] }
+  package func requestSnapshot(for key: AnyHashable) -> NativeResourceRequestID? {
+    guard let snapshot = requestSnapshots[key],
+          openUIResourceScopeIsCurrent(snapshot.owner, authorizationScope: snapshot.request.authorizationScope),
+          snapshot.owner.resourceLimits == snapshot.limits else { return nil }
+    return snapshot.request
+  }
+  package func retainRequestSnapshot(_ request: NativeResourceRequestID, for key: AnyHashable,
+                                     owner: any OpenUIResourceLoading) {
+    guard request.loader == ObjectIdentifier(owner),
+          openUIResourceScopeIsCurrent(owner, authorizationScope: request.authorizationScope) else { return }
+    requestSnapshots[key] = RequestSnapshot(request: request, owner: owner, limits: owner.resourceLimits)
+    requestSnapshotOrder.removeAll { $0 == key }; requestSnapshotOrder.append(key)
+    while requestSnapshotOrder.count > 32 {
+      requestSnapshots.removeValue(forKey: requestSnapshotOrder.removeFirst())
+    }
+  }
   package func markPresented(_ key: NativeResourceRequestID) { entries[key]?.wasPresented = true }
   package func insert(_ entry: Entry, for key: NativeResourceRequestID) {
     guard entry.cost <= maximumCost else { return }
@@ -148,6 +173,7 @@ import CoreGraphics
       group.waiters.removeAll()
     }
     entries.removeAll(); order.removeAll()
+    requestSnapshots.removeAll(); requestSnapshotOrder.removeAll()
   }
 }
 /// ImageIO validates source dimensions before decoding and never eagerly expands
