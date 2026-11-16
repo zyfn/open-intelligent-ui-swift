@@ -49,7 +49,7 @@ jobs:
           node Tools/Core/build.mjs
           git diff --exit-code -- Sources/SwiftLang/Resources
           node Tools/Core/verify-compatibility.mjs
-          node --test Tools/Core/native-readiness.test.mjs
+          node --test Tools/Core/native-*.test.mjs
           node --test Validation/validation.test.mjs
           node --test Tools/Presentation/catalog-compatibility.test.mjs
       - name: Rebuild presentation resources from public registries

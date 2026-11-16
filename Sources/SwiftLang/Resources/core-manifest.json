@@ -16,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "7de5ea3dbd27a8268388b5c6b31135f27300da1e59adb07ebce226023434f705",
-  "bytes": 853780,
+  "sha256": "8041a1aee0a68047b7771993417ae3dd854b0edfae0e7e706b946f0215d2bd85",
+  "bytes": 858928,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "7ea5f6a6ea943610c49370e9d1a761b3eb0b5c6a892e855185f6c1a44b9ac22d",
+  "adapterSha256": "df51931ce9a6acbed01a91cee60cad60527bfdb0568f25ead3ce699340f556f0",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -46,7 +46,8 @@
   ],
   "compatibility": [
     "serializer precedence and lossless keys",
-    "materialization depth/node budgets"
+    "materialization depth/node budgets",
+    "shared evaluation work and expanded-output budgets"
   ],
   "adaptations": [
     {
@@ -67,11 +68,12 @@
       "locations": [
         "Tools/Core/entry.ts",
         "Sources/SwiftLang/Language/SharedCore.swift",
+        "Sources/SwiftLang/Language/Store.swift",
         "Sources/SwiftLang/Language/OpenUIString.swift"
       ],
       "reason": "Ordered UTF16 values and native callback transport",
-      "observable": "Identity, undefined, surrogate and key order semantics",
-      "verification": "Strict parser traces and semantic oracle vectors",
+      "observable": "Identity, undefined, surrogate and key order semantics; Store reads check one own key without enumerating the snapshot",
+      "verification": "Strict parser traces, semantic oracle vectors and instrumented single-key bridge regressions",
       "removal": "Equivalent lossless upstream native transport"
     },
     {
@@ -79,11 +81,14 @@
       "category": "platform-bridge",
       "locations": [
         "Tools/Core/captures.ts",
+        "Tools/Core/bridge-compat.mjs",
+        "Tools/Core/entry.ts",
+        "Sources/SwiftLang/Language/SharedCore.swift",
         "Sources/SwiftLang/Language/Actions.swift"
       ],
       "reason": "Opaque native values and ActionPlan provenance",
-      "observable": "Deferred evaluation and ordered native actions",
-      "verification": "Official adapter action traces and interaction tests",
+      "observable": "Deferred evaluation and ordered native actions; private identity brands distinguish genuine plans from ordinary data containing steps, including dynamic props. Explicit Action composition retains upstream ownSteps filtering",
+      "verification": "Official adapter action traces, literal/dynamic data round trips, native capture identity and forged custom-action rejection",
       "removal": "Equivalent upstream capture and executor interface"
     },
     {
@@ -151,12 +156,55 @@
       "id": "materialization-budget",
       "category": "resource-limit",
       "locations": [
-        "Tools/Core/compat.mjs"
+        "Tools/Core/compat.mjs",
+        "Tools/Core/budget.ts",
+        "Tools/Core/readiness.ts",
+        "Sources/SwiftLang/Language/SharedCore.swift"
       ],
-      "reason": "Bound native materialization to 256 levels and 100000 nodes",
-      "observable": "Existing parse-exception diagnostic, outside stock equivalence domain",
-      "verification": "Budget tests separate from strict equivalence cases",
+      "reason": "Bound native materialization and the entire state-default evaluation batch to 256 levels and 100000 work units",
+      "observable": "Private failure metadata reaches Swift before state/default/root projection; a failed result is incomplete and cannot start actions or tools",
+      "verification": "Alias-depth, repeated-subtree, single and cumulative expression-default regressions; no null-default tool dispatch; separate from strict equivalence cases",
       "removal": "Equivalent upstream or platform execution bounds"
+    },
+    {
+      "id": "execution-output-budget",
+      "category": "resource-limit",
+      "locations": [
+        "Tools/Core/budget.ts",
+        "Tools/Core/compat.mjs",
+        "Tools/Core/entry.ts",
+        "Sources/SwiftLang/Language/Evaluator.swift",
+        "Sources/SwiftLang/Language/Actions.swift",
+        "Sources/SwiftLang/Runtime/OpenUIState.swift"
+      ],
+      "reason": "Bound dynamic Each, recursive evaluation, builtin work, string growth, and expanded native/render output before large allocations or tool dispatch",
+      "observable": "100000 work units and expanded value nodes, 256 levels, 4096 element occurrences and 1048576 UTF16 output units; repeated aliases add cached subtree cost rather than bypassing the budget. Exhaustion preserves the previous bounded presentation and retires execution",
+      "verification": "Normal and excessive nested Each, DAG occurrence counting, string growth, automatic Query reevaluation and native action side-effect regressions",
+      "removal": "Equivalent bounded official evaluation and Apple projection with explicit failure propagation"
+    },
+    {
+      "id": "validation-own-keys",
+      "category": "upstream-defect-fix",
+      "locations": [
+        "Tools/Core/bridge-compat.mjs",
+        "Tools/Core/entry.ts",
+        "Sources/SwiftLang/Language/Forms.swift"
+      ],
+      "reason": "Prototype names in model-supplied rules must not call inherited Object functions or leak exceptions into JavaScriptCore",
+      "observable": "Validator lookup uses own keys; unknown rules retain normal leniency, explicit custom validators still work, and other validation exceptions become a blocking validation message",
+      "verification": "Actual catalog Input rules, prototype-name rules, explicit custom rules, malformed values and subsequent valid validation calls",
+      "removal": "Equivalent upstream registry lookup and native exception boundary"
+    },
+    {
+      "id": "stream-message-selection",
+      "category": "platform-bridge",
+      "locations": [
+        "Sources/SwiftLang/Language/StreamingParser.swift"
+      ],
+      "reason": "Feed push, set and batch the same content selected by the official message protocol, including a retry after a truncated frame",
+      "observable": "Raw Lang retains the incremental push path; framed and partial-marker input uses official message selection, preserves the full input budget, and selects the latest content",
+      "verification": "Every marker split, truncated retry, set-to-push, raw chunks and source-limit XCTest regressions",
+      "removal": "Equivalent upstream streaming-message entry point"
     },
     {
       "id": "source-budget",
@@ -202,8 +250,8 @@
         "Sources/SwiftLang/Language/QueryManager.swift"
       ],
       "reason": "Native timers, controlled tools and disposal; raw query statements and live evaluation context delegate dependency scheduling to the official QueryManager",
-      "observable": "Callbacks, in-flight replacement and cancellation",
-      "verification": "Controlled official manager traces, actual native bridge capture/state tests and Swift lifecycle/query-chain tests",
+      "observable": "Callbacks, in-flight replacement and cancellation; retiring a mutation cancels and rejects only that incarnation's pending requests, even if its provider ignores cancellation",
+      "verification": "Controlled official manager traces, native bridge tests, never-settling provider retirement, replacement mutation and unrelated-query lifecycle regressions",
       "removal": "Equivalent Apple async execution integration"
     },
     {
@@ -237,9 +285,14 @@
       "removal": "Adopt an upstream release with equivalent verified round-trip fixes."
     },
     {
-      "module": "parser/materialize.ts",
-      "reason": "Preserve tested 256-level and 100000-node bounds for native model input.",
+      "module": "parser/materialize.ts, parser/parser.ts",
+      "reason": "Bound materialization, shared state-default evaluation and projected alias occurrences; report exhaustion through private metadata before native projection.",
       "removal": "Equivalent shared-core or host execution bounds verified on Apple runtimes."
+    },
+    {
+      "module": "runtime/evaluator.ts, runtime/evaluate-tree.ts, runtime/evaluate-prop.ts, runtime/queryManager.ts",
+      "reason": "Bound synchronous work, projected values and element occurrences before native rendering or tool dispatch, including automatic query readers.",
+      "removal": "Equivalent shared-core budgets verified against normal official results and bounded expansion regressions."
     },
     {
       "module": "utils/validation.ts",

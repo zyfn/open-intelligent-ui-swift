@@ -80,7 +80,9 @@ public func runActionPlan(_ plan: ActionPlan, context: ActionRuntimeContext) asy
         guard context.isActive() else { return events }
         switch step {
         case .set(let target, let valueAST):
-            context.store.set(target, value: context.evaluate(valueAST), pristine: false)
+            let value = context.evaluate(valueAST)
+            guard context.isActive() else { return events }
+            context.store.set(target, value: value, pristine: false)
             context.onStateChange()
 
         case .reset(let targets):
@@ -104,17 +106,21 @@ public func runActionPlan(_ plan: ActionPlan, context: ActionRuntimeContext) asy
             var params: [(OpenUIString, Value)] = []
             if let contextAST = contextAST {
                 let value = context.evaluate(contextAST)
+                guard context.isActive() else { return events }
                 if !value.isNullish { params.append(("context", value)) }
             }
+            let message = context.evaluate(messageAST)
+            guard context.isActive() else { return events }
             emit(ActionEvent(
                 type: "continue_conversation",
                 params: params,
-                humanFriendlyMessage: concatString(context.evaluate(messageAST)),
+                humanFriendlyMessage: concatString(message),
                 formState: context.formState(),
                 formName: context.formName))
 
         case .openUrl(let urlAST):
             let url = context.evaluate(urlAST)
+            guard context.isActive() else { return events }
             emit(ActionEvent(
                 type: "open_url",
                 params: [("url", url)],
@@ -123,9 +129,15 @@ public func runActionPlan(_ plan: ActionPlan, context: ActionRuntimeContext) asy
                 formName: context.formName))
 
         case .custom(let name, let args):
+            var params: [(OpenUIString, Value)] = []
+            for (key, expression) in args {
+                let value = context.evaluate(expression)
+                guard context.isActive() else { return events }
+                params.append((OpenUIString(key), value))
+            }
             emit(ActionEvent(
                 type: OpenUIString(name),
-                params: args.map { (OpenUIString($0.0), context.evaluate($0.1)) },
+                params: params,
                 humanFriendlyMessage: "",
                 formState: context.formState(),
                 formName: context.formName))

@@ -1,10 +1,12 @@
 import { build } from 'esbuild';
 import { prepareCoreSource, lock } from '../upstream.mjs';
 import { readiness } from './readiness-compat.mjs';
+import { actionProvenance, propActionProvenance, validationOwnKeys } from './bridge-compat.mjs';
 import {
   serializer,
   replaceOnce,
   materializer,
+  evaluationBudget,
   zodJSONSchemaCompatibility,
   zodJSONSchemaCompatibilityPlugin,
 } from './compat.mjs';
@@ -37,7 +39,7 @@ execFileSync('git', ['diff', '--quiet', 'HEAD', '--', 'packages/lang-core'], {
 const bridge = join(root, 'packages/swift-lang/scripts');
 mkdirSync(bridge, { recursive: true });
 cpSync(join(here, 'package.json'), join(bridge, 'package.json'));
-for (const file of ['entry.ts', 'captures.ts', 'authoring.ts', 'readiness.ts']) {
+for (const file of ['entry.ts', 'captures.ts', 'authoring.ts', 'readiness.ts', 'budget.ts']) {
   const source = readFileSync(join(here, file), 'utf8')
     .replaceAll("'@openui/core-source'", "'../../lang-core/src/index'")
     .replaceAll("'@openui/core-source/", "'../../lang-core/src/");
@@ -67,15 +69,15 @@ const result = await build({
       name: 'native-compatibility',
       setup(b) {
         b.onLoad({ filter: /\/parser\/materialize\.ts$/ }, (args) => ({
-          contents: readiness(materializer(readFileSync(args.path, 'utf8')), 'materialize', join(bridge, 'readiness.ts')),
+          contents: readiness(materializer(readFileSync(args.path, 'utf8'), join(bridge, 'budget.ts')), 'materialize', join(bridge, 'readiness.ts')),
           loader: 'ts',
         }));
         b.onLoad({ filter: /\/utils\/validation\.ts$/ }, (args) => ({
-          contents: replaceOnce(
+          contents: validationOwnKeys(replaceOnce(
             readFileSync(args.path, 'utf8'),
             'return new RegExp(arg).test(value) ? undefined : \"Invalid format\";',
             'const outcome=__nativePattern(arg,value);return outcome===\"resourceError\"?\"Validation could not complete: regular expression resource limit exceeded.\":outcome===\"matches\"||outcome===\"invalidPattern\"?undefined:\"Invalid format\";',
-          ),
+          )),
           loader: 'ts',
         }));
         b.onLoad({ filter: /\/parser\/serialize\.ts$/ }, (args) => ({
@@ -87,11 +89,21 @@ const result = await build({
           ['expressions', /\/parser\/expressions\.ts$/],
           ['evaluator', /\/runtime\/evaluator\.ts$/],
           ['evaluate-tree', /\/runtime\/evaluate-tree\.ts$/],
-        ]) b.onLoad({filter}, (args) => ({
-          contents: readiness(readFileSync(args.path, 'utf8'), kind, join(bridge, 'readiness.ts')),
-          loader: 'ts',
-        }));
-
+        ]) b.onLoad({filter}, (args) => {
+          let source = readFileSync(args.path, 'utf8');
+          if (kind === 'evaluator' || kind === 'evaluate-tree')
+            source = evaluationBudget(source, kind, join(bridge, 'budget.ts'));
+          if (kind === 'evaluator') source = actionProvenance(source, join(bridge, 'captures.ts'));
+          return { contents: readiness(source, kind, join(bridge, 'readiness.ts')), loader: 'ts' };
+        });
+        for (const [kind, filter] of [
+          ['evaluate-prop', /\/runtime\/evaluate-prop\.ts$/],
+          ['query-manager', /\/runtime\/queryManager\.ts$/],
+        ]) b.onLoad({filter}, args => {
+          let source = evaluationBudget(readFileSync(args.path, 'utf8'), kind, join(bridge, 'budget.ts'));
+          if (kind === 'evaluate-prop') source = propActionProvenance(source, join(bridge, 'captures.ts'));
+          return { contents: source, loader: 'ts' };
+        });
       },
     },
     {
@@ -99,7 +111,7 @@ const result = await build({
       setup(b) {
         b.onLoad({ filter: /\/parser\/parser\.ts$/ }, (args) => ({
           contents:
-            readiness(readFileSync(args.path, 'utf8'), 'parser', join(bridge, 'readiness.ts')) +
+            readiness(evaluationBudget(readFileSync(args.path, 'utf8'), 'parser', join(bridge, 'budget.ts')), 'parser', join(bridge, 'readiness.ts')) +
             '\nexport {preprocess as nativePreprocess};',
           loader: 'ts',
         }));
@@ -185,7 +197,7 @@ writeFileSync(
         .digest('hex'),
       adapterSha256: createHash('sha256')
         .update(
-          ['entry.ts', 'captures.ts', 'authoring.ts', 'compat.mjs', 'readiness.ts', 'readiness-compat.mjs', 'adaptations.json', 'patches/serializer-roundtrip.patch', 'build.mjs', '../upstream.mjs', '../upstream.json', 'patches/positional-omittability.patch']
+          ['entry.ts', 'captures.ts', 'authoring.ts', 'compat.mjs', 'bridge-compat.mjs', 'budget.ts', 'readiness.ts', 'readiness-compat.mjs', 'adaptations.json', 'patches/serializer-roundtrip.patch', 'build.mjs', '../upstream.mjs', '../upstream.json', 'patches/positional-omittability.patch']
             .map((name) => readFileSync(join(here, name), 'utf8'))
             .join('\n'),
         )
@@ -206,6 +218,7 @@ writeFileSync(
       compatibility: [
         'serializer precedence and lossless keys',
         'materialization depth/node budgets',
+        'shared evaluation work and expanded-output budgets',
       ],
       adaptations: JSON.parse(readFileSync(join(here, 'adaptations.json'), 'utf8')),
       retainedPatches: [
@@ -215,9 +228,14 @@ writeFileSync(
           removal: 'Adopt an upstream release with equivalent verified round-trip fixes.',
         },
         {
-          module: 'parser/materialize.ts',
-          reason: 'Preserve tested 256-level and 100000-node bounds for native model input.',
+          module: 'parser/materialize.ts, parser/parser.ts',
+          reason: 'Bound materialization, shared state-default evaluation and projected alias occurrences; report exhaustion through private metadata before native projection.',
           removal: 'Equivalent shared-core or host execution bounds verified on Apple runtimes.',
+        },
+        {
+          module: 'runtime/evaluator.ts, runtime/evaluate-tree.ts, runtime/evaluate-prop.ts, runtime/queryManager.ts',
+          reason: 'Bound synchronous work, projected values and element occurrences before native rendering or tool dispatch, including automatic query readers.',
+          removal: 'Equivalent shared-core budgets verified against normal official results and bounded expansion regressions.',
         },
         {
           module: 'utils/validation.ts',

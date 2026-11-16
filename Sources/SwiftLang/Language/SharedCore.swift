@@ -292,7 +292,7 @@ final class SharedCore {
             let target = js.forProperty("target").toString()!
             let expression = decodeAST(js.forProperty("expr"))
             result = expression == .stateRef("$value") ? .binding(target) : .reactiveBinding(target: target, expression: expression)
-        } else if runtimeShape && js.forProperty("steps").isArray {
+        } else if runtimeShape && call("isRuntimePlan", [js]).toBool() {
             result = .actionPlan(ActionPlan(steps: items(call("actionSteps", [js])).compactMap(decodeStep), isSourceComplete: call("sourceComplete", [js]).toBool()))
         } else { result = .object(entries(js).map { ObjectField(key: $0.0, value: decode($0.1, level: level + 1, interpret: interpret)) }) }
         switch result {
@@ -506,8 +506,24 @@ extension SharedCore {
     }
     func parseResult(_ js: JSValue) -> ParseResult {
         let meta = js.forProperty("meta")!
+        var parseMeta = ParseMeta(incomplete: meta.forProperty("incomplete").toBool(), unresolved: items(meta.forProperty("unresolved")).map { $0.toString() }, orphaned: items(meta.forProperty("orphaned")).map { $0.toString() }, statementCount: Int(meta.forProperty("statementCount").toInt32()), errors: items(meta.forProperty("errors")).map(error))
+        // Inspect private core metadata before projecting any state defaults or
+        // retaining a lazily decoded root. A rejected graph may itself be too
+        // large to copy through the native bridge.
+        if call("nativeBudgetExceeded", [js]).toBool() {
+            parseMeta.incomplete = true
+            if parseMeta.errors.isEmpty {
+                parseMeta.errors = [OpenUIError(source: .parser, code: .parseException,
+                    message: "Native materialization or output budget exceeded.",
+                    hint: "The last valid prefix remains readable but is not executable. Replace or reset this document to resume.")]
+            }
+            var result = ParseResult(root: nil, rootExpression: nil, meta: parseMeta,
+                stateDeclarations: [], queryStatements: [], mutationStatements: [])
+            result.nativeLimitExceeded = true
+            return result
+        }
         var result = ParseResult(snapshot: CoreParseSnapshot(value: js),
-            meta: ParseMeta(incomplete: meta.forProperty("incomplete").toBool(), unresolved: items(meta.forProperty("unresolved")).map { $0.toString() }, orphaned: items(meta.forProperty("orphaned")).map { $0.toString() }, statementCount: Int(meta.forProperty("statementCount").toInt32()), errors: items(meta.forProperty("errors")).map(error)),
+            meta: parseMeta,
             stateDeclarations: entries(js.forProperty("stateDeclarations")).map { ($0.0.displayString, .stateDefault(StateDefault(materialized($0.1)))) },
             queryStatements: items(js.forProperty("queryStatements")).map { q in
                 func node(_ name: String) -> ASTNode? {

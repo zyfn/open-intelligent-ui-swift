@@ -7,9 +7,9 @@ final class CoreStore: Store {
     private let store: JSValue
     public init() { store = SharedCore.shared.sync { SharedCore.shared.call("store") } }
     public func get(_ name: OpenUIString) -> Value? { core.sync {
-        let snapshot = store.invokeMethod("getSnapshot", withArguments: [])!
-        guard core.entries(snapshot).contains(where: { $0.0 == name }) else { return nil }
-        return core.decode(store.invokeMethod("get", withArguments: [core.string(name)]))
+        let result = core.call("storeRead", [store, core.string(name)])
+        guard result.forProperty("found").toBool() else { return nil }
+        return core.decode(result.forProperty("value"))
     } }
     public func set(_ name: OpenUIString, value: Value, pristine: Bool) { core.sync {
         _ = store.invokeMethod("set", withArguments: [core.string(name), core.encode(value), ["pristine": pristine]])

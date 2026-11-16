@@ -33,3 +33,20 @@ export function nativePlan<T extends object>(plan: T): T {
 export function isNativePlan(plan: object): boolean {
   return trustedPlans.has(plan);
 }
+
+// A separate brand records plans produced by real core action evaluation.
+// Neither ordinary data with a `steps` property nor a caller-supplied string can
+// acquire this identity. Core sanitization only carries a brand already present.
+const corePlans = new WeakSet<object>();
+export function corePlan<T extends object>(plan: T): T {
+  corePlans.add(plan);
+  return plan;
+}
+export function copyCorePlan<T extends object>(source: object, result: T): T {
+  if (corePlans.has(source)) corePlans.add(result);
+  return result;
+}
+export function isRuntimePlan(value: unknown): value is { steps: any[] } {
+  return typeof value === 'object' && value !== null
+    && (corePlans.has(value) || trustedPlans.has(value));
+}

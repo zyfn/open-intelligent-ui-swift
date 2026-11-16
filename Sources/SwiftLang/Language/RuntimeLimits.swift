@@ -103,12 +103,18 @@ func expressionExceedsLimits(_ tokens: [Token]) -> Bool {
     return false
 }
 
-func limitedParseResult(preserving previous: ParseResult? = nil) -> ParseResult {
+func runtimeBudgetError() -> OpenUIError {
+    OpenUIError(source: .runtime, code: .runtimeError,
+        message: "Native execution or output budget exceeded.",
+        hint: "The last valid prefix remains readable but is not executable. Replace or reset this document to resume.")
+}
+
+func limitedParseResult(preserving previous: ParseResult? = nil, error: OpenUIError? = nil) -> ParseResult {
     var result = previous ?? emptyParseResult(incomplete: true)
     result.nativeLimitExceeded = true
     result.meta.incomplete = true
     result.queryStatements = []; result.mutationStatements = []
-    result.meta.errors = [OpenUIError(source: .parser, code: .parseException,
+    result.meta.errors = [error ?? OpenUIError(source: .parser, code: .parseException,
         message: "Native input budget exceeded (1,048,576 UTF-16 units, 100,000 tokens, 4,096 statements, 128 nesting levels or 256 operators per expression).",
         hint: "The last valid prefix remains readable but is not executable. Replace or reset this document to resume.")]
     return result

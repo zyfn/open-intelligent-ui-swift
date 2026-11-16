@@ -44,7 +44,7 @@ public func validate(_ value: Value, rules: [ParsedRule], customValidators: [Str
                 if let message = custom(value, rule.arg), !message.isEmpty { return message }
                 continue
             }
-            let result = core.core("validate", [core.encode(value), core.array([core.rule(rule)])])
+            let result = core.call("validate", [core.encode(value), core.array([core.rule(rule)])])
             if !result.isUndefined, !result.isNull, let text = result.toString(), !text.isEmpty { return text }
         }
         return nil

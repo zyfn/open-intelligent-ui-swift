@@ -2,6 +2,7 @@
 // evaluated values use a WeakMap so application data (including frozen values)
 // gains no properties. Neither channel is part of the OpenUI protocol.
 import { getCallDefs } from '@openui/core-source/parser/builtins';
+import { recordParseBudget } from './budget';
 const syntax = Symbol('native.source.syntax');
 const closedSyntax = new WeakMap<object, boolean>();
 type Placeholder = { name: string; id?: string; props: Record<string, string | number | boolean> };
@@ -65,6 +66,10 @@ export function finishMaterialization(node: any, ctx: any, value: any, scope: Re
 }
 
 export function recordResult(result: any, ctx: any, node: any, id?: string): any {
+  if (recordParseBudget(result, ctx)) {
+    presentation.set(result, { complete: false, closed: false });
+    return result;
+  }
   if (result.root) presentation.set(result, sourcePresentation(result.root));
   else if (node && ctx[materialized]?.has(node) && ctx[materialized].get(node) === null) {
     const details = describeSource(node, ctx, null);

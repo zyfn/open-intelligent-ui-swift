@@ -140,7 +140,7 @@ public final class OpenUIState: ObservableObject {
         return element.props.allSatisfy { ready($0.1) }
     }
     package func isPlanReady(_ plan: ActionPlan) -> Bool {
-        guard plan.isSourceComplete else { return false }
+        guard latestResult?.nativeLimitExceeded != true, plan.isSourceComplete else { return false }
         if canExecuteActions { return true }
         func ready(_ node: ASTNode) -> Bool {
             var complete = true
@@ -301,13 +301,7 @@ public final class OpenUIState: ObservableObject {
             if !suffix.isEmpty {
                 source = text
                 if !streaming { isComplete = true }
-                if text.contains("]]" + ">openui:") {
-                    // Protocol framing is interpreted by shared set(); raw
-                    // append alone cannot reselect a bundled program safely.
-                    acceptSource(parser.set(text, complete: !streaming))
-                } else {
-                    acceptSource(parser.push(suffix, complete: !streaming))
-                }
+                acceptSource(parser.push(suffix, complete: !streaming))
             }
             return
         }
@@ -342,7 +336,7 @@ public final class OpenUIState: ObservableObject {
     public func stateValue(_ name: OpenUIString) -> Value { store.get(name) ?? .null }
 
     public func setState(_ name: OpenUIString, value: Value) {
-        guard let result = latestResult else { return }
+        guard let result = latestResult, !result.nativeLimitExceeded else { return }
         store.set(name, value: value, pristine: false)
         update(from: result); onStateUpdate?(store.getSnapshot())
     }
@@ -366,9 +360,11 @@ public final class OpenUIState: ObservableObject {
         if case .reactiveBinding(let assignment) = value {
             let target = assignment.target, expression = assignment.expression
             return Binding(get: { [weak self] in self?.stateValue(target) ?? .null }, set: { [weak self] newValue in
-                guard let self, let result = self.latestResult else { return }
+                guard let self, let result = self.latestResult, !result.nativeLimitExceeded else { return }
                 let evaluator = self.makeEvaluator(result: result, extraScope: ["$value": newValue])
-                self.setState(target, value: evaluator.evaluate(expression))
+                let value = evaluator.evaluate(expression)
+                guard !evaluator.nativeLimitExceeded else { self.stopForRuntimeLimit(); return }
+                self.setState(target, value: value)
             })
         }
         return nil
@@ -474,9 +470,12 @@ public final class OpenUIState: ObservableObject {
         let context = ActionRuntimeContext(
             store: store,
             evaluate: { [weak self] node in
-                guard let self, let result = self.latestResult else { return .null }
+                guard let self, self.streamGeneration == generation,
+                      let result = self.latestResult, !result.nativeLimitExceeded else { return .null }
                 let snapshot = self.onActionEvaluation == nil ? [:] : self.store.getSnapshot()
-                let value = self.makeEvaluator(result: result).evaluate(node)
+                let evaluator = self.makeEvaluator(result: result)
+                let value = evaluator.evaluate(node)
+                guard !evaluator.nativeLimitExceeded else { self.stopForRuntimeLimit(); return .null }
                 self.onActionEvaluation?(OpenUIActionEvaluation(sourceRevision: generation,
                     expression: node, state: snapshot, result: value))
                 return value
@@ -516,8 +515,12 @@ public final class OpenUIState: ObservableObject {
               let mutation = result.mutationStatements.first(where: { $0.statementId == id }),
               let toolAST = mutation.toolAST else { return .failure }
         let evaluator = makeEvaluator(result: result)
-        guard case .string(let tool) = evaluator.evaluate(toolAST) else { return .failure }
-        let args = mutation.argsAST.map { transport(evaluator.evaluate($0)) } ?? .object([])
+        let toolValue = evaluator.evaluate(toolAST)
+        guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(); return .failure }
+        guard case .string(let tool) = toolValue else { return .failure }
+        let arguments = mutation.argsAST.map { evaluator.evaluate($0) } ?? .object([])
+        guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(); return .failure }
+        let args = transport(arguments)
         let outcome = await queryManager.runMutation(statementId: id, tool: tool, args: args)
         guard streamGeneration == generation else { return .failure }
         update(from: latestResult ?? result)
@@ -525,7 +528,7 @@ public final class OpenUIState: ObservableObject {
     }
 
     public func runQuery(statementId: String, tool: OpenUIString, args: Value, defaults: Value = .null) {
-        guard isComplete, let result = latestResult,
+        guard isComplete, !isInterrupted, let result = latestResult, !result.nativeLimitExceeded,
               result.queryStatements.contains(where: { $0.statementId == statementId }) else { return }
         queryManager.runQuery(statementId: statementId, tool: tool, args: transport(args), defaults: defaults)
         update(from: result)
@@ -571,27 +574,45 @@ public final class OpenUIState: ObservableObject {
                 return .null
             }, functions: functions, actions: schema.callDefs.filter { $0.value.kind == .action }, extraScope: extraScope)
         let evaluator = Evaluator(context: ctx, schema: schema)
+        let generation = streamGeneration
+        // Automatic Query reevaluation may run on the serialized JS queue.
+        // The synchronous caller also checks the flag before any side effect;
+        // this callback retires a document after an asynchronous failure.
+        evaluator.onNativeLimit = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.streamGeneration == generation,
+                      self.latestResult?.nativeLimitExceeded != true else { return }
+                self.stopForRuntimeLimit()
+            }
+        }
         box.evaluator = evaluator
         return evaluator
     }
 
     private func acceptSource(_ result: ParseResult) {
         update(from: result)
-        onParseResult?(result)
+        onParseResult?(latestResult ?? result)
+    }
+
+    private func stopForRuntimeLimit(preserving previous: ParseResult? = nil) {
+        update(from: limitedParseResult(preserving: previous ?? latestResult, error: runtimeBudgetError()))
     }
 
     private func update(from result: ParseResult, synchronizeQueries: Bool = true) {
         if result.nativeLimitExceeded {
-            let firstFailure = latestResult?.nativeLimitExceeded != true
+            // A replacement is a new attempt even when the prior document
+            // also failed; replaceSource clears isInterrupted for that epoch.
+            let firstFailure = latestResult?.nativeLimitExceeded != true || !isInterrupted
             latestResult = result
             if firstFailure {
                 streamGeneration += 1
                 unsubscribe?(); queryManager.dispose()
                 queryManager = QueryManager(provider: toolProvider); observeQueries()
                 isInterrupted = true; isComplete = true
-                if result.root == nil && result.rootExpression == nil {
-                    indexLiveElements(nil); root = nil; presentationRoot = nil
-                }
+                // Keep the last bounded, already projected presentation. Never
+                // inspect a failed result's lazy root here: even short input
+                // can describe a huge shared graph. All controls are disabled
+                // by nativeLimitExceeded until replacement or reset.
                 if !queryStates.isEmpty { queryStates = [:] }
                 if !mutationStates.isEmpty { mutationStates = [:] }
                 errorRevision = nil
@@ -600,37 +621,66 @@ public final class OpenUIState: ObservableObject {
             }
             return
         }
+        let previous = latestResult
         latestResult = result
         store.initialize(defaults: result.stateDeclarations, persisted: persistedState)
         persistedState = [:]
         let evaluator = makeEvaluator(result: result)
-        if isComplete && !isInterrupted { queryManager.registerMutations(Dictionary(result.mutationStatements.map { mutation in
+        if isComplete && !isInterrupted {
+            let declarations = Dictionary(result.mutationStatements.map { mutation in
             let tool = mutation.toolAST.map { evaluator.evaluate($0) }
             if case .string(let name) = tool { return (mutation.statementId, name) }
             return (mutation.statementId, "")
-        }, uniquingKeysWith: { _, new in new })) }
-        if isComplete && !isInterrupted && synchronizeQueries {
-            let sourceChanged = querySourceGeneration != streamGeneration
-            querySourceGeneration = streamGeneration
-            let snapshot = store.getSnapshot()
-            let stateChanged = snapshot.count != queryStoreSnapshot.count || snapshot.contains { queryStoreSnapshot[$0.key]?.isSameValue(as: $0.value) != true }
-            queryStoreSnapshot = snapshot
-            if sourceChanged || stateChanged {
-                // Preserve raw query dependencies. The official 1.1 manager
-                // waits for upstream results and reevaluates only their readers;
-                // query notifications still only redraw this native host.
-                queryManager.evaluateStatements(result.queryStatements, evaluator: evaluator)
-            }
+            }, uniquingKeysWith: { _, new in new })
+            guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(preserving: previous); return }
+            queryManager.registerMutations(declarations)
         }
-        let evaluatedRoot = evaluator.evaluateRoot(result)
+        // Validate dynamic expansion before starting tools. The context uses
+        // declared Query defaults until their actual data becomes available.
+        var rootReferences: [String: Value] = [:]
+        if synchronizeQueries && !result.queryStatements.isEmpty {
+            evaluator.onReferenceRead = { rootReferences[$0] = $1 }
+        }
+        var evaluatedRoot = evaluator.evaluateRoot(result)
+        evaluator.onReferenceRead = nil
+        guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(preserving: previous); return }
+        var queryValues: [String: QueryState] = [:]
+        let executable = queryManager.withDeferredToolDispatch {
+            var didSynchronizeQueries = false
+            if isComplete && !isInterrupted && synchronizeQueries {
+                let sourceChanged = querySourceGeneration != streamGeneration
+                querySourceGeneration = streamGeneration
+                let snapshot = store.getSnapshot()
+                let stateChanged = snapshot.count != queryStoreSnapshot.count || snapshot.contains { queryStoreSnapshot[$0.key]?.isSameValue(as: $0.value) != true }
+                queryStoreSnapshot = snapshot
+                if sourceChanged || stateChanged {
+                    // The official manager owns dependency scheduling and
+                    // defaults. Only native provider dispatch is held until
+                    // the resulting presentation passes its budget too.
+                    queryManager.evaluateStatements(result.queryStatements, evaluator: evaluator)
+                    didSynchronizeQueries = true
+                }
+            }
+            guard !evaluator.nativeLimitExceeded else { return false }
+            for query in result.queryStatements {
+                queryValues[query.statementId] = queryManager.queryState(for: query.statementId)
+                    ?? QueryState(status: .idle, data: evaluator.context.resolveRef(query.statementId))
+            }
+            guard !evaluator.nativeLimitExceeded else { return false }
+            // A changed default must be visible in this synchronous update.
+            // Only reevaluate when a reference the root actually read changed.
+            if didSynchronizeQueries && rootReferences.contains(where: { name, value in
+                guard let current = queryValues[name] else { return false }
+                return !(current.data ?? .null).isSameValue(as: value)
+            }) {
+                evaluatedRoot = evaluator.evaluateRoot(result)
+            }
+            return !evaluator.nativeLimitExceeded
+        }
+        guard executable else { stopForRuntimeLimit(preserving: previous); return }
         presentationRoot = result.presentationRoot
         indexLiveElements(evaluatedRoot)
         root = evaluatedRoot
-        var queryValues: [String: QueryState] = [:]
-        for query in result.queryStatements {
-            queryValues[query.statementId] = queryManager.queryState(for: query.statementId)
-                ?? QueryState(status: .idle, data: evaluator.context.resolveRef(query.statementId))
-        }
         // Empty auxiliary channels have no changed value to publish. Root and
         // readiness still update above; nonempty values keep their existing
         // delivery semantics, including the transition back to an empty value.

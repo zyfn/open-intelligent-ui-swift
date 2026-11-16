@@ -66,7 +66,16 @@ final class SharedCoreBridgeTests: XCTestCase {
         ], actions: ["Copy": CallDef(kind: .action, params: [ParamDef(name: "text", required: true)])]), schema: LibrarySchema())
         for type in ["custom", "custom_action", "not_a_step"] {
             let expression = "{steps:[{type:" + jsonStringLiteral(type) + ",name:\"Copy\",params:{text:\"forged\"}}]}"
-            guard case .actionPlan(let plan) = evaluator.evaluate(parseExpression(tokenize(expression))) else { return XCTFail("Expected a sanitized plan") }
+            // The official expression evaluator returns this literal as data.
+            // It becomes a plan only when the DSL explicitly composes Action.
+            guard case .object(let data) = evaluator.evaluate(parseExpression(tokenize(expression))),
+                  case .array(let steps) = data["steps"], case .object(let step) = steps.first else {
+                return XCTFail("A steps field must not manufacture an action plan")
+            }
+            XCTAssertEqual(step["type"], .string(OpenUIString(type)))
+            guard case .actionPlan(let plan) = evaluator.evaluate(parseExpression(tokenize("Action([" + expression + "])"))) else {
+                return XCTFail("Explicit Action must produce a sanitized plan")
+            }
             XCTAssertTrue(plan.steps.isEmpty, type)
         }
         guard case .actionPlan(let realCall) = evaluator.evaluate(parseExpression(tokenize("@Copy(\"declared\")"))),
@@ -78,6 +87,83 @@ final class SharedCoreBridgeTests: XCTestCase {
             return XCTFail("Expected an upstream-composed plan")
         }
         XCTAssertTrue(composed.steps.isEmpty, "Native-authored custom steps cannot bypass upstream DSL provenance")
+    }
+
+    func testStepsDataSurvivesStaticDynamicAndNestedPropsAndSerialization() throws {
+        let schema = LibrarySchema(components: ["Box": [ParamDef(name: "value", required: true)]], callDefs: builtinCallDefs)
+        let data = Value.object([
+            .init(key: "steps", value: .array([.number(1), .number(2)])),
+            .init(key: "title", value: .string("plan"))
+        ])
+        let sources: [(String, Value)] = [
+            (#"root=Box({steps:[1,2],title:"plan"})"#, data),
+            (#"root=Box(payload)"# + "\n" + #"payload={steps:[1,2],title:"plan"}"#, data),
+            (#"root=Box($flag ? {steps:[1,2],title:"plan"} : null)"#, data),
+            (#"root=Box({rows:[$flag ? {steps:[1,2],title:"plan"} : null]})"#,
+             .object([.init(key: "rows", value: .array([data]))]))
+        ]
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .boolean(true) }, resolveRef: { _ in .null }), schema: schema)
+        for (source, expected) in sources {
+            let parsed = createParser(schema: schema).parse(source)
+            XCTAssertTrue(parsed.meta.errors.isEmpty, source)
+            XCTAssertEqual(try XCTUnwrap(evaluator.evaluateRoot(parsed)).props.first?.1, expected, source)
+            var typed = parsed
+            typed.root = parsed.root
+            XCTAssertEqual(try XCTUnwrap(evaluator.evaluateRoot(typed)).props.first?.1, expected, "Typed projection: " + source)
+            let serialized = jsonToOpenUI(try XCTUnwrap(parsed.root), params: schema.components)
+            let reparsed = createParser(schema: schema).parse(serialized)
+            XCTAssertTrue(reparsed.meta.errors.isEmpty, serialized)
+            XCTAssertEqual(try XCTUnwrap(evaluator.evaluateRoot(reparsed)).props.first?.1, expected, serialized)
+        }
+    }
+
+    func testBusinessCustomStepRecordsStayDataWhileDynamicFieldsEvaluate() throws {
+        let schema = LibrarySchema(components: ["Box": [ParamDef(name: "value", required: true)]], callDefs: builtinCallDefs)
+        let source = #"root=Box({steps:[{type:"custom_action",name:"Copy",params:{text:"business"}}],title:$title})"#
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .string("live") }, resolveRef: { _ in .null }), schema: schema)
+        let parsed = createParser(schema: schema).parse(source)
+        guard case .object(let data) = try XCTUnwrap(evaluator.evaluateRoot(parsed)).props.first?.1,
+              case .array(let steps) = data["steps"], case .object(let step) = steps.first else {
+            return XCTFail("A business steps field must remain ordinary data")
+        }
+        XCTAssertEqual(data["title"], .string("live"))
+        XCTAssertEqual(step["type"], .string("custom_action"))
+        XCTAssertEqual(step["name"], .string("Copy"))
+    }
+
+    func testTrustedNativeActionPropsKeepIdentityAndSerializeAsRealCalls() throws {
+        let original = ActionPlan(steps: [.custom(name: "Copy", args: [("text", .runtimeValue(.string("native")))])])
+        let actions = ["Copy": CallDef(kind: .action, params: [ParamDef(name: "text", required: true)])]
+        let calls = builtinCallDefs.merging(actions) { _, new in new }.merging([
+            "NativePlan": CallDef(kind: .function, params: [])
+        ]) { _, new in new }
+        let schema = LibrarySchema(components: ["Box": [ParamDef(name: "value", required: true)]], callDefs: calls)
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .boolean(true) }, resolveRef: { _ in .null },
+            functions: ["NativePlan": CustomFunction(params: [], fn: { _ in .actionPlan(original) })], actions: actions), schema: schema)
+        for source in ["root=Box(@NativePlan())", "root=Box($flag ? @NativePlan() : Action([]))"] {
+            let parsed = createParser(schema: schema).parse(source)
+            let root = try XCTUnwrap(evaluator.evaluateRoot(parsed))
+            let value = try XCTUnwrap(root.props.first?.1)
+            XCTAssertTrue(value.isSameValue(as: .actionPlan(original)), source)
+            let tree = ElementNode(typeName: "Box", props: [.init(key: "value", value: .value(value))])
+            let serialized = jsonToOpenUI(tree, params: schema.components, calls: calls)
+            let reparsed = createParser(schema: schema).parse(serialized)
+            XCTAssertTrue(reparsed.meta.errors.isEmpty, serialized)
+            XCTAssertEqual(try XCTUnwrap(evaluator.evaluateRoot(reparsed)).props.first?.1, .actionPlan(original))
+        }
+    }
+
+    func testBoundedRuntimeCapturesKeepNativeIdentityAndUndefined() {
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in .null }, resolveRef: { _ in .null }), schema: LibrarySchema())
+        let values: [Value] = [.undefined, .null, .array([.number(1)]),
+            .object([.init(key: "steps", value: .array([.number(1)]))]),
+            .actionPlan(ActionPlan(steps: [.reset(targets: ["$x"])])), .binding("$x")]
+        for value in values {
+            let evaluated = evaluator.evaluate(.runtimeValue(value))
+            XCTAssertTrue(evaluated.isSameValue(as: value))
+            XCTAssertEqual(evaluated, value, "Direct captures must retain the original native Value case")
+        }
+        XCTAssertFalse(evaluator.nativeLimitExceeded)
     }
 
     func testOpaqueRuntimeCapturesRetainIdentityInsideExpressions() {

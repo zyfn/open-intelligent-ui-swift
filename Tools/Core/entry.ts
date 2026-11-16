@@ -1,5 +1,7 @@
-import { capture, hasCapture, capturedValue, nativePlan, isNativePlan, evaluationContext } from './captures';
-export { capture, hasCapture, capturedValue, nativePlan };
+import { capture, hasCapture, capturedValue, nativePlan, isNativePlan, isRuntimePlan, evaluationContext } from './captures';
+export { capture, hasCapture, capturedValue, nativePlan, isRuntimePlan };
+import { runBudget } from './budget';
+export { nativeBudgetExceeded } from './budget';
 export { sourceComplete, sourcePresentation, tagNativeSource } from './readiness';
 import * as core from '@openui/core-source';
 import { isASTNode } from '@openui/core-source/parser/ast';
@@ -40,15 +42,30 @@ export const library = (schema: any, bindings: Record<string, string[]>) => ({
   toJSONSchema: () => schema,
 });
 export const store = core.createStore;
-export const evaluate = (node: any, ctx: any, lib: any) =>
-  core.evaluate(node, evaluationContext(ctx), { library: lib });
-export const root = (
+// Preserve missing versus explicitly undefined without copying every state key
+// and value across the bridge for each lookup.
+export function storeRead(store: any, name: string): { found: boolean, value?: unknown } {
+  return Object.prototype.hasOwnProperty.call(store.getSnapshot(), name)
+    ? { found: true, value: store.get(name) } : { found: false };
+}
+export const boundedEvaluate = (node: any, ctx: any, lib: any) =>
+  runBudget(() => core.evaluate(node, evaluationContext(ctx), { library: lib }));
+export const evaluate = (node: any, ctx: any, lib: any) => boundedEvaluate(node, ctx, lib).value;
+export const boundedRoot = (
   result: any,
   ctx: any,
   lib: any,
   store: any,
   errors: any[],
-) => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors });
+) => runBudget(() => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors }));
+export const root = (result: any, ctx: any, lib: any, store: any, errors: any[]) =>
+  boundedRoot(result, ctx, lib, store, errors).value;
+// Invalid rule data must not leave an uncaught exception in the shared realm.
+// Normal validation, unknown-rule leniency and first-error order stay upstream.
+export function validate(value: unknown, rules: any[]): string | undefined {
+  try { return core.validate(value, rules); }
+  catch { return 'Validation could not complete: invalid rule or value.'; }
+}
 export const numberText = (value: number) => String(value);
 export const truth = (value: any) => !!value;
 export const equal = (a: any, b: any) => a == b;
@@ -100,7 +117,7 @@ function serializable(value: any): any {
     return value.expr?.k === 'StateRef' && value.expr.n === '$value'
       ? { k: 'StateRef', n: value.target }
       : { k: 'Assign', target: value.target, value: value.expr };
-  if (nativeKinds.get(value) !== 'object' && Array.isArray(value.steps)) {
+  if (nativeKinds.get(value) !== 'object' && isRuntimePlan(value)) {
     const steps = value.steps.map((step: any) => {
       let name: string, args: any[];
       switch (step.type) {

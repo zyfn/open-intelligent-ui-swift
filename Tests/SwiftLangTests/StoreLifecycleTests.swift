@@ -31,4 +31,25 @@ final class StoreLifecycleTests: XCTestCase {
         store.set("$value", value: .number(3), pristine: false)
         XCTAssertEqual(notifications.value, 1, "Disposal removes the core's listeners")
     }
+
+    func testKeyedReadsDistinguishMissingUndefinedAndPrototypeNames() throws {
+        let store = createStore()
+        let object = Value.object([.init(key: "value", value: .number(3))])
+        XCTAssertNil(store.get("$missing"))
+        XCTAssertNil(store.get("toString"))
+        // A prior defined value creates the key; the upstream store ignores an
+        // initial undefined write because it equals the absent Map value.
+        store.set("$undefined", value: .number(0), pristine: false)
+        store.set("$undefined", value: .undefined, pristine: false)
+        store.set("$null", value: .null, pristine: false)
+        store.set("__proto__", value: object, pristine: false)
+        store.set("toString", value: .string("own"), pristine: false)
+        XCTAssertEqual(store.get("$undefined"), .undefined)
+        XCTAssertEqual(store.get("$null"), .null)
+        XCTAssertTrue(try XCTUnwrap(store.get("__proto__")).isSameValue(as: object))
+        XCTAssertEqual(store.get("toString"), .string("own"))
+        store.dispose()
+        XCTAssertNil(store.get("__proto__"))
+        XCTAssertNil(store.get("toString"))
+    }
 }
