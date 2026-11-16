@@ -5,7 +5,7 @@ export const nativeBudgetLimits = Object.freeze({
 });
 type Cost = { nodes: number; depth: number; elements: number; utf16: number };
 type Reason = 'work' | 'depth' | 'output';
-type Scope = { work: number; depth: number; reason?: Reason; memo: WeakMap<object, Cost> };
+type Scope = { work: number; maximumWork: number; depth: number; reason?: Reason; memo: WeakMap<object, Cost> };
 export type BudgetOutcome<T> = { value: T | null; limitExceeded: boolean; work: number };
 const failedValues = new WeakSet<object>();
 const materializationScopes = new WeakMap<object, Scope>();
@@ -14,7 +14,11 @@ const materializationScopes = new WeakMap<object, Scope>();
 const staticRoots = new WeakMap<object, Cost>();
 const limit = Object.freeze({ nativeBudget: true });
 let active: Scope | undefined;
-const scope = (): Scope => ({ work: 0, depth: 0, memo: new WeakMap() });
+const scope = (maximumWork: number = nativeBudgetLimits.work): Scope => ({
+  work: 0, depth: 0, memo: new WeakMap(),
+  maximumWork: Number.isFinite(maximumWork)
+    ? Math.max(0, Math.min(nativeBudgetLimits.work, Math.floor(maximumWork))) : 0,
+});
 const object = (value: unknown): value is object => value !== null && typeof value === 'object';
 const add = (a: number, b: number, max: number) => Math.min(max + 1, a + b);
 const oversized: Cost = { nodes: nativeBudgetLimits.nodes + 1, depth: nativeBudgetLimits.depth + 1,
@@ -97,8 +101,10 @@ function inspect(value: unknown, state: Scope, fresh = false): Cost {
   return measured;
 }
 
-export function runBudget<T>(body: () => T): BudgetOutcome<T> {
-  const previous = active, state = previous ?? scope();
+export function runBudget<T>(body: () => T, maximumWork?: number): BudgetOutcome<T> {
+  // Native action batches can lend their remaining allowance to this call.
+  // Recursive/nested calls keep the active counter and cannot reset its cap.
+  const previous = active, state = previous ?? scope(maximumWork);
   active = state;
   try {
     if (state.reason) throw limit;
@@ -115,16 +121,16 @@ export function runBudget<T>(body: () => T): BudgetOutcome<T> {
 export function reserveWork(amount = 1): void {
   if (!active) return;
   if (active.reason) throw limit;
-  active.work = add(active.work, Math.max(0, amount), nativeBudgetLimits.work);
-  if (active.work > nativeBudgetLimits.work) fail(active, 'work');
+  active.work = add(active.work, Math.max(0, amount), active.maximumWork);
+  if (active.work > active.maximumWork) fail(active, 'work');
 }
 export function enterBudget(): Scope | undefined {
   const state = active;
   if (!state) return undefined;
   if (state.reason) throw limit;
   // This hot path consumes exactly one unit. A live scope cannot already be
-  // over the limit, so the first rejection is 100001 without bulk arithmetic.
-  if (++state.work > nativeBudgetLimits.work) fail(state, 'work');
+  // over the limit, so the first rejection is cap + 1 without bulk arithmetic.
+  if (++state.work > state.maximumWork) fail(state, 'work');
   if (++state.depth > nativeBudgetLimits.depth) {
     state.depth--; fail(state, 'depth');
   }

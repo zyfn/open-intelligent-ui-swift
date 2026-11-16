@@ -43,11 +43,13 @@ function runtime() {
 test('incomplete shared descendants stay scoped and recover in another document', () => {
   const { bridge, plan, child, nested, shared, render } = runtime();
   const pending = render('root=Box(@Each([1,2],item,$shared');
+  const pendingScope = bridge.sourceChildSnapshot(pending.value.props.value, pending.sourceSnapshot);
   assert.equal(pending.limitExceeded, false);
   assert.equal(pending.value.props.value[0], shared);
   assert.equal(pending.value.props.value[1], shared, 'metadata must not clone Lang values');
   for (const value of [shared, nested, child, plan]) {
-    assert.equal(bridge.sourceComplete(value, pending.sourceSnapshot), false);
+    assert.equal(bridge.sourceComplete(value, pendingScope), false);
+    assert.equal(bridge.sourceComplete(value, pending.sourceSnapshot), true, 'the root scope cannot poison another occurrence');
     assert.equal(bridge.sourceComplete(value), true, 'native baseline remains intact');
   }
   const complete = render('root=Box(@Each([1,2],item,$shared))');
@@ -55,22 +57,24 @@ test('incomplete shared descendants stay scoped and recover in another document'
   for (const value of [shared, nested, child, plan]) {
     assert.equal(bridge.sourceComplete(value, complete.sourceSnapshot), true);
     assert.equal(bridge.sourceComplete(value, otherDocument.sourceSnapshot), true);
-    assert.equal(bridge.sourceComplete(value, pending.sourceSnapshot), false, 'old projection is immutable');
+    assert.equal(bridge.sourceComplete(value, pendingScope), false, 'old projection is immutable');
   }
 });
 
 test('query dependency inheritance does not escape its evaluation', () => {
   const { bridge, child, shared, render } = runtime();
   const first = render('root=Box(@Each(q,item,$shared))\nq=Query("load",{},[])');
+  const firstScope = bridge.sourceChildSnapshot(first.value.props.value, first.sourceSnapshot);
   assert.equal(first.limitExceeded, false);
-  assert.deepEqual(Array.from(bridge.sourcePresentation(child, first.sourceSnapshot).queries), ['q']);
+  assert.deepEqual(Array.from(bridge.sourcePresentation(child, firstScope).queries), ['q']);
+  assert.equal(bridge.sourcePresentation(child, first.sourceSnapshot).queries, undefined);
   assert.equal(bridge.sourcePresentation(child).queries, undefined);
   const other = render('root=Box($shared)');
   // The official property evaluator maps the immediate array. Its nested
   // reference is still shared and must not inherit another document's metadata.
   assert.equal(other.value.props.value[1], shared[1]);
   assert.equal(bridge.sourcePresentation(child, other.sourceSnapshot).queries, undefined);
-  assert.deepEqual(Array.from(bridge.sourcePresentation(child, first.sourceSnapshot).queries), ['q']);
+  assert.deepEqual(Array.from(bridge.sourcePresentation(child, firstScope).queries), ['q']);
 });
 
 test('synchronous nested evaluation restores its caller scope and parser metadata', () => {
@@ -93,7 +97,9 @@ test('synchronous nested evaluation restores its caller scope and parser metadat
   assert.equal(bridge.currentSourceSnapshot(), undefined, 'a completed bridge call cannot retain the active scope');
   assert.equal(inner.value.props.value[1], shared[1]);
   assert.equal(bridge.sourceComplete(child, inner.sourceSnapshot), true);
-  assert.equal(bridge.sourceComplete(child, outer.sourceSnapshot), false);
+  const outerScope = bridge.sourceChildSnapshot(outer.value.props.value[0], outer.sourceSnapshot);
+  assert.equal(bridge.sourceComplete(child, outerScope), false);
+  assert.equal(bridge.sourceComplete(child, outer.sourceSnapshot), true);
   assert.equal(bridge.sourceComplete(child), true);
   assert.equal(bridge.sourceComplete(parsedInsideCallback.root), true, 'nested parsing writes its own base metadata');
 });

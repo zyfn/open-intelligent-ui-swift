@@ -3,7 +3,7 @@ export { capture, hasCapture, capturedValue, nativePlan, isRuntimePlan };
 import { runBudget } from './budget';
 import { sourceEvaluation } from './readiness';
 export { nativeBudgetExceeded, nativeInputFailure } from './budget';
-export { sourceComplete, sourcePresentation, tagNativeSource, currentSourceSnapshot } from './readiness';
+export { sourceComplete, sourcePresentation, sourceChildSnapshot, tagNativeSource, currentSourceSnapshot } from './readiness';
 import * as core from '@openui/core-source';
 import { isASTNode } from '@openui/core-source/parser/ast';
 import {
@@ -49,8 +49,8 @@ export function storeRead(store: any, name: string): { found: boolean, value?: u
   return Object.prototype.hasOwnProperty.call(store.getSnapshot(), name)
     ? { found: true, value: store.get(name) } : { found: false };
 }
-export const boundedEvaluate = (node: any, ctx: any, lib: any) =>
-  sourceEvaluation(() => runBudget(() => core.evaluate(node, evaluationContext(ctx), { library: lib })));
+export const boundedEvaluate = (node: any, ctx: any, lib: any, maximumWork?: number) =>
+  sourceEvaluation(() => runBudget(() => core.evaluate(node, evaluationContext(ctx), { library: lib }), maximumWork));
 export const evaluate = (node: any, ctx: any, lib: any) => boundedEvaluate(node, ctx, lib).value;
 export const boundedRoot = (
   result: any,
@@ -58,7 +58,8 @@ export const boundedRoot = (
   lib: any,
   store: any,
   errors: any[],
-) => sourceEvaluation(() => runBudget(() => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors })));
+  maximumWork?: number,
+) => sourceEvaluation(() => runBudget(() => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors }), maximumWork));
 export const root = (result: any, ctx: any, lib: any, store: any, errors: any[]) =>
   boundedRoot(result, ctx, lib, store, errors).value;
 // Invalid rule data must not leave an uncaught exception in the shared realm.
@@ -73,6 +74,10 @@ export const equal = (a: any, b: any) => a == b;
 export const queryManager = core.createQueryManager;
 export const evaluateQueryStatements = (manager: any, statements: any, ctx: any) =>
   manager.evaluateStatements(statements, evaluationContext(ctx));
+export const boundedQueryStatements = (manager: any, statements: any, ctx: any, maximumWork?: number) =>
+  runBudget(() => { manager.evaluateStatements(statements, evaluationContext(ctx)); return null; }, maximumWork);
+export const boundedQueryInvalidation = (manager: any, statementId: string, maximumWork?: number) =>
+  runBudget(() => { manager.invalidate([statementId]); return null; }, maximumWork);
 export const promise = (start: (resolve: any, reject: any) => void) =>
   new Promise(start);
 export const error = (message: string) => new Error(message);

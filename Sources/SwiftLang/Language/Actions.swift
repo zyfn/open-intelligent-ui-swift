@@ -31,6 +31,10 @@ public struct ActionRuntimeContext {
     public var isActive: () -> Bool
     public var onStateChange: () -> Void
     public var onEvent: ((ActionEvent) -> Void)?
+    // The document lends one allowance to evaluation, each visible update and
+    // this executor. Public hosts retain the same callback/step ordering.
+    var nativeWorkBudget: NativeActionWorkBudget? = nil
+    var onNativeLimit: (() -> Void)? = nil
 
     public init(
         store: Store,
@@ -75,19 +79,51 @@ public enum MutationOutcome {
 @MainActor
 public func runActionPlan(_ plan: ActionPlan, context: ActionRuntimeContext) async -> [ActionEvent] {
     var events: [ActionEvent] = []
-    func emit(_ event: ActionEvent) { events.append(event); context.onEvent?(event) }
+    let budget = context.nativeWorkBudget ?? NativeActionWorkBudget()
+    var reportedLimit = false
+    func fail() {
+        budget.fail()
+        guard !reportedLimit else { return }
+        reportedLimit = true
+        context.onNativeLimit?()
+    }
+    func active() -> Bool {
+        if budget.exceeded { fail(); return false }
+        return !Task.isCancelled && context.isActive()
+    }
+    func accept(_ cost: NativeValueCost) -> Bool {
+        guard budget.consume(cost) else { fail(); return false }
+        return active()
+    }
+    func accept(_ value: Value) -> Bool { accept(nativeValueCost(value)) }
+    func emit(_ event: ActionEvent) -> Bool {
+        guard accept(nativeActionEventCost(event)) else { return false }
+        events.append(event)
+        context.onEvent?(event)
+        return active()
+    }
+    guard active(), accept(nativeValueCost(.actionPlan(plan))) else { return events }
+    var stepsSinceYield = 0
+    var workAtYield = budget.consumedWork
     for step in plan.steps {
-        guard context.isActive() else { return events }
+        guard active(), budget.consume(1) else {
+            if budget.exceeded { fail() }
+            return events
+        }
         switch step {
         case .set(let target, let valueAST):
             let value = context.evaluate(valueAST)
-            guard context.isActive() else { return events }
+            guard active(), accept(value) else { return events }
             context.store.set(target, value: value, pristine: false)
+            guard !context.store.nativeLimitExceeded else { fail(); return events }
             context.onStateChange()
 
         case .reset(let targets):
             for target in targets {
-                context.store.set(target, value: context.stateDefaults[target] ?? .null, pristine: true)
+                let value = context.stateDefaults[OpenUIString(target)] ?? .null
+                guard active(), accept(value) else { return events }
+                context.store.set(target, value: value, pristine: true)
+                guard !context.store.nativeLimitExceeded else { fail(); return events }
             }
             context.onStateChange()
 
@@ -96,8 +132,10 @@ public func runActionPlan(_ plan: ActionPlan, context: ActionRuntimeContext) asy
             case .query:
                 context.runQuery(statementId)
             case .mutation:
-                switch await context.runMutation(statementId) {
-                case .success: break
+                let outcome = await context.runMutation(statementId)
+                guard active() else { return events }
+                switch outcome {
+                case .success(let value): guard accept(value) else { return events }
                 case .failure: return events // failed mutation stops remaining steps
                 }
             }
@@ -106,41 +144,52 @@ public func runActionPlan(_ plan: ActionPlan, context: ActionRuntimeContext) asy
             var params: [(OpenUIString, Value)] = []
             if let contextAST = contextAST {
                 let value = context.evaluate(contextAST)
-                guard context.isActive() else { return events }
+                guard active(), accept(value) else { return events }
                 if !value.isNullish { params.append(("context", value)) }
             }
             let message = context.evaluate(messageAST)
-            guard context.isActive() else { return events }
-            emit(ActionEvent(
+            guard active(), accept(message) else { return events }
+            guard emit(ActionEvent(
                 type: "continue_conversation",
                 params: params,
                 humanFriendlyMessage: concatString(message),
                 formState: context.formState(),
-                formName: context.formName))
+                formName: context.formName)) else { return events }
 
         case .openUrl(let urlAST):
             let url = context.evaluate(urlAST)
-            guard context.isActive() else { return events }
-            emit(ActionEvent(
+            guard active(), accept(url) else { return events }
+            guard emit(ActionEvent(
                 type: "open_url",
                 params: [("url", url)],
                 humanFriendlyMessage: "",
                 formState: context.formState(),
-                formName: context.formName))
+                formName: context.formName)) else { return events }
 
         case .custom(let name, let args):
             var params: [(OpenUIString, Value)] = []
             for (key, expression) in args {
                 let value = context.evaluate(expression)
-                guard context.isActive() else { return events }
+                guard active(), accept(value) else { return events }
                 params.append((OpenUIString(key), value))
             }
-            emit(ActionEvent(
+            guard emit(ActionEvent(
                 type: OpenUIString(name),
                 params: params,
                 humanFriendlyMessage: "",
                 formState: context.formState(),
-                formName: context.formName))
+                formName: context.formName)) else { return events }
+        }
+        guard active() else { return events }
+        stepsSinceYield += 1
+        if stepsSinceYield >= 32 || budget.consumedWork - workAtYield >= 4_096 {
+            // A completed step is the legal suspension boundary: its Store
+            // writes, publication, query reads and host callbacks already ran.
+            // Never merge or move an observation across this yield.
+            await Task.yield()
+            guard active() else { return events }
+            stepsSinceYield = 0
+            workAtYield = budget.consumedWork
         }
     }
     return events

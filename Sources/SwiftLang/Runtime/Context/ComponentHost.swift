@@ -24,7 +24,7 @@ public struct OpenUIComponentHost<Content: View>: View {
     }
 
     public var body: some View {
-        let element = self.element.isSourceComplete ? self.element : state.liveElement(matching: self.element)
+        let element = state.liveElement(matching: self.element)
         var context = OpenUIComponentContext(element: element, registry: registry, state: state,
             values: values, resources: resources, formName: formName, exactFormName: exactFormName)
         context.interactionScopeReady = interactionScopeReady

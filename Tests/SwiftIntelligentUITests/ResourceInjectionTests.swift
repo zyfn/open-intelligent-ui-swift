@@ -200,6 +200,68 @@ final class ResourceInjectionTests: XCTestCase {
     }
 
     #if os(macOS)
+    @MainActor func testPreviewResizingReusesItsSignedAttemptAtTheEffectivePixelLimit() async throws {
+        _ = NSApplication.shared
+        let transport = InjectedImageTransport(data: try png())
+        let loader = InjectedImageLoader(transport: transport,
+            limits: .init(maximumImagePixelSize: 1024), signsEachRequest: true)
+        let parentResources = OpenUIResourceContext(baseURL: URL(string: "https://images.example/"), loader: loader)
+        let store = NativeResourceStore()
+        func content(_ width: CGFloat, height: CGFloat = 700, source: String = "preview.png") -> AnyView {
+            let resources = store.scoped(parentResources)
+            return AnyView(ImagePreview(image: Image(systemName: "photo"), alt: "Preview", source: source,
+                sourceTarget: ImageResourceTarget(source: source, resources: resources))
+                .frame(width: width, height: height)
+                .environment(\.displayScale, 1)
+                .openUIResourceContext(resources))
+        }
+        let host = NSHostingView(rootView: content(500, height: 500))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 500),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host
+        window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
+        defer { window.close() }
+        func settle(_ count: Int) async {
+            for _ in 0..<200 {
+                host.layoutSubtreeIfNeeded()
+                if await transport.requests.count >= count { return }
+                try? await Task.sleep(nanoseconds: 10_000_000)
+            }
+            XCTFail("Preview did not load the expected resource")
+        }
+        await settle(1)
+        var rendered = false
+        for _ in 0..<200 {
+            host.layoutSubtreeIfNeeded()
+            if let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                if let center = bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.deviceRGB),
+                   center.blueComponent > 0.8, center.redComponent < 0.2 { rendered = true; break }
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(rendered, "The first preview decode must complete before checking its upgrades")
+        for width in [CGFloat(1500), 800, 1700, 700] {
+            host.rootView = content(width)
+            window.setContentSize(NSSize(width: width, height: 700))
+            host.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 30_000_000)
+        }
+        XCTAssertEqual(loader.resolutionCount, 1, "Pixel upgrades and tiers above the host cap reuse one signature")
+        let firstRequests = await transport.requests
+        XCTAssertEqual(firstRequests.count, 1)
+
+        host.rootView = content(700, source: "second.png")
+        await settle(2)
+        XCTAssertEqual(loader.resolutionCount, 2, "Changing the source starts a distinct resource attempt")
+        loader.configure(account: "b", token: "test-b")
+        host.rootView = content(700, source: "second.png")
+        await settle(3)
+        XCTAssertEqual(loader.resolutionCount, 3, "An account change must replace the retained request")
+        let requests = await transport.requests
+        XCTAssertEqual(requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer test-b")
+    }
+
     @MainActor func testMountedImageKeepsSignedRequestStableAcrossBodyUpdates() async throws {
         _ = NSApplication.shared
         let started = expectation(description: "mounted image uses the injected transport")

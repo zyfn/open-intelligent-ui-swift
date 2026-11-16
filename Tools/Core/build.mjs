@@ -102,7 +102,8 @@ const result = await build({
           ['query-manager', /\/runtime\/queryManager\.ts$/],
         ]) b.onLoad({filter}, args => {
           let source = evaluationBudget(readFileSync(args.path, 'utf8'), kind, join(bridge, 'budget.ts'));
-          if (kind === 'evaluate-prop') source = propActionProvenance(source, join(bridge, 'captures.ts'));
+          if (kind === 'evaluate-prop') source = readiness(propActionProvenance(source, join(bridge, 'captures.ts')),
+            kind, join(bridge, 'readiness.ts'));
           return { contents: source, loader: 'ts' };
         });
       },
@@ -250,8 +251,8 @@ writeFileSync(
           removal: 'Equivalent upstream tool-dispatch validity token verified across native asynchronous preflight.',
         },
         {
-          module: 'parser/lexer.ts, parser/expressions.ts, parser/parser.ts, parser/materialize.ts, runtime/evaluator.ts, runtime/evaluate-tree.ts',
-          reason: 'Readiness source provenance is private native metadata; per-evaluation snapshots isolate shared values and retain old projections. The pinned core has no equivalent complete-control/dependency API.',
+          module: 'parser/lexer.ts, parser/expressions.ts, parser/parser.ts, parser/materialize.ts, runtime/evaluator.ts, runtime/evaluate-tree.ts, runtime/evaluate-prop.ts',
+          reason: 'Readiness source provenance is private native metadata; per-evaluation snapshots and output-occurrence scopes isolate shared values and retain old projections. The pinned core has no equivalent complete-control/dependency API.',
           removal: 'Equivalent source/dependency readiness supplied by upstream and verified against strict intermediate snapshots.',
         },
       ],

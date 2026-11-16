@@ -94,7 +94,9 @@ struct OpenUIStack: View {
         let value = context.presentationValue()
         return layoutReady ? (value, false) : NativeLayoutContract.readingPrefix(value)
     }
-    private var children: [OpenUIRenderChild] { OpenUIRenderChild.children(of: projection.value) }
+    private var children: [OpenUIRenderChild] {
+        OpenUIRenderChild.children(of: projection.value, registry: context.registry)
+    }
 
     var body: some View {
         let mediaWidthReady = parentMediaWidthReady && layoutReady && (direction != "row" || context.rowWidthReady)

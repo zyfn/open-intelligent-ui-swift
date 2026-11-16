@@ -12,11 +12,14 @@ enum OpenUIGraphicComponents {
     }
 }
 
-private struct NativeSVG: View {
+struct NativeSVG: View {
     let context: OpenUIComponentContext
+    var onResourceStatus: ((NativeMediaStatus) -> Void)? = nil
     @State private var downloaded: String?
     @State private var downloadedTarget: NativeMediaResourceTarget?
     @State private var failedTarget: NativeMediaResourceTarget?
+    @State private var retryableTarget: NativeMediaResourceTarget?
+    @State private var retryState = NativeImageRetryState()
     @State private var preview = false
     @State private var documents = NativeSVGDocumentCache()
     @Environment(\.openUIResourceContext) private var resources
@@ -54,6 +57,23 @@ private struct NativeSVG: View {
                     Text(alt).nativeTextStyle(context.theme.textStyle(.body))
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if failed, retryableTarget == remoteTarget {
+                    Button {
+                        guard context.canActivate, let target = baseTarget else { return }
+                        retryState.retry(target)
+                    } label: {
+                        Label {
+                            Text("Retry", bundle: NativeControlResources.bundle)
+                        } icon: {
+                            Image(systemName: "arrow.clockwise").accessibilityHidden(true)
+                        }
+                        .openUIFont(context.theme.textLabelSm, role: .control)
+                        .openUIControlTarget(alignment: .leading)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(context.theme.interactiveAccentDefault)
+                    .disabled(!context.canInteract)
+                    .accessibilityIdentifier("openui.svg.retry")
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -66,11 +86,12 @@ private struct NativeSVG: View {
         .onChange(of: context.string("content")) { _ in preview = false }
         .onChange(of: remoteTarget) { _ in preview = false }
         .task(id: remoteTarget) {
-            downloaded = nil; downloadedTarget = nil; failedTarget = nil
+            downloaded = nil; downloadedTarget = nil; failedTarget = nil; retryableTarget = nil
             guard !Task.isCancelled, let target = remoteTarget, target.isCurrent else { return }
+            onResourceStatus?(.loading)
             guard var request = NativeSVGResource.request(target.source,
-              resources: OpenUIResourceContext(baseURL: target.baseURL, loader: target.loader)) else {
-                failedTarget = target; return
+              resources: OpenUIResourceContext(baseURL: target.baseURL, loader: target.loader), attempt: target.attempt) else {
+                failedTarget = target; onResourceStatus?(.unavailable); return
             }
             do {
                 request.timeoutInterval = 20
@@ -79,18 +100,29 @@ private struct NativeSVG: View {
                 guard target.isCurrent, context.isCurrentPresentation else { return }
                 guard data.count <= 1_000_000,
                       let text = String(data: data, encoding: .utf8), NativeSVGDocument.parse(text) != nil else {
-                    failedTarget = target; return
+                    failedTarget = target; retryableTarget = target; onResourceStatus?(.unavailable); return
                 }
                 downloaded = text; downloadedTarget = target
-            } catch is CancellationError { } catch {
-                if !Task.isCancelled, target.isCurrent, context.isCurrentPresentation { failedTarget = target }
+                onResourceStatus?(.loaded)
+            } catch {
+                // Transport cancellation is not necessarily cancellation of
+                // this view task. An unexpected one must leave a retry path.
+                if !Task.isCancelled, target.isCurrent, context.isCurrentPresentation {
+                    failedTarget = target; retryableTarget = target
+                    onResourceStatus?(.unavailable)
+                }
             }
         }
     }
-    private var remoteTarget: NativeMediaResourceTarget? {
+    private var baseTarget: NativeMediaResourceTarget? {
         guard context.element.sourceReadiness["src"].complete, context.string("content") == nil,
               let source = context.string("src") else { return nil }
         return NativeMediaResourceTarget(source: source, resources: resources)
+    }
+    private var remoteTarget: NativeMediaResourceTarget? {
+        guard let target = baseTarget else { return nil }
+        return NativeMediaResourceTarget(source: target.source, resources: resources,
+            attempt: retryState.attempt(for: target))
     }
 }
 
@@ -246,10 +278,11 @@ private struct SVGWebView: NSViewRepresentable {
 #endif
 
 enum NativeSVGResource {
-    static func request(_ source: String?, resources: OpenUIResourceContext) -> URLRequest? {
+    static func request(_ source: String?, resources: OpenUIResourceContext, attempt: Int = 0) -> URLRequest? {
         guard let source, let url = URL(string: source, relativeTo: resources.baseURL)?.absoluteURL,
               url.scheme?.lowercased() == "https", url.host?.isEmpty == false, url.user == nil, url.password == nil,
-              let request = resources.request(for: source), request.url?.scheme?.lowercased() == "https" else { return nil }
+              var request = resources.request(for: source), request.url?.scheme?.lowercased() == "https" else { return nil }
+        if attempt > 0 { request.cachePolicy = .reloadIgnoringLocalCacheData }
         return request
     }
 }

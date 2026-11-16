@@ -34,6 +34,15 @@ public final class Evaluator {
     var onNativeLimit: (@Sendable () -> Void)?
     var onReferenceRead: ((String, Value) -> Void)?
     private let core = SharedCore.shared
+    private var actionWorkBudget: NativeActionWorkBudget?
+    private var evaluationDepth = 0
+    /// QueryManager retains evaluators for later asynchronous dependency work.
+    /// The host lends an action's allowance only during its synchronous update.
+    var nativeWorkBudget: NativeActionWorkBudget? {
+        get { core.sync { actionWorkBudget } }
+        set { core.sync { actionWorkBudget = newValue } }
+    }
+    var nativeWorkAllowance: Int { actionWorkBudget?.remainingWork ?? NativeActionWorkBudget.maximumWork }
     public init(context: EvaluationContext, schema: LibrarySchema) {
         self.context = context; self.schema = schema
     }
@@ -97,22 +106,55 @@ public final class Evaluator {
         return js
     }
     func recordNativeLimit() {
+        actionWorkBudget?.fail()
         guard !nativeLimitExceeded else { return }
         nativeLimitExceeded = true
         errors.append(runtimeBudgetError())
         onNativeLimit?()
     }
+    /// The same evaluator can reenter while resolving a Query default. JS
+    /// already includes that nested work in the outer outcome; charge it once.
+    /// Query statement evaluation uses this scope as well as evaluate/root.
+    func boundedOutcome(_ operation: () -> JSValue) -> JSValue? {
+        guard !nativeLimitExceeded, actionWorkBudget?.exceeded != true else {
+            recordNativeLimit(); return nil
+        }
+        let outermost = evaluationDepth == 0
+        evaluationDepth += 1
+        defer { evaluationDepth -= 1 }
+        let outcome = operation()
+        guard !nativeLimitExceeded, !outcome.forProperty("limitExceeded").toBool() else {
+            recordNativeLimit(); return nil
+        }
+        if outermost, let budget = actionWorkBudget {
+            let work = outcome.forProperty("work").toDouble()
+            guard work.isFinite, work >= 0, work <= Double(NativeActionWorkBudget.maximumWork),
+                  budget.consume(Int(work)) else { recordNativeLimit(); return nil }
+        }
+        return outcome
+    }
+    @discardableResult func acceptNativeInput(_ cost: NativeValueCost) -> Bool {
+        guard !nativeLimitExceeded, !cost.exceeds,
+              actionWorkBudget?.consume(cost) != false else { recordNativeLimit(); return false }
+        return true
+    }
+    private func acceptedValue(_ value: Value) -> Value? {
+        guard let budget = actionWorkBudget else { return value }
+        guard budget.consume(nativeValueCost(value)) else { recordNativeLimit(); return nil }
+        return value
+    }
     public func evaluate(_ node: ASTNode) -> Value { core.sync {
         guard !nativeLimitExceeded else { return .null }
-        guard !nativeASTExceedsLimits(node) else { recordNativeLimit(); return .null }
+        guard acceptNativeInput(nativeASTCost(node)) else { return .null }
         let contextValue = jsContext()
         guard !nativeLimitExceeded else { return .null }
-        let outcome = core.call("boundedEvaluate", [core.ast(node), contextValue, core.library(schema)])
-        if outcome.forProperty("limitExceeded").toBool() { recordNativeLimit(); return .null }
+        guard let outcome = boundedOutcome({
+            core.call("boundedEvaluate", [core.ast(node), contextValue, core.library(schema), nativeWorkAllowance])
+        }) else { return .null }
         // The budget still checks opaque captures, while this direct native
         // path preserves the exact enum case and metadata supplied by its host.
-        if case .runtimeValue(let value) = node { return value }
-        return core.decode(outcome.forProperty("value"), sourceSnapshot: outcome.forProperty("sourceSnapshot"))
+        if case .runtimeValue(let value) = node { return acceptedValue(value) ?? .null }
+        return acceptedValue(core.decode(outcome.forProperty("value"), sourceSnapshot: outcome.forProperty("sourceSnapshot"))) ?? .null
     } }
     public func evaluateRoot(_ result: ParseResult) -> EvaluatedElement? { core.sync {
         guard !nativeLimitExceeded, !result.nativeLimitExceeded else {
@@ -125,14 +167,21 @@ public final class Evaluator {
         if let snapshot = result.coreSnapshot, snapshot.matches(result) {
             js = snapshot.value
         } else {
+            // ParseResult exposes mutable native projections. They no longer
+            // inherit the parser's checked JS graph once the host overrides
+            // root/rootExpression, so reject before recursive bridge encoding.
+            guard acceptNativeInput(nativeParseProjectionCost(result)) else { return nil }
             js = core.object()
             js.setValue(result.root.map { core.materialized(.element($0)) } ?? JSValue(nullIn: core.context)!, forProperty: "root")
             if let expression = result.rootExpression { js.setValue(core.ast(expression), forProperty: "rootExpression") }
         }
         let libraryValue = core.library(schema)
-        let outcome = core.call("boundedRoot", [js, contextValue, libraryValue, JSValue(nullIn: core.context)!, diagnostics])
+        let outcome = boundedOutcome {
+            core.call("boundedRoot", [js, contextValue, libraryValue, JSValue(nullIn: core.context)!, diagnostics, nativeWorkAllowance])
+        }
         errors += core.items(diagnostics).map(core.error)
-        if outcome.forProperty("limitExceeded").toBool() { recordNativeLimit(); return nil }
-        if case .element(let node) = core.decode(outcome.forProperty("value"), sourceSnapshot: outcome.forProperty("sourceSnapshot")) { return node };return nil
+        guard let outcome else { return nil }
+        let value = core.decode(outcome.forProperty("value"), sourceSnapshot: outcome.forProperty("sourceSnapshot"))
+        if let accepted = acceptedValue(value), case .element(let node) = accepted { return node };return nil
     } }
 }

@@ -278,34 +278,57 @@ final class SharedCore {
         return result
     }
     private final class ValueProjection {
-        let sourceSnapshot: JSValue?
-        var values: [Int: Value] = [:]
+        struct Scope {
+            let snapshot: JSValue?
+            let identity: Int
+        }
+        struct Key: Hashable {
+            let value: Int
+            let scope: Int
+        }
+        let rootScope: Scope
+        var values: [Key: Value] = [:]
         var path: Set<Int> = []
-        init(sourceSnapshot: JSValue?) { self.sourceSnapshot = sourceSnapshot }
+        init(rootScope: Scope) { self.rootScope = rootScope }
     }
     func decode(_ js: JSValue, level: Int = 0, interpret: Bool = true, sourceSnapshot: JSValue? = nil) -> Value {
-        decode(js, level: level, interpret: interpret, projection: ValueProjection(sourceSnapshot: sourceSnapshot))
+        let snapshot = sourceSnapshot.flatMap { $0.isObject ? $0 : nil }
+        let source = ValueProjection.Scope(snapshot: snapshot,
+            identity: snapshot.map { Int(call("identity", [$0]).toInt32()) } ?? 0)
+        let projection = ValueProjection(rootScope: source)
+        return decode(js, level: level, interpret: interpret, projection: projection, source: source)
     }
-    private func decode(_ js: JSValue, level: Int, interpret: Bool, projection: ValueProjection) -> Value {
+    private func decode(_ js: JSValue, level: Int, interpret: Bool, projection: ValueProjection,
+                        source: ValueProjection.Scope) -> Value {
         guard level < 256 else { return .null }
         if js.isUndefined { return .undefined }; if js.isNull { return .null }
         if js.isString { return .string(string(js)) }; if js.isBoolean { return .boolean(js.toBool()) }; if js.isNumber { return .number(js.toDouble()) }
         let id = Int(call("identity", [js]).toInt32())
-        if let value = projection.values[id] { return value }
+        let key = ValueProjection.Key(value: id, scope: source.identity)
+        if let value = projection.values[key] { return value }
         // Values crossing bounded evaluation are acyclic. Keep direct bridge
         // calls bounded too, without expanding a shared DAG on every edge.
         guard projection.path.insert(id).inserted else { return .null }
         defer { projection.path.remove(id) }
         let cached = decoded[id]?.object
+        var childrenScope: ValueProjection.Scope?
         func child(_ value: JSValue) -> Value {
-            decode(value, level: level + 1, interpret: interpret, projection: projection)
+            if childrenScope == nil {
+                if let snapshot = source.snapshot {
+                    let next = call("sourceChildSnapshot", [js, snapshot])
+                    childrenScope = JSValueIsStrictEqual(context.jsGlobalContextRef, next.jsValueRef, snapshot.jsValueRef)
+                        ? source : .init(snapshot: next, identity: Int(call("identity", [next]).toInt32()))
+                } else { childrenScope = source }
+            }
+            return decode(value, level: level + 1, interpret: interpret,
+                projection: projection, source: childrenScope!)
         }
         func refreshed(_ value: Value) -> Value {
             guard value.containsSourceMetadata, let object = value.referenceObject,
                   let record = identities[ObjectIdentifier(object)], record.object === object else { return value }
             return child(record.value)
         }
-        var sourceArguments: [Any] { [js, projection.sourceSnapshot ?? JSValue(undefinedIn: context)!] }
+        var sourceArguments: [Any] { [js, source.snapshot ?? JSValue(undefinedIn: context)!] }
         var complete: Bool { call("sourceComplete", sourceArguments).toBool() }
         var readiness: NativeSourceReadiness { sourceReadiness(call("sourcePresentation", sourceArguments)) }
         let result: Value
@@ -355,7 +378,7 @@ final class SharedCore {
             } else { result = .object(entries(js).map { ObjectField(key: $0.0, value: child($0.1)) }) }
         }
         if let object = result.referenceObject, object !== cached { remember(object, js) }
-        projection.values[id] = result
+        projection.values[key] = result
         return result
     }
     func items(_ js: JSValue) -> [JSValue] {
@@ -497,7 +520,10 @@ final class SharedCore {
     private func decodeStep(_ js: JSValue, projection: ValueProjection, level: Int) -> ActionStep? {
         guard js.isObject, js.forProperty("type").isString else { return nil }
         func value(_ js: JSValue, interpret: Bool = true) -> Value {
-            decode(js, level: level, interpret: interpret, projection: projection)
+            // A plan's captured payload remains Lang data. An Each occurrence
+            // constrains the plan's readiness, not the value it will dispatch.
+            decode(js, level: level, interpret: interpret, projection: projection,
+                source: projection.rootScope)
         }
         switch js.forProperty("type").toString()! {
         case "set": return .set(target: js.forProperty("target").toString(), valueAST: decodeAST(js.forProperty("valueAST")))

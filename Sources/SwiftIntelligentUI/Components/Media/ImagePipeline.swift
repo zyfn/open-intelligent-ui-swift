@@ -103,6 +103,10 @@ actor ImagePipeline {
         permits = ImageRequestPermits(limit: maximumConcurrentRequests)
     }
 
+    nonisolated static func effectiveDimension(_ requested: Int, limits: OpenUIResourceLimits) -> Int {
+        max(1, min(4096, requested, limits.maximumImagePixelSize))
+    }
+
     func load(_ url: URL, maximumDimension: Int = 1600, revision: String = "") async throws -> CGImage {
         try await load(ImageResource(source: url.absoluteString, resources: .init(loader: defaultLoader),
                                      revision: revision), maximumDimension: maximumDimension)
@@ -112,7 +116,7 @@ actor ImagePipeline {
         try Task.checkCancellation()
         guard resource.isCurrent else { throw CancellationError() }
         guard resource.id.request != nil else { throw URLError(.unsupportedURL) }
-        let dimension = max(1, min(4096, maximumDimension, resource.id.scope.limits.maximumImagePixelSize))
+        let dimension = Self.effectiveDimension(maximumDimension, limits: resource.id.scope.limits)
         let key = ImageCacheKey.image(resource.id, dimension)
         if let image = cache.image(for: key) { OpenIntelligentUIPerformance.record("image.cache.hit"); return image }
         let consumer = UUID()

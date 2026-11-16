@@ -1,6 +1,6 @@
 import { replaceOnce } from './compat.mjs';
 export function readiness(source, kind, path) {
-  const imports = `import {tokenComplete as nativeTokenComplete,tagSyntax as nativeTagSyntax,tagReady as nativeTagReady,sourceComplete as nativeSourceComplete,astComplete as nativeASTComplete,finishEvaluation as nativeFinishEvaluation,finishMaterialization as nativeFinishMaterialization,copyPresentation as nativeCopyPresentation,recordResult as nativeRecordResult,observeQueries as nativeObserveQueries} from ${JSON.stringify(path)};\n`;
+  const imports = `import {tokenComplete as nativeTokenComplete,tagSyntax as nativeTagSyntax,tagReady as nativeTagReady,sourceComplete as nativeSourceComplete,astComplete as nativeASTComplete,evaluateSource as nativeEvaluateSource,finishEvaluation as nativeFinishEvaluation,finishMaterialization as nativeFinishMaterialization,copyPresentation as nativeCopyPresentation,copyEvaluationSource as nativeCopyEvaluationSource,recordResult as nativeRecordResult,observeQueries as nativeObserveQueries} from ${JSON.stringify(path)};\n`;
   if (kind === 'lexer') {
     source = replaceOnce(source, 'tokenize(src: string): Token[]', 'tokenize(src: string, sourceLength = src.length, sourceEnded = true): Token[]');
     source = source.replaceAll('tokens.push(', 'nativePush(');
@@ -32,12 +32,20 @@ export function readiness(source, kind, path) {
     // statement ID. Preserve host-only readiness across that official copy.
     source = replaceOnce(source, '  return { ...el, statementId: id };', '  return nativeCopyPresentation(el, { ...el, statementId: id });');
   } else if (kind === 'evaluator') {
-    source = replaceOnce(source, '): unknown {\n  switch (node.k) {', '): unknown {\n  const observation = nativeObserveQueries(node,context);\n  return nativeFinishEvaluation(node, nativeSourceEvaluate(node,observation.context,schemaCtx),observation.queries);\n}\nfunction nativeSourceEvaluate(node:ASTNode,context:EvaluationContext,schemaCtx?:SchemaContext):unknown {\n  switch (node.k) {');
+    source = replaceOnce(source, '): unknown {\n  switch (node.k) {', '): unknown {\n  const observation = nativeObserveQueries(node,context);\n  return nativeEvaluateSource(node,()=>nativeFinishEvaluation(node, nativeSourceEvaluate(node,observation.context,schemaCtx),observation.queries));\n}\nfunction nativeSourceEvaluate(node:ASTNode,context:EvaluationContext,schemaCtx?:SchemaContext):unknown {\n  switch (node.k) {');
     source = replaceOnce(source, '  if (el.hasDynamicProps === false) return el;', '  if (el.hasDynamicProps === false) return el;\n  const observation = nativeObserveQueries(el,context);\n  context = observation.context;');
     source = replaceOnce(source, '  return { ...el, props: evaluated };', '  return nativeCopyPresentation(el, { ...el, props: evaluated }, observation.queries);');
   } else if (kind === 'evaluate-tree') {
     source = replaceOnce(source, '  if (el.hasDynamicProps === false) return el;', '  if (el.hasDynamicProps === false) return el;\n  const observation = nativeObserveQueries(el,evalCtx.ctx);\n  evalCtx = {...evalCtx,ctx:observation.context};');
     source = replaceOnce(source, '  return { ...el, props: evaluated };', '  return nativeCopyPresentation(el, { ...el, props: evaluated }, observation.queries);');
+  } else if (kind === 'evaluate-prop') {
+    source = replaceOnce(source, `      return result.map((item) =>
+        isElementNode(item) ? callbacks.recurseElement(item as ElementNode) : item,
+      );`, `      return nativeCopyEvaluationSource(result, result.map((item) =>
+        isElementNode(item) ? callbacks.recurseElement(item as ElementNode) : item,
+      ));`);
+    source = replaceOnce(source, '    return value.map((v) => callbacks.recurse(v, reactiveSchema));',
+      '    return nativeCopyEvaluationSource(value, value.map((v) => callbacks.recurse(v, reactiveSchema)));');
   }
   return imports + source;
 }

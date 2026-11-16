@@ -101,8 +101,8 @@
       "Sources/SwiftLang/Language/ValueConversion.swift"
     ],
     "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness in an evaluation-scoped snapshot without mutating shared native values",
-    "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Incomplete Each invalidates shared values once per evaluation without changing expanded-output occurrence accounting",
-    "verification": "Strict intermediate snapshots, independent document and synchronous nested-evaluation scopes, immutable native projections with preserved JS identity, shared-subtree visit counts and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
+    "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Each descendant constraints travel with that output occurrence through core prop-array copies; native projection memoizes by value identity and scope, so unrelated occurrences of a shared native graph remain independent without cloning Lang values",
+    "verification": "Strict intermediate snapshots, independent document and synchronous nested-evaluation scopes, same-evaluation shared-graph sibling/Each/query isolation, immutable native projections with preserved JS identity and opaque action captures, bounded scope memoization and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests",
     "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
   },
   {
@@ -131,8 +131,8 @@
       "Sources/SwiftLang/Runtime/OpenUIState.swift"
     ],
     "reason": "Bound dynamic Each, recursive evaluation, builtin work, implicit primitive conversions, string growth, and expanded native/render output before large allocations or tool dispatch",
-    "observable": "100000 work units and expanded value nodes, 256 levels, 4096 element occurrences and 1048576 UTF16 output units; repeated aliases add cached subtree cost rather than bypassing the budget. Exhaustion preserves the previous bounded presentation and retires execution",
-    "verification": "Normal and excessive nested Each, DAG occurrence counting, implicit comparison/index/action coercion and cumulative builtin conversion work, string growth, automatic Query reevaluation and native action side-effect regressions",
+    "observable": "100000 work units and expanded value nodes, 256 levels, 4096 element occurrences and 1048576 UTF16 output units; repeated aliases add cached subtree cost rather than bypassing the budget. Private bridge evaluation/query entries report work and accept a smaller remaining native action allowance; nested calls share the existing scope. Public core API values, parameters and callback ordering stay unchanged. Exhaustion preserves the previous bounded presentation and retires execution",
+    "verification": "Normal and excessive nested Each, DAG occurrence counting, implicit comparison/index/action coercion and cumulative builtin conversion work, string growth, automatic Query reevaluation, individually allowed defaults that exceed one batch, borrowed remaining work and nested non-resetting scopes, synchronous invalidation notification work, and native action side-effect regressions",
     "removal": "Equivalent bounded official evaluation and Apple projection with explicit failure propagation"
   },
   {

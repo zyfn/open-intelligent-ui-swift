@@ -65,7 +65,7 @@ test('24.3 million Each leaves stop by the deterministic work budget', () => {
   assert.equal(render(parse('root=Box("recovered")')).value.props.value, 'recovered');
 });
 
-test('incomplete Each visits shared metadata once and still counts every output occurrence', () => {
+test('incomplete Each carries a scope without traversing shared metadata and still counts every output occurrence', () => {
   const { bridge, parse, render } = runtime();
   const size = 500;
   const source = `$items=${list(size)}\nroot=Box(@Each($items,item,$items`;
@@ -86,9 +86,9 @@ test('incomplete Each visits shared metadata once and still counts every output 
     },
   });
   const outcome = render(result, { getState: name => name === '$items' ? shared : null, resolveRef: () => null });
-  assert.equal(traversals, 1, 'idempotent readiness traversal must not revisit the shared array');
-  assert.equal(visits, size, 'count actual child visits instead of imposing a machine timing threshold');
-  assert.equal(bridge.sourceComplete(shared, outcome.sourceSnapshot), false);
+  assert.equal(traversals, 0, 'an occurrence constraint must not walk or mutate the shared input graph');
+  assert.equal(visits, 0, 'count actual child visits instead of imposing a machine timing threshold');
+  assert.equal(bridge.sourceComplete(shared, outcome.sourceSnapshot), true, 'a rejected output has no occurrence that can alter this baseline');
   assert.equal(bridge.sourceComplete(shared), true, 'evaluation must not change the shared input baseline');
   assert.equal(outcome.limitExceeded, true, '500 repeated 500-value arrays still exceed the expanded output budget');
   assert.equal(outcome.value, null);
@@ -109,9 +109,11 @@ test('incomplete Each preserves values and invalidates nested shared controls', 
   assert.equal(outcome.limitExceeded, false);
   assert.equal(outcome.value.props.value.length, 4);
   for (const item of outcome.value.props.value) assert.equal(item, shared);
+  const scope = bridge.sourceChildSnapshot(outcome.value.props.value, outcome.sourceSnapshot);
   for (const value of [shared, nested, child]) {
-    assert.equal(bridge.sourceComplete(value, outcome.sourceSnapshot), false);
-    assert.equal(bridge.sourcePresentation(value, outcome.sourceSnapshot).complete, false);
+    assert.equal(bridge.sourceComplete(value, scope), false);
+    assert.equal(bridge.sourcePresentation(value, scope).complete, false);
+    assert.equal(bridge.sourceComplete(value, outcome.sourceSnapshot), true, 'other occurrences remain independent');
     assert.equal(bridge.sourceComplete(value), true, 'an incomplete result cannot poison another evaluation');
   }
   assert.equal(child.props.label, 'Go');

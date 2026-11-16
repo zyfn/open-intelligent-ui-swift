@@ -48,6 +48,7 @@ struct ImagePreview: View {
     @State private var failed = false
     @State private var retry = 0
     @State private var viewport: CGSize = .zero
+    @State private var requestSnapshot: ImageResource?
     private var currentSource: String? { selectedSource ?? source }
     private var currentAlt: String { album.first { $0.source == currentSource }?.alt ?? alt }
     private var index: Int? { album.firstIndex { $0.source == currentSource } }
@@ -59,7 +60,10 @@ struct ImagePreview: View {
         let retry: Int
         let viewportReady: Bool
     }
-    private var pixelTarget: Int { ImagePixelSize.target(points: viewport, scale: displayScale, zoom: zoom) }
+    private var pixelTarget: Int {
+        ImagePipeline.effectiveDimension(ImagePixelSize.target(points: viewport, scale: displayScale, zoom: zoom),
+            limits: target.scope.limits)
+    }
     private var currentImage: Image? {
         guard openUIResourceScopeIsCurrent(resources.loader, authorizationScope: target.scope.authorization) else { return nil }
         if let currentSource, let supplied = images[currentSource] { return supplied }
@@ -136,7 +140,14 @@ struct ImagePreview: View {
                 if decodedResource != target { decoded = nil; decodedResource = nil }
                 guard viewport.width > 0, viewport.height > 0,
                       let currentSource, images[currentSource] == nil else { return }
-                let request = ImageResource(source: currentSource, resources: resources, revision: revision, attempt: retry)
+                let request: ImageResource
+                if let retained = requestSnapshot, retained.id.target == target,
+                   retained.id.attempt == retry, retained.isCurrent {
+                    request = retained
+                } else {
+                    request = ImageResource(source: currentSource, resources: resources, revision: revision, attempt: retry)
+                    requestSnapshot = request
+                }
                 guard request.id.request != nil else {
                     failed = currentSource != source; return
                 }

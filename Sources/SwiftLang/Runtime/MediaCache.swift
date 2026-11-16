@@ -75,11 +75,13 @@ import CoreGraphics
       entries.removeValue(forKey: order.removeFirst())
     }
   }
+  nonisolated package static func effectivePixelSize(_ requested: Int?, limits: OpenUIResourceLimits) -> Int {
+    max(1, min(requested ?? limits.maximumImagePixelSize, limits.maximumImagePixelSize, 2816))
+  }
   package func resource(_ key: NativeResourceRequestID, loader: any OpenUIResourceLoading,
                 targetPixelSize: Int? = nil) async throws -> Entry {
     try Task.checkCancellation()
-    let target = max(1, min(targetPixelSize ?? loader.resourceLimits.maximumImagePixelSize,
-                           loader.resourceLimits.maximumImagePixelSize, 2816))
+    let target = Self.effectivePixelSize(targetPixelSize, limits: loader.resourceLimits)
     if let value = entries[key], value.satisfies(target) { return value }
     guard let request = key.request else { throw URLError(.badURL) }
     let decodeKey = DecodeKey(resource: key, pixelSize: target)
@@ -145,7 +147,7 @@ import CoreGraphics
   package static func prepare(_ data: Data, loader: any OpenUIResourceLoading,
                       targetPixelSize: Int? = nil) async throws -> Entry {
     let limits = loader.resourceLimits
-    let target = max(1, min(targetPixelSize ?? limits.maximumImagePixelSize, limits.maximumImagePixelSize, 2816))
+    let target = effectivePixelSize(targetPixelSize, limits: limits)
     let work = Task.detached(priority: .userInitiated) {
       try NativeImageDecoder.decode(data, maximumPixelSize: target, limits: limits)
     }

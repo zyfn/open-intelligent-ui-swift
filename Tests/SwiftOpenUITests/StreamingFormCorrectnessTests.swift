@@ -47,6 +47,30 @@ final class StreamingFormCorrectnessTests: XCTestCase {
     validation.unregisterPendingWrite("amount", owner: owner)
   }
 
+  @MainActor func testDraftFeedbackRefreshDoesNotFlushWritesOrRequestFocus() {
+    let draft = NativeSliderDraft(), validation = NativeFormValidation()
+    var commits: [[Double]] = []
+    draft.commit = { commits.append($0) }
+    draft.receive([10])
+    validation.registerPendingWrite("amount", owner: UUID(), flush: { draft.flush() },
+      error: { draft.validationError() })
+    draft.edit("-", at: 0)
+    validation.changed("amount", value: .number(10), rules: [], draftError: draft.validationError())
+    XCTAssertEqual(validation.errors["amount"], "Invalid number")
+    XCTAssertEqual(validation.firstInvalid, "amount")
+    XCTAssertNil(validation.focusRequest, "Inline feedback must not move the user's focus")
+    XCTAssertTrue(commits.isEmpty)
+
+    draft.edit("25", at: 0)
+    validation.changed("amount", value: .number(10), rules: [], draftError: draft.validationError())
+    XCTAssertNil(validation.errors["amount"])
+    XCTAssertNil(validation.firstInvalid)
+    XCTAssertNil(validation.focusRequest)
+    XCTAssertTrue(commits.isEmpty, "Updating feedback must not bypass the existing draft flush boundary")
+    XCTAssertTrue(validation.validateAll())
+    XCTAssertEqual(commits, [[25]])
+  }
+
   @MainActor func testDisappearingOldFieldCannotUnregisterReplacement() {
     let validation = NativeFormValidation()
     let oldOwner = UUID(), currentOwner = UUID()

@@ -130,7 +130,10 @@ public final class OpenUIState: ObservableObject {
         if let root { visit(.element(root), depth: 0) }
     }
     package func isElementReady(_ snapshot: EvaluatedElement) -> Bool {
-        let element = snapshot.isSourceComplete ? snapshot : liveElement(matching: snapshot)
+        // A closed component may still contain an older, incomplete action
+        // snapshot. Membership in the current projection, not the component's
+        // own delimiter, determines whether its nested metadata is current.
+        let element = liveElement(matching: snapshot)
         guard let result = latestResult, !result.nativeLimitExceeded, element.isSourceComplete else { return false }
         func ready(_ value: Value) -> Bool {
             switch value {
@@ -176,6 +179,7 @@ public final class OpenUIState: ObservableObject {
     private var streamGeneration = 0
     private var persistedState: [OpenUIString: Value]
     private var unsubscribe: (() -> Void)?
+    private var queryDelivery: NativeQueryUpdateDelivery?
     private var source = ""
     private var querySourceGeneration = -1
     private var queryStoreSnapshot: [OpenUIString: Value] = [:]
@@ -245,6 +249,9 @@ public final class OpenUIState: ObservableObject {
     }
 
     private func observeQueries() {
+        queryDelivery?.retire()
+        let delivery = NativeQueryUpdateDelivery()
+        queryDelivery = delivery
         let generation = streamGeneration
         let manager = queryManager
         manager.setNativeLimitHandler { [weak self, weak manager] in
@@ -272,8 +279,9 @@ public final class OpenUIState: ObservableObject {
             }
         }
         unsubscribe = queryManager.subscribe { [weak self] in
+            guard delivery.enqueue() else { return }
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard delivery.take(), let self else { return }
                 self.mutate {
                     guard self.streamGeneration == generation, let result = self.latestResult else { return }
                     self.update(from: result, synchronizeQueries: false)
@@ -444,8 +452,8 @@ public final class OpenUIState: ObservableObject {
     }
     private func setStateNow(_ name: OpenUIString, value: Value) {
         guard let result = latestResult, !result.nativeLimitExceeded else { return }
-        guard !nativeValueExceedsLimits(value) else { stopForRuntimeLimit(); return }
         store.set(name, value: value, pristine: false)
+        guard !store.nativeLimitExceeded else { stopForRuntimeLimit(); return }
         update(from: result)
         if mutationIsCurrent { onStateUpdate?(store.getSnapshot()) }
     }
@@ -639,17 +647,20 @@ public final class OpenUIState: ObservableObject {
     }
     package func perform(_ plan: ActionPlan, formName: OpenUIString?, source: EvaluatedElement?, onDispatch: ((ActionEvent) -> Void)? = nil) async -> [ActionEvent] {
         let plan = currentActionPlan(plan, source: source)
-        guard source.map(isElementReady) ?? canExecuteActions, source == nil || isPlanReady(plan) else { return [] }
+        guard !Task.isCancelled, source.map(isElementReady) ?? canExecuteActions,
+              source == nil || isPlanReady(plan) else { return [] }
         let generation = streamGeneration
+        let workBudget = NativeActionWorkBudget()
         let defaults = createStore()
         defaults.initialize(defaults: latestResult!.stateDeclarations, persisted: [:])
-        let context = ActionRuntimeContext(
+        guard !defaults.nativeLimitExceeded else { stopForRuntimeLimit(); return [] }
+        var context = ActionRuntimeContext(
             store: store,
             evaluate: { [weak self] node in
                 guard let self, self.streamGeneration == generation,
                       let result = self.latestResult, !result.nativeLimitExceeded else { return .null }
                 let snapshot = self.onActionEvaluation == nil ? [:] : self.store.getSnapshot()
-                let evaluator = self.makeEvaluator(result: result)
+                let evaluator = self.makeEvaluator(result: result, workBudget: workBudget)
                 let value = evaluator.evaluate(node)
                 guard !evaluator.nativeLimitExceeded else { self.stopForRuntimeLimit(); return .null }
                 self.onActionEvaluation?(OpenUIActionEvaluation(sourceRevision: generation,
@@ -657,18 +668,21 @@ public final class OpenUIState: ObservableObject {
                 return value
             },
             stateDefaults: defaults.getSnapshot(),
-            runQuery: { [weak self] in self?.runDeclaredQuery($0) },
+            runQuery: { [weak self] in self?.runDeclaredQuery($0, workBudget: workBudget) },
             runMutation: { [weak self] id in
                 guard let self, self.streamGeneration == generation else { return .failure }
-                return await self.runDeclaredMutation(id, generation: generation)
+                return await self.runDeclaredMutation(id, generation: generation, workBudget: workBudget)
             },
             formState: { [weak self] in self?.formPayload(formName) ?? [] }, formName: formName,
-            isActive: { [weak self] in self?.streamGeneration == generation },
+            isActive: { [weak self] in
+                self?.streamGeneration == generation && !Task.isCancelled && !workBudget.exceeded
+            },
             onStateChange: { [weak self] in
                 guard let self else { return }
                 self.mutate {
                     guard self.streamGeneration == generation, let result = self.latestResult else { return }
-                    self.update(from: result)
+                    guard !self.store.nativeLimitExceeded else { self.stopForRuntimeLimit(); return }
+                    self.update(from: result, workBudget: workBudget)
                     if self.mutationIsCurrent { self.onStateUpdate?(self.store.getSnapshot()) }
                 }
             },
@@ -678,40 +692,48 @@ public final class OpenUIState: ObservableObject {
                 self.onAction?(event)
             }
         )
+        context.nativeWorkBudget = workBudget
+        context.onNativeLimit = { [weak self] in
+            guard let self, self.streamGeneration == generation else { return }
+            self.stopForRuntimeLimit()
+        }
         let events = await runActionPlan(plan, context: context)
         guard streamGeneration == generation else { return [] }
+        guard !Task.isCancelled, !workBudget.exceeded else { return events }
         mutate {
             guard self.streamGeneration == generation, let result = self.latestResult else { return }
-            self.update(from: result)
+            self.update(from: result, workBudget: workBudget)
         }
         return streamGeneration == generation ? events : []
     }
 
-    private func runDeclaredQuery(_ id: String) {
+    private func runDeclaredQuery(_ id: String, workBudget: NativeActionWorkBudget) {
         // Match the reference adapter: declarations are synchronized by source
         // and Store changes; Run only invalidates the current declaration.
-        queryManager.invalidateQuery(statementId: id)
+        queryManager.invalidateQuery(statementId: id, workBudget: workBudget)
+        if workBudget.exceeded || queryManager.nativeLimitExceeded { stopForRuntimeLimit() }
     }
 
-    private func runDeclaredMutation(_ id: String, generation: Int) async -> MutationOutcome {
+    private func runDeclaredMutation(_ id: String, generation: Int, workBudget: NativeActionWorkBudget) async -> MutationOutcome {
         guard let result = latestResult, queryManager.mutationState(for: id)?.status != .loading,
               let mutation = result.mutationStatements.first(where: { $0.statementId == id }),
               let toolAST = mutation.toolAST else { return .failure }
-        let evaluator = makeEvaluator(result: result)
+        let evaluator = makeEvaluator(result: result, workBudget: workBudget)
         let toolValue = evaluator.evaluate(toolAST)
         guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(); return .failure }
         guard case .string(let tool) = toolValue else { return .failure }
         let arguments = mutation.argsAST.map { evaluator.evaluate($0) } ?? .object([])
         guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(); return .failure }
         guard !nativeValueExceedsLimits(arguments) else { stopForRuntimeLimit(); return .failure }
+        guard !Task.isCancelled, streamGeneration == generation, !workBudget.exceeded else { return .failure }
         let args = transport(arguments)
         let outcome = await queryManager.runMutation(statementId: id, tool: tool, args: args)
-        guard streamGeneration == generation else { return .failure }
+        guard !Task.isCancelled, streamGeneration == generation else { return .failure }
         mutate {
             guard self.streamGeneration == generation else { return }
-            self.update(from: self.latestResult ?? result)
+            self.update(from: self.latestResult ?? result, workBudget: workBudget)
         }
-        guard streamGeneration == generation else { return .failure }
+        guard !Task.isCancelled, streamGeneration == generation else { return .failure }
         return outcome.status == .success ? .success(outcome.data ?? .null) : .failure
     }
 
@@ -744,7 +766,8 @@ public final class OpenUIState: ObservableObject {
         }
     }
 
-    private func makeEvaluator(result: ParseResult, extraScope: [String: Value]? = nil) -> Evaluator {
+    private func makeEvaluator(result: ParseResult, extraScope: [String: Value]? = nil,
+                               workBudget: NativeActionWorkBudget? = nil) -> Evaluator {
         final class Box { weak var evaluator: Evaluator!; var resolving = Set<String>(); var defaults: [String: Value] = [:] }
         let box = Box()
         let manager = queryManager
@@ -771,6 +794,7 @@ public final class OpenUIState: ObservableObject {
                 return .null
             }, functions: functions, actions: schema.callDefs.filter { $0.value.kind == .action }, extraScope: extraScope)
         let evaluator = Evaluator(context: ctx, schema: schema)
+        evaluator.nativeWorkBudget = workBudget
         let generation = streamGeneration
         // Automatic Query reevaluation may run on a background caller while
         // holding the shared JavaScriptCore lock.
@@ -801,7 +825,8 @@ public final class OpenUIState: ObservableObject {
         update(from: limitedParseResult(preserving: previous ?? latestResult, error: runtimeBudgetError()))
     }
 
-    private func update(from result: ParseResult, synchronizeQueries: Bool = true) {
+    private func update(from result: ParseResult, synchronizeQueries: Bool = true,
+                        workBudget: NativeActionWorkBudget? = nil) {
         if result.nativeLimitExceeded {
             // A replacement is a new attempt even when the prior document
             // also failed; replaceSource clears isInterrupted for that epoch.
@@ -826,16 +851,15 @@ public final class OpenUIState: ObservableObject {
         }
         let previous = latestResult
         guard !queryManager.nativeLimitExceeded else { stopForRuntimeLimit(preserving: previous); return }
-        guard !nativeStateExceedsLimits(persistedState) else {
-            persistedState = [:]
-            stopForRuntimeLimit(preserving: previous)
-            return
-        }
         latestResult = result
         store.initialize(defaults: result.stateDeclarations, persisted: persistedState)
         persistedState = [:]
+        guard !store.nativeLimitExceeded else { stopForRuntimeLimit(preserving: previous); return }
         guard mutationIsCurrent else { return }
-        let evaluator = makeEvaluator(result: result)
+        let evaluator = makeEvaluator(result: result, workBudget: workBudget)
+        // QueryManager retains this evaluator for later asynchronous reads.
+        // Only work performed in this action's current update is charged here.
+        defer { evaluator.nativeWorkBudget = nil }
         if isComplete && !isInterrupted {
             let declarations = Dictionary(result.mutationStatements.map { mutation in
             let tool = mutation.toolAST.map { evaluator.evaluate($0) }

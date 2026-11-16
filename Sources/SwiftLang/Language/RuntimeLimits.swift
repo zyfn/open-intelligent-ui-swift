@@ -22,8 +22,10 @@ public enum OpenUIRuntimeBudget {
 /// JS object. That makes this boundary deliberately conservative for non-data
 /// values; it does not evaluate expressions or change the Lang contract.
 func nativeValueExceedsLimits(_ value: Value) -> Bool {
-    NativeValueBudget().value(value, at: 0).exceeds
+    nativeValueCost(value).exceeds
 }
+
+func nativeValueCost(_ value: Value) -> NativeValueCost { NativeValueBudget().value(value, at: 0) }
 
 /// Inspect a host scope without first copying its keys into OpenUIString or
 /// allocating the object projection that this check is meant to protect.
@@ -39,10 +41,23 @@ func nativeStateExceedsLimits(_ values: [OpenUIString: Value]) -> Bool {
 /// JS evaluation starts. Measure their transport graph without a wrapper value
 /// or a second parser; AST/container overhead is part of this native boundary.
 func nativeASTExceedsLimits(_ node: ASTNode) -> Bool {
-    NativeValueBudget().expression(node).exceeds
+    nativeASTCost(node).exceeds
 }
 
-private struct NativeValueCost {
+func nativeASTCost(_ node: ASTNode) -> NativeValueCost { NativeValueBudget().expression(node) }
+func nativeMaterializedCost(_ value: Materialized) -> NativeValueCost {
+    NativeValueBudget().materialized(value, at: 0)
+}
+func nativeQueryStatementsCost(_ statements: [QueryStatementInfo]) -> NativeValueCost { NativeValueBudget().queries(statements) }
+func nativeMutationDeclarationsExceedLimits(_ declarations: [String: OpenUIString]) -> Bool {
+    NativeValueBudget().mutationDeclarations(declarations).exceeds
+}
+func nativeParseProjectionCost(_ result: ParseResult) -> NativeValueCost { NativeValueBudget().projection(result) }
+func nativeActionEventCost(_ event: ActionEvent) -> NativeValueCost { NativeValueBudget().event(event) }
+
+/// Immutable graph accounting shared by Store preflight and action execution.
+/// Costs count occurrences, including a shared value assigned to two fields.
+struct NativeValueCost: Equatable {
     static let maximumNodes = 100_000
     static let maximumDepth = 256
     static let maximumElements = 4_096
@@ -55,6 +70,7 @@ private struct NativeValueCost {
     var depth = 0
     var elements = 0
     var utf16 = 0
+    var workUnits: Int { nodes + (utf16 + 63) / 64 }
     var exceeds: Bool {
         nodes > Self.maximumNodes || depth > Self.maximumDepth ||
         elements > Self.maximumElements || utf16 > Self.maximumUTF16
@@ -70,6 +86,34 @@ private struct NativeValueCost {
         elements = min(Self.maximumElements + 1, elements + next.elements)
         utf16 = min(Self.maximumUTF16 + 1, utf16 + next.utf16)
     }
+}
+
+/// One action owns one allowance across all synchronous evaluation/publication
+/// boundaries. The realm and MainActor can both report work; no JS value or
+/// callback is retained here, and no unrelated action shares this counter.
+final class NativeActionWorkBudget: @unchecked Sendable {
+    static let maximumWork = 100_000
+    private let lock = NSLock()
+    private let limit: Int
+    private var work = 0
+    private var failed = false
+    init(maximumWork: Int = NativeActionWorkBudget.maximumWork) { limit = max(0, maximumWork) }
+    var consumedWork: Int { lock.lock(); defer { lock.unlock() }; return work }
+    var remainingWork: Int { lock.lock(); defer { lock.unlock() }; return failed ? 0 : limit - work }
+    var exceeded: Bool { lock.lock(); defer { lock.unlock() }; return failed }
+    @discardableResult func consume(_ amount: Int) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard !failed else { return false }
+        let remaining = limit - work
+        guard amount >= 0, amount <= remaining else { failed = true; return false }
+        work += amount
+        return true
+    }
+    @discardableResult func consume(_ cost: NativeValueCost) -> Bool {
+        guard !cost.exceeds else { fail(); return false }
+        return consume(cost.workUnits)
+    }
+    func fail() { lock.lock(); failed = true; lock.unlock() }
 }
 
 /// Reference containers are immutable. Memoizing their relative cost avoids
@@ -162,6 +206,81 @@ private final class NativeValueBudget {
         }
     }
     func expression(_ node: ASTNode) -> Cost { ast(node, at: 0) }
+    func queries(_ statements: [QueryStatementInfo]) -> Cost {
+        guard visit() else { return .oversized }
+        return sequence(statements, at: 0) { statement, depth in
+            var cost = Cost.container
+            cost.append(self.text(statement.statementId), keyUnits: 11)
+            for (key, node) in [("toolAST", statement.toolAST), ("argsAST", statement.argsAST),
+                                ("defaultsAST", statement.defaultsAST), ("refreshAST", statement.refreshAST)] {
+                cost.append(node.map { self.ast($0, at: depth + 1) } ?? Cost(), keyUnits: key.utf16.count)
+                if cost.exceeds { return cost }
+            }
+            cost.append(Cost(), keyUnits: 8) // complete
+            for (key, names) in [("deps", statement.deps), ("waitFor", statement.waitFor)] {
+                guard let names else { continue }
+                cost.append(self.sequence(names, at: depth + 1) { name, _ in self.leaf(self.text(name)) },
+                            keyUnits: key.utf16.count)
+                if cost.exceeds { return cost }
+            }
+            return cost
+        }
+    }
+    func mutationDeclarations(_ declarations: [String: OpenUIString]) -> Cost {
+        guard visit() else { return .oversized }
+        return sequence(declarations, at: 0) { field, _ in
+            guard self.visit() else { return .oversized }
+            var cost = Cost.container
+            cost.append(self.text(field.key), keyUnits: 11)
+            cost.append(self.text(field.value), keyUnits: 8)
+            return cost
+        }
+    }
+    func projection(_ result: ParseResult) -> Cost {
+        guard visit() else { return .oversized }
+        var cost = Cost.container
+        if let root = result.root { cost.append(materialized(.element(root), at: 1), keyUnits: 4) }
+        if let expression = result.rootExpression { cost.append(ast(expression, at: 1), keyUnits: 14) }
+        return cost
+    }
+    func event(_ event: ActionEvent) -> Cost {
+        guard visit() else { return .oversized }
+        var cost = Cost.container
+        cost.append(text(event.type), keyUnits: 4)
+        cost.append(fields(event.params, at: 1, key: { $0.0.count }) { self.value($0.1, at: $1) }, keyUnits: 6)
+        cost.append(text(event.humanFriendlyMessage), keyUnits: 20)
+        if let state = event.formState {
+            cost.append(fields(state, at: 1, key: { $0.0.count }) { self.value($0.1, at: $1) }, keyUnits: 9)
+        }
+        if let name = event.formName { cost.append(text(name), keyUnits: 8) }
+        return cost
+    }
+    func materialized(_ value: Materialized, at depth: Int) -> Cost {
+        switch value {
+        case .stateDefault(let value): return self.value(value.value, at: depth)
+        case .value(let value): return self.value(value, at: depth)
+        case .null: return leaf(Cost())
+        case .expr(let node): return ast(node, at: depth)
+        case .array(let values):
+            guard visit() else { return .oversized }
+            return sequence(values, at: depth) { self.materialized($0, at: $1) }
+        case .object(let entries):
+            guard visit() else { return .oversized }
+            return fields(entries, at: depth, key: { $0.0.count }) { self.materialized($0.1, at: $1) }
+        case .element(let element):
+            guard visit(), depth < Cost.maximumDepth else { return .oversized }
+            var cost = Cost(depth: 1, elements: 1)
+            cost.append(text("element" as String), keyUnits: 4)
+            cost.append(text(element.typeName), keyUnits: 8)
+            cost.append(fields(element.props, at: depth + 1, key: { self.units($0.key) }) {
+                self.materialized($0.value, at: $1)
+            }, keyUnits: 5)
+            cost.append(Cost(), keyUnits: 7)
+            cost.append(Cost(), keyUnits: 15)
+            if let id = element.statementId { cost.append(text(id), keyUnits: 11) }
+            return cost
+        }
+    }
     func value(_ value: Value, at depth: Int) -> Cost {
         guard visit() else { return .oversized }
         switch value {

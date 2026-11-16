@@ -44,6 +44,7 @@ private struct NativeMediaTaskID: Hashable {
   let pixelSize: Int
   let cache: ObjectIdentifier?
   let generation: Int?
+  let visible: Bool
 }
 /// Shared native resource presentation. Resource states preserve the declared
 /// media layout; network failures remain separate from language diagnostics.
@@ -57,8 +58,15 @@ struct NativeRemoteImage: View {
   var role: NativeMediaRole = .artwork
   var fallbackSystemImage: String? = nil
   var cachedImage: Image?
+  var cachedImageTarget: NativeMediaResourceTarget? = nil
+  // A preview can show its inline image immediately while loading the pixels
+  // needed by the larger viewport. Supplied fixture images remain authoritative.
+  var upgradesCachedImage = false
+  var requestedPixelSize: Int? = nil
+  var releasesImageWhenHidden = false
   var attempt = 0
   var onStatus: ((NativeMediaStatus, Image?) -> Void)?
+  var onResource: ((NativeMediaCache.Entry) -> Void)?
   var interactionEnabled = true
   var previewEnabled = true
   @State private var localRetry = NativeImageRetryState()
@@ -67,10 +75,11 @@ struct NativeRemoteImage: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.openUIMediaWidthReady) private var widthReady
   @State private var phase: AsyncImagePhase = .empty
-  @State private var imageSize: CGSize?
+  @State private var loadedEntry: NativeMediaCache.Entry?
   @State private var loadedRequest: NativeResourceRequestID?
   @State private var requestSnapshot: NativeMediaRequestSnapshot?
   @State private var revealLoadedImage = true
+  @State private var visible = false
   @Environment(\.openUIResourceContext) private var resources
   @Environment(\.openUITheme) private var theme
   @Environment(\.openUICardIsAction) private var cardIsAction
@@ -88,6 +97,7 @@ struct NativeRemoteImage: View {
           .onChange(of: requestID) { _ in
             didPresent(presentation.image)
           }
+          .onChange(of: presentation.pixelSize) { _ in didPresent(presentation.image) }
       } else {
         // Keep the placeholder in one structural branch. Only its loading
         // overlay fades out; a terminal failure never animates parent geometry.
@@ -100,11 +110,14 @@ struct NativeRemoteImage: View {
     .modifier(NativeImageInteraction(source: src, image: displayedImage, alt: alt,
       enabled: interactionEnabled && !showsContentFailure,
       previewEnabled: previewEnabled, failed: failed,
+      previewAttempt: resourceTarget.attempt,
       retry: { localRetry.retry(baseTarget) }))
     .task(id: NativeMediaTaskID(target: sourceReady ? resourceTarget : nil,
       sourceReady: sourceReady, pixelSize: targetPixelSize,
-      cache: mediaCache.map(ObjectIdentifier.init), generation: mediaCache?.generation)) {
-      guard sourceReady, cachedImage == nil, !Task.isCancelled else { return }
+      cache: mediaCache.map(ObjectIdentifier.init), generation: mediaCache?.generation,
+      visible: !releasesImageWhenHidden || visible)) {
+      guard sourceReady, !releasesImageWhenHidden || visible,
+        validCachedImage == nil || upgradesCachedImage, !Task.isCancelled else { return }
       let snapshot: NativeMediaRequestSnapshot
       if let current = requestSnapshot, current.matches(resourceTarget, cache: mediaCache) {
         snapshot = current
@@ -113,31 +126,45 @@ struct NativeRemoteImage: View {
         requestSnapshot = snapshot
       }
       guard snapshot.target.isCurrent else { return }
+      if loadedRequest == snapshot.request, let loadedEntry, loadedEntry.satisfies(targetPixelSize) {
+        return
+      }
       if let retained = mediaCache?[snapshot.request], retained.satisfies(targetPixelSize) {
         // A mounted image owns its successful phase. The bounded presentation
         // cache can evict this entry while later cards are still arriving.
-        loadedRequest = snapshot.request
-        imageSize = retained.size
+        accept(retained, for: snapshot.request)
         revealLoadedImage = !retained.wasPresented
-        phase = .success(retained.image)
         return
       }
       if snapshot.request.request == nil { onStatus?(.unavailable, nil) } else { await load(snapshot) }
     }
+    .onAppear { visible = true }
+    .onDisappear {
+      visible = false
+      if releasesImageWhenHidden {
+        loadedEntry = nil; phase = .empty; loadedRequest = nil
+      }
+    }
   }
-  private var presentedImage: (image: Image, size: CGSize?, reveal: Bool)? {
-    guard sourceReady else { return nil }
-    if let cachedImage { return (cachedImage, nil, false) }
-    guard let requestID else { return nil }
+  private var presentedImage: (image: Image, size: CGSize?, reveal: Bool, pixelSize: Int?)? {
+    guard sourceReady, !releasesImageWhenHidden || visible else { return nil }
+    let cachedImage = validCachedImage
+    if let cachedImage, !upgradesCachedImage { return (cachedImage, nil, false, nil) }
+    guard let requestID else { return cachedImage.map { ($0, nil, false, nil) } }
+    if loadedRequest == requestID, let loadedEntry {
+      return (loadedEntry.image, loadedEntry.size, revealLoadedImage, loadedEntry.decodedPixelSize)
+    }
     if loadedRequest != requestID, let retained = mediaCache?[requestID] {
-      return (retained.image, retained.size, !retained.wasPresented)
+      return (retained.image, retained.size, !retained.wasPresented, retained.decodedPixelSize)
     }
-    if loadedRequest == requestID, case .success(let image) = phase {
-      return (image, imageSize, revealLoadedImage)
-    }
-    return nil
+    return cachedImage.map { ($0, nil, false, nil) }
+  }
+  private var validCachedImage: Image? {
+    if let target = cachedImageTarget, (!target.isCurrent || target != baseTarget) { return nil }
+    return cachedImage
   }
   private var waitingForImage: Bool {
+    if releasesImageWhenHidden && !visible { return false }
     if !sourceReady { return streamActive }
     guard resourceTarget.isCurrent else { return false }
     // The task resolves a new target once. A cache hit restores its successful
@@ -149,10 +176,7 @@ struct NativeRemoteImage: View {
     role == .content && fallbackSystemImage == nil && presentedImage == nil && !waitingForImage
   }
   private var displayedImage: Image? {
-    if let cachedImage { return cachedImage }
-    guard let requestID else { return nil }
-    if loadedRequest == requestID, case .success(let image) = phase { return image }
-    return mediaCache?[requestID]?.image
+    presentedImage?.image
   }
   private var failed: Bool {
     guard sourceReady, let requestID, requestID.request != nil, loadedRequest == requestID else { return false }
@@ -178,7 +202,9 @@ struct NativeRemoteImage: View {
     onStatus?(waitingForImage ? .loading : .unavailable, nil)
   }
   private var targetPixelSize: Int {
-    let cap = max(1, resources.loader.resourceLimits.maximumImagePixelSize)
+    let limits = resources.loader.resourceLimits
+    let cap = NativeMediaCache.effectivePixelSize(nil, limits: limits)
+    if let requestedPixelSize { return NativeMediaCache.effectivePixelSize(requestedPixelSize, limits: limits) }
     if case .thumbnail(let size) = layout {
       let requested = max(size.width, size.height) * displayScale
       guard requested.isFinite else { return cap }
@@ -194,20 +220,33 @@ struct NativeRemoteImage: View {
     let id = snapshot.request
     let generation = mediaCache?.generation
     guard let request = id.request else { return }
-    loadedRequest = id; phase = .empty; imageSize = nil; revealLoadedImage = true
+    // A size upgrade keeps the last accepted pixels. A different resource may
+    // never borrow them, including across authorization or retry boundaries.
+    if loadedRequest != id { loadedEntry = mediaCache?[id]; revealLoadedImage = loadedEntry == nil }
+    loadedRequest = id; phase = .empty
     do {
       let entry: NativeMediaCache.Entry
       if let mediaCache { entry = try await mediaCache.resource(id, loader: snapshot.target.loader, targetPixelSize: targetPixelSize) }
       else { entry = try await NativeMediaCache.load(request, loader: snapshot.target.loader, targetPixelSize: targetPixelSize) }
       try Task.checkCancellation()
-      guard snapshot.matches(resourceTarget, cache: mediaCache), id == requestID,
+      guard !releasesImageWhenHidden || visible,
+            snapshot.matches(resourceTarget, cache: mediaCache), id == requestID,
             mediaCache?.generation == generation else { return }
-      imageSize = entry.size
-      phase = .success(entry.image)
+      accept(entry, for: id)
     } catch {
       guard !Task.isCancelled, snapshot.matches(resourceTarget, cache: mediaCache),
             id == requestID, mediaCache?.generation == generation else { return }
       phase = .failure(error)
+    }
+  }
+  @MainActor private func accept(_ entry: NativeMediaCache.Entry, for id: NativeResourceRequestID) {
+    if loadedRequest != id || loadedEntry.map({ $0.decodedPixelSize < entry.decodedPixelSize }) != false {
+      loadedEntry = entry
+    }
+    loadedRequest = id
+    if let loadedEntry {
+      phase = .success(loadedEntry.image)
+      onResource?(loadedEntry)
     }
   }
   private func picture(_ image: Image, retainedSize: CGSize? = nil, reveal: Bool = true) -> some View {
@@ -268,7 +307,7 @@ struct NativeRemoteImage: View {
     case .thumbnail(let size): surface.frame(width: size.width, height: size.height)
     case .fit, .fill: surface.frame(maxWidth: .infinity, maxHeight: .infinity)
     case .intrinsic:
-      surface.aspectRatio(NativeMediaPreview.aspectRatio(sourceSize: sourceSize ?? imageSize), contentMode: .fit)
+      surface.aspectRatio(NativeMediaPreview.aspectRatio(sourceSize: sourceSize ?? loadedEntry?.size), contentMode: .fit)
         .fixedSize(horizontal: false, vertical: true)
     }
   }
@@ -390,7 +429,6 @@ struct NativeImageGallery: View {
   @Environment(\.dynamicTypeSize) private var typeSize
   @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
   @State private var phases: [NativeGalleryResourceID: NativeMediaStatus] = [:]
-  @State private var pictures: [NativeGalleryResourceID: Image] = [:]
   @State private var selected: NativeGalleryResourceID?
   @State private var preview = false
   @State private var retries: [String: Int] = [:]
@@ -454,19 +492,20 @@ struct NativeImageGallery: View {
               } label: {
                 NativeRemoteImage(
                   src: image.src, alt: image.alt, layout: .cover,
-                  cachedImage: pictures[image.key], attempt: image.target.attempt,
-                  onStatus: { record($0, image: $1, for: image.key) }, interactionEnabled: false
+                  attempt: image.target.attempt,
+                  onStatus: { phase, _ in record(phase, for: image.key) }, interactionEnabled: false
                 )
                 .environment(\.openUIMediaSourceReady, image.sourceReady)
                 .background(context.theme.sunk)
                 .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
               }
-              .buttonStyle(.plain).disabled(!context.canInteract || (!image.sourceReady) || (pictures[image.key] == nil && phases[image.key] != .unavailable))
+              .buttonStyle(.plain).disabled(!context.canInteract || (!image.sourceReady)
+                || (phases[image.key] != .loaded && phases[image.key] != .unavailable))
               .accessibilityLabel(image.alt.isEmpty ? Text("View image", bundle: NativeControlResources.bundle) : Text(image.alt))
               .accessibilityValue(
                 phases[image.key] == .unavailable
                   ? Text("Image unavailable", bundle: NativeControlResources.bundle)
-                  : pictures[image.key] == nil ? Text("Loading image", bundle: NativeControlResources.bundle) : Text("")
+                  : phases[image.key] != .loaded ? Text("Loading image", bundle: NativeControlResources.bundle) : Text("")
               )
               .accessibilityIdentifier("openui.gallery.image.\(image.index)")
               if let details = image.details { Text(details).nativeTextStyle(context.theme.textStyle(.supporting)) }
@@ -497,12 +536,13 @@ struct NativeImageGallery: View {
     .onChange(of: ObjectIdentifier(context.element)) { _ in rememberImages() }
     .onChange(of: context.hasPendingData) { _ in rememberImages() }
     .sheet(isPresented: $preview) {
-      NativeGalleryPreview(images: images, selected: $selected, pictures: pictures, phases: phases, record: record, retry: retry)
+      NativeGalleryPreview(images: images, selected: $selected, phases: phases, record: record, retry: retry)
     }
     .onChange(of: images.map(\.key)) { keys in
       let current = Set(keys)
       phases = phases.filter { current.contains($0.key) }
-      pictures = pictures.filter { current.contains($0.key) }
+      let items = Set(keys.map(\.itemID))
+      retries = retries.filter { items.contains($0.key) }
       if selected.map(current.contains) != true { preview = false; selected = nil }
     }
   }
@@ -510,9 +550,8 @@ struct NativeImageGallery: View {
     retries[image.id, default: 0] += 1
     if selected == image.key { selected = currentImages.first(where: { $0.id == image.id })?.key }
   }
-  private func record(_ phase: NativeMediaStatus, image: Image?, for key: NativeGalleryResourceID) {
+  private func record(_ phase: NativeMediaStatus, for key: NativeGalleryResourceID) {
     guard key.target.isCurrent, images.contains(where: { $0.key == key }) else { return }
-    if let image, pictures[key] == nil { pictures[key] = image }
     if phases[key] != .loaded && phases[key] != phase { phases[key] = phase }
   }
 }
@@ -522,9 +561,8 @@ private struct NativeGalleryPreview: View {
 
   let images: [NativeGalleryImage]
   @Binding var selected: NativeGalleryResourceID?
-  let pictures: [NativeGalleryResourceID: Image]
   let phases: [NativeGalleryResourceID: NativeMediaStatus]
-  let record: (NativeMediaStatus, Image?, NativeGalleryResourceID) -> Void
+  let record: (NativeMediaStatus, NativeGalleryResourceID) -> Void
   let retry: (NativeGalleryImage) -> Void
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openUITheme) private var theme
@@ -538,15 +576,12 @@ private struct NativeGalleryPreview: View {
         GeometryReader { geometry in
           NativePager(ids: images.map(\.key), selection: Binding(
             get: { selected ?? image.key }, set: { selected = $0; zoomed = false }),
-            enabled: !zoomed, identifier: "openui.gallery.preview", supportsAdjustment: false) { key in
+            enabled: !zoomed, identifier: "openui.gallery.preview", supportsAdjustment: false, pageRadius: 1) { key in
             if let item = images.first(where: { $0.key == key }) {
-              NativeRemoteImage(src: item.src, alt: item.alt, layout: .fit, role: .content,
-                cachedImage: pictures[item.key], attempt: item.target.attempt,
-                onStatus: { record($0, $1, item.key) }, previewEnabled: false)
-                .modifier(NativeImageZoom(resetID: selected, zoomChanged: { value in
+              NativeGalleryPreviewPage(item: item, size: geometry.size, selection: selected,
+                record: { record($0, item.key) }, zoomChanged: { value in
                   if selected == item.key { zoomed = value }
-                }))
-                .frame(width: geometry.size.width, height: geometry.size.height)
+                })
             }
           }
         }.accessibilityIdentifier("openui.gallery.preview.image")
@@ -555,13 +590,15 @@ private struct NativeGalleryPreview: View {
       }
       ScrollViewReader { reader in
         ScrollView(.horizontal, showsIndicators: false) {
-          HStack(spacing: theme.spaceM) {
+          LazyHStack(spacing: theme.spaceM) {
             ForEach(images) { image in
               Button { if phases[image.key] == .unavailable { retry(image) } else { selected = image.key; zoomed = false } } label: {
                 NativeRemoteImage(src: image.src, alt: image.alt,
                   layout: .thumbnail(CGSize(width: nativePresentation.compactThumbnailSize,
                     height: nativePresentation.compactThumbnailSize / nativePresentation.coverAspectRatio)),
-                  cachedImage: pictures[image.key], attempt: image.target.attempt, onStatus: { record($0, $1, image.key) }, interactionEnabled: false)
+                  releasesImageWhenHidden: true, attempt: image.target.attempt,
+                  onStatus: { phase, _ in record(phase, image.key) }, interactionEnabled: false)
+                  .environment(\.openUIMediaSourceReady, image.sourceReady)
                   .clipShape(RoundedRectangle(cornerRadius: theme.radiusM, style: .continuous))
                   .overlay(RoundedRectangle(cornerRadius: theme.radiusM, style: .continuous).strokeBorder(selected == image.key ? theme.interactiveAccentDefault : .clear, lineWidth: 2))
               }.buttonStyle(.plain)
@@ -571,6 +608,7 @@ private struct NativeGalleryPreview: View {
             }
           }
         }
+        .frame(height: nativePresentation.compactThumbnailSize / nativePresentation.coverAspectRatio)
         .onAppear { if let selected { reader.scrollTo(selected, anchor: .center) } }
         .onChange(of: selected) { key in
           zoomed = false
@@ -580,6 +618,31 @@ private struct NativeGalleryPreview: View {
     }
     .padding(theme.spaceML).frame(idealWidth: 720, idealHeight: 640)
     .accessibilityElement(children: .contain).accessibilityIdentifier("openui.gallery.preview")
+  }
+}
+
+/// Pixel ownership follows the pager's mounted neighbor window. No parent
+/// dictionary pins every decoded page after the user has moved past it.
+private struct NativeGalleryPreviewPage: View {
+  let item: NativeGalleryImage
+  let size: CGSize
+  let selection: NativeGalleryResourceID?
+  let record: (NativeMediaStatus) -> Void
+  let zoomChanged: (Bool) -> Void
+  @Environment(\.displayScale) private var displayScale
+  @Environment(\.openUIResourceContext) private var resources
+  @State private var zoomScale: CGFloat = 1
+
+  var body: some View {
+    NativeRemoteImage(src: item.src, alt: item.alt, layout: .fit, role: .content,
+      requestedPixelSize: NativeMediaPreview.pixelSize(viewport: size, scale: displayScale,
+        zoom: zoomScale, limits: resources.loader.resourceLimits),
+      releasesImageWhenHidden: true, attempt: item.target.attempt,
+      onStatus: { phase, _ in record(phase) }, previewEnabled: false)
+      .environment(\.openUIMediaSourceReady, item.sourceReady)
+      .modifier(NativeImageZoom(resetID: selection, zoomChanged: zoomChanged,
+        scaleChanged: { zoomScale = $0 }))
+      .frame(width: size.width, height: size.height)
   }
 }
 

@@ -136,4 +136,107 @@ final class SourceSnapshotBridgeTests: XCTestCase {
         XCTAssertFalse(context.canInteract, "Generic hosts cannot rely on a built-in container to block a stale complete child")
         XCTAssertTrue(input.child.isSourceComplete)
     }
+
+    func testOneEvaluationProjectsSharedDescendantsSeparatelyForDirectAndEachOccurrences() throws {
+        for directFirst in [true, false] {
+            let input = fixture(), librarySchema = schema()
+            let evaluator = Evaluator(context: EvaluationContext(getState: { name in
+                name == "$shared" ? input.shared : .array([.number(1), .number(2)])
+            }, resolveRef: { _ in .null }), schema: librarySchema)
+            let branches = directFirst ? "$shared,@Each($items,item,$shared)" : "@Each($items,item,$shared),$shared"
+            let source = "root=Box([\(branches)])\n$items=[1"
+            let parser = createParser(schema: librarySchema)
+            let pending = try XCTUnwrap(evaluator.evaluateRoot(parser.parse(source)))
+            guard case .array(let output) = PropValue.value(pending, "value"),
+                  case .array(let direct) = output[directFirst ? 0 : 1],
+                  case .array(let loop) = output[directFirst ? 1 : 0],
+                  case .array(let repeated) = loop[0], case .array(let sameOccurrence) = loop[1],
+                  case .array(let directNested) = direct[1], case .array(let pendingNested) = repeated[1] else {
+                return XCTFail("Expected direct and repeated native arrays")
+            }
+            let ready = try firstChild(directNested), blocked = try firstChild(pendingNested)
+            XCTAssertTrue(ready.isSourceComplete)
+            XCTAssertFalse(blocked.isSourceComplete)
+            XCTAssertTrue(try XCTUnwrap(PropValue.actionPlan(ready, "action")).isSourceComplete)
+            XCTAssertFalse(try XCTUnwrap(PropValue.actionPlan(blocked, "action")).isSourceComplete)
+            XCTAssertFalse(ready === blocked, "Different occurrence metadata needs immutable projections")
+            XCTAssertFalse(directNested === pendingNested)
+            XCTAssertTrue(repeated === sameOccurrence, "Identical graph/scope pairs project only once")
+            XCTAssertTrue(Value.array(directNested).isSameValue(as: .array(pendingNested)))
+            XCTAssertTrue(Value.element(ready).isSameValue(as: .element(blocked)))
+            XCTAssertTrue(Value.element(blocked).isSameValue(as: .element(input.child)))
+            XCTAssertTrue(input.child.isSourceComplete)
+            XCTAssertTrue(input.plan.isSourceComplete)
+
+            let complete = try XCTUnwrap(evaluator.evaluateRoot(parser.parse(source + "]\n")))
+            guard case .array(let completedOutput) = PropValue.value(complete, "value"),
+                  case .array(let completedLoop) = completedOutput[directFirst ? 1 : 0],
+                  case .array(let completedShared) = completedLoop[0] else {
+                return XCTFail("Expected completed loop")
+            }
+            XCTAssertTrue(try firstChild(completedShared).isSourceComplete)
+            XCTAssertFalse(blocked.isSourceComplete, "Later scopes must not mutate earlier native snapshots")
+            XCTAssertTrue(ready.isSourceComplete)
+        }
+    }
+
+    func testSharedEachQueryOccurrencesKeepTheirOwnDependenciesAndLangIdentity() throws {
+        let input = fixture(), librarySchema = schema()
+        let evaluator = Evaluator(context: EvaluationContext(getState: { _ in input.shared },
+            resolveRef: { _ in .array([.number(1)]) }), schema: librarySchema)
+        let source = "root=Box([$shared,@Each(q,item,$shared),@Each(r,item,$shared)])\nq=Query(\"q\",{},[])\nr=Query(\"r\",{},[])"
+        let root = try XCTUnwrap(evaluator.evaluateRoot(createParser(schema: librarySchema).parse(source)))
+        guard case .array(let branches) = PropValue.value(root, "value"),
+              case .array(let direct) = branches[0], case .array(let directNested) = direct[1],
+              case .array(let first) = branches[1], case .array(let firstShared) = first[0],
+              case .array(let second) = branches[2], case .array(let secondShared) = second[0] else {
+            return XCTFail("Expected native occurrences under two queries")
+        }
+        let directChild = try firstChild(directNested)
+        let firstChildValue = try firstChild(firstShared), secondChildValue = try firstChild(secondShared)
+        XCTAssertTrue(directChild.sourceReadiness.queryDependencies.isEmpty)
+        XCTAssertEqual(firstChildValue.sourceReadiness.queryDependencies, ["q"])
+        XCTAssertEqual(secondChildValue.sourceReadiness.queryDependencies, ["r"])
+        XCTAssertTrue(Value.element(directChild).isSameValue(as: .element(firstChildValue)))
+        XCTAssertTrue(Value.element(firstChildValue).isSameValue(as: .element(secondChildValue)))
+        XCTAssertTrue(input.child.sourceReadiness.queryDependencies.isEmpty)
+    }
+
+    func testEachReadinessDoesNotRewriteOpaqueNativeActionCaptures() throws {
+        let payload = Value.array([.object([.init(key: "id", value: .string("kept"))])])
+        let plan = ActionPlan(steps: [.continueConversation(messageAST: .str("Go"), contextAST: .runtimeValue(payload))])
+        let child = EvaluatedElement(typeName: "Button", props: [("label", .string("Go")), ("action", .actionPlan(plan))])
+        let shared = Value.array([.element(child)])
+        let librarySchema = schema()
+        let evaluator = Evaluator(context: EvaluationContext(getState: { name in
+            name == "$shared" ? shared : .array([.number(1)])
+        }, resolveRef: { _ in .null }), schema: librarySchema)
+        let root = try XCTUnwrap(evaluator.evaluateRoot(createParser(schema: librarySchema)
+            .parse("root=Box(@Each($items,item,$shared))\n$items=[1")))
+        let blocked = try firstChild(firstShared(root))
+        let projected = try XCTUnwrap(PropValue.actionPlan(blocked, "action"))
+        XCTAssertFalse(projected.isSourceComplete)
+        XCTAssertTrue(Value.actionPlan(projected).isSameValue(as: .actionPlan(plan)))
+        let step = try XCTUnwrap(projected.steps.first)
+        guard case .continueConversation(_, let context) = step,
+              let context, case .runtimeValue(let captured) = context else { return XCTFail("Expected opaque context capture") }
+        XCTAssertTrue(captured.isSameValue(as: payload))
+        XCTAssertTrue(plan.isSourceComplete)
+    }
+
+    @MainActor func testSharedNativeDirectControlCanInteractWhileEachOccurrenceWaits() throws {
+        let input = fixture()
+        let librarySchema = schema(functions: ["Shared": CallDef(kind: .function, params: [])])
+        let state = OpenUIState(schema: librarySchema, functions: [
+            "Shared": CustomFunction(params: [], fn: { _ in input.shared })
+        ])
+        state.setSource("root=Box([@Shared(),@Each($items,item,@Shared())])\n$items=[1", streaming: true)
+        guard case .array(let branches) = PropValue.value(try XCTUnwrap(state.root), "value"),
+              case .array(let direct) = branches[0], case .array(let loop) = branches[1],
+              case .array(let repeated) = loop[0] else { return XCTFail("Expected native controls") }
+        let ready = try firstChild(direct), blocked = try firstChild(repeated)
+        XCTAssertTrue(OpenUIComponentContext(element: ready, registry: [:], state: state).canInteract)
+        XCTAssertFalse(OpenUIComponentContext(element: blocked, registry: [:], state: state).canInteract)
+        XCTAssertFalse(state.isComplete)
+    }
 }

@@ -2,11 +2,73 @@ import SwiftLang
 #if os(macOS)
 import AppKit
 import Foundation
+import ImageIO
 import SwiftUI
 import XCTest
 @testable import SwiftOpenUI
 
 final class SignedMediaResourceTests: XCTestCase {
+  @MainActor func testPreviewUpgradesAThumbnailWithoutChangingItsSignedRequest() async throws {
+    let data = try largePNG(side: 512)
+    let loader = SignedImageLoader(data: data, heldPaths: ["detail.png"])
+    let resources = OpenUIResourceContext(loader: loader)
+    let cache = NativeMediaCache()
+    let target = NativeMediaResourceTarget(source: "https://signed.test/detail.png", resources: resources)
+    let request = target.resolve(in: cache)
+    let thumbnail = try await NativeMediaCache.prepare(largePNG(side: 512, color: .blue), loader: loader, targetPixelSize: 32)
+    cache.insert(thumbnail, for: request)
+    cache.markPresented(request)
+    let probe = SignedPixelProbe()
+    func view(_ pixels: Int) -> AnyView {
+      presented(AnyView(NativeRemoteImage(src: target.source, alt: "Detailed image", layout: .fit,
+        cachedImage: thumbnail.image, cachedImageTarget: target, upgradesCachedImage: true,
+        requestedPixelSize: pixels, onResource: { probe.pixels = $0.decodedPixelSize })
+        .environment(\.openUIMediaCache, cache).openUIResourceContext(resources)), width: 180)
+    }
+    let (host, window) = mount(view(512))
+    defer { loader.releaseHeldRequests(); window.close() }
+    await settleAsync(host, until: { loader.heldCount == 1 && self.hasPixels(.blue, in: host) })
+    loader.releaseHeldRequests()
+    await settleAsync(host, until: { probe.pixels == 512 && self.hasPixels(.red, in: host) && !self.hasPixels(.blue, in: host) })
+    XCTAssertEqual(cache[request]?.decodedPixelSize, 512)
+    XCTAssertEqual(loader.signingCount, 1, "A decode upgrade reuses the frozen signed request")
+    XCTAssertEqual(loader.requests.count, 1)
+    XCTAssertTrue(hasPixels(.red, in: host))
+    XCTAssertFalse(hasPixels(.blue, in: host), "The full-size image must replace the provisional thumbnail on screen")
+
+    host.rootView = view(64)
+    for _ in 0..<5 { host.layoutSubtreeIfNeeded(); try await Task.sleep(nanoseconds: 10_000_000) }
+    XCTAssertEqual(probe.pixels, 512, "Shrinking must not downgrade accepted full-size pixels")
+    XCTAssertEqual(loader.requests.count, 1)
+    XCTAssertEqual(loader.signingCount, 1)
+  }
+
+  @MainActor func testWindowedMediaPagerOnlyMountsAndLoadsItsNeighbors() async throws {
+    let loader = SignedImageLoader(data: try png(.red))
+    let cache = NativeMediaCache()
+    let mounts = SignedPageMounts()
+    func view(_ selected: Int) -> AnyView {
+      AnyView(NativePager(ids: Array(0..<40), selection: .constant(selected), enabled: true,
+        identifier: "test.media.pages", pageRadius: 1) { index in
+        NativeRemoteImage(src: "https://signed.test/page-\(index).png", layout: .fit,
+          releasesImageWhenHidden: true, previewEnabled: false)
+          .frame(width: 180, height: 120)
+          .onAppear { mounts.active.insert(index) }
+          .onDisappear { mounts.active.remove(index) }
+      }.environment(\.openUIMediaCache, cache).openUIResourceContext(.init(loader: loader))
+        .frame(width: 180, height: 120))
+    }
+    let (host, window) = mount(view(0))
+    defer { window.close() }
+    await settleAsync(host, until: { loader.completedCount == 2 && mounts.active == Set([0, 1]) })
+    XCTAssertEqual(Set(loader.requests.compactMap { $0.url?.lastPathComponent }), Set(["page-0.png", "page-1.png"]))
+    host.rootView = view(20)
+    await settleAsync(host, until: { loader.completedCount == 5 && mounts.active == Set([19, 20, 21]) })
+    XCTAssertEqual(Set(loader.requests.compactMap { $0.url?.lastPathComponent }),
+      Set(["page-0.png", "page-1.png", "page-19.png", "page-20.png", "page-21.png"]))
+    XCTAssertEqual(mounts.active.count, 3, "Retired full-size pages must leave the mounted tree")
+  }
+
   @MainActor func testMountedSignedImageRetriesAndChangesOnlyWithItsResourceIdentity() throws {
     let red = try png(.red), blue = try png(.blue), green = try png(.green)
     let loader = SignedImageLoader(data: red, pathData: ["second.png": blue],
@@ -171,6 +233,28 @@ final class SignedMediaResourceTests: XCTestCase {
     host.layoutSubtreeIfNeeded()
   }
 
+  @MainActor private func settleAsync(_ host: NSHostingView<AnyView>, until ready: () -> Bool,
+    file: StaticString = #filePath, line: UInt = #line) async {
+    for _ in 0..<300 {
+      host.layoutSubtreeIfNeeded()
+      if ready() { return }
+      try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+    XCTAssertTrue(ready(), "Mounted resource did not reach the expected state", file: file, line: line)
+  }
+
+  @MainActor private func largePNG(side: Int, color: NSColor = .red) throws -> Data {
+    let canvas = try XCTUnwrap(CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
+      bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    canvas.setFillColor(color.cgColor)
+    canvas.fill(CGRect(x: 0, y: 0, width: CGFloat(side), height: CGFloat(side)))
+    let data = NSMutableData()
+    let destination = try XCTUnwrap(CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil))
+    CGImageDestinationAddImage(destination, try XCTUnwrap(canvas.makeImage()), nil)
+    XCTAssertTrue(CGImageDestinationFinalize(destination))
+    return data as Data
+  }
+
   @MainActor private func settle(_ host: NSHostingView<AnyView>, until ready: () -> Bool,
     file: StaticString = #filePath, line: UInt = #line) {
     let deadline = Date().addingTimeInterval(3)
@@ -231,6 +315,8 @@ final class SignedMediaResourceTests: XCTestCase {
 
 @MainActor private final class SignedImageStatusLog { var statuses: [NativeMediaStatus] = [] }
 @MainActor private final class SignedArtworkProbe { var titleInk: Color? }
+@MainActor private final class SignedPixelProbe { var pixels = 0 }
+@MainActor private final class SignedPageMounts { var active = Set<Int>() }
 
 /// request(for:) is intentionally non-idempotent, as with nonce-based signed
 /// URLs. Transport is deterministic and never touches the network.

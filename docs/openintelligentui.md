@@ -1,10 +1,12 @@
 # Swift Intelligent UI 设计
 
+文档版本：1.0 · 更新日期：2026-11-16
+
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
 ## 1. 定位与基线
 
-`OpenIntelligentUI` 是基于 `SwiftLang` 与 `SwiftLang` 的 Apple 平台组件库，提供 DesignSystem、组件、交互绑定和生成规范。布局、文字、图片、输入、商品、交通和图表遵循同一套组件机制。
+`OpenIntelligentUI` 是基于 `SwiftLang` 的 Apple 平台组件库，提供 DesignSystem、组件、交互绑定和生成规范。布局、文字、图片、输入、商品、交通和图表遵循同一套组件机制。
 
 调用方持有 SwiftLang 定义的 `OpenUIState`、提供内容与资源、接收动作事件。组件通过同一适配层的 Context 与原生宿主接入。可选模型生成评测位于 `Validation/Generation`。
 
@@ -126,6 +128,8 @@ ImagePipeline 按注入的资源加载器、鉴权作用域、来源与解析后
 宿主可用 `.openIntelligentUIImageRevisions` 标记同一 URL 的资源更新，用 `.openIntelligentUIImagePresentations` 提供比例和 fit；历史 Lang 中显式参数优先。SearchImage 合并相同查询的同时请求，下载失败后的恢复会重新检索，结果可带 revision、署名和来源 URL；这些是 Swift 服务接口能力，不增加 Lang 参数。Map 的宿主覆盖区域通过 `.openIntelligentUIMapContentInsets` 提供。
 
 商品图与搜索结果图可点开原比例大图，支持缩放按钮、双击、捏合与滚动，关闭后回到原内容。Grid/Carousel 从原始 Image 节点归集同组照片，可在大图中前后浏览，不显示数字分页。通用 Image 的原生预览由 SDK 内部提供，不暴露 preview 参数；Pressable、Popover 触发器和 Flashcard 内抑制嵌套预览按钮。大图查看不执行外部业务动作。
+
+预览在同一来源、授权作用域、revision 和重试次数内冻结实际请求；缩放和视口变化复用该请求，不重复调用签名器。加载任务按应用资源像素上限后的有效尺寸区分，已到上限的继续缩放不反复触发相同解码。换源、换资源所有者或重试仍建立新的请求。相关原生回归及未完成的验收见[验证说明](validation-and-security.md#4-内核稳定性审查与当前验收状态)。
 
 Code 与 Markdown 代码块共用着色和复制操作：Swift、JS/TS、Python、JSON 与 shell 使用轻量词法着色，未知语言或超过 200 KB 的内容保留纯文本。复制派发原始 CopyToClipboard 事件，宿主负责系统剪贴板写入；事件发送不等于未知宿主复制成功。
 

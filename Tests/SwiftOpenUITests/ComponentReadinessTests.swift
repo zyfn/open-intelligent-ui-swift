@@ -58,6 +58,32 @@ final class ComponentReadinessTests: XCTestCase {
     XCTAssertTrue(context.canInteract, "Readiness refreshes without requiring callers to replace an unchanged element")
   }
 
+  @MainActor func testClosedParentRefreshesAnOlderNestedActionWithoutRemounting() async throws {
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.push("root=Button(\"Open\",@OpenUrl(destination))\ndestination=\"https://example.com/ready\"")
+    let original = try XCTUnwrap(state.root)
+    // Native values can close their wrapper before their captured action is
+    // ready. Keep that independent metadata in a retained control snapshot.
+    let closedParent = EvaluatedElement(typeName: original.typeName, props: original.props,
+      statementId: original.statementId, partial: original.partial, isSourceComplete: true)
+    let context = OpenUIComponentContext(element: closedParent, registry: library.registry, state: state)
+    let action = try XCTUnwrap(context.action())
+    XCTAssertTrue(closedParent.isSourceComplete)
+    XCTAssertFalse(action.isSourceComplete)
+    XCTAssertFalse(context.canInteract)
+    let revision = state.presentationRevision
+
+    state.push("\nunrelated=TextContent(\"still arriving")
+    XCTAssertFalse(state.isComplete)
+    XCTAssertEqual(state.presentationRevision, revision)
+    XCTAssertFalse(action.isSourceComplete, "Refreshing must not mutate an older snapshot")
+    XCTAssertTrue(context.canInteract)
+    XCTAssertTrue(context.canDispatch(.actionPlan(action)))
+    let events = await context.perform(action)
+    XCTAssertEqual(events.map(\.type), ["open_url"])
+  }
+
   @MainActor func testClosedButtonExecutesWhileUnrelatedContentKeepsStreaming() async throws {
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())

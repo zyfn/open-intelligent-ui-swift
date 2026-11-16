@@ -56,6 +56,51 @@ final class StateInputBudgetTests: XCTestCase {
         XCTAssertTrue(state.canExecuteActions)
     }
 
+    @MainActor func testSeparateAcceptedWritesCannotAccumulateAnUnrestorableSnapshot() throws {
+        let state = OpenUIState(schema: schema())
+        state.setSource("root=Box(\"ready\")")
+        let shared = Value.array(Array(repeating: .number(1), count: 60_000))
+        state.setState("$first", value: shared)
+        XCTAssertTrue(state.canExecuteActions)
+        let accepted = state.snapshotState()
+        XCTAssertEqual(accepted["$first"], shared)
+        XCTAssertFalse(nativeStateExceedsLimits(accepted))
+        let root = try XCTUnwrap(state.root)
+        var updates = 0
+        state.onStateUpdate = { _ in updates += 1 }
+
+        state.setState("$second", value: shared)
+        XCTAssertNil(state.snapshotState()["$second"], "Charge every retained occurrence before committing the second field")
+        XCTAssertEqual(state.snapshotState()["$first"], shared)
+        XCTAssertEqual(updates, 0)
+        XCTAssertTrue(state.root === root)
+        XCTAssertTrue(state.isInterrupted)
+        XCTAssertFalse(nativeStateExceedsLimits(state.snapshotState()))
+
+        let restored = OpenUIState(schema: schema(), persistedState: state.snapshotState())
+        restored.setSource("root=Box(\"restored\")")
+        XCTAssertTrue(restored.canExecuteActions)
+        XCTAssertTrue(restored.errors.isEmpty)
+        XCTAssertEqual(restored.snapshotState(), accepted)
+    }
+
+    @MainActor func testReplacingAFieldReturnsItsBudgetAndKeepsUTF16DistinctKeys() {
+        let state = OpenUIState(schema: schema())
+        state.setSource("root=Box(\"ready\")")
+        let large = Value.array(Array(repeating: .number(1), count: 60_000))
+        let small = Value.array(Array(repeating: .number(2), count: 30_000))
+        state.setState("$\u{00E9}", value: large)
+        state.setState("$\u{00E9}", value: large)
+        XCTAssertTrue(state.canExecuteActions, "A replacement does not add another copy to the state budget")
+        state.setState("$\u{00E9}", value: small)
+        state.setState("$e\u{0301}", value: large)
+        XCTAssertTrue(state.canExecuteActions)
+        XCTAssertEqual(state.snapshotState().count, 2)
+        XCTAssertEqual(state.stateValue("$\u{00E9}"), small)
+        XCTAssertEqual(state.stateValue("$e\u{0301}"), large)
+        XCTAssertFalse(nativeStateExceedsLimits(state.snapshotState()))
+    }
+
     private func overBudgetState() -> [OpenUIString: Value] {
         let shared = Value.array(Array(repeating: .number(1), count: 60_000))
         return ["$first": shared, "$second": shared]

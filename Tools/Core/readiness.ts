@@ -14,17 +14,53 @@ const nativeValues = new WeakMap<object, boolean>();
 // same value in a different source context without rewriting that baseline.
 // The native bridge keeps this opaque snapshot only while projecting its result.
 type SourceSnapshot = {
+  parent?: SourceSnapshot;
   ready: WeakMap<object, boolean>;
   presentation: WeakMap<object, Presentation>;
+  descendants: WeakMap<object, SourceScope>;
+  scopes: Map<string, SourceScope>;
 };
+type SourceConstraint = { pending: boolean; queries: string[] };
+type SourceScope = SourceConstraint & { snapshot: SourceSnapshot };
+type SourceContext = SourceSnapshot | SourceScope;
+const snapshotOf = (context: SourceContext): SourceSnapshot => 'snapshot' in context ? context.snapshot : context;
+const scopeOf = (context?: SourceContext): SourceScope | undefined => context && 'snapshot' in context ? context : undefined;
+function sourceRecord<K extends 'ready' | 'presentation' | 'descendants'>(snapshot: SourceSnapshot | undefined, kind: K, value: object): ReturnType<SourceSnapshot[K]['get']> {
+  for (let current = snapshot; current; current = current.parent) {
+    const found = current[kind].get(value);
+    if (found !== undefined) return found as ReturnType<SourceSnapshot[K]['get']>;
+  }
+  return undefined as ReturnType<SourceSnapshot[K]['get']>;
+}
+function newSourceSnapshot(parent?: SourceSnapshot): SourceSnapshot {
+  return { parent, ready: new WeakMap(), presentation: new WeakMap(),
+    descendants: new WeakMap(), scopes: new Map() };
+}
 let evaluating: SourceSnapshot | undefined;
 export const currentSourceSnapshot = (): SourceSnapshot | undefined => evaluating;
 export function sourceEvaluation<T extends object>(body: () => T): T & { sourceSnapshot: SourceSnapshot } {
   const previous = evaluating;
-  const sourceSnapshot: SourceSnapshot = { ready: new WeakMap(), presentation: new WeakMap() };
+  const sourceSnapshot = newSourceSnapshot();
   evaluating = sourceSnapshot;
   try { return Object.assign(body(), { sourceSnapshot }); }
   finally { evaluating = previous; }
+}
+export function evaluateSource<T>(node: any, body: () => T): T {
+  const parent = evaluating;
+  if (!parent || node.k !== 'Comp' || node.name !== 'Each') return body();
+  // Template evaluation can itself return an unfinished shared native value.
+  // Keep those writes local too, before adding the loop's descendant constraint.
+  const snapshot = newSourceSnapshot(parent);
+  evaluating = snapshot;
+  let value: T;
+  try { value = body(); }
+  finally { evaluating = parent; }
+  if (value && typeof value === 'object') {
+    const complete = sourceComplete(value, snapshot), details = sourcePresentation(value, snapshot);
+    parent.ready.set(value, complete); parent.presentation.set(value, details);
+    parent.descendants.set(value, { snapshot, pending: !complete, queries: details.queries ?? [] });
+  }
+  return value;
 }
 const memo = Symbol('native.source.memo');
 const path = Symbol('native.source.path');
@@ -45,16 +81,56 @@ export function tagNativeSource<T extends object>(value: T, complete: boolean, d
   if (details) presentation.set(value, details);
   nativeValues.set(value, complete); return tagReady(value, complete);
 }
-export function sourceComplete(value: any, snapshot?: SourceSnapshot): boolean {
-  return (value && typeof value === 'object' ? snapshot?.ready.get(value) ?? ready.get(value) : undefined)
+export function sourceComplete(value: any, context?: SourceContext): boolean {
+  if (scopeOf(context)?.pending) return false;
+  const snapshot = context && snapshotOf(context);
+  return (value && typeof value === 'object' ? sourceRecord(snapshot, 'ready', value) ?? ready.get(value) : undefined)
     ?? value?.[syntax] ?? !value?.partial;
 }
 
 // Advisory source boundaries only. Kept out of enumerable values, AST/wire
 // serialization and schema validation. Unknown expressions remain conservative.
-export function sourcePresentation(value: any, snapshot?: SourceSnapshot): Presentation {
-  return (value && typeof value === 'object' ? snapshot?.presentation.get(value) ?? presentation.get(value) : undefined)
-    ?? { complete: sourceComplete(value, snapshot), closed: sourceComplete(value, snapshot) };
+export function sourcePresentation(value: any, context?: SourceContext): Presentation {
+  const snapshot = context && snapshotOf(context), scope = scopeOf(context);
+  const own = (value && typeof value === 'object' ? sourceRecord(snapshot, 'presentation', value) ?? presentation.get(value) : undefined)
+    ?? { complete: sourceComplete(value, context), closed: sourceComplete(value, context) };
+  const queries = scope?.queries.length ? [...new Set([...(own.queries ?? []), ...scope.queries])] : own.queries;
+  if (scope?.pending) return { complete: false, closed: false, queries,
+    observed: scope.queries.length ? true : own.observed };
+  return queries === own.queries ? own : { ...own, queries, observed: true };
+}
+
+/// Descendant constraints belong to an output occurrence, not a shared Lang
+/// value. Each creates its own outer array; entering that array carries its
+/// dependency scope without changing siblings that reuse the same child/plan.
+/// Equal scopes are interned so shared subgraphs still project once per scope.
+export function sourceChildSnapshot(value: any, context?: SourceContext): SourceContext | undefined {
+  if (!context || !value || typeof value !== 'object') return context;
+  const boundary = sourceRecord(snapshotOf(context), 'descendants', value);
+  if (!boundary) return context;
+  const snapshot = boundary.snapshot;
+  const inherited = scopeOf(context);
+  const pending = !!inherited?.pending || boundary.pending;
+  const queries = [...new Set([...(inherited?.queries ?? []), ...boundary.queries])];
+  if (!pending && !queries.length) return snapshot;
+  const key = JSON.stringify([pending, queries]);
+  let scope = snapshot.scopes.get(key);
+  if (!scope) snapshot.scopes.set(key, scope = { snapshot, pending, queries });
+  return scope;
+}
+
+/// The core maps prop arrays while evaluating their elements. Carry the
+/// occurrence boundary onto that existing copy; never clone a Lang value just
+/// to attach presentation metadata or change its identity inside evaluation.
+export function copyEvaluationSource<T>(from: any, to: T): T {
+  if (evaluating && from && typeof from === 'object' && to && typeof to === 'object') {
+    const boundary = sourceRecord(evaluating, 'descendants', from);
+    if (boundary) evaluating.descendants.set(to, boundary);
+    const complete = sourceRecord(evaluating, 'ready', from), details = sourceRecord(evaluating, 'presentation', from);
+    if (complete !== undefined) evaluating.ready.set(to, complete);
+    if (details) evaluating.presentation.set(to, details);
+  }
+  return to;
 }
 export function copyPresentation<T>(from: any, to: T, observed?: Set<string>): T {
   // Materializer copies omit observed; evaluator copies always supply a Set.
@@ -273,39 +349,6 @@ export function finishEvaluation(node: any, value: any, observed?: Set<string>):
     const queries = observed ? [...observed] : known.queries;
     snapshot.presentation.set(value, complete ? { complete: true, closed: true, queries, observed: observed !== undefined }
       : { ...known, complete: false, queries, observed: observed !== undefined });
-    // Generated elements depend on the collection that produced them, even
-    // when the template only reads its local iterator rather than Query refs.
-    if (node.k === 'Comp' && node.name === 'Each' && queries?.length) {
-      const seen = new Set<any>();
-      const inherit = (item: any, depth = 0) => {
-        if (!item || typeof item !== 'object' || depth > 256 || seen.has(item)) return;
-        seen.add(item);
-        if (Array.isArray(item)) item.forEach(v => inherit(v, depth + 1));
-        else if (item.type === 'element') {
-          const own = sourcePresentation(item, snapshot);
-          snapshot.presentation.set(item, { ...own, queries: [...new Set([...(own.queries ?? []), ...queries])], observed: true });
-          Object.values(item.props).forEach(v => inherit(v, depth + 1));
-        }
-      };
-      inherit(value);
-    }
-  }
-  // A lazy template can be closed while its input declaration is unfinished.
-  // Its generated controls must wait for that input, including nested controls.
-  if (node.k === 'Comp' && node.name === 'Each' && !complete) {
-    // This metadata write is idempotent. Shared values need one visit; the
-    // separate output budget still counts every occurrence of the subtree.
-    const seen = new Set<object>();
-    const invalidate = (item: any) => {
-      if (!item || typeof item !== 'object' || seen.has(item)) return;
-      seen.add(item);
-      snapshot.ready.set(item, false);
-      const own = sourcePresentation(item, snapshot);
-      snapshot.presentation.set(item, { complete: false, closed: false, queries: own.queries, observed: own.observed });
-      if (Array.isArray(item)) item.forEach(invalidate);
-      else if (item.type === 'element') Object.values(item.props).forEach(invalidate);
-    };
-    invalidate(value);
   }
   return value;
 }

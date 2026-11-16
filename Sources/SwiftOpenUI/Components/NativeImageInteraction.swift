@@ -11,6 +11,7 @@ struct NativeImageInteraction: ViewModifier {
   var previewEnabled = true
   var failed = false
   var previewTheme: OpenUIThemeValues? = nil
+  var previewAttempt = 0
   let retry: () -> Void
   @Environment(\.openUITheme) private var theme
   @Environment(\.isEnabled) private var hostEnabled
@@ -18,14 +19,21 @@ struct NativeImageInteraction: ViewModifier {
   @Environment(\.openUIMediaSourceReady) private var sourceReady
   @Environment(\.openUIMediaWidthReady) private var widthReady
   @Environment(\.openUIActivationIntent) private var intent
+  @Environment(\.openUIResourceContext) private var resources
   @State private var preview = false
+  @State private var previewResource: NativeMediaResourceTarget?
 
   private var ready: Bool { enabled && hostEnabled && sourceReady && widthReady }
   private var canPreview: Bool { ready && previewEnabled && image != nil }
   private var canTap: Bool { ready && (failed || (canPreview && !cardIsAction)) }
   private func activate() {
     guard canTap, intent?.permitsActivation != false else { return }
-    if failed { retry() } else { preview = true }
+    if failed { retry() } else { openPreview() }
+  }
+  private func openPreview() {
+    guard canPreview, intent?.permitsActivation != false else { return }
+    previewResource = .init(source: source, resources: resources, attempt: previewAttempt)
+    preview = true
   }
   func body(content: Content) -> some View {
     content
@@ -33,7 +41,7 @@ struct NativeImageInteraction: ViewModifier {
       .highPriorityGesture(TapGesture().onEnded { activate() }, including: canTap && failed ? .all : .subviews)
       .contextMenu {
         if canPreview {
-          Button { guard intent?.permitsActivation != false else { return }; preview = true } label: {
+          Button(action: openPreview) {
             Label { Text("View image", bundle: NativeControlResources.bundle) } icon: { Image(systemName: "photo") }
           }
         }
@@ -42,30 +50,40 @@ struct NativeImageInteraction: ViewModifier {
         if canTap {
           Button(action: activate) { Text(failed ? "Tap image to retry" : "View image", bundle: NativeControlResources.bundle) }
         } else if canPreview {
-          Button { preview = true } label: { Text("View image", bundle: NativeControlResources.bundle) }
+          Button(action: openPreview) { Text("View image", bundle: NativeControlResources.bundle) }
         }
       }
       .accessibilityHint(Text(canTap ? (failed ? "Tap image to retry" : "Tap to preview") : canPreview ? "Touch and hold to preview" : "", bundle: NativeControlResources.bundle))
       .sheet(isPresented: $preview) {
-        NativeSingleImagePreview(source: source, image: image, alt: alt)
+        NativeSingleImagePreview(source: source, image: image, imageTarget: previewResource, alt: alt, attempt: previewAttempt)
           .environment(\.openUITheme, previewTheme ?? theme)
       }
+      .onChange(of: NativeMediaResourceTarget(source: source, resources: resources)) { _ in preview = false }
+      .onChange(of: preview) { if !$0 { previewResource = nil } }
   }
 }
 
 struct NativeSingleImagePreview: View {
   let source: String?
   var image: Image? = nil
+  var imageTarget: NativeMediaResourceTarget? = nil
   var alt = ""
+  var attempt = 0
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openUITheme) private var theme
+  @Environment(\.displayScale) private var displayScale
+  @Environment(\.openUIResourceContext) private var resources
+  @State private var zoomScale: CGFloat = 1
   var body: some View {
     VStack(spacing: theme.spaceM) {
       NativeImagePreviewHeader(closeIdentifier: "openui.image.preview.close", close: { dismiss() })
-      GeometryReader { _ in
+      GeometryReader { geometry in
         NativeRemoteImage(src: source, alt: alt, layout: .fit, role: .content,
-          cachedImage: image, previewEnabled: false)
-          .modifier(NativeImageZoom())
+          cachedImage: image, cachedImageTarget: imageTarget, upgradesCachedImage: true,
+          requestedPixelSize: NativeMediaPreview.pixelSize(viewport: geometry.size,
+            scale: displayScale, zoom: zoomScale, limits: resources.loader.resourceLimits),
+          attempt: attempt, previewEnabled: false)
+          .modifier(NativeImageZoom(scaleChanged: { zoomScale = $0 }))
       }
       NativeImagePreviewDescription(alt: alt)
     }
@@ -154,6 +172,7 @@ struct NativeImageZoomState {
 struct NativeImageZoom: ViewModifier {
   var resetID: AnyHashable? = nil
   var zoomChanged: (Bool) -> Void = { _ in }
+  var scaleChanged: (CGFloat) -> Void = { _ in }
   @State private var state = NativeImageZoomState()
   @GestureState private var magnification: CGFloat = 1
   @GestureState private var translation = CGSize.zero
@@ -173,6 +192,7 @@ struct NativeImageZoom: ViewModifier {
           } }, including: state.isZoomed ? .all : .subviews)
         .onTapGesture(count: 2) { if state.isZoomed { state.reset() } else { state.setScale(2, size: geometry.size) } }
         .onChange(of: state.isZoomed) { zoomChanged($0) }
+        .onChange(of: state.scale) { scaleChanged($0) }
         .onChange(of: resetID) { _ in state.reset(); zoomChanged(false) }
         .accessibilityElement(children: .combine)
         .accessibilityValue(Text("\(Int(state.scale * 100))%"))

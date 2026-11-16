@@ -31,6 +31,9 @@ struct NativePager<ID: Hashable, Content: View>: View {
   /// It affects allocation only, never the list of displayed/interactive items.
   var layoutCount: Int? = nil
   var supportsAdjustment = true
+  /// Media previews keep only the selected page and a small neighbor window.
+  /// Stateful card/grid presentations preserve the existing eager default.
+  var pageRadius: Int? = nil
   @ViewBuilder let content: (ID) -> Content
   @Namespace private var scope
   @State private var width: CGFloat = 0
@@ -38,6 +41,7 @@ struct NativePager<ID: Hashable, Content: View>: View {
   @GestureState private var trackingDrag = false
   @State private var nativeTranslation: CGFloat = 0
   @State private var activationIntent = NativeActivationIntent()
+  @State private var previousSelection: ID?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.layoutDirection) private var direction
   @Environment(\.openUITheme) private var theme
@@ -52,8 +56,20 @@ struct NativePager<ID: Hashable, Content: View>: View {
     return translation
   }
   private var index: Int { ids.firstIndex(of: selection) ?? 0 }
+  private var pageRange: Range<Int> {
+    NativePagerWindow.range(count: ids.count, selected: index, radius: grid == nil ? pageRadius : nil)
+  }
   private var isCarousel: Bool { maximumPageWidth != nil }
   private var fallbackWidth: CGFloat { maximumPageWidth ?? nativePresentation.minimumCardWidth }
+  private var pagingAnimation: Animation? {
+    guard !reduceMotion else { return nil }
+    // A distant thumbnail selection has no mounted pages between endpoints.
+    // Jump directly instead of animating an empty virtualized track.
+    if pageRadius != nil, let previousSelection, let old = ids.firstIndex(of: previousSelection),
+       abs(old - index) > 1 { return nil }
+    return .interactiveSpring(response: nativePresentation.motion.pagingResponse,
+      dampingFraction: nativePresentation.motion.pagingDamping)
+  }
   private var geometry: NativePagerGeometry {
     NativePagerGeometry(
       width: max(1, width), count: ids.count, selected: index,
@@ -70,13 +86,9 @@ struct NativePager<ID: Hashable, Content: View>: View {
       }
     }
     .frame(idealWidth: fallbackWidth, maxWidth: .infinity, alignment: .leading)
-    .animation(
-      reduceMotion
-        ? nil
-        : .interactiveSpring(
-          response: nativePresentation.motion.pagingResponse,
-          dampingFraction: nativePresentation.motion.pagingDamping), value: selection
-    )
+    .animation(pagingAnimation, value: selection)
+    .onAppear { if pageRadius != nil { previousSelection = selection } }
+    .onChange(of: selection) { if pageRadius != nil { previousSelection = $0 } }
     .onChange(of: ids) { available in
       if !available.contains(selection), let first = available.first { selection = first }
     }
@@ -116,9 +128,10 @@ struct NativePager<ID: Hashable, Content: View>: View {
       selected: index, maximumPageWidth: maximumPageWidth,
       minimumPageWidth: nativePresentation.minimumCardWidth, peek: trailingPeek, spacing: pageSpacing,
       fallbackWidth: fallbackWidth, translation: activeTranslation, rightToLeft: direction == .rightToLeft,
-      grid: grid, layoutCount: layoutCount
+      grid: grid, layoutCount: layoutCount,
+      firstPageIndex: pageRange.lowerBound, totalPageCount: ids.count
     ) {
-      ForEach(ids, id: \.self) { id in
+      ForEach(Array(ids[pageRange]), id: \.self) { id in
         content(id).id(id).accessibilityHidden(grid == nil && !isCarousel && id != selection)
       }
     }
@@ -170,6 +183,17 @@ struct NativePager<ID: Hashable, Content: View>: View {
   private func select(_ next: Int) {
     guard enabled, ids.indices.contains(next) else { return }
     selection = ids[next]
+  }
+}
+
+enum NativePagerWindow {
+  static func range(count: Int, selected: Int, radius: Int?) -> Range<Int> {
+    guard count > 0 else { return 0..<0 }
+    guard let radius else { return 0..<count }
+    let center = min(count - 1, max(0, selected)), neighbors = min(count, max(0, radius))
+    let lower = max(0, center - neighbors)
+    let upper = center + min(neighbors, count - 1 - center) + 1
+    return lower..<upper
   }
 }
 
@@ -229,11 +253,13 @@ private struct NativePagerLayout: Layout {
   let rightToLeft: Bool
   var grid: NativeCardGrid? = nil
   var layoutCount: Int? = nil
+  var firstPageIndex = 0
+  var totalPageCount: Int? = nil
 
   private func geometry(_ proposal: ProposedViewSize, count: Int) -> NativePagerGeometry {
     let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? fallbackWidth
     return NativePagerGeometry(
-      width: width, count: count, selected: selected,
+      width: width, count: totalPageCount ?? count, selected: selected,
       maximumPageWidth: maximumPageWidth, minimumPageWidth: minimumPageWidth, peek: peek, spacing: spacing, layoutCount: layoutCount)
   }
   private func gridFrames(_ grid: NativeCardGrid, width: CGFloat, subviews: Subviews) -> [CGRect] {
@@ -271,7 +297,7 @@ private struct NativePagerLayout: Layout {
     let heights = subviews.map { $0.sizeThatFits(ProposedViewSize(width: layout.pageWidth, height: nil)).height }
     let trackHeight = NativePagerContentHeight.measure(heights, selected: selected)
     for (index, view) in subviews.enumerated() {
-      let position = CGFloat(index) * layout.stride - layout.offset + translation
+      let position = CGFloat(index + firstPageIndex) * layout.stride - layout.offset + translation
       let x = rightToLeft ? bounds.width - layout.pageWidth - position : position
       view.place(
         at: CGPoint(x: bounds.minX + x, y: bounds.minY), anchor: .topLeading,
