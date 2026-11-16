@@ -16,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "8a9ecc205893d7b00868e7864000a1ff1a6c4fcf128e80ef59a0c1a3d77b6731",
-  "bytes": 864539,
+  "sha256": "3370c7cb7be0d9e7a1a60914c52547b5ae69b4c2d8f1703ebd275b7667bab485",
+  "bytes": 867580,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "cc48d5146aafcb474f44cecec85b2b832192ef22159bbea420297d742279382b",
+  "adapterSha256": "acf7c43b9b034327674fbfc898f19f4c02eebb1cc930d659db03abf0cc91c66e",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -71,11 +71,12 @@
         "Tools/Core/entry.ts",
         "Sources/SwiftLang/Language/SharedCore.swift",
         "Sources/SwiftLang/Language/Store.swift",
-        "Sources/SwiftLang/Language/OpenUIString.swift"
+        "Sources/SwiftLang/Language/OpenUIString.swift",
+        "Sources/SwiftLang/Language/Evaluator.swift"
       ],
       "reason": "Ordered UTF16 values and native callback transport",
-      "observable": "Identity, undefined, surrogate and key order semantics; Store reads check one own key without enumerating the snapshot. Ordered entries and per-occurrence projection metadata cross in batches without caching mutable Lang values or snapshots",
-      "verification": "Strict parser traces, semantic oracle vectors, scoped projection/ordered-entry regressions and instrumented single-key bridge regressions",
+      "observable": "Identity, undefined, surrogate and key order semantics; Store reads check one own key without enumerating the snapshot. Ordered entries and per-occurrence projection metadata cross in batches without caching mutable Lang values or snapshots; ordinary cached containers avoid metadata lookup, while a private descriptor batches runtime kind, occurrence scope and source status. Immutable evaluation definitions prepare once per owner; object/array defaults retain fresh per-context JS identity, and callbacks, input checks, failure observers and state readers are never shared between contexts",
+      "verification": "Strict parser traces, semantic oracle vectors, scoped projection/ordered-entry regressions and instrumented single-key bridge regressions, ordinary-container source-read counts, definition/callback isolation and same-context versus cross-context default-reference regressions",
       "removal": "Equivalent lossless upstream native transport"
     },
     {
@@ -142,6 +143,21 @@
       "removal": "Upstream passes these round-trip regressions"
     },
     {
+      "id": "incremental-source-preprocessing",
+      "category": "platform-bridge",
+      "locations": [
+        "Tools/Core/source-preprocess.ts",
+        "Tools/Core/compat.mjs",
+        "Tools/Core/build.mjs",
+        "Tools/Core/native-preprocess.test.mjs",
+        "Tools/Core/native-materialization-metadata.test.mjs"
+      ],
+      "reason": "Consume stable completed lines once instead of preprocessing the entire accumulated source on each streaming append",
+      "observable": "Batch preprocessing, streaming preprocessing and public fence stripping share one implementation of the pinned line rules. Raw input, exact UTF16, comments, quoted strings, fence selection and terminal whitespace are preserved. The incomplete line remains provisional; a changed fence selection invalidates the affected completed prefix. Set/reset replace the preprocessor with the parser and do not bypass source budgets",
+      "verification": "Fixed independent upstream preprocessing oracle at every UTF16 prefix, mixed lexical fragments, actual line-consumer input counts, streaming partitions, fence replacement and source budget reset",
+      "removal": "Equivalent upstream incremental preprocessing with the same intermediate results"
+    },
+    {
       "id": "readiness",
       "category": "native-presentation-metadata",
       "locations": [
@@ -154,7 +170,7 @@
         "Sources/SwiftLang/Language/ValueConversion.swift"
       ],
       "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness in an evaluation-scoped snapshot without mutating shared native values",
-      "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Each descendant constraints travel with that output occurrence through core prop-array copies; native projection memoizes by value identity and scope, so unrelated occurrences of a shared native graph remain independent without cloning Lang values. Dependency-free open/closed presentation descriptions are frozen shared metadata, recognized directly by the Swift bridge; query, occurrence, placeholder and structural metadata remain distinct",
+      "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Each descendant constraints travel with that output occurrence through core prop-array copies; native projection memoizes by value identity and scope, so unrelated occurrences of a shared native graph remain independent without cloning Lang values. Dependency-free open/closed presentation descriptions are frozen shared metadata, recognized directly by the Swift bridge; query, occurrence, placeholder and structural metadata remain distinct. Completed parser ASTs with closed, reference-free syntax retain only their context-independent closure/depth fact in a weak map; no Lang value, diagnostic, default or function result is cached and alias depth remains checked",
       "verification": "Strict intermediate snapshots, independent document and synchronous nested-evaluation scopes, same-evaluation shared-graph sibling/Each/query isolation, immutable native projections with preserved JS identity and opaque action captures, bounded scope memoization and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests, frozen presentation defaults and exact stable-sibling description counts",
       "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
     },
@@ -380,6 +396,11 @@
     }
   ],
   "retainedPatches": [
+    {
+      "module": "parser/parser.ts",
+      "reason": "One incremental line preprocessor replaces repeated full-source fence/comment normalization; completed reference-free ASTs retain only immutable closure/depth metadata, not Lang values.",
+      "removal": "Equivalent upstream preprocessing with independently verified intermediate semantics and metadata reuse."
+    },
     {
       "module": "message.ts",
       "reason": "The private Lang content entry protects its raw quote/comment prefix; the same message parser still handles frames and retries, while public parseMessage remains unchanged.",

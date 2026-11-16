@@ -65,7 +65,7 @@ public final class OpenUIState: ObservableObject {
     private var nativeStoreHasSourceMetadata = false
     private var queryManager: QueryManager
     private let schema: LibrarySchema
-    private let functions: [String: CustomFunction]
+    private let evaluationDefinitions: CoreEvaluationDefinitions
     private let toolProvider: ToolProvider?
     private var latestResult: ParseResult?
     /// Stream termination alone does not make a truncated preview executable.
@@ -216,7 +216,9 @@ public final class OpenUIState: ObservableObject {
     public init(schema: LibrarySchema, functions: [String: CustomFunction] = [:],
                 toolProvider: ToolProvider? = nil, persistedState: [OpenUIString: Value] = [:]) {
         self.toolProvider = toolProvider; self.persistedState = persistedState
-        self.schema = schema; self.functions = functions
+        self.schema = schema
+        evaluationDefinitions = CoreEvaluationDefinitions(functions: functions,
+            actions: schema.callDefs.filter { $0.value.kind == .action })
         parser = createStreamingParser(schema: schema); store = createStore()
         queryManager = QueryManager(provider: toolProvider)
         observeStore()
@@ -835,8 +837,8 @@ public final class OpenUIState: ObservableObject {
                     return idleValues[name] ?? .null
                 }
                 return .null
-            }, functions: functions, actions: schema.callDefs.filter { $0.value.kind == .action }, extraScope: extraScope)
-        let evaluator = Evaluator(context: ctx, schema: schema)
+            }, functions: evaluationDefinitions.functions, actions: evaluationDefinitions.actions, extraScope: extraScope)
+        let evaluator = Evaluator(context: ctx, schema: schema, definitions: evaluationDefinitions)
         evaluator.nativeWorkBudget = workBudget
         let generation = streamGeneration
         // Automatic Query reevaluation may run on a background caller while

@@ -7,6 +7,18 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class TableMountedViewTests:XCTestCase {
+  @MainActor func testConstructingAnUnmountedTableDoesNotCreateAnEditingRecord() throws {
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    defer { state.reset() }
+    state.setSource("root=EditableTable(\"orders\",[{header:\"Name\",type:\"string\"}],[{id:\"r1\",values:[\"before\"]}])")
+    let context = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: library.registry, state: state)
+    let table = NativeEditableTable(context: context)
+    let record: NativeTableEditingState? = state.existingEditingRecord(kind: "table", form: nil, name: "orders")
+    XCTAssertNil(record, "The mounted StateObject, not view construction or fitting inputs, creates the record")
+    withExtendedLifetime(table) {}
+  }
+
   @MainActor func testAutomaticReadingLayoutKeepsMountedCustomCellsInputDraftAndActions() throws {
     _ = NSApplication.shared
     let standard = try OpenUIComponents.library()

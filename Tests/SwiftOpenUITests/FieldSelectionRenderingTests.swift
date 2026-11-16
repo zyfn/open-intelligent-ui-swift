@@ -45,6 +45,45 @@ final class FieldSelectionRenderingTests: XCTestCase {
         }
     }
 
+    @MainActor func testStandaloneFieldTracksItsFormAndKeepsTheMountedInputAndFocus() throws {
+        _ = NSApplication.shared
+        let library = try OpenUIComponents.library()
+        let owner = OpenUIState(schema: library.library.toSchema())
+        let ambient = OpenUIState(schema: library.library.toSchema())
+        defer { owner.reset(); ambient.reset() }
+        owner.setSource("root=Input(\"draft\",null,\"text\",null,\"initial\")")
+        ambient.setSource("root=Input(\"draft\",null,\"text\",null,\"ambient\")")
+        let context = OpenUIComponentContext(element: try XCTUnwrap(owner.root), registry: library.registry,
+            state: owner, formName: "contact")
+        let host = NSHostingView(rootView: OpenUINativeField(context: context, kind: .input)
+            .environmentObject(ambient).frame(width: 320, height: 100))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 320, height: 100),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+        defer { window.close() }
+        func input(_ view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField, field.isEditable { return field }
+            return view.subviews.lazy.compactMap(input).first
+        }
+        pump(host)
+        let mounted = try XCTUnwrap(input(host))
+        XCTAssertEqual(mounted.stringValue, "initial")
+        mounted.selectText(nil)
+        let editor = try XCTUnwrap(mounted.currentEditor())
+        owner.setFieldValue(form: "other", name: "draft", value: .string("unrelated"))
+        ambient.setFieldValue(form: "contact", name: "draft", value: .string("wrong owner"))
+        pump(host)
+        XCTAssertTrue(input(host) === mounted)
+        XCTAssertTrue(mounted.currentEditor() === editor)
+        XCTAssertEqual(mounted.stringValue, "initial")
+        window.makeFirstResponder(nil)
+        owner.setFieldValue(form: "contact", name: "draft", value: .string("updated owner value"))
+        pump(host)
+        XCTAssertTrue(input(host) === mounted)
+        XCTAssertEqual(mounted.stringValue, "updated owner value")
+        XCTAssertEqual(owner.fieldValue(form: "contact", name: "draft"), .string("updated owner value"))
+    }
+
     @MainActor private func pump(_ view: NSView) {
         for _ in 0..<6 {
             view.layoutSubtreeIfNeeded()

@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.8 · 更新日期：2026-11-16
+文档版本：1.9 · 更新日期：2026-11-17
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -91,7 +91,7 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 - NativeSourceReadiness：源数据闭合、依赖、数组位置和占位提示；不进入 Lang 值、AST 字段或持久化协议。
 - RuntimeLimits、RegExp：原生输入、深度和正则执行预算。
 
-编译后的 LibrarySchema 是只读快照；结构修改通过 Library.extend 后重新编译。Query 只接受声明 AST，由内核管理依赖。JSON 语法和转义使用 JavaScriptCore 的 JSON.parse/stringify。Evaluator 通过 EvaluationContext 读取状态，不额外持有 Store。签名来自实际 LibrarySpec，不维护独立签名生成器、原生 materializer 上下文、可变 schema 编辑器或另一条 Query 请求调度链。
+编译后的 LibrarySchema 是只读快照；结构修改通过 Library.extend 后重新编译。文档持有一份不变的函数与动作定义，独立 Evaluator 则持有自己的定义快照；参数描述只准备一次。没有引用默认值的描述可共享 JS 表示，含对象或数组 default 的参数、返回值及动作描述仍每次执行上下文重新编码，保留默认业务值的引用身份。状态读取、函数执行闭包、输入检查、失败观察者及工作预算继续属于各自执行上下文，不缓存函数返回值。Query 只接受声明 AST，由内核管理依赖。JSON 语法和转义使用 JavaScriptCore 的 JSON.parse/stringify。Evaluator 通过 EvaluationContext 读取状态，不额外持有 Store。签名来自实际 LibrarySpec，不维护独立签名生成器、原生 materializer 上下文、可变 schema 编辑器或另一条 Query 请求调度链。
 
 ## 3. 唯一的客户端运行链路
 
@@ -161,17 +161,23 @@ readiness 与 root 由同一次公开 root 发布交付；Query、Mutation、错
 
 渲染入口保留公开的 `EnvironmentObject` 解析：每个 `OpenUIComponentHost` 使用离自身最近的 State，允许宿主在嵌套内容中切换文档。轻量 Host 仍接收共享 State 广播，先经过内部输入边界，再做 live lookup、readiness 和 Context 构造；`RenderNode` 也在调用注册 builder 前比较输入。比较检查组件类型、声明身份、partial、完整 readiness 和属性，标量遵守 SameValue，引用属性按原生引用身份判断，不递归比较整棵业务树，不复用或改写 Lang 物化对象。注册表及直接 Host 闭包有内部身份，父级环境、注册闭包及最近 State 的变化仍须到达组件；身份不作为新的视图 `.id`，避免因此重挂载。
 
-每个挂载内容边界持有自己的 `NativeComponentSubscription`，协调器只弱引用它，逐节点发送变化，不再额外发布无人消费的整组广播。读作用域本身就是本次 render 的身份，不再叠加一个仅用于比较的节点 revision；手工构造的 unscoped Context 仍使用原有失效 token。读作用域记录实际读取的表单字段和 Binding 目标；同一次提交只在该节点的呈现输入或已读取值变化时通知它。旧 render 的迟到读取不能把依赖登记到新 render，切换最近 State 时解除旧注册。Store、Query/Mutation、完成/中断、执行资格及文档 revision 变化仍独立影响 readiness；Query/Mutation 比较保留状态、错误全部字段及数据引用/标量的区别。完全相同的已完成 commit 可跳过分发，新挂载节点自行读取当前 commit；发生真实变化时仍需检查已挂载订阅，不承诺消除所有 O(组件数) 工作。ActionSurface、原生字段和 EditableTable 的独立挂载合同保留原有观察及草稿生命周期。
+每个挂载内容边界持有自己的 `NativeComponentSubscription`，协调器只弱引用它，逐节点发送变化，不再额外发布无人消费的整组广播。读作用域本身就是本次 render 的身份，不再叠加一个仅用于比较的节点 revision；手工构造的 unscoped Context 仍使用原有失效 token。读作用域记录实际读取的表单字段和 Binding 目标；同一次提交只在该节点的呈现输入或已读取值变化时通知它。旧 render 的迟到读取不能把依赖登记到新 render，切换最近 State 时解除旧注册。Store、Query/Mutation、完成/中断、执行资格及文档 revision 变化仍独立影响 readiness；Query/Mutation 比较保留状态、错误全部字段及数据引用/标量的区别。完全相同的已完成 commit 可跳过分发，新挂载节点自行读取当前 commit；发生真实变化时仍需检查已挂载订阅，不承诺消除所有 O(组件数) 工作。ActionSurface、原生字段和 EditableTable 统一通过 Context 记录读取：已有 Host 作用域时直接复用，手工 Context 独立挂载时使用同一个 NativeComponentSubscription 机制。订阅始终属于传入 Context 的原文档，不能被无关的环境 State 重绑；派生 child Context 与再次观察都保留原 sourceRevision。表格通过明确的 form/name 读取登记字段依赖，编辑记录仍由实际挂载的 StateObject 懒创建，未挂载的视图构造不写编辑记录。
 
 Context 的 element 和状态标志是构造时快照；字段与 Binding getter 保留动态读取行为，每次从最新的完整原生提交取值，不读正在提交的 Store。长期持有一个 Context 不等于冻结整个文档。`canInteract`、动作和写入继续在执行时检查当前文档、目标 membership 与 readiness，过期控件不能因旧只读快照仍可交互。若宿主在公开 setter 回调中强制拟合，旧内容仍可显示，而依赖 `canInteract` 的控件/链接可先被安全禁用；不承诺所有交互 gate 与旧显示快照同时切换。公开手工构造的 Context 和 Host 状态读写保留原有即时读取合同；内部只读呈现不是第二个可写 Store，也不新增客户端观察 API。
 
-live index 继续遍历当前 root，建立 membership 和按当前深度优先顺序排列的候选；相同 root 引用可跳过重复索引。匿名且仅含标量属性的旧节点按属性分桶，具名/复杂节点保留原分组及语义/readiness 歧义检查。索引更新对比候选身份及顺序，只将变化的查找键交给节点订阅，不递归比较业务值，也不保留历史图的引用账本。当前内核在普通文字流中会重建内容稳定的 JS 节点，不能假设存在可复用的原生子树；本轮没有保留依赖该假设的容器 DAG 缓存。真实流仍可能全量索引和检查全部挂载订阅。全局 partial、引用属性及真实 Store/Query 变化仍可更新多个组件，收益须以原生工作计数和实际挂载结果验证。
+live index 继续遍历当前 root，建立 membership 和按当前深度优先顺序排列的候选；相同 root 引用可跳过重复索引。匿名且仅含标量属性的旧节点按属性分桶，具名/复杂节点保留原分组及语义/readiness 歧义检查。索引更新分别记录 membership 变化与呈现输入变化：仅当同键候选唯一、属性全为标量且完整呈现输入相同时，重建的元素包装可以保持呈现不变并跳过该订阅的 lookup/readiness capture。membership 仍立即换成实际新对象；字段、Query、执行资格及文档变化独立触发复核。引用属性和歧义候选继续保守检查，不递归比较业务值，也不保留历史图的引用账本。旧快照查找单次遍历候选并检查语义及歧义，不再创建匹配数组或把首候选的 readiness 与自身递归比较；属性遍历仍保留原深度边界。当前内核在普通文字流中仍重建内容稳定的 JS 节点，不能假设存在可复用的原生子树；没有保留依赖该假设的容器 DAG 缓存。真实流仍可能全量索引和检查全部挂载订阅。全局 partial、引用属性及真实 Store/Query 变化仍可更新多个组件，收益须以原生工作计数和实际挂载结果验证。
 
 原始输入先受 UTF-16 上限约束。语句/token/嵌套/操作符检查直接使用同一解析器已产生的 token，在 Pratt 递归前执行；流式已完成语句持有累计账目，重复声明也计入，pending 只检查当前尾部。前缀失效、set 或 reset 按解析器自身的缓存生命周期清账。旧的整份源码二次 preprocess/tokenize/split 预检已删除，没有保留并行保护路径或放宽额度。多行三元式的换行前瞻在同次 split 内复用终点。
 
+源码清理也属于同一个 parser 的进度。批量 preprocess、流式 preprocess 和公开 stripFences 共用一套行级规则；已消费的完整行不在下一分片重扫，只预览尚未完成的行，并保留原始输入 trim、引号、转义、注释及围栏选择语义。输出返回精确的变化起点，围栏选择或尾行变化触及已完成语句时才使该前缀缓存失效；set/reset 同时重建清理状态。无围栏的公开 stripFences 继续直接返回输入。待完成长行仍可能反复扫描，这不是整条 push 已变成仅与新分片大小有关的保证。
+
+已完成且完全不含符号、State、运行时引用或占位符的 AST，只弱缓存其闭合事实与树高，用于省略重复 readiness 和空 Query 依赖检查；深别名路径仍检查原有深度边界。物化值、诊断、默认值和自定义函数结果不跨分片复用；同轮别名共享、跨轮新对象、全局 partial 和每轮诊断仍保持原语义。
+
 patch 在去空白、拆句或合并前检查每项原始 existing、patch 和 rootId 输入；合并中的词法分配、拆句、表达式递归、引用遍历、删除扫描和输出共用一次工作预算。底层 `mergeStatements` 使用标准 Swift `throws` 报告 `MergeStatementsError.budgetExceeded`，不返回旧文本或部分结果冒充成功；高层 `applyPatch` 的签名及失败/恢复合同不变。失败保留最后有效 root 与 Store，换源或 reset 恢复。
 
-桥接只共享冻结且无依赖的 open/closed readiness 描述，Swift 直接识别这些常量；含 Query、占位、数组位置或输出 scope 的元数据仍完整投影。投影先按对象身份和父 scope 查询本次缓存，命中立即返回；未命中才读取类型及子 scope，避免重复边额外构造 scope。私有桥接把有序属性键值、类型/子 scope、元素完整性/readiness 分别成组读取，减少重复跨语言调用；键值仍按原始 UTF-16、枚举顺序及引用身份传递，不通过 JSON 往返。最外层串行桥接调用结束时释放临时 autorelease 对象，返回快照持有自身引用；跨调用保留值必须由原生生命周期测试覆盖。没有跨更新复用可能被引用位置修改的 Lang 物化对象。
+ElementErrorBoundary 以不可变元素快照的身份观察输入，保留同值但 readiness 已改变的最新成功快照；不再调用 Lang 元素的递归值相等。上次成功内容由视图生命周期内的单个引用记录持有，更新该记录不发布第二次视图变化。当前内容和保留内容仍走同一个视图分支，保持挂载身份。
+
+桥接只共享冻结且无依赖的 open/closed readiness 描述，Swift 直接识别这些常量；含 Query、占位、数组位置或输出 scope 的元数据仍完整投影。投影先按对象身份和父 scope 查询本次缓存；跨调用已缓存且不含源元数据的普通对象/数组也直接返回，不请求它们不需要的 metadata。其余值按需一次读取类型、子 scope 身份及元素/动作完整性与 readiness；同一投影内重复边继续复用，带元数据的快照替换不重复标记同一 JS 对象的类型。有序属性键值继续成组读取；键值仍按原始 UTF-16、枚举顺序及引用身份传递，不通过 JSON 往返。最外层串行桥接调用结束时释放临时 autorelease 对象，返回快照持有自身引用；跨调用保留值必须由原生生命周期测试覆盖。没有跨更新复用可能被引用位置修改的 Lang 物化对象。
 
 同次原生呈现批量读取 Query 状态，仅提取一次管理器快照并建立本次错误索引；缺失声明直接退出，批次之外不缓存结果或错误。管理器内部完整 JSON 快照比较仍保留，因为共享默认值可在 provider/listener 或两次调用之间改变。该批量读取处理 Query 呈现成本，不能据此解释无已派发 Query 的持续文本流 CPU。
 
@@ -202,7 +208,7 @@ patch 在去空白、拆句或合并前检查每项原始 existing、patch 和 r
 ## 4. 适配层、组件与宿主的边界
 
 - 适配层统一拥有运行机制。组件不另建 parser/Store/state，不重复观察整份文档，不绕过 Context 直接派发动作或写入业务状态。
-- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。SwiftLangView 观察完整的只读呈现提交；轻量 OpenUIComponentHost 仍解析并观察最近 OpenUIState，内部内容边界持有节点订阅。ActionSurface、原生字段、EditableTable 及未收敛的其他库订阅继续保留，不能描述为整棵树只观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
+- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。SwiftLangView 观察完整的只读呈现提交；轻量 OpenUIComponentHost 仍解析并观察最近 OpenUIState，内部内容边界持有节点订阅。OpenUI 的 ActionSurface、原生字段及 EditableTable 通过 Context 的现有作用域或独立挂载订阅读取，没有各自再观察整份 State；其他库与宿主观察仍须按实际代码核对，不能描述为整棵树只观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
 - 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
 - typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
 - 通用资源 Context 管理地址、宿主 loader、鉴权作用域、预算和文档生命周期。各 UI 的图片缓存/解码、占位、重试、预览和地图交互保持在所属组件库。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。

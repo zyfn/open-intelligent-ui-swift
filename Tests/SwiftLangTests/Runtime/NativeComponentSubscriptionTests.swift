@@ -214,6 +214,42 @@ final class NativeComponentSubscriptionTests: XCTestCase {
         XCTAssertFalse(try makeContext(subscription, state: state, element: original).isStreaming)
     }
 
+    @MainActor func testStandaloneContextTracksExplicitFormReadsAndRetainsItsEventEpoch() throws {
+        let state = makeState()
+        defer { state.reset() }
+        let original = OpenUIComponentContext(element: try XCTUnwrap(state.root),
+            registry: OpenUIComponentRegistry(), state: state, formName: "outer")
+        let subscription = NativeComponentSubscription()
+        let context = original.observing(with: subscription)
+        XCTAssertTrue(context.hasNativeReadScope)
+        XCTAssertEqual(context.fieldValue(form: "orders", name: "rows"), .null)
+        var changes = 0
+        let sink = subscription.objectWillChange.sink { changes += 1 }
+        defer { sink.cancel() }
+
+        state.setFieldValue(form: "outer", name: "rows", value: .string("another form"))
+        state.setFieldValue(form: "orders", name: "unrelated", value: .string("another field"))
+        XCTAssertEqual(changes, 0)
+        state.setFieldValue(form: "orders", name: "rows", value: .string("observed"))
+        XCTAssertEqual(changes, 1)
+        XCTAssertEqual(context.fieldValue(form: "orders", name: "rows"), .string("observed"))
+
+        state.setSource("$generation=1\nroot=Probe(\"stable\")")
+        let retained = original.observing(with: subscription)
+        let child = retained.childContext(try XCTUnwrap(state.root), form: "orders")
+        XCTAssertFalse(retained.canInteract)
+        XCTAssertFalse(child.canInteract, "Deriving a child cannot renew a retired Context's event epoch")
+        child.fieldBinding("forbidden").wrappedValue = .string("must not write")
+        XCTAssertEqual(state.fieldValue(form: "orders", name: "forbidden"), .null)
+
+        _ = child.fieldValue("late read")
+        let afterReplacement = changes
+        state.setFieldValue(form: "orders", name: "late read", value: .string("latest commit"))
+        XCTAssertEqual(child.fieldValue("late read"), .string("latest commit"))
+        XCTAssertEqual(changes, afterReplacement,
+            "A retired standalone Context can read dynamically without registering new-document dependencies")
+    }
+
     @MainActor func testInterruptPublishesPendingQueryPresentationWithoutDispatchingAProvider() throws {
         let state = makeState()
         defer { state.reset() }

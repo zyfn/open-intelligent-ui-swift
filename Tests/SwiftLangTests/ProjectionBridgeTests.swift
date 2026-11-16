@@ -3,6 +3,49 @@ import XCTest
 @testable import SwiftLang
 
 final class ProjectionBridgeTests: XCTestCase {
+    func testCachedOrdinaryContainersDoNotReadSourceMetadata() throws {
+        let core = SharedCore.shared
+        try core.sync {
+            let fixture = try XCTUnwrap(core.context.evaluateScript(#"""
+                (() => {
+                    let reads = 0;
+                    const source = { ready: new WeakMap(), presentation: new WeakMap(),
+                        descendants: { get() { reads++; return undefined; } }, scopes: new Map() };
+                    return { source, reads: () => reads,
+                        values: [{ type: "element", props: { value: "ordinary" } }, [1, { value: 2 }]] };
+                })()
+                """#))
+            let source = try XCTUnwrap(fixture.forProperty("source"))
+            for js in core.items(fixture.forProperty("values")) {
+                let first = core.decode(js, interpret: false, sourceSnapshot: source)
+                XCTAssertFalse(first.containsSourceMetadata)
+                let reads = fixture.invokeMethod("reads", withArguments: []).toInt32()
+                XCTAssertGreaterThan(reads, 0)
+                for _ in 0..<8 {
+                    let next = core.decode(js, interpret: false, sourceSnapshot: source)
+                    XCTAssertTrue(next.isSameSnapshot(as: first))
+                }
+                XCTAssertEqual(fixture.invokeMethod("reads", withArguments: []).toInt32(), reads,
+                    "Immutable ordinary data must not visit source scopes or recursively reproject its children")
+            }
+        }
+    }
+
+    func testPreviouslyDecodedElementKeepsItsKindWhenReadAsOrdinaryData() {
+        let core = SharedCore.shared
+        let original = EvaluatedElement(typeName: "Box", props: [("value", .number(1))],
+            isSourceComplete: false, sourceReadiness: .init(complete: false, closed: false))
+        core.sync {
+            let js = core.encode(.element(original))
+            guard case .element(let decoded) = core.decode(js, interpret: false) else {
+                return XCTFail("A known native reference keeps its previously established kind")
+            }
+            XCTAssertTrue(decoded === original)
+            XCTAssertFalse(decoded.isSourceComplete)
+            XCTAssertEqual(decoded.sourceReadiness, original.sourceReadiness)
+        }
+    }
+
     func testEntriesPreserveOwnKeyOrderExactStringsAndSharedValues() throws {
         let core = SharedCore.shared
         let object = try core.sync {

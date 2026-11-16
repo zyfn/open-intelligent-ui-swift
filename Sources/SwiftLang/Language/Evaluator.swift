@@ -23,6 +23,78 @@ final class NativeInputChecks {
     }
 }
 
+/// Immutable authoring data belongs to its document (or a standalone evaluator),
+/// not to an execution round. Only this data is prepared once. State readers,
+/// function callbacks, failure observers and input budgets remain per context.
+/// Prepared JS values are read and written only inside SharedCore.sync.
+final class CoreEvaluationDefinitions: @unchecked Sendable {
+    let functions: [String: CustomFunction]
+    let actions: [String: CallDef]
+    struct Prepared {
+        /// Object/array defaults can escape schema validation as Lang values.
+        /// Keep their original per-context identity; only pure metadata shares
+        /// its JS representation. The native description is prepared once in
+        /// either case, without another registry or cloning implementation.
+        struct Schema {
+            private let source: JSONValue
+            private let shared: JSValue?
+            init(_ source: JSONValue, core: SharedCore) {
+                self.source = source
+                shared = Self.hasReferenceDefault(source) ? nil : core.json(source)
+            }
+            func value(in core: SharedCore) -> JSValue { shared ?? core.json(source) }
+
+            private static func hasReferenceDefault(_ value: JSONValue) -> Bool {
+                switch value {
+                case .object(let fields):
+                    return fields.contains { field in
+                        if field.key == "default" {
+                            switch field.value {
+                            case .object, .array: return true
+                            default: break
+                            }
+                        }
+                        return hasReferenceDefault(field.value)
+                    }
+                case .array(let values): return values.contains(where: hasReferenceDefault)
+                default: return false
+                }
+            }
+        }
+        struct Function {
+            let name: String
+            let definition: CustomFunction
+            let params: Schema
+            let returns: Schema?
+        }
+        let actions: Schema
+        let functions: [Function]
+    }
+    private var prepared: Prepared?
+
+    init(functions: [String: CustomFunction], actions: [String: CallDef]) {
+        self.functions = functions
+        self.actions = actions
+    }
+
+    func prepare(in core: SharedCore) -> Prepared {
+        if let prepared { return prepared }
+        let value = Prepared(
+            actions: Prepared.Schema(.object(actions.map { name, definition in
+                JSONField(key: OpenUIString(name), value: .object([
+                    JSONField(key: "params", value: core.parameters(definition.params))
+                ]))
+            }), core: core),
+            functions: functions.map { name, definition in
+                Prepared.Function(name: name, definition: definition,
+                    params: Prepared.Schema(core.parameters(definition.params), core: core),
+                    returns: definition.returns.map { Prepared.Schema($0, core: core) })
+            })
+        prepared = value
+        return value
+    }
+}
+
 /// Thin native facade over lang-core's evaluator; no DSL dispatch lives here.
 public final class Evaluator {
     public let context: EvaluationContext
@@ -35,6 +107,7 @@ public final class Evaluator {
     var onNativeFailure: (@Sendable (NativeExecutionFailure) -> Void)?
     var onReferenceRead: ((String, Value) -> Void)?
     private let core = SharedCore.shared
+    private let definitions: CoreEvaluationDefinitions
     private var actionWorkBudget: NativeActionWorkBudget?
     private var evaluationDepth = 0
     /// QueryManager retains evaluators for later asynchronous dependency work.
@@ -44,8 +117,13 @@ public final class Evaluator {
         set { core.sync { actionWorkBudget = newValue } }
     }
     var nativeWorkAllowance: Int { actionWorkBudget?.remainingWork ?? NativeActionWorkBudget.maximumWork }
-    public init(context: EvaluationContext, schema: LibrarySchema) {
+    public convenience init(context: EvaluationContext, schema: LibrarySchema) {
+        self.init(context: context, schema: schema,
+            definitions: CoreEvaluationDefinitions(functions: context.functions, actions: context.actions))
+    }
+    init(context: EvaluationContext, schema: LibrarySchema, definitions: CoreEvaluationDefinitions) {
         self.context = context; self.schema = schema
+        self.definitions = definitions
     }
     // Also used by QueryManager's statement evaluation; the manager retains
     // this evaluator while upstream may read its live context asynchronously.
@@ -99,16 +177,15 @@ public final class Evaluator {
         js.setObject(reportLimit, forKeyedSubscript: "reportNativeLimit" as NSString)
         js.setObject(reportFailure, forKeyedSubscript: "reportNativeFailure" as NSString)
         if let scope = ctx.extraScope { js.setValue(core.object(scope.map { (OpenUIString($0.key), core.encode($0.value)) }), forProperty: "extraScope") }
-        js.setValue(core.object(ctx.actions.map { name, def in
-            (OpenUIString(name), core.object([("params", core.json(core.parameters(def.params)))]))
-        }), forProperty: "actions")
-        js.setValue(core.object(ctx.functions.map { name, function in
-            let def = core.object([("params", core.json(core.parameters(function.params)))])
-            if let returns = function.returns { def.setValue(core.json(returns), forProperty: "returns") }
+        let prepared = definitions.prepare(in: core)
+        js.setValue(prepared.actions.value(in: core), forProperty: "actions")
+        js.setValue(core.object(prepared.functions.map { function in
+            let def = core.object([("params", function.params.value(in: core))])
+            if let returns = function.returns { def.setValue(returns.value(in: core), forProperty: "returns") }
             let fn: @convention(block) (JSValue) -> JSValue = { [weak self] args in
                 guard self?.nativeFailure == nil else { return rejectInput() }
                 let source = runtime.call("currentSourceSnapshot")
-                do { return encodeInput(try function.fn(Dictionary(runtime.entries(args).map { ($0.0.displayString, runtime.decode($0.1, sourceSnapshot: source)) }, uniquingKeysWith: { _, new in new }))) }
+                do { return encodeInput(try function.definition.fn(Dictionary(runtime.entries(args).map { ($0.0.displayString, runtime.decode($0.1, sourceSnapshot: source)) }, uniquingKeysWith: { _, new in new }))) }
                 catch {
                     let message = String(describing: error)
                     guard OpenUIRuntimeBudget.acceptsSource(message) else { return rejectInput() }
@@ -117,7 +194,7 @@ public final class Evaluator {
                 }
             }
             def.setObject(fn, forKeyedSubscript: "fn" as NSString)
-            return (OpenUIString(name), def)
+            return (OpenUIString(function.name), def)
         }), forProperty: "functions")
         return js
     }

@@ -236,17 +236,19 @@ final class SharedCore {
         }
         return try project(result, depth: 0)
     }
-    func remember(_ object: AnyObject, _ js: JSValue, identity: Int? = nil) {
-        let kind: String
-        switch object {
-        case is OpenUIObject: kind = "object"
-        case is OpenUIArray: kind = "array"
-        case is EvaluatedElement: kind = "element"
-        case is ActionPlan: kind = "plan"
-        case is ReactiveAssign: kind = "binding"
-        default: return
+    func remember(_ object: AnyObject, _ js: JSValue, identity: Int? = nil, tag: Bool = true) {
+        if tag {
+            let kind: String
+            switch object {
+            case is OpenUIObject: kind = "object"
+            case is OpenUIArray: kind = "array"
+            case is EvaluatedElement: kind = "element"
+            case is ActionPlan: kind = "plan"
+            case is ReactiveAssign: kind = "binding"
+            default: return
+            }
+            _ = call("tag", [js, kind])
         }
-        _ = call("tag", [js, kind])
         identities[ObjectIdentifier(object)] = Record(object, js)
         decoded[identity ?? Int(call("identity", [js]).toInt32())] = WeakObject(object)
     }
@@ -314,15 +316,21 @@ final class SharedCore {
         // calls bounded too, without expanding a shared DAG on every edge.
         guard projection.path.insert(id).inserted else { return .null }
         defer { projection.path.remove(id) }
-        let metadata = call("projectionMetadata", [js, source.snapshot ?? JSValue(undefinedIn: context)!])
         let cached = decoded[id]?.object
+        var descriptor: JSValue?
+        func metadata() -> JSValue {
+            if let descriptor { return descriptor }
+            let value = call("projectionMetadata", [js, source.snapshot ?? JSValue(undefinedIn: context)!, cached == nil ? interpret : true])
+            descriptor = value
+            return value
+        }
         var childrenScope: ValueProjection.Scope?
         func child(_ value: JSValue) -> Value {
             if childrenScope == nil {
                 if let snapshot = source.snapshot {
-                    let next = metadata.atIndex(1)!
+                    let details = metadata(), next = details.atIndex(1)!
                     childrenScope = JSValueIsStrictEqual(context.jsGlobalContextRef, next.jsValueRef, snapshot.jsValueRef)
-                        ? source : .init(snapshot: next, identity: Int(call("identity", [next]).toInt32()))
+                        ? source : .init(snapshot: next, identity: Int(details.atIndex(4).toInt32()))
                 } else { childrenScope = source }
             }
             return decode(value, level: level + 1, interpret: interpret,
@@ -333,11 +341,9 @@ final class SharedCore {
                   let record = identities[ObjectIdentifier(object)], record.object === object else { return value }
             return child(record.value)
         }
-        var sourceArguments: [Any] { [js, source.snapshot ?? JSValue(undefinedIn: context)!] }
-        var complete: Bool { call("sourceComplete", sourceArguments).toBool() }
         func sourceDetails() -> (complete: Bool, readiness: NativeSourceReadiness) {
-            let status = call("sourceStatus", sourceArguments)
-            return (status.atIndex(0).toBool(), sourceReadiness(status.atIndex(1)!))
+            let details = metadata()
+            return (details.atIndex(2).toBool(), sourceReadiness(details.atIndex(3)!))
         }
         let result: Value
         if let array = cached as? OpenUIArray {
@@ -364,29 +370,33 @@ final class SharedCore {
         } else if let plan = cached as? ActionPlan {
             // Step captures remain Lang data. Presentation changes the plan's
             // readiness, not the captured payload or its native snapshot.
-            let isComplete = complete
+            let isComplete = metadata().atIndex(2).toBool()
             result = plan.isSourceComplete == isComplete ? .actionPlan(plan)
                 : .actionPlan(ActionPlan(steps: plan.steps, isSourceComplete: isComplete))
         } else if let binding = cached as? ReactiveAssign {
             result = binding.expression == .stateRef("$value") ? .binding(binding) : .reactiveBinding(binding)
         } else {
-            let tagged = metadata.atIndex(0).toString()
-            let runtimeShape = interpret && tagged != "object"
-            if js.isArray { result = .array(items(js).map(child)) }
-            else if runtimeShape && js.forProperty("type").isString && js.forProperty("type").toString() == "element" {
+            switch metadata().atIndex(0).toString() {
+            case "array": result = .array(items(js).map(child))
+            case "element":
                 let (isComplete, details) = sourceDetails()
                 result = .element(EvaluatedElement(typeName: js.forProperty("typeName").toString(), props: entries(js.forProperty("props")).map { ($0.0.displayString, child($0.1)) }, statementId: optionalString(js.forProperty("statementId")), partial: js.forProperty("partial").toBool(), isSourceComplete: isComplete, sourceReadiness: details))
-            } else if runtimeShape && js.forProperty("__reactive").isString && js.forProperty("__reactive").toString() == "assign" {
+            case "binding":
                 let target = js.forProperty("target").toString()!
                 let expression = decodeAST(js.forProperty("expr"))
                 result = expression == .stateRef("$value") ? .binding(target) : .reactiveBinding(target: target, expression: expression)
-            } else if runtimeShape && call("isRuntimePlan", [js]).toBool() {
+            case "plan":
                 result = .actionPlan(ActionPlan(steps: items(call("actionSteps", [js])).compactMap {
                     decodeStep($0, projection: projection, level: level + 1)
-                }, isSourceComplete: complete))
-            } else { result = .object(entries(js).map { ObjectField(key: $0.0, value: child($0.1)) }) }
+                }, isSourceComplete: metadata().atIndex(2).toBool()))
+            default: result = .object(entries(js).map { ObjectField(key: $0.0, value: child($0.1)) })
+            }
         }
-        if let object = result.referenceObject, object !== cached { remember(object, js, identity: id) }
+        if let object = result.referenceObject, object !== cached {
+            // A readiness refresh changes only the immutable native snapshot;
+            // the existing JS value already has this same native kind.
+            remember(object, js, identity: id, tag: cached == nil)
+        }
         projection.values[key] = result
         return result
     }

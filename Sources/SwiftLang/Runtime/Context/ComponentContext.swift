@@ -46,13 +46,14 @@ public struct OpenUIComponentContext {
     @MainActor init(element: EvaluatedElement, registry: OpenUIComponentRegistry, state: OpenUIState,
                 values: OpenUIContextValues, resources: [String: Value],
                 formName: String? = nil, exactFormName: OpenUIString? = nil,
-                nativePresentation: NativeComponentPresentation?, readScope: NativeComponentReadScope?) {
+                nativePresentation: NativeComponentPresentation?, readScope: NativeComponentReadScope?,
+                expectedSourceRevision: Int? = nil) {
         let presentation = nativePresentation ?? (readScope == nil ? nil : NativeComponentPresentation.capture(element, state: state))
         self.element = presentation?.element ?? element; self.registry = registry; self.state = state
         self.values = values; self.resources = resources; self.formName = exactFormName?.displayString ?? formName
         self.exactFormName = exactFormName ?? formName.map { OpenUIString($0) }
         self.readScope = readScope
-        self.sourceRevision = presentation?.sourceRevision ?? state.sourceRevision
+        self.sourceRevision = expectedSourceRevision ?? presentation?.sourceRevision ?? state.sourceRevision
         self.unscopedUpdateRevision = readScope == nil ? state.componentUpdates.revision : nil
         self.isStreaming = presentation?.streaming ?? !state.isComplete
         self.isQueryLoading = presentation?.queryLoading ?? state.isQueryLoading
@@ -69,6 +70,23 @@ public struct OpenUIComponentContext {
         }
     }
 
+    var hasNativeReadScope: Bool { readScope != nil }
+
+    /// Standalone library surfaces can receive a manually created Context.
+    /// Observe its owner without rebinding it to an unrelated ambient State,
+    /// and retain the original epoch so old event closures remain invalid.
+    @MainActor func observing(with subscription: NativeComponentSubscription) -> OpenUIComponentContext {
+        let (presentation, reads) = subscription.begin(element: element, state: state,
+            expectedSourceRevision: sourceRevision)
+        var current = OpenUIComponentContext(element: element, registry: registry, state: state,
+            values: values, resources: resources, formName: formName, exactFormName: exactFormName,
+            nativePresentation: presentation, readScope: reads, expectedSourceRevision: sourceRevision)
+        current.interactionScopeReady = interactionScopeReady
+        current.activationIntent = activationIntent
+        current.onUserInteraction = onUserInteraction
+        return current
+    }
+
     @MainActor public var canInteract: Bool { interactionScopeReady && state.isElementReady(element) && isCurrentPresentation }
     /// Discrete activations also reject the release of a reading/paging drag.
     @MainActor public var canActivate: Bool { canInteract && activationIntent?.permitsActivation != false }
@@ -79,6 +97,9 @@ public struct OpenUIComponentContext {
     }
     @MainActor package var isCurrentPresentation: Bool { state.sourceRevision == sourceRevision }
     package var presentationSourceRevision: Int { sourceRevision }
+    @MainActor package var presentationRevision: Int {
+        readScope == nil ? state.presentationRevision : state.nativePresentation.presentationRevision
+    }
     /// Local presentation controls such as Modal close can update their value
     /// while streaming. Epoch checks still reject callbacks from replaced UI.
     @MainActor package func presentationBinding(_ name: String) -> Binding<Value>? {
@@ -118,7 +139,7 @@ public struct OpenUIComponentContext {
     @MainActor package func childContext(_ child: EvaluatedElement, form: OpenUIString?) -> OpenUIComponentContext {
         var next = OpenUIComponentContext(element: child, registry: registry, state: state,
             values: values, resources: resources, exactFormName: form,
-            nativePresentation: nil, readScope: readScope)
+            nativePresentation: nil, readScope: readScope, expectedSourceRevision: sourceRevision)
         next.interactionScopeReady = interactionScopeReady
         next.activationIntent = activationIntent
         return next
@@ -170,9 +191,12 @@ public struct OpenUIComponentContext {
 
     @MainActor @_disfavoredOverload public func fieldValue<S: StringProtocol>(_ name: S, fallback: Value = .null) -> Value { fieldValue(OpenUIString(String(name)), fallback:fallback) }
     @MainActor public func fieldValue(_ name: OpenUIString, fallback: Value = .null) -> Value {
-        let value = readScope == nil ? state.nativeFieldValue(form: exactFormName, name: name)
-            : state.nativePresentedFieldValue(form: exactFormName, name: name)
-        readScope?.field(form: exactFormName, name: name, value: value)
+        fieldValue(form: exactFormName, name: name, fallback: fallback)
+    }
+    @MainActor package func fieldValue(form: OpenUIString?, name: OpenUIString, fallback: Value = .null) -> Value {
+        let value = readScope == nil ? state.nativeFieldValue(form: form, name: name)
+            : state.nativePresentedFieldValue(form: form, name: name)
+        readScope?.field(form: form, name: name, value: value)
         return value ?? fallback
     }
     @MainActor @_disfavoredOverload public func fieldBinding<S: StringProtocol>(_ name: S, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {

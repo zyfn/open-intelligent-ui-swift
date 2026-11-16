@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import SwiftLang
 
@@ -80,6 +81,7 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     XCTAssertTrue(index.contains(ready))
     assertIdentities(index.candidates(for: pending), [ready])
     XCTAssertTrue(update.affectsLookup(for: pending))
+    XCTAssertTrue(update.affectsPresentation(for: pending))
     XCTAssertFalse(pending.isSourceComplete, "Indexing must not mutate an older readiness snapshot")
   }
 
@@ -125,7 +127,69 @@ final class NativeLiveElementUpdateTests: XCTestCase {
       XCTAssertFalse(index.contains(old))
       XCTAssertTrue(index.contains(new))
       XCTAssertTrue(update.affectsLookup(for: old))
+      XCTAssertFalse(update.affectsPresentation(for: old),
+        "A unique scalar leaf can keep its presentation while membership follows the new object")
       assertIdentities(index.candidates(for: old), [new])
+    }
+  }
+
+  func testRecreatedAmbiguousCandidatesStillRequirePresentationResolution() {
+    let pending = text("shared", "Same", complete: false)
+    let ready = text("shared", "Same", complete: true)
+    var index = NativeLiveElementIndex()
+    index.replaceRoot(container([pending, ready], id: "root"))
+    let update = index.replaceRoot(container([
+      text("shared", "Same", complete: false), text("shared", "Same", complete: true)
+    ], id: "root"))
+
+    XCTAssertTrue(update.affectsPresentation(for: ready),
+      "An exact member becomes an ambiguous old snapshot when both identities are replaced")
+    XCTAssertTrue(nativeResolveLiveElement(ready, in: index) === ready)
+  }
+
+  func testReferencePropsKeepTheConservativePresentationDelta() {
+    let data = Value.array([.number(1)])
+    let previous = EvaluatedElement(typeName: "Data", props: [("data", data)], statementId: "data")
+    let current = EvaluatedElement(typeName: "Data", props: previous.props, statementId: "data")
+    var index = NativeLiveElementIndex()
+    index.replaceRoot(previous)
+    let update = index.replaceRoot(current)
+    XCTAssertTrue(update.affectsLookup(for: previous))
+    XCTAssertTrue(update.affectsPresentation(for: previous),
+      "Reference values retain the existing structural/depth and readiness resolution")
+  }
+
+  @MainActor func testRealStreamingTextDoesNotRefreshStableScalarPresentations() throws {
+    let schema = LibrarySchema(components: [
+      "Stack": [ParamDef(name: "children", required: true)],
+      "TextContent": [ParamDef(name: "text", required: true)]
+    ], callDefs: builtinCallDefs, rootComponent: "Stack")
+    let state = OpenUIState(schema: schema)
+    defer { state.reset() }
+    let ids = (0..<40).map { "row\($0)" }
+    let declarations = ids.map { "\($0)=TextContent(\"Stable \($0)\")" }.joined(separator: "\n")
+    state.push("root=Stack([\((ids + ["tail"]).joined(separator: ","))])\n\(declarations)\ntail=TextContent(\"A")
+    let stable = Array(PropValue.children(try XCTUnwrap(state.root)).prefix(ids.count))
+    XCTAssertEqual(stable.count, ids.count)
+    let subscriptions = stable.map { node in
+      let subscription = NativeComponentSubscription()
+      _ = subscription.begin(element: node, state: state)
+      return subscription
+    }
+    var notifications = 0
+    let observers = subscriptions.map { $0.objectWillChange.sink { notifications += 1 } }
+    defer { observers.forEach { $0.cancel() } }
+    var index = NativeLiveElementIndex()
+    index.replaceRoot(state.root)
+
+    for chunk in [" growing", " streamed", " paragraph", " with Unicode 苏州"] {
+      state.push(chunk)
+      let update = index.replaceRoot(try XCTUnwrap(state.root))
+      for node in stable {
+        XCTAssertFalse(update.affectsPresentation(for: node),
+          "Check real evaluator output, without manufacturing shared native leaf identities")
+      }
+      XCTAssertEqual(notifications, 0, "Stable scalar subscriptions must stay quiet during the real text stream")
     }
   }
 
@@ -144,6 +208,9 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     XCTAssertTrue(accumulated.affectsLookup(for: first))
     XCTAssertTrue(accumulated.affectsLookup(for: second))
     XCTAssertFalse(accumulated.affectsLookup(for: stable))
+    XCTAssertTrue(accumulated.affectsPresentation(for: first))
+    XCTAssertTrue(accumulated.affectsPresentation(for: second))
+    XCTAssertFalse(accumulated.affectsPresentation(for: stable))
     XCTAssertFalse(index.contains(first))
     XCTAssertFalse(index.contains(second))
     XCTAssertTrue(index.contains(nextFirst))

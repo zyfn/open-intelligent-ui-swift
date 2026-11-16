@@ -56,7 +56,7 @@ def main() -> None:
                           ("dependencyVersion", lock["core"]["version"])):
         if core.get(key) != expected:
             problems.append(f"Generated core {key} differs from the reviewed source lock")
-    files = ["entry.ts", "captures.ts", "authoring.ts", "compat.mjs", "bridge-compat.mjs", "budget.ts", "readiness.ts", "readiness-compat.mjs", "adaptations.json", "patches/serializer-roundtrip.patch", "build.mjs", "../upstream.mjs", "../upstream.json", "patches/positional-omittability.patch"]
+    files = ["entry.ts", "captures.ts", "authoring.ts", "compat.mjs", "bridge-compat.mjs", "budget.ts", "readiness.ts", "readiness-compat.mjs", "source-preprocess.ts", "adaptations.json", "patches/serializer-roundtrip.patch", "build.mjs", "../upstream.mjs", "../upstream.json", "patches/positional-omittability.patch"]
     adapter = "\n".join((ROOT / "Tools/Core" / name).read_text() for name in files)
     if hashlib.sha256(adapter.encode()).hexdigest() != core["adapterSha256"]:
         problems.append("Generated manifest does not describe the current bridge builder")

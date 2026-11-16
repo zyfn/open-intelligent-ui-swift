@@ -205,13 +205,23 @@ export const tag = (value: object, kind: string) => {
   return value;
 };
 
-// These tuples are private bridge calls, not Lang values or a cached snapshot.
-// The caller checks its identity/scope cache first, so repeated graph edges do
-// not construct occurrence scopes or allocate a metadata tuple on cache hits.
-export const projectionMetadata = (value: object, source?: any) =>
-  [nativeKinds.get(value), sourceChildSnapshot(value, source)];
-export const sourceStatus = (value: object, source?: any) =>
-  [sourceComplete(value, source), sourcePresentation(value, source)];
+// One private descriptor supplies the native kind, descendant scope and source
+// status. It never becomes a Lang value. Swift asks for it only after checking
+// both its per-projection memo and immutable ordinary-data cache, so a reused
+// plain container does not construct an occurrence scope or cross the bridge
+// for metadata it cannot contain.
+export function projectionMetadata(value: any, source?: any, interpret = true): unknown[] {
+  const runtimeShape = interpret && nativeKinds.get(value) !== 'object';
+  const kind = Array.isArray(value) ? 'array'
+    : runtimeShape && value.type === 'element' ? 'element'
+    : runtimeShape && value.__reactive === 'assign' ? 'binding'
+    : runtimeShape && isRuntimePlan(value) ? 'plan' : 'object';
+  const children = sourceChildSnapshot(value, source);
+  return [kind, children,
+    kind === 'element' || kind === 'plan' ? sourceComplete(value, source) : undefined,
+    kind === 'element' ? sourcePresentation(value, source) : undefined,
+    children && children !== source ? identity(children) : 0];
+}
 
 import { ownSteps } from '@openui/core-source/runtime/evaluator';
 export const actionSteps = (plan: any) =>

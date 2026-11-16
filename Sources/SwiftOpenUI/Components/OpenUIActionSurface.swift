@@ -1,23 +1,19 @@
 import SwiftUI
 import SwiftLang
 
+private enum NativeActionDispatch { case plan(ActionPlan), value(String, Value?) }
+
 /// For a card with one primary action. Its label must contain presentation only,
 /// not nested buttons. The host decides how the resulting event is handled.
 public struct OpenUIActionSurface<Content: View>: View {
     private let context: OpenUIComponentContext
-    private enum Dispatch { case plan(ActionPlan), value(String, Value?) }
-    private let dispatch: Dispatch
+    private let dispatch: NativeActionDispatch
     private let content: Content
     private let role: ButtonRole?
     private let useNativeStyle: Bool
     private let validateForm: Bool
     private let showsProgress: Bool
     private var usesConversationAccessory = false
-    // Source readiness can change interaction eligibility without changing props.
-    @EnvironmentObject private var state: OpenUIState
-    @Environment(\.openUIFormValidation) private var validation
-    @Environment(\.isEnabled) private var hostEnabled
-    @State private var performing = false
 
     public init(context: OpenUIComponentContext, action: ActionPlan, role: ButtonRole? = nil, useNativeStyle: Bool = false, validateForm: Bool = false, showsProgress: Bool = false, @ViewBuilder content: () -> Content) {
         self.context = context; self.dispatch = .plan(action); self.content = content()
@@ -38,7 +34,29 @@ public struct OpenUIActionSurface<Content: View>: View {
         return copy
     }
 
-    @ViewBuilder public var body: some View {
+    public var body: some View {
+        OpenUIContextContent(context: context) { context in
+            NativeActionSurface(context: context, dispatch: dispatch, content: content,
+                role: role, useNativeStyle: useNativeStyle, validateForm: validateForm,
+                showsProgress: showsProgress, usesConversationAccessory: usesConversationAccessory)
+        }
+    }
+}
+
+private struct NativeActionSurface<Content: View>: View {
+    let context: OpenUIComponentContext
+    let dispatch: NativeActionDispatch
+    let content: Content
+    let role: ButtonRole?
+    let useNativeStyle: Bool
+    let validateForm: Bool
+    let showsProgress: Bool
+    let usesConversationAccessory: Bool
+    @Environment(\.openUIFormValidation) private var validation
+    @Environment(\.isEnabled) private var hostEnabled
+    @State private var performing = false
+
+    @ViewBuilder var body: some View {
         if useNativeStyle { button } else { button.buttonStyle(.plain) }
     }
     private var button: some View {

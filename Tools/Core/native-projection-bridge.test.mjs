@@ -79,15 +79,21 @@ test('projection batching keeps direct and pending Each occurrences separate wit
   assert.strictEqual(directChild, child);
   assert.strictEqual(pendingChild, child);
   assert.equal(bridge.identity(directChild), bridge.identity(pendingChild));
-  assert.equal(bridge.sourceStatus(directChild, directScope)[0], true);
-  assert.equal(bridge.sourceStatus(pendingChild, pendingScope)[0], false);
-  assert.equal(bridge.sourceStatus(pendingChild, pendingScope)[1].complete, false);
-  assert.equal(bridge.sourceStatus(child)[0], true, 'the native baseline remains complete');
+  assert.equal(bridge.projectionMetadata(directChild, directScope)[2], true);
+  assert.equal(bridge.projectionMetadata(pendingChild, pendingScope)[2], false);
+  assert.equal(bridge.projectionMetadata(pendingChild, pendingScope)[3].complete, false);
+  assert.equal(bridge.projectionMetadata(child)[2], true, 'the native baseline remains complete');
+  const eachMetadata = bridge.projectionMetadata(each, outcome.sourceSnapshot);
+  assert.equal(eachMetadata[4], bridge.identity(eachScope), 'entering Each supplies its new descendant-scope identity');
+  const pendingMetadata = bridge.projectionMetadata(pendingArray, eachScope);
+  assert.equal(pendingMetadata[4], 0, 'the shared inner array inherits the already selected scope');
+  assert.equal(bridge.projectionMetadata(directChild, directScope)[4], 0,
+    'unchanged child scopes keep the caller identity without another bridge lookup');
 
   const finished = bridge.boundedRoot(parser.parse('root=Box(@Each([1],item,$shared))'), context, library, null, []);
   const finishedScope = bridge.projectionMetadata(finished.value.props.value, finished.sourceSnapshot)[1];
-  assert.equal(bridge.sourceStatus(child, finishedScope)[0], true);
-  assert.equal(bridge.sourceStatus(child, pendingScope)[0], false, 'later evaluation keeps the old occurrence snapshot');
+  assert.equal(bridge.projectionMetadata(child, finishedScope)[2], true);
+  assert.equal(bridge.projectionMetadata(child, pendingScope)[2], false, 'later evaluation keeps the old occurrence snapshot');
 });
 
 test('projection batching preserves ordinary-data tags and keeps helper metadata out of values', () => {
@@ -99,6 +105,25 @@ test('projection batching preserves ordinary-data tags and keeps helper metadata
   const first = bridge.projectionMetadata(data);
   assert.equal(first[0], 'object');
   assert.strictEqual(first[1], undefined);
+  assert.strictEqual(first[2], undefined);
+  assert.strictEqual(first[3], undefined);
   assert.equal(identity, bridge.identity(data));
   assert.equal(JSON.stringify(data), before);
+});
+
+test('projection classification keeps ordinary data, bindings and action plans distinct', () => {
+  const { bridge } = runtime();
+  const element = bridge.tagNativeSource({ type: 'element', typeName: 'Box', props: {} }, false);
+  const plan = bridge.tagNativeSource(bridge.nativePlan({ steps: [] }), false);
+  const binding = { __reactive: 'assign', target: '$value', expr: { k: 'StateRef', n: '$value' } };
+  assert.equal(bridge.projectionMetadata(element)[0], 'element');
+  assert.equal(bridge.projectionMetadata(element)[2], false);
+  assert.equal(bridge.projectionMetadata(element, undefined, false)[0], 'object');
+  assert.equal(bridge.projectionMetadata(element)[0], 'element', 'inspection does not retag the source value');
+  assert.equal(bridge.projectionMetadata(plan)[0], 'plan');
+  assert.equal(bridge.projectionMetadata(plan)[2], false);
+  assert.equal(bridge.projectionMetadata(binding)[0], 'binding');
+  bridge.tag(binding, 'object');
+  assert.equal(bridge.projectionMetadata(binding)[0], 'object');
+  assert.equal(bridge.projectionMetadata([element], undefined, false)[0], 'array');
 });

@@ -48,6 +48,7 @@ struct NativeLiveElementIndex {
   /// retired element graphs. Counts describe index work, never frame timing.
   struct Update: Sendable {
     fileprivate var affectedKeys: Set<Key> = []
+    fileprivate var presentationKeys: Set<Key> = []
     fileprivate(set) var indexedContainers = 0
     fileprivate(set) var comparedCandidates = 0
 
@@ -57,8 +58,13 @@ struct NativeLiveElementIndex {
       affectedKeys.contains(Key(snapshot))
     }
 
+    func affectsPresentation(for snapshot: EvaluatedElement) -> Bool {
+      presentationKeys.contains(Key(snapshot))
+    }
+
     mutating func formUnion(_ other: Self) {
       affectedKeys.formUnion(other.affectedKeys)
+      presentationKeys.formUnion(other.presentationKeys)
       indexedContainers += other.indexedContainers
       comparedCandidates += other.comparedCandidates
     }
@@ -104,23 +110,32 @@ struct NativeLiveElementIndex {
     }
     if let element { visit(.element(element), depth: 0) }
 
-    // One shallow identity/order comparison per candidate at most. Do not
-    // recursively compare business values or merge equal Lang identities to
-    // manufacture a smaller delta. Fresh evaluator identities affect the key.
+    // Membership always follows actual identities. Only a unique scalar leaf
+    // can preserve its presentation when its immutable wrapper is recreated.
+    // Reference props and ambiguous buckets retain the conservative lookup:
+    // losing exact membership can change an old snapshot's resolution there.
     for (key, current) in nextBuckets {
       guard let previous = buckets[key], previous.count == current.count else {
         update.affectedKeys.insert(key)
+        update.presentationKeys.insert(key)
         continue
       }
       for (left, right) in zip(previous, current) {
         update.comparedCandidates += 1
         if left !== right {
           update.affectedKeys.insert(key)
+          if current.count != 1 || !left.props.allSatisfy({ Scalar($0.1) != nil })
+              || !nativePresentationInputsEqual(left, right) {
+            update.presentationKeys.insert(key)
+          }
           break
         }
       }
     }
-    for key in buckets.keys where nextBuckets[key] == nil { update.affectedKeys.insert(key) }
+    for key in buckets.keys where nextBuckets[key] == nil {
+      update.affectedKeys.insert(key)
+      update.presentationKeys.insert(key)
+    }
     root = element
     buckets = nextBuckets
     members = nextMembers

@@ -189,6 +189,20 @@ final class LiveElementIndexTests: XCTestCase {
     XCTAssertFalse(state.isElementReady(older))
   }
 
+  func testSingleCandidateResolutionKeepsTheExistingDepthBoundary() {
+    for layers in [254, 255] {
+      var value = Value.number(1)
+      for _ in 0..<layers { value = .array([value]) }
+      let current = EvaluatedElement(typeName: "Data", props: [("data", value)], statementId: "data")
+      let older = EvaluatedElement(typeName: "Data", props: current.props, statementId: "data")
+      var index = NativeLiveElementIndex()
+      index.replaceRoot(current)
+      let resolved = nativeResolveLiveElement(older, in: index)
+      XCTAssertTrue(resolved === (layers == 254 ? current : older),
+        "Skipping a candidate's self-comparison must not bypass the bounded props walk")
+    }
+  }
+
   private func customSchema() -> LibrarySchema {
     LibrarySchema(components: [
       "Stack": [ParamDef(name: "children", required: true)],

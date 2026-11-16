@@ -5,6 +5,39 @@ import { getCallDefs } from '@openui/core-source/parser/builtins';
 import { recordParseBudget } from './budget';
 const syntax = Symbol('native.source.syntax');
 const closedSyntax = new WeakMap<object, boolean>();
+// Only completed, parser-owned ASTs are registered. A closed tree without
+// symbol/state/runtime references has context-independent closure and no Query
+// dependencies. Cache that syntax fact, never a materialized Lang value.
+const closedLocalDepth = new WeakMap<object, number>();
+export function registerCompletedSyntax(node: any): void {
+  const inspect = (value: any, depth: number): number | undefined => {
+    if (!value || typeof value !== 'object') return 0;
+    if (depth > 256) return undefined;
+    if (Array.isArray(value)) {
+      let maximum = 0;
+      for (const item of value) {
+        const height = inspect(item, depth);
+        if (height === undefined) return undefined;
+        maximum = Math.max(maximum, height);
+      }
+      return maximum;
+    }
+    const known = closedLocalDepth.get(value);
+    if (known !== undefined) return known;
+    if (value[syntax] === false || ['Ref', 'StateRef', 'RuntimeRef', 'Ph'].includes(value.k)) return undefined;
+    if (typeof value.k !== 'string') return undefined;
+    let maximum = 0;
+    for (const child of Object.values(value)) {
+      const height = inspect(child, depth + 1);
+      if (height === undefined) return undefined;
+      maximum = Math.max(maximum, height);
+    }
+    const height = maximum + 1;
+    closedLocalDepth.set(value, height);
+    return height;
+  };
+  inspect(node, 0);
+}
 type Placeholder = { name: string; id?: string; props: Record<string, string | number | boolean> };
 type Presentation = { complete: boolean; closed: boolean; count?: number; queries?: string[]; observed?: boolean; children?: Record<string, Presentation>; slots?: (number | null)[]; pending?: Record<string, Presentation>; placeholder?: Placeholder };
 // Most settled leaves have exactly these two bits. Share immutable metadata,
@@ -269,6 +302,7 @@ function describeSource(node: any, ctx: any, value: any, scope: ReadonlySet<stri
 }
 
 function queryDependencies(node: any, ctx: any, scope: ReadonlySet<string> = emptyScope): string[] {
+  if (node && typeof node === 'object' && closedLocalDepth.has(node)) return [];
   const queries = new Set<string>();
   const visited = new Set<any>();
   const collect = (n: any, local: ReadonlySet<string>, depth = 0) => {
@@ -308,6 +342,9 @@ function astComplete(node: any, ctx: any, scope: ReadonlySet<string> = emptyScop
   if (!node || typeof node !== 'object') return true;
   if (seen.size > 256 || ctx.nativeLimit) return false;
   if (node[syntax] === false || node.k === 'Ph') return false;
+  const localDepth = closedLocalDepth.get(node);
+  // A deep alias path must not use this shortcut to cross the existing limit.
+  if (localDepth !== undefined && seen.size + localDepth <= 257) return true;
   const key = scope.size ? [...scope].sort().join('\0') : '';
   const groups: Map<string, WeakMap<object, boolean>> = ctx[memo] ??= new Map();
   let cache = groups.get(key);

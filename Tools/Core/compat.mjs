@@ -126,6 +126,32 @@ function nativeMaterializeExpr(node:ASTNode,ctx:MaterializeCtx,scopedRefs:Readon
   return `import {materializationBudget as nativeBudget,materializationReference as nativeReferenceBudget} from ${JSON.stringify(budgetPath)};\n` + source;
 }
 
+export function sourcePreprocessing(source, path) {
+  const start = source.indexOf('/** Text that starts an OpenUI Lang statement');
+  const end = source.indexOf('/**\n * Parse a complete openui-lang string');
+  if (start < 0 || end <= start) throw Error('Review pinned parser preprocessing boundaries');
+  // Replace the old batch helpers, rather than retaining a second normalizer.
+  // Public stripFences and nativePreprocess use the same line rules as streaming.
+  source = replaceOnce(source, source.slice(start, end),
+    `import {SourcePreprocessor,preprocess} from ${JSON.stringify(path)};\nexport {stripFences} from ${JSON.stringify(path)};\n\n`);
+  source = replaceOnce(source, '  let buf = ""; // raw accumulated input (kept for set() diffing)',
+    '  let buf = ""; // raw accumulated input (kept for set() diffing)\n  let preprocessing = new SourcePreprocessor();');
+  source = replaceOnce(source,
+    '    const next = preprocess(buf);\n    if (!next.startsWith(cleaned.slice(0, completedEnd))) {',
+    '    const next = preprocessing.read();\n    if (next.changedFrom < completedEnd) {');
+  source = replaceOnce(source, '    cleaned = next;', '    cleaned = next.text;');
+  source = replaceOnce(source, '    buf = "";\n    cleaned = "";',
+    '    buf = "";\n    preprocessing = new SourcePreprocessor();\n    cleaned = "";');
+  source = replaceOnce(source, '      buf += chunk;\n      return currentResult(complete);',
+    '      buf += chunk;\n      preprocessing.append(chunk);\n      return currentResult(complete);');
+  source = replaceOnce(source, '      if (delta) buf += delta;',
+    '      if (delta) { buf += delta; preprocessing.append(delta); }');
+  source = replaceOnce(source,
+    '  // Recompute `cleaned` from `buf`. If the already-completed prefix is no longer\n  // a prefix of the new cleaned text (e.g. an opening ```fence``` just appeared\n  // and shifted the stripped output), the watermark + cache are stale, so reset\n  // and re-scan. When the prefix is stable (the common streaming case) the cache\n  // is kept; pending text is overlaid on a copy when building the current result.',
+    '  // The preprocessor consumes completed lines once. A changed fence selection\n  // or unfinished line can revise the output; only invalidate completed ASTs\n  // when that revision reaches their prefix. No full-prefix comparison is needed.');
+  return source;
+}
+
 // Bounded work wraps the official implementations; successful values and
 // query scheduling still come from the pinned core. Exhaustion is a private
 // signal, caught before a native bridge call or asynchronous reader returns.
