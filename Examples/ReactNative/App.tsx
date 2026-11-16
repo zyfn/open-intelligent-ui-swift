@@ -6,6 +6,7 @@ import type { ActionEvent } from '@openuidev/react-lang';
 import { library, NativeContentProvider, NativeThemeProvider, useOpenUITheme } from './src/library';
 import { samples, type GallerySample } from './src/demo/samples';
 import { replayMessage } from './src/demo/replay';
+import { ComponentBrowser } from './src/demo/ComponentBrowser';
 import { OpenUIDocument } from './src/runtime/OpenUIDocument';
 import { createMessageController, type MessageController } from './src/runtime/message';
 
@@ -15,8 +16,12 @@ type MessageActions = { onReplay: (record: GalleryMessage) => void; onStop: (rec
 const modes: readonly { value: ThemeMode; label: string }[] = [
   { value: 'system', label: '系统' }, { value: 'light', label: '浅色' }, { value: 'dark', label: '深色' },
 ];
-const resolveImage = (source: string) => source === 'asset://west-lake'
-  ? require('../Gallery/Resources/Images/west-lake.jpg') as number : undefined;
+const localImages: Record<string, number> = {
+  'asset://west-lake': require('../Gallery/Resources/Images/west-lake.jpg') as number,
+  'https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg': require('../Gallery/Resources/Images/nikon-front.jpg') as number,
+  'https://upload.wikimedia.org/wikipedia/commons/4/49/Nikon_DSLR_camera_D850_lateral_rear_view.jpg': require('../Gallery/Resources/Images/nikon-rear.jpg') as number,
+};
+const resolveImage = (source: string) => localImages[source];
 
 function makeMessage(id: number, sample: GallerySample): GalleryMessage {
   const message = createMessageController(`gallery-${id}`);
@@ -68,20 +73,21 @@ function Diagnostics({ message, error }: { message: MessageController; error: st
 
 function MessageContent({ message, visible }: { message: MessageController; visible: boolean }) {
   const theme = useOpenUITheme();
-  const [error, setError] = useState('');
+  const [rendererError, setRendererError] = useState('');
+  const [persistenceError, setPersistenceError] = useState('');
   const [events, setEvents] = useState<string[]>([]);
   const onAction = useCallback((event: ActionEvent) => {
     setEvents(previous => [JSON.stringify(event, null, 2), ...previous].slice(0, 3));
   }, []);
-  const onPersistenceError = useCallback((reason: Error) => setError(reason.message), []);
-  const onError = useCallback((errors: { message: string }[]) => setError(errors.map(item => item.message).join('\n')), []);
+  const onPersistenceError = useCallback((reason: Error | null) => setPersistenceError(reason?.message ?? ''), []);
+  const onError = useCallback((errors: { message: string }[]) => setRendererError(errors.map(item => item.message).join('\n')), []);
   return <>
     {visible ? <OpenUIDocument message={message} library={library} onAction={onAction}
       onError={onError} onPersistenceError={onPersistenceError} />
       : <View style={[styles.hidden, { backgroundColor: theme.surfaceMuted }]}>
         <Text style={[styles.body, { color: theme.muted }]}>消息视图已卸载。恢复后会读取宿主保存的字段。</Text>
       </View>}
-    <Diagnostics message={message} error={error} />
+    <Diagnostics message={message} error={[rendererError, persistenceError].filter(Boolean).join('\n')} />
     {events.length > 0 && <View style={[styles.eventLog, { borderColor: theme.border }]}>
       <Text style={[styles.caption, { color: theme.muted }]}>宿主事件 · 仅在本地记录，最近 3 条</Text>
       {events.map((event, index) => <Text key={`${index}:${event}`} selectable
@@ -117,6 +123,7 @@ function Gallery({ mode, setMode }: { mode: ThemeMode; setMode: (mode: ThemeMode
   const theme = useOpenUITheme();
   const systemScheme = useColorScheme();
   const [records, setRecords] = useState<GalleryMessage[]>(() => [makeMessage(1, samples[0])]);
+  const [browsing, setBrowsing] = useState(false);
   const recordsRef = useRef(records);
   const serial = useRef(1);
   const lifecycle = useRef(0);
@@ -178,12 +185,14 @@ function Gallery({ mode, setMode }: { mode: ThemeMode; setMode: (mode: ThemeMode
         ListHeaderComponent={<View style={styles.header}>
           <View style={styles.topline}>
             <Text style={[styles.eyebrow, { color: theme.accent }]}>OPENUI / NATIVE GALLERY</Text>
-            <Text style={[styles.caption, { color: theme.muted }]}>离线样例</Text>
+            <Text style={[styles.caption, { color: theme.muted }]}>组件与场景</Text>
           </View>
           <Text accessibilityRole="header" style={[styles.title, { color: theme.ink }]}>让界面，{'\n'}跟着内容生长。</Text>
           <Text style={[styles.body, { color: theme.muted }]}>同一份契约，原生的内容与交互。选择样例添加消息，检查流式过程与输入恢复。</Text>
           <View style={styles.controls}>{samples.map(sample =>
-            <Control key={sample.id} title={`＋ ${sample.label}`} label={`添加${sample.label}样例`} onPress={() => append(sample)} />)}</View>
+            <Control key={sample.id} title={`＋ ${sample.label}`} label={`添加${sample.label}样例`} onPress={() => append(sample)} />)}
+            <Control title="组件目录" label="打开OpenUI组件目录" onPress={() => setBrowsing(true)} />
+          </View>
           <View style={styles.themeControls} accessibilityLabel="外观">
             {modes.map(item => <Control key={item.value} title={item.label} label={`${item.label}主题`}
               selected={mode === item.value} onPress={() => setMode(item.value)} />)}
@@ -193,8 +202,12 @@ function Gallery({ mode, setMode }: { mode: ThemeMode; setMode: (mode: ThemeMode
             <Control title="清空历史" disabled={records.length < 2} onPress={clearHistory} />
           </View>
         </View>}
-        ListFooterComponent={<Text style={[styles.footer, { color: theme.muted }]}>消息视图可以离开屏幕，字段由宿主保存。回放会开始新的生成，并清空该消息的旧字段。</Text>} />
+        ListFooterComponent={<View>
+          <Text style={[styles.footer, { color: theme.muted }]}>消息视图可以离开屏幕，字段由宿主保存。回放会开始新的生成，并清空该消息的旧字段。</Text>
+          <Text style={[styles.caption, { color: theme.muted }]}>照片：Morio · CC BY-SA 4.0；Wolfgang Moroder · CC BY-SA 3.0。地图底图需要联网。</Text>
+        </View>} />
     </KeyboardAvoidingView>
+    <ComponentBrowser visible={browsing} onClose={() => setBrowsing(false)} onSelect={append} />
   </SafeAreaView>;
 }
 

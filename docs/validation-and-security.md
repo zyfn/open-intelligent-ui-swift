@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.5 · 更新日期：2026-11-16
+文档版本：1.6 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -163,7 +163,11 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 5. React Native 基础验证
 
-基于 Swift 仓库 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 创建 `feat/react-native-foundation`。本节代码验证对应实现提交 [`8602bde`](https://github.com/zyfn/open-intelligent-ui-swift/commit/8602bde07fe18380afa2e7ac54af58265d87470a) 的 `Examples/ReactNative/` 私有工程，不是原有 Swift SDK 的新一轮原生验收。代码职责只在[架构第 7 节](architecture.md#7-react-native-基础验证分支)维护，组件完成度见 [OpenUI 验证子集](openui.md#react-native-验证子集)。
+基于 Swift 仓库 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 创建 `feat/react-native-foundation`。本节只记录 `Examples/ReactNative/` 私有工程，不是原有 Swift SDK 的新一轮原生验收。5.1 保留首轮实现提交的历史证据，5.2 记录完整 OpenUI 同步；两轮构建与计数不可混用。代码职责只在[架构第 7 节](architecture.md#7-react-native-基础验证分支)维护，组件完成度见 [RN OpenUI 组件](openui.md#react-native-openui-组件)。
+
+### 5.1 首轮七组件基线
+
+本小节对应实现提交 [`8602bde`](https://github.com/zyfn/open-intelligent-ui-swift/commit/8602bde07fe18380afa2e7ac54af58265d87470a)，以下计数、APK 哈希与 Actions run 仅代表该历史提交。
 
 依赖以工程内 `package.json` / `package-lock.json` 为准：Expo 55.0.32、RN 0.83.10、React 19.2.0、官方 lang-core / react-lang 1.1.1、Zod 4.6.7；Markdown 使用 marked 18.2.0 与 entities 8.1.0，系统主题使用 Expo 配套的 expo-system-ui 55.0.22。锁文件包含 registry 完整性值。react-dom 固定为同一 React 版本。实际安装包的 `react-native` 导出及 TypeScript native 类型入口已核对；Metro 只为复用照片增加已有 Gallery 图片目录的 watch folder，不修改 node_modules、模块条件或私有入口别名。
 
@@ -200,3 +204,35 @@ Android 冷构建首次在 Gradle wrapper 下载阶段因 Java 继承代理配�
 已准备官方 emulator 37.2.13 / API 36 Google APIs x86_64 镜像并尝试软件仿真。环境不提供 KVM；首段会话中 SwiftShader 初始化成功，但 105.2 秒时 adb 仍为 offline。调整会话控制方式后的启动受到 AVD 锁阻止，原会话已无法继续控制。没有删除锁、使用第二台只读 VM 或绕过执行隔离；没有完成系统 boot、APK 安装、Gallery 启动或原生截图。这是本次运行环境的未完成项，不能解释为 APK 已运行失败或 UI 已通过。准备和探测日志归档在 `outputs/verification/react-native/emulator/`。
 
 当前没有本地 Xcode，iOS 原生编译结果仍缺失。两端键盘/IME、屏幕阅读器、截图对照与 Release 帧率/内存仍需原生实测，不能宣称比现有 SwiftUI 更快或外观相同。工程没有真实模型、Query/Mutation provider 或生产业务事务，本轮也不代表全部 Swift 回归已通过。
+
+### 5.2 完整 OpenUI 同步
+
+本轮从 RN 分支 `7495210de7a1b0fee84ffaf3d4d72b75fdba5896` 继续。交付前再次核对远端 main 为 `cf8d2add05ded01f7046fbf3ac82de54e0f00f83`：RN 需要的 OpenUI catalog、完整导出契约、组件程序与共用素材没有新增差异，因此不整条合并 main 的 Swift 改动。改动限定在 RN 工程、独立 RN workflow 的资源触发路径及已有文档；没有修改 Swift 或 OpenIntelligentUI 实现。
+
+组件注册从 7 个扩展到 87 个，使用既有 84 定义 catalog 与 87 定义的完整导出契约作为来源；同一来源生成 native library 和 Node spec/prompt。逐项比较所有 signature、参数与完整 schema；仅对 JSON Schema 标准等价的标量 `type` 数组 / `anyOf` 表达进行归一化比较，不抹去 required、default、enum、引用或约束差异。原始 fixture 与 Gallery 的 87 个程序保持逐字不变，分块回归使用官方 `getResult(true)` 完成尾部，不用最后重新提交整段源码掩盖流式差异。
+
+新增 npm 依赖锁定为 MapLibre React Native 11.5.1、react-native-svg 15.15.3、datetimepicker 8.6.0、slider 5.1.2、picker 2.11.4、fast-xml-parser 5.12.1、Prism 1.30.0；类型资源包括 @types/geojson 7946.0.16 与 @types/prismjs 1.26.5。已核对 package、lock 与实际安装版本。前述八个运行/地图类型包的 package metadata 均声明 MIT；除 slider 的安装包仅附 metadata 与上游许可链接外，其余包已读取包内 MIT 文本。此描述不覆盖 MapLibre 原生传递依赖或地图数据许可。图标复用已有 Lucide 固定资源及 LICENSE；照片复用原 Gallery 西湖与 Nikon 图片、原署名和 CC BY-SA 许可，不另存平行资源。
+
+2026-11-16 最终源码冻结后的本地验证：
+
+| 检查 | 实际结果与证明范围 |
+| --- | --- |
+| `npm run catalog:check` | 87 个派生定义与两份既有来源一致；来源与生成哈希匹配 |
+| `npm test` | **59/59** 通过；包括全部契约、分块等价、消息/快照生命周期、图表几何与地图坐标 |
+| `npm run test:integration` | **14 suites / 220 项**通过；含原有 87 个组件程序逐个通过真实官方 Renderer 挂载，以及各组件交互与旧事件回归 |
+| `npm run typecheck` | 通过 |
+| `npm run contract` | 导出同一 87 定义 spec/prompt/manifest，记录两份来源与产物 SHA256 |
+| iOS Metro / Hermes 导出 | 通过，1,015 modules，含三张既有照片与 MapLibre 静态资源；不代表 iOS 原生编译 |
+| Android Metro / Hermes 导出 | 通过，1,022 modules，同一资源集 |
+| `npx expo prebuild --platform all --no-install` | 两端工程生成通过，新增原生配置插件生效，package.json 未改写 |
+| 最终 Android `:app:assembleRelease` | **exit 0**；新增原生依赖完成编译后，源码冻结再增量构建 46 秒，472 tasks（14 executed / 458 up-to-date） |
+| APK 核验 | arm64-v8a / x86_64；内嵌 Hermes 与 MapLibre、SVG、picker、slider 原生库；apksigner v2 验证通过；69,647,371 bytes |
+| 范围、文档与 CI 配置 | `git diff --check`、资源来源/许可、文档引用及 actionlint 1.7.12 检查通过；本地配置验证不等于远端 job 通过 |
+
+组件交互回归包括：Form 整表校验与显式 Reset、非法日期与闰日、隐藏面板字段保留、EditableTable 草稿/保存事件/外部源变化、图表超预算后的完整数据分页、图片 resolver 重试、SVG XML/响应预算与旧源隔离、地图视图卸载/重试/坐标变化，以及同 epoch 字段与动作的 A→B→A。动作测试先复现旧 Button、链接、列表和卡片回调派发旧语义，再验证提交 token 拒绝它们。真实官方 Renderer + deferred Mutation 的额外用例验证 pending 和迟到异常隔离；没有将 Promise 型宿主 `onAction` 伪装成可等待接口，也没有为此给生产 wrapper 接入 toolProvider。
+
+Jest 仍使用 Expo 标准 RN host mocks，并仅在 MapLibre native view/camera、平台原生网络等边界做隔离；官方 parser、Store、Renderer、Markdown、Prism、XML 校验与 SVG JS 渲染均使用真实已安装代码。因此 87 个程序能挂载与交互通过，不表示 native 地图瓦片、手势、键盘或像素效果已经实测。静态 Markdown 的无关字段构树隔离由计数回归确认，但没有测得可报告的设备 FPS 或内存改善。
+
+最终实现与共用资源清单记录在 `outputs/verification/react-native/openui-source-manifest.json`，按排序后的路径与逐文件 SHA256 计算的实现树摘要为 `4a07ec8e8d0ea488e514c3d8cccae2cf6fbac378aefc21044597152d849cdf46`；文档不参与此摘要，避免补充证据使已构建代码身份失效。清单另记录各日志、契约、两端 Hermes 产物与 APK 哈希。最后一次构建日志为 `openui-native-android-final.log`，与前一次 `openui-native-android.log` 区分。最终 APK SHA256：`c9ebac856d1a847f9b72bd23211f5ddb1c31e5b04fb6edcf9e520514a31bbd7f`。
+
+本轮没有重试前述受限模拟器，也没有本地 Xcode。iOS native build、两端实际安装/截图/软键盘/辅助功能、地图瓦片与交互、Release 帧率和内存仍未验收；不将 Metro 导出或 Jest 结果写成这些检查已通过。日期范围为两个原生选择器、数组 Slider 为多个单值滑块，SVG 为受限原生子集，具体呈现差异与预算在 [OpenUI](openui.md#react-native-openui-组件) 维护。完整组件同步不等于已发布 SDK、生产业务接入或全部 Swift 回归通过。

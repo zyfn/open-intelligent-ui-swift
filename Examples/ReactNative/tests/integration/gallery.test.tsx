@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Renderer } from '@openuidev/react-lang';
+import { Renderer, type RendererProps } from '@openuidev/react-lang';
 import App from '../../App';
 import { OpenUIDocument } from '../../src/runtime/OpenUIDocument';
 import type { MessageController } from '../../src/runtime/message';
@@ -97,4 +97,26 @@ test('retired Gallery rows cannot restart a disposed host message', () => {
   expect(() => act(() => { lateReplay(); lateStop(); })).not.toThrow();
   expect(retired.getSnapshot().source).toBe('');
   expect(screen.getByLabelText('至少两个字符')).toHaveDisplayValue('');
+});
+
+test('Gallery keeps renderer diagnostics when persistence fails and recovers', () => {
+  render(<App />);
+  showInteraction();
+  const controller = screen.UNSAFE_getByType(OpenUIDocument).props.message as MessageController;
+  fireEvent.changeText(screen.getByLabelText('至少两个字符'), 'x'.repeat(64 * 1024));
+  expect(screen.getByText('Saved fields exceed the text limit')).toBeOnTheScreen();
+  const renderer = screen.UNSAFE_getByType(Renderer).props as RendererProps;
+  act(() => { renderer.onError?.([{
+    source: 'runtime', code: 'render-error', message: 'Independent renderer diagnostic',
+  }]); });
+  expect(screen.getByRole('alert')).toHaveTextContent(/Independent renderer diagnostic/);
+  expect(screen.getByRole('alert')).toHaveTextContent(/Saved fields exceed the text limit/);
+
+  fireEvent.changeText(screen.getByLabelText('至少两个字符'), 'Finn');
+  expect(controller.getError()).toBeNull();
+  expect(controller.getSavedFields(controller.getHandle())).toMatchObject({ $name: 'Finn' });
+  expect(screen.getByRole('alert')).toHaveTextContent(/Independent renderer diagnostic/);
+  expect(screen.getByRole('alert')).not.toHaveTextContent(/Saved fields exceed the text limit/);
+  act(() => { renderer.onError?.([]); });
+  expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
 });

@@ -78,7 +78,8 @@ test('a native image error can retry and callbacks from the failed attempt canno
   const oldError = firstImage.props.onError;
   const oldLoad = firstImage.props.onLoad;
   fireEvent(firstImage, 'error', { nativeEvent: { error: 'offline' } });
-  expect(screen.getByText('Preview：图片未能加载')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '重新加载图片' })).toBeOnTheScreen();
+  expect(screen.getByText('点击重试')).toBeOnTheScreen();
   expect(onContentError).toHaveBeenCalledTimes(1);
 
   fireEvent.press(screen.getByRole('button', { name: '重新加载图片' }));
@@ -88,7 +89,7 @@ test('a native image error can retry and callbacks from the failed attempt canno
     oldLoad({ nativeEvent: { source: { width: 400, height: 300 } } });
   });
   expect(onContentError).toHaveBeenCalledTimes(1);
-  expect(screen.queryByText('Preview：图片未能加载')).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '重新加载图片' })).not.toBeOnTheScreen();
   expect(screen.getByRole('image', { name: 'Preview，正在加载' })).toBeOnTheScreen();
 
   fireEvent(screen.getByLabelText('Preview'), 'load', {
@@ -96,6 +97,42 @@ test('a native image error can retry and callbacks from the failed attempt canno
   });
   expect(screen.getByRole('image', { name: 'Preview' })).toBeOnTheScreen();
   expect(screen.queryByRole('image', { name: 'Preview，正在加载' })).not.toBeOnTheScreen();
+});
+
+test('image retry asks the current resolver for a fresh source and headers', () => {
+  const { controller } = document('root = Stack([Image("Preview", "asset://preview")])');
+  let source = { uri: 'https://example.com/expired.png', headers: { Authorization: 'old-test-header' } };
+  const resolveImage = jest.fn(() => source);
+  render(<NativeContentProvider resolveImage={resolveImage}>
+    <OpenUIDocument message={controller} library={library} />
+  </NativeContentProvider>);
+  expect(resolveImage).toHaveBeenCalledTimes(1);
+  fireEvent(screen.getByLabelText('Preview'), 'error', { nativeEvent: { error: 'expired' } });
+
+  source = { uri: 'https://example.com/refreshed.png', headers: { Authorization: 'new-test-header' } };
+  fireEvent.press(screen.getByRole('button', { name: '重新加载图片' }));
+  expect(resolveImage).toHaveBeenCalledTimes(2);
+  expect(screen.getByLabelText('Preview').props.source).toEqual(source);
+  fireEvent(screen.getByLabelText('Preview'), 'load', { nativeEvent: { source: { width: 400, height: 300 } } });
+  expect(screen.getByRole('image', { name: 'Preview' })).toBeOnTheScreen();
+});
+
+test('a resolver exception can recover through the same compact retry placeholder', () => {
+  const { controller } = document('root = Stack([Image("Preview", "asset://preview")])');
+  const failure = new Error('Temporary mapping failure');
+  const onError = jest.fn();
+  const resolveImage = jest.fn()
+    .mockImplementationOnce(() => { throw failure; })
+    .mockReturnValue({ uri: 'https://example.com/recovered.png' });
+  render(<NativeContentProvider resolveImage={resolveImage} onError={onError}>
+    <OpenUIDocument message={controller} library={library} />
+  </NativeContentProvider>);
+  expect(onError).toHaveBeenCalledWith(failure);
+  expect(screen.getByText('点击重试')).toBeOnTheScreen();
+  fireEvent.press(screen.getByRole('button', { name: '重新加载图片' }));
+  expect(resolveImage).toHaveBeenCalledTimes(2);
+  expect(screen.getByLabelText('Preview').props.source.uri).toBe('https://example.com/recovered.png');
+  expect(screen.queryByRole('button', { name: '重新加载图片' })).not.toBeOnTheScreen();
 });
 
 test('image callbacks captured before an epoch replacement are inert even before React commits', () => {

@@ -7,6 +7,7 @@ import { useDocumentInteraction } from '../../runtime/interaction';
 import { useOpenUITheme, type NativeTheme } from '../theme';
 import { contentLink, useNativeContentPolicy } from './contentPolicy';
 import { NativeImage } from './NativeImage';
+import { NativeCode } from './NativeCode';
 import { parseNativeMarkdown, splitInlineImages } from './markdown';
 import { useNativeAction } from './useNativeAction';
 
@@ -24,8 +25,8 @@ const plainText = (tokens: Token[]): string => tokens.map(token => {
 
 function MarkdownLink({ href, label, children: content }: { href: string; label: string; children: ReactNode }) {
   const theme = useOpenUITheme();
-  const { invoke, disabled, pending, error } = useNativeAction();
   const url = contentLink(href);
+  const { invoke, disabled, pending, error } = useNativeAction(JSON.stringify([url, label]));
   if (!url) return <Text>{content}</Text>;
   return <Text accessibilityRole="link" accessibilityLabel={label || url}
     accessibilityHint={error || '由应用处理外部链接'} accessibilityState={{ disabled, busy: pending }}
@@ -120,15 +121,7 @@ function blocks(tokens: Token[], presentation: Presentation): ReactNode[] {
       case 'text': return paragraph(children(token).length ? children(token) : [token], presentation, key);
       case 'code': {
         const code = token as Tokens.Code;
-        return <View key={key} style={{ minWidth: 0, flexShrink: 1, backgroundColor: theme.code,
-          borderRadius: 10, overflow: 'hidden', paddingVertical: 12, gap: 6 }}>
-          {code.lang ? <Text style={{ color: theme.muted, fontSize: 12, paddingHorizontal: 14 }}>{code.lang}</Text> : null}
-          <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator
-            accessibilityLabel="代码块，可横向滚动" style={{ minWidth: 0 }} contentContainerStyle={{ paddingHorizontal: 14 }}>
-            <Text selectable style={{ color: theme.ink, fontFamily: mono,
-              fontSize: Math.max(12, presentation.fontSize - 1), lineHeight: Math.ceil(presentation.fontSize * 1.5) }}>{code.text}</Text>
-          </ScrollView>
-        </View>;
+        return <NativeCode key={key} code={code.text} language={code.lang} fontSize={Math.max(12, presentation.fontSize - 1)} />;
       }
       case 'blockquote': return <View key={key} style={{ minWidth: 0, flexShrink: 1,
         borderLeftWidth: 3, borderLeftColor: theme.accent, paddingLeft: 14, gap: theme.gap.m }}>
@@ -164,10 +157,16 @@ export const TextContent: ComponentRenderer = ({ props }) => {
   const source = typeof props.text === 'string' ? props.text : '';
   const size = typeof props.size === 'string' ? props.size : 'default';
   const parsed = useMemo(() => parseNativeMarkdown(source), [source]);
-  const fontSize = size.startsWith('small') ? 13 : size.startsWith('large') ? 19 : 16;
-  const presentation: Presentation = { theme, fontSize, text: { color: theme.ink, fontSize,
-    lineHeight: Math.ceil(fontSize * 1.55), fontWeight: size.endsWith('heavy') ? '600' : '400',
-    minWidth: 0, flexShrink: 1 } };
+  const content = useMemo(() => {
+    const fontSize = size.startsWith('small') ? 13 : size.startsWith('large') ? 19 : 16;
+    const presentation: Presentation = { theme, fontSize, text: { color: theme.ink, fontSize,
+      lineHeight: Math.ceil(fontSize * 1.55), fontWeight: size.endsWith('heavy') ? '600' : '400',
+      minWidth: 0, flexShrink: 1 } };
+    // The official Store context updates on unrelated field edits. Reuse the
+    // reading tree; links/images still subscribe to their own live contexts.
+    return parsed.kind === 'plain' ? <Text selectable style={presentation.text}>{parsed.text}</Text>
+      : blocks(parsed.tokens, presentation);
+  }, [parsed, size, theme]);
   const parseError = parsed.kind === 'plain' ? parsed.error : undefined;
   const reportedParseError = useRef<Error | undefined>(undefined);
   useEffect(() => {
@@ -180,7 +179,6 @@ export const TextContent: ComponentRenderer = ({ props }) => {
   }, [parseError, onError, isCurrent]);
   if (!source) return null;
   return <View style={{ minWidth: 0, flexShrink: 1, gap: theme.gap.m }}>
-    {parsed.kind === 'plain' ? <Text selectable style={presentation.text}>{parsed.text}</Text>
-      : blocks(parsed.tokens, presentation)}
+    {content}
   </View>;
 };

@@ -98,6 +98,42 @@ const staleAction = {
 };
 
 describe('official OpenUI native runtime', () => {
+  test('an unbound field saves each official Store snapshot only once', () => {
+    const { controller, handle } = message('root = Stack([Input("name", "Name", "text", null, "")], "column", "m")');
+    const save = jest.spyOn(controller, 'saveFields');
+    render(<OpenUIDocument message={controller} library={library} />);
+    save.mockClear();
+    fireEvent.changeText(screen.getByLabelText('Name'), 'Finn');
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(controller.getSavedFields(handle)).toMatchObject({ name: { value: 'Finn' } });
+    fireEvent.changeText(screen.getByLabelText('Name'), 'Updated');
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(controller.getSavedFields(handle)).toMatchObject({ name: { value: 'Updated' } });
+  });
+
+  test('a successful save after remount clears an earlier persistence failure', () => {
+    const { controller, handle } = message(documentSource());
+    const onPersistenceError = jest.fn();
+    const first = render(<OpenUIDocument message={controller} library={library}
+      onPersistenceError={onPersistenceError} />);
+    fireEvent.changeText(screen.getByLabelText('Name'), 'Saved');
+    fireEvent.changeText(screen.getByLabelText('Name'), 'x'.repeat(64 * 1024));
+    expect(onPersistenceError).toHaveBeenLastCalledWith(expect.any(RangeError));
+    expect(controller.getSavedFields(handle)).toMatchObject({ $name: 'Saved' });
+    first.unmount();
+
+    render(<OpenUIDocument message={controller} library={library}
+      onPersistenceError={onPersistenceError} />);
+    expect(screen.getByLabelText('Name')).toHaveDisplayValue('Saved');
+    fireEvent.changeText(screen.getByLabelText('Name'), 'Recovered');
+    expect(controller.getError()).toBeNull();
+    expect(controller.getSavedFields(handle)).toMatchObject({ $name: 'Recovered' });
+    expect(onPersistenceError).toHaveBeenLastCalledWith(null);
+    const recoveredCalls = onPersistenceError.mock.calls.length;
+    fireEvent.changeText(screen.getByLabelText('Name'), 'Still healthy');
+    expect(onPersistenceError).toHaveBeenCalledTimes(recoveredCalls);
+  });
+
   test('a real field writes the shared binding, persists it, and emits one host action', async () => {
     const { controller, handle } = message(documentSource());
     const onAction = jest.fn();
@@ -349,5 +385,23 @@ describe('official OpenUI native runtime', () => {
     expect(controller.getError()).toBeNull();
     expect(screen.getByLabelText('Name')).toHaveDisplayValue('After runtime recovery');
     expect(screen.getByLabelText('Name')).toBeEnabled();
+  });
+
+  test('the root boundary also contains an unprintable thrown value', () => {
+    const cause = Object.create(null);
+    const reportConsoleError = console.error;
+    jest.spyOn(console, 'error').mockImplementation((...args) => {
+      if (args.some(value => value === cause)) return;
+      reportConsoleError(...args);
+    });
+    const brokenLibrary = { ...library, toJSONSchema: () => { throw cause; } };
+    const { controller } = message(documentSource());
+    const onError = jest.fn();
+    render(<OpenUIDocument message={controller} library={brokenLibrary} onError={onError} />);
+    expect(controller.getSnapshot().phase).toBe('error');
+    expect(controller.getError()).toBeInstanceOf(Error);
+    expect(onError).toHaveBeenCalledWith([{
+      source: 'runtime', code: 'render-error', message: 'Error details could not be read',
+    }]);
   });
 });

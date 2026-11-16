@@ -9,7 +9,8 @@ type Props = {
   library: RendererProps['library'];
   onAction?: RendererProps['onAction'];
   onError?: RendererProps['onError'];
-  onPersistenceError?: (error: Error) => void;
+  /** A null value clears an earlier persistence failure after a successful save. */
+  onPersistenceError?: (error: Error | null) => void;
 };
 
 const identities = new WeakMap<object, number>();
@@ -23,12 +24,12 @@ function identity(value: object): number {
 // Official component boundaries handle individual render failures. This catches
 // failures above them (for example a failing library) without losing the host UI.
 class DocumentBoundary extends Component<{
-  children: ReactNode; onFailure: (error: Error) => void;
+  children: ReactNode; onFailure: (cause: unknown) => void;
 }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
   componentDidCatch(cause: unknown) {
-    this.props.onFailure(cause instanceof Error ? cause : new Error(String(cause)));
+    this.props.onFailure(cause);
   }
   render() { return this.state.failed ? null : this.props.children; }
 }
@@ -49,6 +50,8 @@ function DocumentEpoch({ message, library, snapshot, handle, onAction, onError, 
   // would reinitialize the official Store and can overwrite an active edit.
   const [initialState] = useState(() => message.getSavedFields(handle));
   const mounted = useRef(true);
+  const lastSavedFields = useRef<Record<string, unknown> | null>(null);
+  const persistenceFailed = useRef(message.getError() !== null);
   const callbacks = useRef({ onAction, onError, onPersistenceError });
   useLayoutEffect(() => {
     mounted.current = true;
@@ -62,17 +65,30 @@ function DocumentEpoch({ message, library, snapshot, handle, onAction, onError, 
     [current, message]);
   const interaction = useMemo(() => ({ isCurrent: current, canInteract }), [current, canInteract]);
   const saveFields = useCallback((fields: Record<string, unknown>) => {
+    if (!canInteract() || fields === lastSavedFields.current) return;
+    const saved = message.saveFields(handle, fields);
     if (!canInteract()) return;
-    if (!message.saveFields(handle, fields) && canInteract()) {
+    if (saved) {
+      // The official Store rebuilds its top-level snapshot for every change.
+      // Unbound fields also send that same snapshot through an explicit save
+      // callback, so only that successful duplicate can be skipped here.
+      lastSavedFields.current = fields;
+      if (persistenceFailed.current) {
+        persistenceFailed.current = false;
+        callbacks.current.onPersistenceError?.(null);
+      }
+    } else {
+      persistenceFailed.current = true;
       callbacks.current.onPersistenceError?.(message.getError() ?? new Error('Unable to save message fields'));
     }
   }, [message, handle, canInteract]);
-  const reportFailure = useCallback((reason: Error) => {
+  const reportFailure = useCallback((reason: unknown) => {
     if (!current() || !message.fail(handle, reason)) return;
     // fail() notifies subscribers synchronously; a subscriber may retire or
     // dispose the message before the diagnostic is forwarded to the host.
-    if (mounted.current && message.getHandle() === handle && message.getError() === reason) {
-      callbacks.current.onError?.([{ source: 'runtime', code: 'render-error', message: reason.message }]);
+    const error = message.getError();
+    if (mounted.current && message.getHandle() === handle && message.getSnapshot().phase === 'error' && error) {
+      callbacks.current.onError?.([{ source: 'runtime', code: 'render-error', message: error.message }]);
     }
   }, [current, message, handle]);
 

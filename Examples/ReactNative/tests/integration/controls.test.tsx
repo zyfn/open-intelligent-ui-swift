@@ -91,3 +91,24 @@ test('a failed host action is reported without an unhandled rejection, duplicate
   expect(screen.queryByText('操作暂时未完成，请重试。')).not.toBeOnTheScreen();
   expect(screen.getByRole('button', { name: 'Try action' })).toBeEnabled();
 });
+
+test('a replaced Button retires its captured native action even if the same label later returns', async () => {
+  const controller = complete(`root = Stack([action, Button("Swap action", @Set($mode, !$mode))])
+$mode = false
+action = $mode ? Button("B", @ToAssistant("B")) : Button("A", @ToAssistant("A"))
+`);
+  const onAction = jest.fn();
+  render(<OpenUIDocument message={controller} library={library} onAction={onAction} />);
+  const oldA = capturePress('A');
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Swap action' })); });
+  await act(async () => { oldA(); });
+  expect(onAction).not.toHaveBeenCalled();
+
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'B' })); });
+  expect(onAction).toHaveBeenLastCalledWith(expect.objectContaining({ humanFriendlyMessage: 'B' }));
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Swap action' })); });
+  await act(async () => { oldA(); });
+  expect(onAction).toHaveBeenCalledTimes(1);
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'A' })); });
+  expect(onAction).toHaveBeenLastCalledWith(expect.objectContaining({ humanFriendlyMessage: 'A' }));
+});

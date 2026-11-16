@@ -338,3 +338,54 @@ test('dispose releases retained source, fields and error without reviving cancel
   assert.equal(controller.getSavedFields(handle), undefined);
   assert.throws(() => controller.begin('revive'), /disposed/);
 });
+
+test('transport failure settles accepted input even when its reason has no usable conversion', () => {
+  for (const cause of [Object.create(null), { toString() { throw new Error('conversion failed'); } }]) {
+    const clock = frames();
+    const controller = createMessageController('message', { schedule: clock.schedule });
+    const handle = controller.getHandle();
+    controller.append(handle, 'accepted');
+    assert.equal(controller.fail(handle, cause), true);
+    assert.deepEqual(controller.getSnapshot(), { epoch: 0, source: 'accepted', phase: 'error' });
+    assert.ok(controller.getError() instanceof Error);
+    assert.match(controller.getError()!.message, /details could not be read/);
+    clock.run();
+    assert.equal(controller.getSnapshot().phase, 'error');
+  }
+});
+
+test('normalizing a transport failure cannot overwrite a reentrant replacement', () => {
+  for (const throws of [false, true]) {
+    const controller = createMessageController('message', { maxSourceCodeUnits: 4 });
+    const handle = controller.getHandle();
+    const cause = { toString() {
+      controller.begin('oversized replacement');
+      if (throws) throw new Error('conversion failed');
+      return 'retired error';
+    } };
+    assert.equal(controller.fail(handle, cause), false);
+    assert.equal(controller.getSnapshot().epoch, 1);
+    assert.match(controller.getError()!.message, /Source exceeds 4 UTF-16/);
+  }
+});
+
+test('an unprintable snapshot failure retains the last saved fields', () => {
+  const controller = createMessageController('message');
+  const handle = controller.getHandle();
+  controller.saveFields(handle, { name: 'saved' });
+  const fields = new Proxy({}, { getPrototypeOf() { throw Object.create(null); } });
+  assert.equal(controller.saveFields(handle, fields), false);
+  assert.ok(controller.getError() instanceof Error);
+  assert.deepEqual(controller.getSavedFields(handle), { name: 'saved' });
+  assert.equal(controller.getSnapshot().phase, 'streaming');
+});
+
+test('reusing a mutable host snapshot still persists its latest contents', () => {
+  const controller = createMessageController('message');
+  const handle = controller.getHandle();
+  const fields = { name: { value: 'first' } };
+  assert.equal(controller.saveFields(handle, fields), true);
+  fields.name.value = 'second';
+  assert.equal(controller.saveFields(handle, fields), true);
+  assert.deepEqual(controller.getSavedFields(handle), { name: { value: 'second' } });
+});

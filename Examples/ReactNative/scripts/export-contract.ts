@@ -17,6 +17,7 @@ async function main() {
     components: Object.keys(contract.components),
     upstreamRevision: catalog.revision,
     catalogSHA256: catalog.catalogSHA256,
+    exportedContractSHA256: catalog.exportedContractSHA256,
     specSHA256: createHash('sha256').update(spec).digest('hex'),
     promptSHA256: createHash('sha256').update(prompt).digest('hex'),
   };

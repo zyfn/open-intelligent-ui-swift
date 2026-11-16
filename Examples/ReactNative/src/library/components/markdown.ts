@@ -1,4 +1,5 @@
 import { Lexer, type Token, type Tokens } from 'marked';
+import { normalizeError } from '../../runtime/errors';
 
 const inlineChildren = (token: Token): Token[] =>
   'tokens' in token && Array.isArray(token.tokens) ? token.tokens : [];
@@ -48,7 +49,7 @@ export function parseNativeMarkdown(text: string): NativeMarkdown {
     }
     return { kind: 'markdown', tokens };
   } catch (cause) {
-    return { kind: 'plain', text, error: cause instanceof Error ? cause : new Error(String(cause)) };
+    return { kind: 'plain', text, error: normalizeError(cause) };
   }
 }
 

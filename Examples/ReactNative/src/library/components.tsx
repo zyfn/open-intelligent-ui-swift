@@ -1,13 +1,20 @@
-import { Children } from 'react';
+import { Children, useLayoutEffect, useRef } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { ACTION_STEPS, useFormName, useFormValidation, type ActionPlan, type ComponentRenderer } from '@openuidev/react-lang';
 import ActionButton from '../platform/ActionButton';
-import { useDocumentInteraction } from '../runtime/interaction';
 import { Input } from './components/Input';
 import { TextContent } from './components/TextContent';
 import { Image } from './components/NativeImage';
 import { useNativeAction } from './components/useNativeAction';
 import { useOpenUITheme } from './theme';
+import { layoutRenderers } from './components/LayoutComponents';
+import { formRenderers } from './components/FormComponents';
+import { contentRenderers } from './components/ContentComponents';
+import { cardRenderers } from './components/CardComponents';
+import { chartRenderers } from './components/ChartComponents';
+import { tableRenderers } from './components/TableComponents';
+import { mapRenderers } from './components/MapComponent';
+import { svgRenderers } from './components/SVGComponent';
 
 const string = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback;
 const align: Record<string, ViewStyle['alignItems']> = {
@@ -63,28 +70,42 @@ const Separator: ComponentRenderer = ({ props }) => {
 
 const Button: ComponentRenderer = ({ props }) => {
   const theme = useOpenUITheme();
-  const { invoke, disabled, pending, error } = useNativeAction();
-  const { canInteract } = useDocumentInteraction();
   const formName = useFormName();
   const validation = useFormValidation();
   const label = string(props.label);
   const variant = string(props.variant, 'primary');
+  const action = props.action as ActionPlan | undefined;
+  const { invoke, canInvoke, disabled, pending, error } = useNativeAction(
+    JSON.stringify([formName, label, variant, action]));
+  const currentForm = useRef({ formName, validation });
+  useLayoutEffect(() => { currentForm.current = { formName, validation }; }, [formName, validation]);
   return <View style={{ gap: 6, minWidth: 0, flexShrink: 1 }}>
     <ActionButton label={label} disabled={disabled || !label.trim()} busy={pending}
       variant={variant} type={string(props.type, 'normal')} size={string(props.size, 'medium')}
       onPress={() => {
-        if (disabled || !canInteract()) return;
-        const action = props.action as ActionPlan | undefined;
+        if (disabled || !canInvoke()) return;
         // Match the pinned OpenUI Button contract; no form is invented for a Stack.
         const needsValidation = !action?.steps || action.steps.some(step =>
           step.type === ACTION_STEPS.ToAssistant || step.type === 'custom_action' ||
           (step.type === ACTION_STEPS.Run && step.refType === 'mutation'));
         if (formName && variant === 'primary' && validation && needsValidation && !validation.validateForm()) return;
-        void invoke(label, action, formName);
+        void invoke(label, action, formName).then(succeeded => {
+          if (succeeded && canInvoke() && currentForm.current.formName === formName
+            && action?.steps?.some(step => step.type === ACTION_STEPS.Reset)) {
+            const current = currentForm.current.validation;
+            if (current && current.registerField === validation?.registerField) {
+              Object.keys(current.errors).forEach(name => current.clearFieldError(name));
+            }
+          }
+        });
       }} />
     {error ? <Text accessibilityLiveRegion="polite" style={{ color: theme.destructive,
       fontSize: 13, lineHeight: 20 }}>{error}</Text> : null}
   </View>;
 };
 
-export const renderers: Record<string, ComponentRenderer> = { Stack, TextContent, CardHeader, Separator, Input, Button, Image };
+export const renderers: Record<string, ComponentRenderer> = {
+  Stack, TextContent, CardHeader, Separator, Input, Button, Image,
+  ...layoutRenderers, ...formRenderers, ...contentRenderers, ...cardRenderers,
+  ...chartRenderers, ...tableRenderers, ...mapRenderers, ...svgRenderers,
+};

@@ -1,3 +1,5 @@
+import { normalizeError } from './errors';
+
 export type MessagePhase = 'streaming' | 'complete' | 'interrupted' | 'error';
 export type MessageHandle = Readonly<{ messageId: string; epoch: number }>;
 export type MessageSnapshot = Readonly<{ epoch: number; source: string; phase: MessagePhase }>;
@@ -200,7 +202,7 @@ export function createMessageController(messageId: string, options: MessageOptio
     /** A transport or fatal render failure is not a successful finalization. */
     fail(candidate: MessageHandle, cause: unknown): boolean {
       if (!isCurrent(candidate)) return false;
-      const nextError = cause instanceof Error ? cause : new Error(String(cause));
+      const nextError = normalizeError(cause);
       if (!isCurrent(candidate)) return false;
       error = nextError;
       flush('error');
@@ -218,7 +220,7 @@ export function createMessageController(messageId: string, options: MessageOptio
         return true;
       } catch (cause) {
         if (!isCurrent(candidate)) return false;
-        const nextError = cause instanceof Error ? cause : new Error(String(cause));
+        const nextError = normalizeError(cause);
         if (isCurrent(candidate)) error = nextError;
         return false;
       }

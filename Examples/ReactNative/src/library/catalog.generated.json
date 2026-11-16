@@ -2,11 +2,13 @@
   "generatedBy": "scripts/catalog.mjs; do not edit parameter contracts here",
   "revision": "9823ec05d4b29bc78d101676dc16b44fe17f1830",
   "catalogSHA256": "24d428b6fd5bc3c50939840a3649c68351106b6c82be9a0b1ee72b88a4e2f55e",
+  "exportedContractSHA256": "4f3e2e992705458961e4cdb2d378217f8c81562f3651de24f2ca12783c000fd2",
   "root": "Stack",
   "components": [
     {
-      "name": "Stack",
-      "description": "Flex container. direction: \"row\"|\"column\" (default \"column\"). gap: \"none\"|\"xs\"|\"s\"|\"m\"|\"l\"|\"xl\"|\"2xl\" (default \"m\"). align: \"start\"|\"center\"|\"end\"|\"stretch\"|\"baseline\". justify: \"start\"|\"center\"|\"end\"|\"between\"|\"around\"|\"evenly\".",
+      "name": "Card",
+      "description": "Styled container. variant: \"card\" (default, elevated) | \"sunk\" (recessed) | \"clear\" (transparent). Always full width. Accepts all Stack flex params (default: direction \"column\"). Cards flex to share space in row/wrap layouts.",
+      "signature": "Card(children: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | CodeBlock | Image | ImageBlock | ImageGallery | Separator | HorizontalBarChart | RadarChart | PieChart | RadialChart | SingleStackedBarChart | ScatterChart | AreaChart | BarChart | LineChart | Table | TagBlock | Form | Buttons | IconButton | Steps | InlineHeader | EntityList | EditableTable | SnippetCardBlock | OverviewCardBlock | ContextCardBlock | CompositeCardBlock | VisualCardBlock | Tabs | Carousel | Stack | Map | SVG)[], variant?: \"card\" | \"sunk\" | \"clear\", direction?: \"row\" | \"column\", gap?: \"none\" | \"xs\" | \"s\" | \"m\" | \"l\" | \"xl\" | \"2xl\", align?: \"start\" | \"center\" | \"end\" | \"stretch\" | \"baseline\", justify?: \"start\" | \"center\" | \"end\" | \"between\" | \"around\" | \"evenly\", wrap?: boolean)",
       "params": [
         {
           "name": "children",
@@ -16,7 +18,139 @@
           "isBindable": false,
           "schema": {
             "type": "array",
-            "items": {}
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TextContent"
+                },
+                {
+                  "$ref": "#/$defs/MarkDownRenderer"
+                },
+                {
+                  "$ref": "#/$defs/CardHeader"
+                },
+                {
+                  "$ref": "#/$defs/Callout"
+                },
+                {
+                  "$ref": "#/$defs/TextCallout"
+                },
+                {
+                  "$ref": "#/$defs/CodeBlock"
+                },
+                {
+                  "$ref": "#/$defs/Image"
+                },
+                {
+                  "$ref": "#/$defs/ImageBlock"
+                },
+                {
+                  "$ref": "#/$defs/ImageGallery"
+                },
+                {
+                  "$ref": "#/$defs/Separator"
+                },
+                {
+                  "$ref": "#/$defs/HorizontalBarChart"
+                },
+                {
+                  "$ref": "#/$defs/RadarChart"
+                },
+                {
+                  "$ref": "#/$defs/PieChart"
+                },
+                {
+                  "$ref": "#/$defs/RadialChart"
+                },
+                {
+                  "$ref": "#/$defs/SingleStackedBarChart"
+                },
+                {
+                  "$ref": "#/$defs/ScatterChart"
+                },
+                {
+                  "$ref": "#/$defs/AreaChart"
+                },
+                {
+                  "$ref": "#/$defs/BarChart"
+                },
+                {
+                  "$ref": "#/$defs/LineChart"
+                },
+                {
+                  "$ref": "#/$defs/Table"
+                },
+                {
+                  "$ref": "#/$defs/TagBlock"
+                },
+                {
+                  "$ref": "#/$defs/Form"
+                },
+                {
+                  "$ref": "#/$defs/Buttons"
+                },
+                {
+                  "$ref": "#/$defs/IconButton"
+                },
+                {
+                  "$ref": "#/$defs/Steps"
+                },
+                {
+                  "$ref": "#/$defs/InlineHeader"
+                },
+                {
+                  "$ref": "#/$defs/EntityList"
+                },
+                {
+                  "$ref": "#/$defs/EditableTable"
+                },
+                {
+                  "$ref": "#/$defs/SnippetCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/OverviewCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/ContextCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/CompositeCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/VisualCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/Tabs"
+                },
+                {
+                  "$ref": "#/$defs/Carousel"
+                },
+                {
+                  "$ref": "#/$defs/Stack"
+                },
+                {
+                  "$ref": "#/$defs/Map"
+                },
+                {
+                  "$ref": "#/$defs/SVG"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "card",
+              "sunk",
+              "clear"
+            ]
           }
         },
         {
@@ -97,11 +231,41 @@
             "type": "boolean"
           }
         }
-      ]
+      ],
+      "schemaDescription": "Styled container. variant: \"card\" (default, elevated) | \"sunk\" (recessed) | \"clear\" (transparent). Always full width. Accepts all Stack flex params (default: direction \"column\"). Cards flex to share space in row/wrap layouts."
+    },
+    {
+      "name": "CardHeader",
+      "description": "Header with optional title and subtitle",
+      "signature": "CardHeader(title?: string, subtitle?: string)",
+      "params": [
+        {
+          "name": "title",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Header with optional title and subtitle"
     },
     {
       "name": "TextContent",
       "description": "Text block. Supports markdown. Optional size: \"small\" | \"default\" | \"large\" | \"small-heavy\" | \"large-heavy\".",
+      "signature": "TextContent(text: string, size?: \"small\" | \"default\" | \"large\" | \"small-heavy\" | \"large-heavy\")",
       "params": [
         {
           "name": "text",
@@ -130,12 +294,119 @@
             ]
           }
         }
-      ]
+      ],
+      "schemaDescription": "Text block. Supports markdown. Optional size: \"small\" | \"default\" | \"large\" | \"small-heavy\" | \"large-heavy\"."
     },
     {
-      "name": "CardHeader",
-      "description": "Header with optional title and subtitle",
+      "name": "MarkDownRenderer",
+      "description": "Renders markdown text with optional container variant",
+      "signature": "MarkDownRenderer(textMarkdown: string, variant?: \"clear\" | \"card\" | \"sunk\")",
       "params": [
+        {
+          "name": "textMarkdown",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "clear",
+              "card",
+              "sunk"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Renders markdown text with optional container variant"
+    },
+    {
+      "name": "Callout",
+      "description": "Callout banner. Optional visible is a reactive $boolean — auto-dismisses after 3s by setting $visible to false.",
+      "signature": "Callout(variant: \"info\" | \"warning\" | \"error\" | \"success\" | \"neutral\", title: string, description: string, visible?: $binding<boolean>)",
+      "params": [
+        {
+          "name": "variant",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error",
+              "success",
+              "neutral"
+            ]
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "description",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "visible",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "schemaDescription": "Callout banner. Optional visible is a reactive $boolean — auto-dismisses after 3s by setting $visible to false."
+    },
+    {
+      "name": "TextCallout",
+      "description": "Text callout with variant, title, and description",
+      "signature": "TextCallout(variant?: \"neutral\" | \"info\" | \"warning\" | \"success\" | \"danger\", title?: string, description?: string)",
+      "params": [
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "neutral",
+              "info",
+              "warning",
+              "success",
+              "danger"
+            ]
+          }
+        },
         {
           "name": "title",
           "required": false,
@@ -147,7 +418,7 @@
           }
         },
         {
-          "name": "subtitle",
+          "name": "description",
           "required": false,
           "hasDefault": false,
           "defaultValue": null,
@@ -156,14 +427,203 @@
             "type": "string"
           }
         }
-      ]
+      ],
+      "schemaDescription": "Text callout with variant, title, and description"
     },
     {
-      "name": "Separator",
-      "description": "Visual divider between content sections",
+      "name": "Image",
+      "description": "Image with alt text and optional URL",
+      "signature": "Image(alt: string, src?: string)",
       "params": [
         {
-          "name": "orientation",
+          "name": "alt",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "src",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Image with alt text and optional URL"
+    },
+    {
+      "name": "ImageBlock",
+      "description": "Image block with loading state",
+      "signature": "ImageBlock(src: string, alt?: string)",
+      "params": [
+        {
+          "name": "src",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "alt",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Image block with loading state"
+    },
+    {
+      "name": "ImageGallery",
+      "description": "Gallery grid of images with modal preview",
+      "signature": "ImageGallery(images: {src: string, alt?: string, details?: string}[])",
+      "params": [
+        {
+          "name": "images",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "src": {
+                  "type": "string"
+                },
+                "alt": {
+                  "type": "string"
+                },
+                "details": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "src"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Gallery grid of images with modal preview"
+    },
+    {
+      "name": "CodeBlock",
+      "description": "Syntax-highlighted code block",
+      "signature": "CodeBlock(language: string, codeString: string)",
+      "params": [
+        {
+          "name": "language",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "codeString",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Syntax-highlighted code block"
+    },
+    {
+      "name": "InlineHeader",
+      "description": "Compact section heading with an optional one-line description, for use inside cards.",
+      "signature": "InlineHeader(heading: string, description?: string)",
+      "params": [
+        {
+          "name": "heading",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "description",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Compact section heading with an optional one-line description, for use inside cards."
+    },
+    {
+      "name": "Table",
+      "description": "Data table — column-oriented. Each Col holds its own data array.",
+      "signature": "Table(columns: Col[])",
+      "params": [
+        {
+          "name": "columns",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Col"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Data table — column-oriented. Each Col holds its own data array."
+    },
+    {
+      "name": "Col",
+      "description": "Column definition — holds label + data array",
+      "signature": "Col(label: string, data: any, type?: \"string\" | \"number\" | \"action\")",
+      "params": [
+        {
+          "name": "label",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "data",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {}
+        },
+        {
+          "name": "type",
           "required": false,
           "hasDefault": false,
           "defaultValue": null,
@@ -171,26 +631,900 @@
           "schema": {
             "type": "string",
             "enum": [
-              "horizontal",
-              "vertical"
+              "string",
+              "number",
+              "action"
             ]
+          }
+        }
+      ],
+      "schemaDescription": "Column definition — holds label + data array"
+    },
+    {
+      "name": "EditableTable",
+      "description": "Spreadsheet-like table whose cells the user can edit inline (text, number, url, date, select columns); edits are saved back as a form field",
+      "signature": "EditableTable(name?: string, columns?: {type: \"text\" | \"number\" | \"date-single\" | \"select\" | \"url\", key?: string, header?: string, width?: number, options?: {value: string, label: string}[]}[], data?: {id: string, values: (string | number)[]}[])",
+      "params": [
+        {
+          "name": "name",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "",
+          "isBindable": false,
+          "schema": {
+            "default": "",
+            "type": "string"
           }
         },
         {
-          "name": "decorative",
+          "name": "columns",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": [],
+          "isBindable": false,
+          "schema": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "text",
+                    "number",
+                    "date-single",
+                    "select",
+                    "url"
+                  ]
+                },
+                "key": {
+                  "default": "default",
+                  "type": "string"
+                },
+                "header": {
+                  "default": "",
+                  "type": "string"
+                },
+                "width": {
+                  "type": "number"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "key",
+                "header"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        {
+          "name": "data",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": [],
+          "isBindable": false,
+          "schema": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "values"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Spreadsheet-like table whose cells the user can edit inline (text, number, url, date, select columns); edits are saved back as a form field"
+    },
+    {
+      "name": "BarChart",
+      "description": "Vertical bars; use for comparing values across categories with one or more series",
+      "signature": "BarChart(labels: string[], series: Series[], variant?: \"grouped\" | \"stacked\", xLabel?: string, yLabel?: string, height?: number)",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "series",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Series"
+            }
+          }
+        },
+        {
+          "name": "variant",
           "required": false,
           "hasDefault": false,
           "defaultValue": null,
           "isBindable": false,
           "schema": {
-            "type": "boolean"
+            "type": "string",
+            "enum": [
+              "grouped",
+              "stacked"
+            ]
+          }
+        },
+        {
+          "name": "xLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "yLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "height",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
           }
         }
-      ]
+      ],
+      "schemaDescription": "Vertical bars; use for comparing values across categories with one or more series"
+    },
+    {
+      "name": "LineChart",
+      "description": "Lines over categories; use for trends and continuous data over time",
+      "signature": "LineChart(labels: string[], series: Series[], variant?: \"linear\" | \"natural\" | \"step\", xLabel?: string, yLabel?: string, height?: number)",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "series",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Series"
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "linear",
+              "natural",
+              "step"
+            ]
+          }
+        },
+        {
+          "name": "xLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "yLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "height",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        }
+      ],
+      "schemaDescription": "Lines over categories; use for trends and continuous data over time"
+    },
+    {
+      "name": "AreaChart",
+      "description": "Filled area under lines; use for cumulative totals or volume trends over time",
+      "signature": "AreaChart(labels: string[], series: Series[], variant?: \"linear\" | \"natural\" | \"step\", xLabel?: string, yLabel?: string, height?: number)",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "series",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Series"
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "linear",
+              "natural",
+              "step"
+            ]
+          }
+        },
+        {
+          "name": "xLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "yLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "height",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        }
+      ],
+      "schemaDescription": "Filled area under lines; use for cumulative totals or volume trends over time"
+    },
+    {
+      "name": "RadarChart",
+      "description": "Spider/web chart; use for comparing multiple variables across one or more entities",
+      "signature": "RadarChart(labels: string[], series: Series[])",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "series",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Series"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Spider/web chart; use for comparing multiple variables across one or more entities"
+    },
+    {
+      "name": "HorizontalBarChart",
+      "description": "Horizontal bars; prefer when category labels are long or for ranked lists",
+      "signature": "HorizontalBarChart(labels: string[], series: Series[], variant?: \"grouped\" | \"stacked\", xLabel?: string, yLabel?: string)",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "series",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Series"
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "grouped",
+              "stacked"
+            ]
+          }
+        },
+        {
+          "name": "xLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "yLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Horizontal bars; prefer when category labels are long or for ranked lists"
+    },
+    {
+      "name": "Series",
+      "description": "One data series",
+      "signature": "Series(category: string, values: number[])",
+      "params": [
+        {
+          "name": "category",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "values",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "One data series"
+    },
+    {
+      "name": "PieChart",
+      "description": "Circular slices; use plucked arrays: PieChart(data.categories, data.values)",
+      "signature": "PieChart(labels: string[], values: number[], variant?: \"pie\" | \"donut\", appearance?: \"circular\" | \"semiCircular\")",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "values",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "pie",
+              "donut"
+            ]
+          }
+        },
+        {
+          "name": "appearance",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "circular",
+              "semiCircular"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Circular slices; use plucked arrays: PieChart(data.categories, data.values)"
+    },
+    {
+      "name": "RadialChart",
+      "description": "Radial bars; use plucked arrays: RadialChart(data.categories, data.values)",
+      "signature": "RadialChart(labels: string[], values: number[])",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "values",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Radial bars; use plucked arrays: RadialChart(data.categories, data.values)"
+    },
+    {
+      "name": "SingleStackedBarChart",
+      "description": "Single horizontal stacked bar; use plucked arrays: SingleStackedBarChart(data.categories, data.values)",
+      "signature": "SingleStackedBarChart(labels: string[], values: number[])",
+      "params": [
+        {
+          "name": "labels",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "values",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Single horizontal stacked bar; use plucked arrays: SingleStackedBarChart(data.categories, data.values)"
+    },
+    {
+      "name": "Slice",
+      "description": "One slice with label and numeric value",
+      "signature": "Slice(category: string, value: number)",
+      "params": [
+        {
+          "name": "category",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        }
+      ],
+      "schemaDescription": "One slice with label and numeric value"
+    },
+    {
+      "name": "ScatterChart",
+      "description": "X/Y scatter plot; use for correlations, distributions, and clustering",
+      "signature": "ScatterChart(datasets: ScatterSeries[], xLabel?: string, yLabel?: string)",
+      "params": [
+        {
+          "name": "datasets",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ScatterSeries"
+            }
+          }
+        },
+        {
+          "name": "xLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "yLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "X/Y scatter plot; use for correlations, distributions, and clustering"
+    },
+    {
+      "name": "ScatterSeries",
+      "description": "Named dataset",
+      "signature": "ScatterSeries(name: string, points: Point[])",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "points",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Point"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Named dataset"
+    },
+    {
+      "name": "Point",
+      "description": "Data point with numeric coordinates",
+      "signature": "Point(x: number, y: number, z?: number)",
+      "params": [
+        {
+          "name": "x",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "y",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "z",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        }
+      ],
+      "schemaDescription": "Data point with numeric coordinates"
+    },
+    {
+      "name": "Form",
+      "description": "Form container with fields and explicit action buttons",
+      "signature": "Form(name: string, buttons: Buttons, fields?: FormControl[])",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "buttons",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/Buttons"
+          }
+        },
+        {
+          "name": "fields",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": [],
+          "isBindable": false,
+          "schema": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FormControl"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Form container with fields and explicit action buttons"
+    },
+    {
+      "name": "FormControl",
+      "description": "Field with label, input component, and optional hint text",
+      "signature": "FormControl(label: string, input: Input | TextArea | Select | DatePicker | Slider | CheckBoxGroup | RadioGroup | Chips | OptionCards, hint?: string)",
+      "params": [
+        {
+          "name": "label",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "input",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Input"
+              },
+              {
+                "$ref": "#/$defs/TextArea"
+              },
+              {
+                "$ref": "#/$defs/Select"
+              },
+              {
+                "$ref": "#/$defs/DatePicker"
+              },
+              {
+                "$ref": "#/$defs/Slider"
+              },
+              {
+                "$ref": "#/$defs/CheckBoxGroup"
+              },
+              {
+                "$ref": "#/$defs/RadioGroup"
+              },
+              {
+                "$ref": "#/$defs/Chips"
+              },
+              {
+                "$ref": "#/$defs/OptionCards"
+              }
+            ]
+          }
+        },
+        {
+          "name": "hint",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Field with label, input component, and optional hint text"
+    },
+    {
+      "name": "Label",
+      "description": "Text label",
+      "signature": "Label(text: string)",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Text label"
     },
     {
       "name": "Input",
       "description": "",
+      "signature": "Input(name: string, placeholder?: string, type?: \"text\" | \"email\" | \"password\" | \"number\" | \"url\", rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, value?: $binding<string>)",
       "params": [
         {
           "name": "name",
@@ -282,8 +1616,1143 @@
       ]
     },
     {
+      "name": "TextArea",
+      "description": "",
+      "signature": "TextArea(name: string, placeholder?: string, rows?: number, rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, value?: $binding<string>)",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "placeholder",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "rows",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Select",
+      "description": "",
+      "signature": "Select(name: string, items: SelectItem[], placeholder?: string, rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, value?: $binding<string>, size?: \"small\" | \"medium\" | \"large\")",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/SelectItem"
+            }
+          }
+        },
+        {
+          "name": "placeholder",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "small",
+              "medium",
+              "large"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SelectItem",
+      "description": "Option for Select",
+      "signature": "SelectItem(value: string, label: string)",
+      "params": [
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "label",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Option for Select"
+    },
+    {
+      "name": "DatePicker",
+      "description": "",
+      "signature": "DatePicker(name: string, mode?: \"single\" | \"range\", rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, value?: $binding<any>)",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "mode",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "single",
+              "range"
+            ]
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {}
+        }
+      ]
+    },
+    {
+      "name": "Slider",
+      "description": "Numeric slider input; supports continuous and discrete (stepped) variants",
+      "signature": "Slider(name: string, variant: \"continuous\" | \"discrete\", min: number, max: number, step?: number, defaultValue?: number[], label?: string, rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, value?: $binding<number[]>)",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "variant",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "continuous",
+              "discrete"
+            ]
+          }
+        },
+        {
+          "name": "min",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "max",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "step",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "defaultValue",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "name": "label",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Numeric slider input; supports continuous and discrete (stepped) variants"
+    },
+    {
+      "name": "CheckBoxGroup",
+      "description": "",
+      "signature": "CheckBoxGroup(name: string, items: CheckBoxItem[], rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, value?: $binding<Record<string, boolean>>)",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CheckBoxItem"
+            }
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "CheckBoxItem",
+      "description": "",
+      "signature": "CheckBoxItem(label: string, description: string, name: string, defaultChecked?: boolean)",
+      "params": [
+        {
+          "name": "label",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "description",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "defaultChecked",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RadioGroup",
+      "description": "",
+      "signature": "RadioGroup(name: string, items: RadioItem[], defaultValue?: string, rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, value?: $binding<string>)",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/RadioItem"
+            }
+          }
+        },
+        {
+          "name": "defaultValue",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "RadioItem",
+      "description": "",
+      "signature": "RadioItem(label: string, description: string, value: string)",
+      "params": [
+        {
+          "name": "label",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "description",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SwitchGroup",
+      "description": "Group of switch toggles",
+      "signature": "SwitchGroup(name: string, items: SwitchItem[], variant?: \"clear\" | \"card\" | \"sunk\", value?: $binding<Record<string, boolean>>)",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/SwitchItem"
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "clear",
+              "card",
+              "sunk"
+            ]
+          }
+        },
+        {
+          "name": "value",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Group of switch toggles"
+    },
+    {
+      "name": "SwitchItem",
+      "description": "Individual switch toggle",
+      "signature": "SwitchItem(label: string, description: string, name: string, defaultChecked?: boolean)",
+      "params": [
+        {
+          "name": "label",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "description",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "defaultChecked",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "schemaDescription": "Individual switch toggle"
+    },
+    {
+      "name": "ChipItem",
+      "description": "A single selectable chip inside a Chips group, with a value, label and optional icon.",
+      "signature": "ChipItem(value: string, label: string, icon?: Icon, disabled?: boolean)",
+      "params": [
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "label",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "icon",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/Icon"
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "schemaDescription": "A single selectable chip inside a Chips group, with a value, label and optional icon."
+    },
+    {
+      "name": "Chips",
+      "description": "A form field of compact selectable chips for choosing one or many short options; the selection is stored under `name`.",
+      "signature": "Chips(name: string, type?: \"single\" | \"multiple\", items?: ChipItem[], rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, defaultValue?: string | string[])",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "multiple",
+          "isBindable": false,
+          "schema": {
+            "default": "multiple",
+            "type": "string",
+            "enum": [
+              "single",
+              "multiple"
+            ]
+          }
+        },
+        {
+          "name": "items",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": [],
+          "isBindable": false,
+          "schema": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ChipItem"
+            }
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "defaultValue",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A form field of compact selectable chips for choosing one or many short options; the selection is stored under `name`."
+    },
+    {
+      "name": "OptionCard",
+      "description": "A single selectable card inside an OptionCards group, with a value, title, optional subtitle and an optional Icon or Image on top.",
+      "signature": "OptionCard(value: string, title: string, subtitle?: string, topContent?: Icon | Image, disabled?: boolean)",
+      "params": [
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "topContent",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Icon"
+              },
+              {
+                "$ref": "#/$defs/Image"
+              }
+            ]
+          }
+        },
+        {
+          "name": "disabled",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "schemaDescription": "A single selectable card inside an OptionCards group, with a value, title, optional subtitle and an optional Icon or Image on top."
+    },
+    {
+      "name": "OptionCards",
+      "description": "A form field of selectable cards (title, optional subtitle, optional icon or image) laid out in a responsive grid for choosing one or many options; the selection is stored under `name`.",
+      "signature": "OptionCards(name: string, type?: \"single\" | \"multiple\", items?: OptionCard[], rules?: {required?: boolean, email?: boolean, url?: boolean, numeric?: boolean, min?: number, max?: number, minLength?: number, maxLength?: number, pattern?: string}, defaultValue?: string | string[])",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "single",
+          "isBindable": false,
+          "schema": {
+            "default": "single",
+            "type": "string",
+            "enum": [
+              "single",
+              "multiple"
+            ]
+          }
+        },
+        {
+          "name": "items",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": [],
+          "isBindable": false,
+          "schema": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/OptionCard"
+            }
+          }
+        },
+        {
+          "name": "rules",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              },
+              "email": {
+                "type": "boolean"
+              },
+              "url": {
+                "type": "boolean"
+              },
+              "numeric": {
+                "type": "boolean"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "minLength": {
+                "type": "number"
+              },
+              "maxLength": {
+                "type": "number"
+              },
+              "pattern": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "defaultValue",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A form field of selectable cards (title, optional subtitle, optional icon or image) laid out in a responsive grid for choosing one or many options; the selection is stored under `name`."
+    },
+    {
       "name": "Button",
       "description": "Clickable button",
+      "signature": "Button(label: string, action?: ActionExpression, variant?: \"primary\" | \"secondary\" | \"tertiary\", type?: \"normal\" | \"destructive\", size?: \"extra-small\" | \"small\" | \"medium\" | \"large\")",
       "params": [
         {
           "name": "label",
@@ -350,15 +2819,2701 @@
             ]
           }
         }
-      ]
+      ],
+      "schemaDescription": "Clickable button"
     },
     {
-      "name": "Image",
-      "description": "Image with alt text and optional URL",
+      "name": "Buttons",
+      "description": "Group of Button components. direction: \"row\" (default) | \"column\".",
+      "signature": "Buttons(buttons: Button[], direction?: \"row\" | \"column\")",
       "params": [
         {
-          "name": "alt",
+          "name": "buttons",
           "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Button"
+            }
+          }
+        },
+        {
+          "name": "direction",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "row",
+              "column"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Group of Button components. direction: \"row\" (default) | \"column\"."
+    },
+    {
+      "name": "IconButton",
+      "description": "Icon-only button. name is the accessible label and the action label; icon is an Icon; action fires on click.",
+      "signature": "IconButton(name: string, icon: Icon, action?: ActionExpression, variant?: \"primary\" | \"secondary\" | \"tertiary\", size?: \"extra-small\" | \"small\" | \"medium\" | \"large\", shape?: \"square\" | \"circle\")",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "icon",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/Icon"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "primary",
+              "secondary",
+              "tertiary"
+            ]
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "extra-small",
+              "small",
+              "medium",
+              "large"
+            ]
+          }
+        },
+        {
+          "name": "shape",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "square",
+              "circle"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Icon-only button. name is the accessible label and the action label; icon is an Icon; action fires on click."
+    },
+    {
+      "name": "Stack",
+      "description": "Flex container. direction: \"row\"|\"column\" (default \"column\"). gap: \"none\"|\"xs\"|\"s\"|\"m\"|\"l\"|\"xl\"|\"2xl\" (default \"m\"). align: \"start\"|\"center\"|\"end\"|\"stretch\"|\"baseline\". justify: \"start\"|\"center\"|\"end\"|\"between\"|\"around\"|\"evenly\".",
+      "signature": "Stack(children: any[], direction?: \"row\" | \"column\", gap?: \"none\" | \"xs\" | \"s\" | \"m\" | \"l\" | \"xl\" | \"2xl\", align?: \"start\" | \"center\" | \"end\" | \"stretch\" | \"baseline\", justify?: \"start\" | \"center\" | \"end\" | \"between\" | \"around\" | \"evenly\", wrap?: boolean)",
+      "params": [
+        {
+          "name": "children",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        {
+          "name": "direction",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "row",
+              "column"
+            ]
+          }
+        },
+        {
+          "name": "gap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "none",
+              "xs",
+              "s",
+              "m",
+              "l",
+              "xl",
+              "2xl"
+            ]
+          }
+        },
+        {
+          "name": "align",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "start",
+              "center",
+              "end",
+              "stretch",
+              "baseline"
+            ]
+          }
+        },
+        {
+          "name": "justify",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "start",
+              "center",
+              "end",
+              "between",
+              "around",
+              "evenly"
+            ]
+          }
+        },
+        {
+          "name": "wrap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "schemaDescription": "Flex container. direction: \"row\"|\"column\" (default \"column\"). gap: \"none\"|\"xs\"|\"s\"|\"m\"|\"l\"|\"xl\"|\"2xl\" (default \"m\"). align: \"start\"|\"center\"|\"end\"|\"stretch\"|\"baseline\". justify: \"start\"|\"center\"|\"end\"|\"between\"|\"around\"|\"evenly\"."
+    },
+    {
+      "name": "Tabs",
+      "description": "Tabbed container",
+      "signature": "Tabs(items: TabItem[])",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/TabItem"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Tabbed container"
+    },
+    {
+      "name": "TabItem",
+      "description": "value is unique id, trigger is tab label, content is array of components",
+      "signature": "TabItem(value: string, trigger: string, content: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | CodeBlock | Image | ImageBlock | ImageGallery | Separator | HorizontalBarChart | RadarChart | PieChart | RadialChart | SingleStackedBarChart | ScatterChart | AreaChart | BarChart | LineChart | Table | TagBlock | Form | Buttons | IconButton | Steps | InlineHeader | EntityList | EditableTable | SnippetCardBlock | OverviewCardBlock | ContextCardBlock | CompositeCardBlock | VisualCardBlock | Map | SVG)[])",
+      "params": [
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "trigger",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "content",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TextContent"
+                },
+                {
+                  "$ref": "#/$defs/MarkDownRenderer"
+                },
+                {
+                  "$ref": "#/$defs/CardHeader"
+                },
+                {
+                  "$ref": "#/$defs/Callout"
+                },
+                {
+                  "$ref": "#/$defs/TextCallout"
+                },
+                {
+                  "$ref": "#/$defs/CodeBlock"
+                },
+                {
+                  "$ref": "#/$defs/Image"
+                },
+                {
+                  "$ref": "#/$defs/ImageBlock"
+                },
+                {
+                  "$ref": "#/$defs/ImageGallery"
+                },
+                {
+                  "$ref": "#/$defs/Separator"
+                },
+                {
+                  "$ref": "#/$defs/HorizontalBarChart"
+                },
+                {
+                  "$ref": "#/$defs/RadarChart"
+                },
+                {
+                  "$ref": "#/$defs/PieChart"
+                },
+                {
+                  "$ref": "#/$defs/RadialChart"
+                },
+                {
+                  "$ref": "#/$defs/SingleStackedBarChart"
+                },
+                {
+                  "$ref": "#/$defs/ScatterChart"
+                },
+                {
+                  "$ref": "#/$defs/AreaChart"
+                },
+                {
+                  "$ref": "#/$defs/BarChart"
+                },
+                {
+                  "$ref": "#/$defs/LineChart"
+                },
+                {
+                  "$ref": "#/$defs/Table"
+                },
+                {
+                  "$ref": "#/$defs/TagBlock"
+                },
+                {
+                  "$ref": "#/$defs/Form"
+                },
+                {
+                  "$ref": "#/$defs/Buttons"
+                },
+                {
+                  "$ref": "#/$defs/IconButton"
+                },
+                {
+                  "$ref": "#/$defs/Steps"
+                },
+                {
+                  "$ref": "#/$defs/InlineHeader"
+                },
+                {
+                  "$ref": "#/$defs/EntityList"
+                },
+                {
+                  "$ref": "#/$defs/EditableTable"
+                },
+                {
+                  "$ref": "#/$defs/SnippetCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/OverviewCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/ContextCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/CompositeCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/VisualCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/Map"
+                },
+                {
+                  "$ref": "#/$defs/SVG"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "schemaDescription": "value is unique id, trigger is tab label, content is array of components"
+    },
+    {
+      "name": "Accordion",
+      "description": "Collapsible sections",
+      "signature": "Accordion(items: AccordionItem[])",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/AccordionItem"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Collapsible sections"
+    },
+    {
+      "name": "AccordionItem",
+      "description": "value is unique id, trigger is section title",
+      "signature": "AccordionItem(value: string, trigger: string, content: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | CodeBlock | Image | ImageBlock | ImageGallery | Separator | HorizontalBarChart | RadarChart | PieChart | RadialChart | SingleStackedBarChart | ScatterChart | AreaChart | BarChart | LineChart | Table | TagBlock | Form | Buttons | IconButton | Steps | InlineHeader | EntityList | EditableTable | SnippetCardBlock | OverviewCardBlock | ContextCardBlock | CompositeCardBlock | VisualCardBlock | Map | SVG)[])",
+      "params": [
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "trigger",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "content",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TextContent"
+                },
+                {
+                  "$ref": "#/$defs/MarkDownRenderer"
+                },
+                {
+                  "$ref": "#/$defs/CardHeader"
+                },
+                {
+                  "$ref": "#/$defs/Callout"
+                },
+                {
+                  "$ref": "#/$defs/TextCallout"
+                },
+                {
+                  "$ref": "#/$defs/CodeBlock"
+                },
+                {
+                  "$ref": "#/$defs/Image"
+                },
+                {
+                  "$ref": "#/$defs/ImageBlock"
+                },
+                {
+                  "$ref": "#/$defs/ImageGallery"
+                },
+                {
+                  "$ref": "#/$defs/Separator"
+                },
+                {
+                  "$ref": "#/$defs/HorizontalBarChart"
+                },
+                {
+                  "$ref": "#/$defs/RadarChart"
+                },
+                {
+                  "$ref": "#/$defs/PieChart"
+                },
+                {
+                  "$ref": "#/$defs/RadialChart"
+                },
+                {
+                  "$ref": "#/$defs/SingleStackedBarChart"
+                },
+                {
+                  "$ref": "#/$defs/ScatterChart"
+                },
+                {
+                  "$ref": "#/$defs/AreaChart"
+                },
+                {
+                  "$ref": "#/$defs/BarChart"
+                },
+                {
+                  "$ref": "#/$defs/LineChart"
+                },
+                {
+                  "$ref": "#/$defs/Table"
+                },
+                {
+                  "$ref": "#/$defs/TagBlock"
+                },
+                {
+                  "$ref": "#/$defs/Form"
+                },
+                {
+                  "$ref": "#/$defs/Buttons"
+                },
+                {
+                  "$ref": "#/$defs/IconButton"
+                },
+                {
+                  "$ref": "#/$defs/Steps"
+                },
+                {
+                  "$ref": "#/$defs/InlineHeader"
+                },
+                {
+                  "$ref": "#/$defs/EntityList"
+                },
+                {
+                  "$ref": "#/$defs/EditableTable"
+                },
+                {
+                  "$ref": "#/$defs/SnippetCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/OverviewCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/ContextCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/CompositeCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/VisualCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/Map"
+                },
+                {
+                  "$ref": "#/$defs/SVG"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "schemaDescription": "value is unique id, trigger is section title"
+    },
+    {
+      "name": "Steps",
+      "description": "Step-by-step guide",
+      "signature": "Steps(items: StepsItem[])",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/StepsItem"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "Step-by-step guide"
+    },
+    {
+      "name": "StepsItem",
+      "description": "title and details text for one step",
+      "signature": "StepsItem(title: string, details: string)",
+      "params": [
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "details",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "title and details text for one step"
+    },
+    {
+      "name": "Carousel",
+      "description": "Horizontal scrollable carousel",
+      "signature": "Carousel(children: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | CodeBlock | Image | ImageBlock | ImageGallery | Separator | HorizontalBarChart | RadarChart | PieChart | RadialChart | SingleStackedBarChart | ScatterChart | AreaChart | BarChart | LineChart | Table | TagBlock | Form | Buttons | IconButton | Steps | InlineHeader | EntityList | EditableTable | SnippetCardBlock | OverviewCardBlock | ContextCardBlock | CompositeCardBlock | VisualCardBlock)[][], variant?: \"card\" | \"sunk\")",
+      "params": [
+        {
+          "name": "children",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/TextContent"
+                  },
+                  {
+                    "$ref": "#/$defs/MarkDownRenderer"
+                  },
+                  {
+                    "$ref": "#/$defs/CardHeader"
+                  },
+                  {
+                    "$ref": "#/$defs/Callout"
+                  },
+                  {
+                    "$ref": "#/$defs/TextCallout"
+                  },
+                  {
+                    "$ref": "#/$defs/CodeBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/Image"
+                  },
+                  {
+                    "$ref": "#/$defs/ImageBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/ImageGallery"
+                  },
+                  {
+                    "$ref": "#/$defs/Separator"
+                  },
+                  {
+                    "$ref": "#/$defs/HorizontalBarChart"
+                  },
+                  {
+                    "$ref": "#/$defs/RadarChart"
+                  },
+                  {
+                    "$ref": "#/$defs/PieChart"
+                  },
+                  {
+                    "$ref": "#/$defs/RadialChart"
+                  },
+                  {
+                    "$ref": "#/$defs/SingleStackedBarChart"
+                  },
+                  {
+                    "$ref": "#/$defs/ScatterChart"
+                  },
+                  {
+                    "$ref": "#/$defs/AreaChart"
+                  },
+                  {
+                    "$ref": "#/$defs/BarChart"
+                  },
+                  {
+                    "$ref": "#/$defs/LineChart"
+                  },
+                  {
+                    "$ref": "#/$defs/Table"
+                  },
+                  {
+                    "$ref": "#/$defs/TagBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/Form"
+                  },
+                  {
+                    "$ref": "#/$defs/Buttons"
+                  },
+                  {
+                    "$ref": "#/$defs/IconButton"
+                  },
+                  {
+                    "$ref": "#/$defs/Steps"
+                  },
+                  {
+                    "$ref": "#/$defs/InlineHeader"
+                  },
+                  {
+                    "$ref": "#/$defs/EntityList"
+                  },
+                  {
+                    "$ref": "#/$defs/EditableTable"
+                  },
+                  {
+                    "$ref": "#/$defs/SnippetCardBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/OverviewCardBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/ContextCardBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/CompositeCardBlock"
+                  },
+                  {
+                    "$ref": "#/$defs/VisualCardBlock"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "card",
+              "sunk"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Horizontal scrollable carousel"
+    },
+    {
+      "name": "Separator",
+      "description": "Visual divider between content sections",
+      "signature": "Separator(orientation?: \"horizontal\" | \"vertical\", decorative?: boolean)",
+      "params": [
+        {
+          "name": "orientation",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ]
+          }
+        },
+        {
+          "name": "decorative",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "schemaDescription": "Visual divider between content sections"
+    },
+    {
+      "name": "TagBlock",
+      "description": "tags is an array of strings; optional size sm | md | lg",
+      "signature": "TagBlock(tags: string[], size?: \"sm\" | \"md\" | \"lg\")",
+      "params": [
+        {
+          "name": "tags",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "sm",
+              "md",
+              "lg"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "tags is an array of strings; optional size sm | md | lg"
+    },
+    {
+      "name": "Tag",
+      "description": "Styled tag/badge with optional Icon and variant",
+      "signature": "Tag(text: string, icon?: Icon, size?: \"sm\" | \"md\" | \"lg\", variant?: \"neutral\" | \"info\" | \"success\" | \"warning\" | \"danger\")",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "icon",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/Icon"
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "sm",
+              "md",
+              "lg"
+            ]
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "neutral",
+              "info",
+              "success",
+              "warning",
+              "danger"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Styled tag/badge with optional Icon and variant"
+    },
+    {
+      "name": "Icon",
+      "description": "A lucide icon by kebab-case name (e.g. 'circle-check'). Optional category picks a topical fallback when the name doesn't resolve.",
+      "signature": "Icon(name: string, category?: string)",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "category",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "A lucide icon by kebab-case name (e.g. 'circle-check'). Optional category picks a topical fallback when the name doesn't resolve."
+    },
+    {
+      "name": "EntityList",
+      "description": "Two-column key/value rows (left label, right value). size 'default' supports optional header and footer rows; rightVariant 'number' uses tabular numbers.",
+      "signature": "EntityList(rows?: {left: string, right: string, rightVariant?: \"text\" | \"number\"}[], size?: \"small\" | \"default\", header?: {left: string, right: string, rightVariant?: \"text\" | \"number\"}, footer?: {left: string, right: string, rightVariant?: \"text\" | \"number\"})",
+      "params": [
+        {
+          "name": "rows",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": [],
+          "isBindable": false,
+          "schema": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "left": {
+                  "type": "string"
+                },
+                "right": {
+                  "type": "string"
+                },
+                "rightVariant": {
+                  "default": "text",
+                  "type": "string",
+                  "enum": [
+                    "text",
+                    "number"
+                  ]
+                }
+              },
+              "required": [
+                "left",
+                "right",
+                "rightVariant"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "default",
+          "isBindable": false,
+          "schema": {
+            "default": "default",
+            "type": "string",
+            "enum": [
+              "small",
+              "default"
+            ]
+          }
+        },
+        {
+          "name": "header",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "left": {
+                "type": "string"
+              },
+              "right": {
+                "type": "string"
+              },
+              "rightVariant": {
+                "default": "text",
+                "type": "string",
+                "enum": [
+                  "text",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "left",
+              "right",
+              "rightVariant"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "footer",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "left": {
+                "type": "string"
+              },
+              "right": {
+                "type": "string"
+              },
+              "rightVariant": {
+                "default": "text",
+                "type": "string",
+                "enum": [
+                  "text",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "left",
+              "right",
+              "rightVariant"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "schemaDescription": "Two-column key/value rows (left label, right value). size 'default' supports optional header and footer rows; rightVariant 'number' uses tabular numbers."
+    },
+    {
+      "name": "ListBlock",
+      "description": "A list of items with number or image indicators. Each item can optionally have an action. size small renders a compact list.",
+      "signature": "ListBlock(items: ListItem[], variant?: \"number\" | \"image\", size?: \"default\" | \"small\")",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ListItem"
+            }
+          }
+        },
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "number",
+              "image"
+            ]
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "default",
+              "small"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A list of items with number or image indicators. Each item can optionally have an action. size small renders a compact list."
+    },
+    {
+      "name": "ListItem",
+      "description": "Item in a ListBlock — displays a title with an optional subtitle and image. When action is provided, the item becomes clickable.",
+      "signature": "ListItem(title: string, subtitle?: string, image?: {src: string, alt: string}, actionLabel?: string, action?: ActionExpression)",
+      "params": [
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "image",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "src": {
+                "type": "string"
+              },
+              "alt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "src",
+              "alt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "name": "actionLabel",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        }
+      ],
+      "schemaDescription": "Item in a ListBlock — displays a title with an optional subtitle and image. When action is provided, the item becomes clickable."
+    },
+    {
+      "name": "Text",
+      "description": "Plain text line with optional subtext. variant 'number' uses tabular number styling; subtextVariant 'metric' colors a leading +/- subtext green/red.",
+      "signature": "Text(variant: \"text\" | \"number\", value: string, subtext?: string, subtextVariant?: \"text\" | \"number\" | \"metric\", size?: \"xs\" | \"sm\" | \"md\" | \"lg\")",
+      "params": [
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "text",
+          "isBindable": false,
+          "schema": {
+            "default": "text",
+            "type": "string",
+            "enum": [
+              "text",
+              "number"
+            ]
+          }
+        },
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtext",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtextVariant",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "text",
+          "isBindable": false,
+          "schema": {
+            "default": "text",
+            "type": "string",
+            "enum": [
+              "text",
+              "number",
+              "metric"
+            ]
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "sm",
+          "isBindable": false,
+          "schema": {
+            "default": "sm",
+            "type": "string",
+            "enum": [
+              "xs",
+              "sm",
+              "md",
+              "lg"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Plain text line with optional subtext. variant 'number' uses tabular number styling; subtextVariant 'metric' colors a leading +/- subtext green/red."
+    },
+    {
+      "name": "BoldText",
+      "description": "Emphasized (bold) text line with optional subtext. variant 'number' uses tabular number styling; subtextVariant 'metric' colors a leading +/- subtext green/red.",
+      "signature": "BoldText(variant: \"text\" | \"number\", value: string, subtext?: string, subtextVariant?: \"text\" | \"number\" | \"metric\", size?: \"xs\" | \"sm\" | \"md\" | \"lg\")",
+      "params": [
+        {
+          "name": "variant",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "text",
+          "isBindable": false,
+          "schema": {
+            "default": "text",
+            "type": "string",
+            "enum": [
+              "text",
+              "number"
+            ]
+          }
+        },
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtext",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtextVariant",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "text",
+          "isBindable": false,
+          "schema": {
+            "default": "text",
+            "type": "string",
+            "enum": [
+              "text",
+              "number",
+              "metric"
+            ]
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "sm",
+          "isBindable": false,
+          "schema": {
+            "default": "sm",
+            "type": "string",
+            "enum": [
+              "xs",
+              "sm",
+              "md",
+              "lg"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Emphasized (bold) text line with optional subtext. variant 'number' uses tabular number styling; subtextVariant 'metric' colors a leading +/- subtext green/red."
+    },
+    {
+      "name": "IconText",
+      "description": "An icon badge with a title and optional subtitle, laid out horizontally or vertically. iconVariant sets the badge color.",
+      "signature": "IconText(icon: Icon, iconVariant: \"neutral\" | \"info\" | \"success\" | \"warning\" | \"danger\" | \"inverted\" | \"filled\" | \"soft\", iconSize: \"xs\" | \"s\" | \"m\" | \"l\" | \"xl\" | \"sm\" | \"md\" | \"lg\", title: string, subtitle?: string, bold?: boolean, layout?: \"horizontal\" | \"vertical\")",
+      "params": [
+        {
+          "name": "icon",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/Icon"
+          }
+        },
+        {
+          "name": "iconVariant",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "neutral",
+          "isBindable": false,
+          "schema": {
+            "default": "neutral",
+            "type": "string",
+            "enum": [
+              "neutral",
+              "info",
+              "success",
+              "warning",
+              "danger",
+              "inverted",
+              "filled",
+              "soft"
+            ]
+          }
+        },
+        {
+          "name": "iconSize",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "m",
+          "isBindable": false,
+          "schema": {
+            "default": "m",
+            "type": "string",
+            "enum": [
+              "xs",
+              "s",
+              "m",
+              "l",
+              "xl",
+              "sm",
+              "md",
+              "lg"
+            ]
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "bold",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": false,
+          "isBindable": false,
+          "schema": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "layout",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "horizontal",
+          "isBindable": false,
+          "schema": {
+            "default": "horizontal",
+            "type": "string",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "An icon badge with a title and optional subtitle, laid out horizontally or vertically. iconVariant sets the badge color."
+    },
+    {
+      "name": "ImageText",
+      "description": "A small square image (thumbnail/avatar) with a title and optional subtitle. src must be a real image URL.",
+      "signature": "ImageText(src: string, alt: string, title: string, subtitle?: string, bold?: boolean, layout?: \"horizontal\" | \"vertical\", imageSize?: number)",
+      "params": [
+        {
+          "name": "src",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "alt",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "bold",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": false,
+          "isBindable": false,
+          "schema": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "layout",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "horizontal",
+          "isBindable": false,
+          "schema": {
+            "default": "horizontal",
+            "type": "string",
+            "enum": [
+              "horizontal",
+              "vertical"
+            ]
+          }
+        },
+        {
+          "name": "imageSize",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        }
+      ],
+      "schemaDescription": "A small square image (thumbnail/avatar) with a title and optional subtitle. src must be a real image URL."
+    },
+    {
+      "name": "ImageTextLarge",
+      "description": "A full-width banner image above a bold title and optional subtitle. src must be a real image URL.",
+      "signature": "ImageTextLarge(src: string, alt: string, title: string, subtitle?: string, bold?: boolean)",
+      "params": [
+        {
+          "name": "src",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "alt",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtitle",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "bold",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": false,
+          "isBindable": false,
+          "schema": {
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      ],
+      "schemaDescription": "A full-width banner image above a bold title and optional subtitle. src must be a real image URL."
+    },
+    {
+      "name": "MetricIndicatorInline",
+      "description": "Headline metric value with an optional +/- percentage trend and subtext, all on one line.",
+      "signature": "MetricIndicatorInline(value: string, subtext?: string, trend?: {direction: \"up\" | \"down\", value: number})",
+      "params": [
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtext",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "trend",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down"
+                ]
+              },
+              "value": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "direction",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "schemaDescription": "Headline metric value with an optional +/- percentage trend and subtext, all on one line."
+    },
+    {
+      "name": "MetricIndicatorWithStrikethrough",
+      "description": "Headline metric value with an optional struck-through previousValue, a +/- percentage trend, and subtext below.",
+      "signature": "MetricIndicatorWithStrikethrough(value: string, subtext?: string, previousValue?: string, trend?: {direction: \"up\" | \"down\", value: number})",
+      "params": [
+        {
+          "name": "value",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "subtext",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "previousValue",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "trend",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down"
+                ]
+              },
+              "value": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "direction",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "schemaDescription": "Headline metric value with an optional struck-through previousValue, a +/- percentage trend, and subtext below."
+    },
+    {
+      "name": "SnippetCardItem",
+      "description": "One row-style snippet card: a label on the left (IconText or ImageText) and an optional value on the right (Text or BoldText).",
+      "signature": "SnippetCardItem(id: string, lhs: IconText | ImageText, rhs?: Text | BoldText)",
+      "params": [
+        {
+          "name": "id",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "lhs",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/IconText"
+              },
+              {
+                "$ref": "#/$defs/ImageText"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rhs",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Text"
+              },
+              {
+                "$ref": "#/$defs/BoldText"
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "One row-style snippet card: a label on the left (IconText or ImageText) and an optional value on the right (Text or BoldText)."
+    },
+    {
+      "name": "SnippetCardBlock",
+      "description": "A responsive grid of compact label/value cards (2 per row) for showing several short facts side by side; optionally clickable with a shared action.",
+      "signature": "SnippetCardBlock(items: SnippetCardItem[], layout?: \"grid\", responsive?: boolean, action?: ActionExpression, gap?: number | string)",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/SnippetCardItem"
+            }
+          }
+        },
+        {
+          "name": "layout",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "grid",
+          "isBindable": false,
+          "schema": {
+            "default": "grid",
+            "type": "string",
+            "const": "grid"
+          }
+        },
+        {
+          "name": "responsive",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": true,
+          "isBindable": false,
+          "schema": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        {
+          "name": "gap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A responsive grid of compact label/value cards (2 per row) for showing several short facts side by side; optionally clickable with a shared action."
+    },
+    {
+      "name": "OverviewCardItem",
+      "description": "One overview card: a heading slot at the top (IconText, ImageText or Text) and an optional MetricIndicatorInline at the bottom.",
+      "signature": "OverviewCardItem(id: string, top: IconText | ImageText | Text, bottom?: MetricIndicatorInline)",
+      "params": [
+        {
+          "name": "id",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "top",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/IconText"
+              },
+              {
+                "$ref": "#/$defs/ImageText"
+              },
+              {
+                "$ref": "#/$defs/Text"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bottom",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/MetricIndicatorInline"
+          }
+        }
+      ],
+      "schemaDescription": "One overview card: a heading slot at the top (IconText, ImageText or Text) and an optional MetricIndicatorInline at the bottom."
+    },
+    {
+      "name": "OverviewCardBlock",
+      "description": "A grid or horizontal carousel of compact overview cards, each with a heading (icon/image/text) on top and an inline metric below; optionally clickable with a shared action.",
+      "signature": "OverviewCardBlock(items: OverviewCardItem[], layout?: \"grid\" | \"carousel\", responsive?: boolean, action?: ActionExpression, gap?: number | string)",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/OverviewCardItem"
+            }
+          }
+        },
+        {
+          "name": "layout",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "grid",
+          "isBindable": false,
+          "schema": {
+            "default": "grid",
+            "type": "string",
+            "enum": [
+              "grid",
+              "carousel"
+            ]
+          }
+        },
+        {
+          "name": "responsive",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": true,
+          "isBindable": false,
+          "schema": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        {
+          "name": "gap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A grid or horizontal carousel of compact overview cards, each with a heading (icon/image/text) on top and an inline metric below; optionally clickable with a shared action."
+    },
+    {
+      "name": "ContextCardItem",
+      "description": "A single card inside a ContextCardBlock: a title (plain string or Tag), an optional markdown body, and an optional gray tint or background image.",
+      "signature": "ContextCardItem(id: string, title: string | Tag, body?: string, bgColor?: \"gray\", bgImageSrc?: string, bgImageAlt?: string)",
+      "params": [
+        {
+          "name": "id",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Tag"
+              }
+            ]
+          }
+        },
+        {
+          "name": "body",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "bgColor",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "const": "gray"
+          }
+        },
+        {
+          "name": "bgImageSrc",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "bgImageAlt",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "A single card inside a ContextCardBlock: a title (plain string or Tag), an optional markdown body, and an optional gray tint or background image."
+    },
+    {
+      "name": "ContextCardBlock",
+      "description": "A grid or carousel of compact tinted context cards (title or tag plus a short bold body); an optional action makes every card clickable.",
+      "signature": "ContextCardBlock(items: ContextCardItem[], layout?: \"grid\" | \"carousel\", responsive?: boolean, action?: ActionExpression, gap?: number | string)",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ContextCardItem"
+            }
+          }
+        },
+        {
+          "name": "layout",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "grid",
+          "isBindable": false,
+          "schema": {
+            "default": "grid",
+            "type": "string",
+            "enum": [
+              "grid",
+              "carousel"
+            ]
+          }
+        },
+        {
+          "name": "responsive",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": true,
+          "isBindable": false,
+          "schema": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        {
+          "name": "gap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A grid or carousel of compact tinted context cards (title or tag plus a short bold body); an optional action makes every card clickable."
+    },
+    {
+      "name": "CompositeCardItem",
+      "description": "A single card inside a CompositeCardBlock: an optional header (icon/image/text), a stack of body elements (text, metrics, charts, lists, tags), and an optional price/button footer.",
+      "signature": "CompositeCardItem(id?: string, header?: IconText | ImageText | ImageTextLarge | Text | Image, body?: (Text | BoldText | MetricIndicatorInline | IconText | Image | AreaChart | BarChart | LineChart | ListBlock | TagBlock | EntityList)[], footer?: {price?: BoldText | MetricIndicatorWithStrikethrough, button?: Button})",
+      "params": [
+        {
+          "name": "id",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "header",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/IconText"
+              },
+              {
+                "$ref": "#/$defs/ImageText"
+              },
+              {
+                "$ref": "#/$defs/ImageTextLarge"
+              },
+              {
+                "$ref": "#/$defs/Text"
+              },
+              {
+                "$ref": "#/$defs/Image"
+              }
+            ]
+          }
+        },
+        {
+          "name": "body",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": [],
+          "isBindable": false,
+          "schema": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Text"
+                },
+                {
+                  "$ref": "#/$defs/BoldText"
+                },
+                {
+                  "$ref": "#/$defs/MetricIndicatorInline"
+                },
+                {
+                  "$ref": "#/$defs/IconText"
+                },
+                {
+                  "$ref": "#/$defs/Image"
+                },
+                {
+                  "$ref": "#/$defs/AreaChart"
+                },
+                {
+                  "$ref": "#/$defs/BarChart"
+                },
+                {
+                  "$ref": "#/$defs/LineChart"
+                },
+                {
+                  "$ref": "#/$defs/ListBlock"
+                },
+                {
+                  "$ref": "#/$defs/TagBlock"
+                },
+                {
+                  "$ref": "#/$defs/EntityList"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "footer",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "price": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/BoldText"
+                  },
+                  {
+                    "$ref": "#/$defs/MetricIndicatorWithStrikethrough"
+                  }
+                ]
+              },
+              "button": {
+                "$ref": "#/$defs/Button"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ],
+      "schemaDescription": "A single card inside a CompositeCardBlock: an optional header (icon/image/text), a stack of body elements (text, metrics, charts, lists, tags), and an optional price/button footer."
+    },
+    {
+      "name": "CompositeCardBlock",
+      "description": "A two-per-row grid or carousel of rich cards, each with an optional header, stacked body content (text, metrics, charts, lists, tags) and a price/button footer; an optional action makes every card clickable.",
+      "signature": "CompositeCardBlock(items: CompositeCardItem[], layout?: \"grid\" | \"carousel\", responsive?: boolean, action?: ActionExpression, gap?: number | string)",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompositeCardItem"
+            }
+          }
+        },
+        {
+          "name": "layout",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "grid",
+          "isBindable": false,
+          "schema": {
+            "default": "grid",
+            "type": "string",
+            "enum": [
+              "grid",
+              "carousel"
+            ]
+          }
+        },
+        {
+          "name": "responsive",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": true,
+          "isBindable": false,
+          "schema": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        {
+          "name": "gap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A two-per-row grid or carousel of rich cards, each with an optional header, stacked body content (text, metrics, charts, lists, tags) and a price/button footer; an optional action makes every card clickable."
+    },
+    {
+      "name": "VisualCardItem",
+      "description": "A single photo-first card inside a VisualCardBlock: a BoldText body panel, an optional Tag, and a background image (bgImageSrc must be a real URL; bgImageAlt is its alt text).",
+      "signature": "VisualCardItem(body: BoldText, id?: string, bgImageSrc?: string, tag?: Tag, bgImageAlt?: string)",
+      "params": [
+        {
+          "name": "body",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/BoldText"
+          }
+        },
+        {
+          "name": "id",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "bgImageSrc",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "tag",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/Tag"
+          }
+        },
+        {
+          "name": "bgImageAlt",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "A single photo-first card inside a VisualCardBlock: a BoldText body panel, an optional Tag, and a background image (bgImageSrc must be a real URL; bgImageAlt is its alt text)."
+    },
+    {
+      "name": "VisualCardBlock",
+      "description": "A grid or carousel of photo-first cards: a full-bleed background image with a tag on top and a bold text panel at the bottom; an optional action makes every card clickable.",
+      "signature": "VisualCardBlock(items: VisualCardItem[], layout?: \"grid\" | \"carousel\", responsive?: boolean, action?: ActionExpression, gap?: number | string)",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/VisualCardItem"
+            }
+          }
+        },
+        {
+          "name": "layout",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": "grid",
+          "isBindable": false,
+          "schema": {
+            "default": "grid",
+            "type": "string",
+            "enum": [
+              "grid",
+              "carousel"
+            ]
+          }
+        },
+        {
+          "name": "responsive",
+          "required": false,
+          "hasDefault": true,
+          "defaultValue": true,
+          "isBindable": false,
+          "schema": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "$ref": "#/$defs/ActionExpression"
+          }
+        },
+        {
+          "name": "gap",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "A grid or carousel of photo-first cards: a full-bleed background image with a tag on top and a bold text panel at the bottom; an optional action makes every card clickable."
+    },
+    {
+      "name": "Modal",
+      "description": "Modal dialog. open is a reactive $boolean binding — set to true to open, X/Escape/backdrop auto-closes. Put Form with buttons inside children.",
+      "signature": "Modal(title: string, open: $binding<boolean>, children: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | CodeBlock | Image | ImageBlock | ImageGallery | Separator | HorizontalBarChart | RadarChart | PieChart | RadialChart | SingleStackedBarChart | ScatterChart | AreaChart | BarChart | LineChart | Table | TagBlock | Form | Buttons | IconButton | Steps | InlineHeader | EntityList | EditableTable | SnippetCardBlock | OverviewCardBlock | ContextCardBlock | CompositeCardBlock | VisualCardBlock)[], size?: \"sm\" | \"md\" | \"lg\")",
+      "params": [
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "open",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "children",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TextContent"
+                },
+                {
+                  "$ref": "#/$defs/MarkDownRenderer"
+                },
+                {
+                  "$ref": "#/$defs/CardHeader"
+                },
+                {
+                  "$ref": "#/$defs/Callout"
+                },
+                {
+                  "$ref": "#/$defs/TextCallout"
+                },
+                {
+                  "$ref": "#/$defs/CodeBlock"
+                },
+                {
+                  "$ref": "#/$defs/Image"
+                },
+                {
+                  "$ref": "#/$defs/ImageBlock"
+                },
+                {
+                  "$ref": "#/$defs/ImageGallery"
+                },
+                {
+                  "$ref": "#/$defs/Separator"
+                },
+                {
+                  "$ref": "#/$defs/HorizontalBarChart"
+                },
+                {
+                  "$ref": "#/$defs/RadarChart"
+                },
+                {
+                  "$ref": "#/$defs/PieChart"
+                },
+                {
+                  "$ref": "#/$defs/RadialChart"
+                },
+                {
+                  "$ref": "#/$defs/SingleStackedBarChart"
+                },
+                {
+                  "$ref": "#/$defs/ScatterChart"
+                },
+                {
+                  "$ref": "#/$defs/AreaChart"
+                },
+                {
+                  "$ref": "#/$defs/BarChart"
+                },
+                {
+                  "$ref": "#/$defs/LineChart"
+                },
+                {
+                  "$ref": "#/$defs/Table"
+                },
+                {
+                  "$ref": "#/$defs/TagBlock"
+                },
+                {
+                  "$ref": "#/$defs/Form"
+                },
+                {
+                  "$ref": "#/$defs/Buttons"
+                },
+                {
+                  "$ref": "#/$defs/IconButton"
+                },
+                {
+                  "$ref": "#/$defs/Steps"
+                },
+                {
+                  "$ref": "#/$defs/InlineHeader"
+                },
+                {
+                  "$ref": "#/$defs/EntityList"
+                },
+                {
+                  "$ref": "#/$defs/EditableTable"
+                },
+                {
+                  "$ref": "#/$defs/SnippetCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/OverviewCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/ContextCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/CompositeCardBlock"
+                },
+                {
+                  "$ref": "#/$defs/VisualCardBlock"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "size",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "sm",
+              "md",
+              "lg"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Modal dialog. open is a reactive $boolean binding — set to true to open, X/Escape/backdrop auto-closes. Put Form with buttons inside children."
+    },
+    {
+      "name": "FollowUpBlock",
+      "description": "List of clickable follow-up suggestions placed at the end of a response",
+      "signature": "FollowUpBlock(items: FollowUpItem[])",
+      "params": [
+        {
+          "name": "items",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FollowUpItem"
+            }
+          }
+        }
+      ],
+      "schemaDescription": "List of clickable follow-up suggestions placed at the end of a response"
+    },
+    {
+      "name": "FollowUpItem",
+      "description": "Clickable follow-up suggestion — when clicked, sends text as user message",
+      "signature": "FollowUpItem(text: string)",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "Clickable follow-up suggestion — when clicked, sends text as user message"
+    },
+    {
+      "name": "Map",
+      "description": "Use when spatial relationships help the user understand content, compare locations, or plan a route. Place data and coordinates must come from reliable sources.",
+      "signature": "Map(points: (MapPoint)[], crs?: \"wgs84\" | \"gcj02\")",
+      "params": [
+        {
+          "name": "points",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MapPoint"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "crs",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "wgs84",
+              "gcj02"
+            ]
+          }
+        }
+      ],
+      "schemaDescription": "Use when spatial relationships help the user understand content, compare locations, or plan a route. Place data and coordinates must come from reliable sources."
+    },
+    {
+      "name": "MapPoint",
+      "description": "A geographically locatable place. A name, latitude, and longitude are required.",
+      "signature": "MapPoint(title: string, lat: number, lng: number, imageSrc?: string, url?: string, description?: string)",
+      "params": [
+        {
+          "name": "title",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "lat",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "lng",
+          "required": true,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "imageSrc",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "url",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "description",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "schemaDescription": "A geographically locatable place. A name, latitude, and longitude are required."
+    },
+    {
+      "name": "SVG",
+      "description": "Use to explain shapes, structures, mechanisms, or relationships when a diagram makes them easier to understand. Keep the key idea clear and labels readable at the available width. Supply either inline SVG content or an HTTPS src, not both, with a valid viewBox. Size is derived automatically from viewBox; omit height.",
+      "signature": "SVG(content?: string, src?: string, alt?: string, height?: number)",
+      "params": [
+        {
+          "name": "content",
+          "required": false,
           "hasDefault": false,
           "defaultValue": null,
           "isBindable": false,
@@ -375,17 +5530,313 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "alt",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "height",
+          "required": false,
+          "hasDefault": false,
+          "defaultValue": null,
+          "isBindable": false,
+          "schema": {
+            "type": "number"
+          }
         }
+      ],
+      "schemaDescription": "Use to explain shapes, structures, mechanisms, or relationships when a diagram makes them easier to understand. Keep the key idea clear and labels readable at the available width. Supply either inline SVG content or an HTTPS src, not both, with a valid viewBox. Size is derived automatically from viewBox; omit height."
+    }
+  ],
+  "componentGroups": [
+    {
+      "name": "Layout",
+      "components": [
+        "Stack",
+        "Tabs",
+        "TabItem",
+        "Accordion",
+        "AccordionItem",
+        "Steps",
+        "StepsItem",
+        "Carousel",
+        "Separator",
+        "Modal"
+      ],
+      "notes": [
+        "- For grid-like layouts, use Stack with direction \"row\" and wrap set to true.",
+        "- Prefer justify \"start\" (or omit justify) with wrap=true for stable columns instead of uneven gutters.",
+        "- Use nested Stacks when you need explicit rows/sections.",
+        "- Show/hide sections: $editId != \"\" ? Card([editForm]) : null",
+        "- Modal: Modal(\"Title\", $showModal, [content]) — $showModal is boolean, X/Escape auto-closes. Put Form with its own buttons inside children.",
+        "- Use Tabs for alternative views (chart types, data sections) — no $variable needed",
+        "- Shared filter across Tabs: same $days binding in Query args works across all TabItems"
+      ]
+    },
+    {
+      "name": "Content",
+      "components": [
+        "Card",
+        "CardHeader",
+        "TextContent",
+        "MarkDownRenderer",
+        "Callout",
+        "TextCallout",
+        "Image",
+        "ImageBlock",
+        "ImageGallery",
+        "CodeBlock",
+        "InlineHeader"
+      ],
+      "notes": [
+        "- InlineHeader is a compact heading + description pair for labelling a block (lighter than CardHeader).",
+        "- Use Cards to group related KPIs or sections. Stack with direction \"row\" for side-by-side layouts.",
+        "- Success toast: Callout(\"success\", \"Saved\", \"Done.\", $showSuccess) — use @Set($showSuccess, true) in save action, auto-dismisses after 3s. For errors: result.status == \"error\" ? Callout(\"error\", \"Failed\", result.error) : null",
+        "- KPI card: Card([TextContent(\"Label\", \"small\"), TextContent(\"\" + @Count(@Filter(data.rows, \"field\", \"==\", \"value\")), \"large-heavy\")])"
+      ]
+    },
+    {
+      "name": "Tables",
+      "components": [
+        "Table",
+        "Col",
+        "EditableTable"
+      ],
+      "notes": [
+        "- EditableTable lets the user edit cells inline. Give it a unique name, columns of { type, key, header } with type one of text | number | date-single | select | url (select also needs options: [{ value, label }]).",
+        "- data is an array of { id, values } rows where values are ordered positionally to match columns. Edited data is submitted when the user clicks Save Changes.",
+        "- Table is COLUMN-oriented: Table([Col(\"Label\", dataArray), Col(\"Count\", countArray, \"number\")]). Use array pluck for data: data.rows.fieldName",
+        "- Col data can be component arrays for styled cells: Col(\"Status\", @Each(data.rows, \"item\", Tag(item.status, null, \"sm\", item.status == \"open\" ? \"success\" : \"danger\")))",
+        "- Row actions: Col(\"Actions\", @Each(data.rows, \"t\", Button(\"Edit\", Action([@Set($showEdit, true), @Set($editId, t.id)]))))",
+        "- Sortable: sorted = @Sort(data.rows, $sortField, \"desc\"). Bind $sortField to Select. Use sorted.fieldName for Col data",
+        "- Searchable: filtered = @Filter(data.rows, \"title\", \"contains\", $search). Bind $search to Input",
+        "- Chain sort + filter: filtered = @Filter(...) then sorted = @Sort(filtered, ...) — use sorted for both Table and Charts",
+        "- Empty state: @Count(data.rows) > 0 ? Table([...]) : TextContent(\"No data yet\")"
+      ]
+    },
+    {
+      "name": "Charts (2D)",
+      "components": [
+        "BarChart",
+        "LineChart",
+        "AreaChart",
+        "RadarChart",
+        "HorizontalBarChart",
+        "Series"
+      ],
+      "notes": [
+        "- Charts accept column arrays: LineChart(labels, [Series(\"Name\", values)]). Use array pluck: LineChart(data.rows.day, [Series(\"Views\", data.rows.views)])",
+        "- Use Cards to wrap charts with CardHeader for titled sections",
+        "- Chart + Table from same source: use @Sort or @Filter result for both LineChart and Table Col data",
+        "- Multiple chart views: use Tabs — Tabs([TabItem(\"line\", \"Line\", [LineChart(...)]), TabItem(\"bar\", \"Bar\", [BarChart(...)])])"
+      ]
+    },
+    {
+      "name": "Charts (1D)",
+      "components": [
+        "PieChart",
+        "RadialChart",
+        "SingleStackedBarChart",
+        "Slice"
+      ],
+      "notes": [
+        "- PieChart and BarChart need NUMBERS, not objects. For list data, use @Count(@Filter(...)) to aggregate:",
+        "- PieChart from list: `PieChart([\"Low\", \"Med\", \"High\"], [@Count(@Filter(data.rows, \"priority\", \"==\", \"low\")), @Count(@Filter(data.rows, \"priority\", \"==\", \"medium\")), @Count(@Filter(data.rows, \"priority\", \"==\", \"high\"))], \"donut\")`",
+        "- KPI from count: `TextContent(\"\" + @Count(@Filter(data.rows, \"status\", \"==\", \"open\")), \"large-heavy\")`"
+      ]
+    },
+    {
+      "name": "Charts (Scatter)",
+      "components": [
+        "ScatterChart",
+        "ScatterSeries",
+        "Point"
+      ]
+    },
+    {
+      "name": "Forms",
+      "components": [
+        "Form",
+        "FormControl",
+        "Label",
+        "Input",
+        "TextArea",
+        "Select",
+        "SelectItem",
+        "DatePicker",
+        "Slider",
+        "CheckBoxGroup",
+        "CheckBoxItem",
+        "RadioGroup",
+        "RadioItem",
+        "SwitchGroup",
+        "SwitchItem",
+        "Chips",
+        "ChipItem",
+        "OptionCards",
+        "OptionCard"
+      ],
+      "notes": [
+        "- Chips: compact single/multiple selection pills. Use ChipItem references for each option.",
+        "- OptionCards: larger selectable cards with title, subtitle and an optional Icon or Image on top. Use OptionCard references for each option.",
+        "- For Form fields, define EACH FormControl as its own reference — do NOT inline all controls in one array. This allows progressive field-by-field streaming.",
+        "- NEVER nest Form inside Form — each Form should be a standalone container.",
+        "- Form requires explicit buttons. Always pass a Buttons(...) reference as the third Form argument.",
+        "- rules is an optional object: {required: true, email: true, minLength: 8, maxLength: 100}",
+        "- Available rules: required, email, min, max, minLength, maxLength, pattern, url, numeric",
+        "- The renderer shows error messages automatically — do NOT generate error text in the UI",
+        "- Conditional fields: $country == \"US\" ? stateField : $country == \"UK\" ? postcodeField : addressField",
+        "- Edit form in Modal: Modal(\"Edit\", $showEdit, [Form(\"edit\", Buttons([saveBtn, cancelBtn]), [fields...])]). Save button should include @Set($showEdit, false) to close modal."
+      ]
+    },
+    {
+      "name": "Buttons",
+      "components": [
+        "Button",
+        "Buttons",
+        "IconButton"
+      ],
+      "notes": [
+        "- Icon renders a lucide icon by kebab-case name; it is also used as the icon of IconButton, IconText and OptionCard.",
+        "- Toggle in @Each: @Each(rows, \"t\", Button(t.status == \"open\" ? \"Close\" : \"Reopen\", Action([...])))"
+      ]
+    },
+    {
+      "name": "Data Display",
+      "components": [
+        "TagBlock",
+        "Tag",
+        "Icon",
+        "EntityList",
+        "ListBlock",
+        "ListItem"
+      ],
+      "notes": [
+        "- Color-mapped Tag: Tag(value, null, \"sm\", value == \"high\" ? \"danger\" : value == \"medium\" ? \"warning\" : \"neutral\")",
+        "- EntityList is a compact two-column list of { left, right } rows (e.g. name / value). size='default' also supports a header and footer row; size='small' does not.",
+        "- ListBlock is a numbered or image list of ListItem references. An action on ListItem is optional."
+      ]
+    },
+    {
+      "name": "Cards",
+      "components": [
+        "SnippetCardBlock",
+        "SnippetCardItem",
+        "OverviewCardBlock",
+        "OverviewCardItem",
+        "ContextCardBlock",
+        "ContextCardItem",
+        "CompositeCardBlock",
+        "CompositeCardItem",
+        "VisualCardBlock",
+        "VisualCardItem",
+        "Text",
+        "BoldText",
+        "IconText",
+        "ImageText",
+        "ImageTextLarge",
+        "MetricIndicatorInline",
+        "MetricIndicatorWithStrikethrough"
+      ],
+      "notes": [
+        "- Card blocks lay out 2+ items in a responsive grid (or carousel where supported). Every item in a block must have the same structure.",
+        "- SnippetCardItem: small card with lhs (IconText | ImageText) and optional rhs (Text | BoldText) — good for key/value facts.",
+        "- OverviewCardItem: small card with top (IconText | ImageText | Text) and optional bottom MetricIndicatorInline — good for KPIs.",
+        "- ContextCardItem: medium card with a title (string or Tag), body text and optional background image — good for summaries.",
+        "- CompositeCardItem: rich card with header, body array (Text, BoldText, MetricIndicatorInline, IconText, Image, charts, ListBlock, TagBlock, EntityList) and footer (price + Button) — good for products/offers.",
+        "- VisualCardItem: image-first card with a BoldText body and optional Tag.",
+        "- Text / BoldText / IconText / ImageText / ImageTextLarge / MetricIndicator* are the inline building blocks used INSIDE card items; do not place them directly in the root Card."
       ]
     }
   ],
+  "promptOptions": {
+    "examples": [
+      "Example 1 — Table (column-oriented):\n\nroot = Stack([title, tbl])\ntitle = TextContent(\"Top Languages\", \"large-heavy\")\ntbl = Table([Col(\"Language\", langs), Col(\"Users (M)\", users), Col(\"Year\", years)])\nlangs = [\"Python\", \"JavaScript\", \"Java\", \"TypeScript\", \"Go\"]\nusers = [15.7, 14.2, 12.1, 8.5, 5.2]\nyears = [1991, 1995, 1995, 2012, 2009]",
+      "Example 2 — Bar chart:\n\nroot = Stack([title, chart])\ntitle = TextContent(\"Q4 Revenue\", \"large-heavy\")\nchart = BarChart(labels, [s1, s2], \"grouped\")\nlabels = [\"Oct\", \"Nov\", \"Dec\"]\ns1 = Series(\"Product A\", [120, 150, 180])\ns2 = Series(\"Product B\", [90, 110, 140])",
+      "Example 3 — Form with validation:\n\nroot = Stack([title, form])\ntitle = TextContent(\"Contact Us\", \"large-heavy\")\nform = Form(\"contact\", btns, [nameField, emailField, countryField, msgField])\nnameField = FormControl(\"Name\", Input(\"name\", \"Your name\", \"text\", { required: true, minLength: 2 }))\nemailField = FormControl(\"Email\", Input(\"email\", \"you@example.com\", \"email\", { required: true, email: true }))\ncountryField = FormControl(\"Country\", Select(\"country\", countryOpts, \"Select...\", { required: true }))\nmsgField = FormControl(\"Message\", TextArea(\"message\", \"Tell us more...\", 4, { required: true, minLength: 10 }))\ncountryOpts = [SelectItem(\"us\", \"United States\"), SelectItem(\"uk\", \"United Kingdom\"), SelectItem(\"de\", \"Germany\")]\nbtns = Buttons([Button(\"Submit\", @ToAssistant(\"Submit\"), \"primary\"), Button(\"Cancel\", @ToAssistant(\"Cancel\"), \"secondary\")])",
+      "Example 4 — Tabs with mixed content:\n\nroot = Stack([title, tabs])\ntitle = TextContent(\"React vs Vue\", \"large-heavy\")\ntabs = Tabs([tabReact, tabVue])\ntabReact = TabItem(\"react\", \"React\", reactContent)\ntabVue = TabItem(\"vue\", \"Vue\", vueContent)\nreactContent = [TextContent(\"React is a library by Meta for building UIs.\"), Callout(\"info\", \"Note\", \"React uses JSX syntax.\")]\nvueContent = [TextContent(\"Vue is a progressive framework by Evan You.\"), Callout(\"success\", \"Tip\", \"Vue has a gentle learning curve.\")]",
+      "Example 5 — KPI and product cards:\n\nroot = Stack([kpiHeader, kpiBlock, productsHeader, productCards])\nkpiHeader = InlineHeader(\"This Month\", \"Key account metrics\")\nkpiBlock = SnippetCardBlock([kpi1, kpi2, kpi3])\nkpi1 = SnippetCardItem(\"revenue\", kpi1lhs, kpi1rhs)\nkpi1lhs = IconText(kpi1icon, \"neutral\", \"m\", \"Revenue\", \"Month to date\", false, \"horizontal\")\nkpi1icon = Icon(\"circle-dollar-sign\", \"finance\")\nkpi1rhs = BoldText(\"number\", \"$48,200\", \"+8.1%\", \"metric\")\nkpi2 = SnippetCardItem(\"active-users\", kpi2lhs, kpi2rhs)\nkpi2lhs = IconText(kpi2icon, \"neutral\", \"m\", \"Active Users\", \"This month\", false, \"horizontal\")\nkpi2icon = Icon(\"users\", \"people\")\nkpi2rhs = BoldText(\"number\", \"1,204\", \"+3.4%\", \"metric\")\nkpi3 = SnippetCardItem(\"churn\", kpi3lhs, kpi3rhs)\nkpi3lhs = IconText(kpi3icon, \"neutral\", \"m\", \"Churn\", \"This month\", false, \"horizontal\")\nkpi3icon = Icon(\"user-minus\", \"people\")\nkpi3rhs = BoldText(\"number\", \"1.8%\", \"-0.3%\", \"metric\")\nproductsHeader = InlineHeader(\"Top Products\", \"By units sold\")\nproductCards = CompositeCardBlock([p1, p2])\np1 = CompositeCardItem(\"widget-pro\", p1header, [p1body], p1footer)\np1header = IconText(p1icon, \"neutral\", \"m\", \"Widget Pro\", \"Best seller\", true, \"horizontal\")\np1icon = Icon(\"package\", \"shopping\")\np1body = MetricIndicatorInline(\"2,410 units\", \"Sold this month\", { direction: \"up\", value: 12 })\np1footer = { price: BoldText(\"text\", \"$29.00\"), button: p1btn }\np1btn = Button(\"View Details\", @ToAssistant(\"Show details for Widget Pro\"), \"secondary\")\np2 = CompositeCardItem(\"widget-mini\", p2header, [p2body], p2footer)\np2header = IconText(p2icon, \"neutral\", \"m\", \"Widget Mini\", \"New arrival\", true, \"horizontal\")\np2icon = Icon(\"box\", \"shopping\")\np2body = MetricIndicatorInline(\"980 units\", \"Sold this month\", { direction: \"up\", value: 4 })\np2footer = { price: BoldText(\"text\", \"$14.00\"), button: p2btn }\np2btn = Button(\"View Details\", @ToAssistant(\"Show details for Widget Mini\"), \"secondary\")",
+      "Example 6 — Editable table and a selection form:\n\nroot = Stack([tableHeader, editTable, formHeader, prefsForm])\ntableHeader = InlineHeader(\"Team Roster\", \"Click a cell to edit\")\neditTable = EditableTable(\"roster\", [colName, colRole, colStart], [row1, row2])\ncolName = { type: \"text\", key: \"name\", header: \"Name\" }\ncolRole = { type: \"select\", key: \"role\", header: \"Role\", options: [roleEng, roleDesign] }\nroleEng = { value: \"eng\", label: \"Engineering\" }\nroleDesign = { value: \"design\", label: \"Design\" }\ncolStart = { type: \"date-single\", key: \"start\", header: \"Start Date\" }\nrow1 = { id: \"1\", values: [\"Alex Kim\", \"eng\", \"2024-01-15\"] }\nrow2 = { id: \"2\", values: [\"Jamie Lee\", \"design\", \"2024-03-02\"] }\nformHeader = InlineHeader(\"Preferences\", \"Tell us how you like to work\")\nprefsForm = Form(\"prefs\", formButtons, [fc1, fc2])\nfc1 = FormControl(\"Working Style\", styleCards, \"Pick the one that fits best\")\nstyleCards = OptionCards(\"style\", \"single\", [style1, style2])\nstyle1 = OptionCard(\"focused\", \"Deep Focus\", \"Long uninterrupted blocks\", style1icon)\nstyle1icon = Icon(\"target\", \"tools\")\nstyle2 = OptionCard(\"collab\", \"Collaborative\", \"Frequent pairing and syncs\", style2icon)\nstyle2icon = Icon(\"users\", \"people\")\nfc2 = FormControl(\"Tools\", toolChips, \"Select all that apply\")\ntoolChips = Chips(\"tools\", \"multiple\", [tool1, tool2, tool3])\ntool1 = ChipItem(\"figma\", \"Figma\", tool1icon)\ntool1icon = Icon(\"figma\", \"design\")\ntool2 = ChipItem(\"slack\", \"Slack\", tool2icon)\ntool2icon = Icon(\"message-square\", \"communication\")\ntool3 = ChipItem(\"notion\", \"Notion\", tool3icon)\ntool3icon = Icon(\"notebook\", \"text\")\nformButtons = Buttons([Button(\"Save\", @ToAssistant(\"Save preferences\"), \"primary\")])",
+      "Example 5 — Table with follow-ups:\n\nroot = Card([title, tbl, followUps])\ntitle = TextContent(\"Top Languages\", \"large-heavy\")\ntbl = Table([Col(\"Language\", langs), Col(\"Users (M)\", users), Col(\"Year\", years)])\nlangs = [\"Python\", \"JavaScript\", \"Java\"]\nusers = [15.7, 14.2, 12.1]\nyears = [1991, 1995, 1995]\nfollowUps = FollowUpBlock([fu1, fu2])\nfu1 = FollowUpItem(\"Tell me more about Python\")\nfu2 = FollowUpItem(\"Show me a JavaScript comparison\")"
+    ],
+    "additionalRules": [
+      "When asked about data, generate realistic/plausible data",
+      "For grid-like layouts, use Stack with direction \"row\" and wrap=true. Avoid justify=\"between\" unless you specifically want large gutters.",
+      "For forms, define one FormControl reference per field so controls can stream progressively.",
+      "For forms, always provide the second Form argument with Buttons(...) actions: Form(name, buttons, fields).",
+      "Never nest Form inside Form.",
+      "Use @Reset($var1, $var2) after form submit to restore defaults — not @Set($var, \"\")",
+      "Multi-query refresh: Action([@Run(mutation), @Run(query1), @Run(query2), @Reset(...)])",
+      "$variables are reactive: changing via Select or @Set re-evaluates all Queries and expressions referencing them",
+      "Use existing components (Tabs, Accordion, Modal) before inventing ternary show/hide patterns",
+      "Card blocks (SnippetCardBlock, OverviewCardBlock, ContextCardBlock, CompositeCardBlock, VisualCardBlock) need at least 2 items; every item in a block must have the same structure.",
+      "Text / BoldText / IconText / ImageText / ImageTextLarge / MetricIndicatorInline / MetricIndicatorWithStrikethrough are inline building blocks used INSIDE card items — do not place them directly in a Stack or Card.",
+      "EntityList size='small' (no header/footer) is only for use inside a CompositeCardItem body; use size='default' everywhere else.",
+      "Image URLs must be real (from a tool result or the user) — never invent or template an image URL.",
+      "Always pass a category to Icon — it enables a topical fallback when the exact icon name is unavailable.",
+      "EditableTable requires the consuming app to persist edits — use it only when the user or app explicitly asks for an editable table; default to Table for read-only data.",
+      "Use FollowUpBlock at the END of a Card to suggest what the user can do or ask next."
+    ]
+  },
   "sources": {
+    "packages/react-ui/src/components/_shared/icons/schema.ts": "b45c750201963c7a0371885595b9b30de15386353cf81c622c1c86b39c6932b9",
+    "packages/react-ui/src/genui-lib/Accordion/schema.ts": "659aa2abc7b8fa59bfd4c010094081e0b90874fe7ff4fd9d3e7e4ce72ab95ef7",
+    "packages/react-ui/src/genui-lib/Action/schema.ts": "ad977cad4881eebe4a7520dfb37767b85264742aa442e4e87bd67950018bf14d",
+    "packages/react-ui/src/genui-lib/BoldText/schema.ts": "d9ed555dfbf82a393e74a88499b07d22eab30edf304993d46fd6ee1c3b6d467a",
     "packages/react-ui/src/genui-lib/Button/schema.ts": "8b1874df92005ea42558ffa58b9ad1ec7061fa91938c47c4049df89c10c5d032",
+    "packages/react-ui/src/genui-lib/Buttons/schema.ts": "696f5172227d6512e0deb035aec8237131a455a6bfa86fb028e791caf14a7b13",
+    "packages/react-ui/src/genui-lib/Callout/schema.ts": "ab9156c9170426a329ed4fe350ba4684996b3958c9ca188977247527f4d582d0",
+    "packages/react-ui/src/genui-lib/Card/schema.ts": "2be1b1cb19049a8c8f0b10b0a049fa79dbbac6cc22c57ccf3036eea6d8ae5df5",
     "packages/react-ui/src/genui-lib/CardHeader/schema.ts": "b4ba2d68d0df622a6da8a4a2e0535f15be73a30b3c9cb66c14bbf25cc829b1b9",
+    "packages/react-ui/src/genui-lib/CheckBoxGroup/schema.ts": "5191c565713d6357b77d4c360b4ddc81200e24f0a1e6ec9536d07d308d1a56a6",
+    "packages/react-ui/src/genui-lib/Chips/schema.ts": "56f1b58ea17c4278d15af2ee6d1cb647e4dd1835658a4d83f23600bf204a3b38",
+    "packages/react-ui/src/genui-lib/CodeBlock/schema.ts": "6890622d7f0348e81035511b920715d190bef9a19015baba8927273d6b75cebf",
+    "packages/react-ui/src/genui-lib/CompositeCardBlock/schema.ts": "09c718f85625b8bb3936f86a945151dba0d7077a71107ada1db3cd7aaa6c6ca1",
+    "packages/react-ui/src/genui-lib/ContextCardBlock/schema.ts": "5fbb6f0f952365f8b4913bcb40597fb2c7646dfc7931a5535d01bfe049c8b6bc",
+    "packages/react-ui/src/genui-lib/DatePicker/schema.ts": "147b5d999c98516055ea3122f25fcf13e5e2241112b0ab139acc09584a11fb2c",
+    "packages/react-ui/src/genui-lib/EditableTable/schema.ts": "128c956b2d21a264b0b86bad0e4df00d21d5c04e73c255fb9fb607fb5ed74a83",
+    "packages/react-ui/src/genui-lib/EntityList/schema.ts": "f251bb658368a4733110b309a692228351f0bc3431a9cb193f620990fc7bf62b",
+    "packages/react-ui/src/genui-lib/Form/schema.ts": "0120ffda39e6c090483b68159eac48850db7fe5a352d45f51f7d3476b952c523",
+    "packages/react-ui/src/genui-lib/FormControl/schema.ts": "a91af01a87c33ee2e143c8434559a09847e126f9d6545effc41a90e0c9105674",
+    "packages/react-ui/src/genui-lib/Icon/schema.ts": "ed8781de62a53228147975b028e26d3665109c661ac37d0801078ac5c3084b6c",
+    "packages/react-ui/src/genui-lib/IconButton/schema.ts": "eeaf13cb8fd419983f6464662b996579fd4b00986506ee574dc925749243356c",
+    "packages/react-ui/src/genui-lib/IconText/schema.ts": "dc17d9b68fef67e5395a58e7e92589c545e67ffb1ef2c7e6fcf980b7bcbaa7e3",
     "packages/react-ui/src/genui-lib/Image/schema.ts": "bfe6b11213dc21257ea1fc71a119b785150ff1d652d2d52d5b68ea91e8067e3d",
+    "packages/react-ui/src/genui-lib/ImageBlock/schema.ts": "6cc3fb09f6959b3f96c2b58ed6848d00ce75b0dd47f00499b708e6792b821377",
+    "packages/react-ui/src/genui-lib/ImageGallery/schema.ts": "2744aa4a7ebde948e077977fd992d9ea8ad55d7799949ab7fd470d836f1378e3",
+    "packages/react-ui/src/genui-lib/ImageText/schema.ts": "a7622f61edf01ad4b5424412977e0a2a2d82a5259113e4d7f997913414f1e4a9",
+    "packages/react-ui/src/genui-lib/ImageTextLarge/schema.ts": "649033f7c108329d6cbd2abcf91672eafac6de8ba4c06efb70e631830083d693",
+    "packages/react-ui/src/genui-lib/InlineHeader/schema.ts": "a2adc5c70ae7fad4a3250b6487db19301d1ed88763133c7d87dae65bb5815ee4",
     "packages/react-ui/src/genui-lib/Input/schema.ts": "de4c17eb7e55a3e1728f36ed7707776a65ba0a6c646d7718296e91e7dfd96abb",
+    "packages/react-ui/src/genui-lib/Label/schema.ts": "88a2d3a2cfe3e7ef2b336589ee88e8361ca6df606129547547a0ab36145be17d",
+    "packages/react-ui/src/genui-lib/MarkDownRenderer/schema.ts": "bc7466cee6a9b6209734dc837528c8299e86fcf747a6bdf128a086f7eee20da2",
+    "packages/react-ui/src/genui-lib/MetricIndicator/schema.ts": "b0aa00bcc97c7a56867647e898a190960b40b71f940ade600c8379187a0a3ae4",
+    "packages/react-ui/src/genui-lib/Modal/schema.ts": "864c7eda2cebef626b245074c83650e40d6f9781b28b805bb5ff3146d54319fc",
+    "packages/react-ui/src/genui-lib/OptionCards/schema.ts": "b9519a634c81db20d9f515f27e74a3d956bef06c1ef0ecee643e8b08481b4af5",
+    "packages/react-ui/src/genui-lib/OverviewCardBlock/schema.ts": "01e12f76e0d457322bf70a6c5f2343bd0695059a951a7e3c4dcf9e4c5cff308b",
+    "packages/react-ui/src/genui-lib/RadioGroup/schema.ts": "c0c7f0100389208183eae41ec4ecb03d0cb9ece34975eb9cbf1f33313e7eb9fc",
+    "packages/react-ui/src/genui-lib/Select/schema.ts": "b706a3cacfef2927e43dd07985b26deaf8da0882097ed3e72bf1f980f68c810b",
     "packages/react-ui/src/genui-lib/Separator/schema.ts": "be8f8e5014c492fcad3769926264a3be3709c497a615e13a84c9cecffb35e26e",
+    "packages/react-ui/src/genui-lib/Slider/schema.ts": "fdb8c60c222a79a8ab6787f6f7e49da7e63ea445ec5762a89102308796ad77ed",
+    "packages/react-ui/src/genui-lib/SnippetCardBlock/schema.ts": "dffe147007e9f3164bdf282fca0bf7931dcf063b74c71aba4f3f3eedd9202b57",
     "packages/react-ui/src/genui-lib/Stack/schema.ts": "a371d8af8fd26d3f0e916e9ca687a2083acfc867ea9c6f35bbf29f3eb2ec1f2b",
-    "packages/react-ui/src/genui-lib/TextContent/schema.ts": "77529abb618bb696021d6fee6ddd4b13e8a35cd8862ac1eb5d91ca926b9439db"
+    "packages/react-ui/src/genui-lib/Steps/schema.ts": "55763129ca350a64169ed403ad455c8bae3ba34f4900cd819917deb082333624",
+    "packages/react-ui/src/genui-lib/SwitchGroup/schema.ts": "7e5d11476a98acb5372b2c5658c5f13a0cb0adda8b5527c0ba707aa0642d7952",
+    "packages/react-ui/src/genui-lib/Table/schema.ts": "8de6c32c093391c9daead9b192ccf982134e65c9f7f91a0f25f75dcb20d2aeb2",
+    "packages/react-ui/src/genui-lib/Tabs/schema.ts": "6348710b7a241e7e3a17791850d5a1474c91fc6a6f2f3a5599d934bc6c70996f",
+    "packages/react-ui/src/genui-lib/Tag/schema.ts": "36eaf537777da9a7e65451d6f58110934fd9651a6bfdf880b7ecaae3a06dade0",
+    "packages/react-ui/src/genui-lib/TagBlock/schema.ts": "6cbe16964f616a11f6fa68ae28faf141857ac2b44cd10cb9daa349df2b43ca95",
+    "packages/react-ui/src/genui-lib/Text/schema.ts": "2d82196bd7e92e970b9a19533bfbd0ecacc4c77bf6454fc76b83079babe52143",
+    "packages/react-ui/src/genui-lib/TextArea/schema.ts": "ad9ac30ecbdaaf0600702e5993716387d308dce727bc61e8632b0f45b51a3465",
+    "packages/react-ui/src/genui-lib/TextCallout/schema.ts": "7bfe2e212aa1de48b86bb34e6aef9aec76761468897598cae2b66ed41af0c793",
+    "packages/react-ui/src/genui-lib/TextContent/schema.ts": "77529abb618bb696021d6fee6ddd4b13e8a35cd8862ac1eb5d91ca926b9439db",
+    "packages/react-ui/src/genui-lib/VisualCardBlock/schema.ts": "af73aafaf9843c988400e8b9f8fea2d0b400a8d43f8a7f73920e65df65e34e27"
   }
 }

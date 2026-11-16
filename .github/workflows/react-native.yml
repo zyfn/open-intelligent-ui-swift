@@ -6,13 +6,21 @@ on:
     paths:
       - Examples/ReactNative/**
       - Examples/Gallery/Resources/Images/**
+      - Examples/Gallery/Resources/Components/openui.json
       - Sources/SwiftOpenUI/Resources/upstream-catalog.json
+      - Sources/SwiftOpenUI/Resources/lucide-icons.json
+      - Sources/SwiftOpenUI/Resources/Lucide-LICENSE.txt
+      - Tests/SwiftOpenUITests/Fixtures/AgentCasesContract/test-library-spec.json
       - .github/workflows/react-native.yml
   pull_request:
     paths:
       - Examples/ReactNative/**
       - Examples/Gallery/Resources/Images/**
+      - Examples/Gallery/Resources/Components/openui.json
       - Sources/SwiftOpenUI/Resources/upstream-catalog.json
+      - Sources/SwiftOpenUI/Resources/lucide-icons.json
+      - Sources/SwiftOpenUI/Resources/Lucide-LICENSE.txt
+      - Tests/SwiftOpenUITests/Fixtures/AgentCasesContract/test-library-spec.json
       - .github/workflows/react-native.yml
   workflow_dispatch:
 

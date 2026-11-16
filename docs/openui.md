@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.4 · 更新日期：2026-11-16
+文档版本：1.5 · 更新日期：2026-11-16
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -200,26 +200,43 @@ python3 Tools/check_gallery_catalog.py
 
 验收使用同一来源内容和有限的代表场景：阅读解释、图片选项、联系表单、旅行地图、数据分析，另补商品卡和宽表。记录实际内容区宽度、字号、外观、RTL、输入与结果；覆盖流式列表闭合、长中文、动作状态、媒体加载/失败/恢复。候选参数的最终收口需要原生对照，静态检查或图片生成成功不等于视觉验收。
 
-## React Native 验证子集
+## React Native OpenUI 组件
 
-RN 验证工程沿用 `Sources/SwiftOpenUI/Resources/upstream-catalog.json` 中的参数定义。`Examples/ReactNative/scripts/catalog.mjs` 只选择已实现组件，派生资源记录原 catalog 的 SHA256 和上游 revision；参数顺序、枚举、默认值、ActionExpression 与绑定元数据不手写另一份。架构与生命周期见[架构第 7 节](architecture.md#7-react-native-基础验证分支)，启动见[工程入口](../Examples/ReactNative/README.md)。
+RN 工程接入完整 OpenUI 目录：固定上游 84 个定义，以及本库原有 Map、MapPoint、SVG，共 87 个注册定义，包含由父组件消费的数据子项。`Examples/ReactNative/scripts/catalog.mjs` 从现有 `Sources/SwiftOpenUI/Resources/upstream-catalog.json` 和 `Tests/SwiftOpenUITests/Fixtures/AgentCasesContract/test-library-spec.json` 派生同一契约，记录两份来源的 SHA256 与上游 revision。参数顺序、枚举、默认值、ActionExpression、绑定标记和递归组件槽均来自既有来源，不另写权威 schema。架构与生命周期见[架构第 7 节](architecture.md#7-react-native-基础验证分支)，启动见[工程入口](../Examples/ReactNative/README.md)。
 
-| 组件 | 当前 RN 实现 | 当前范围限制 |
+| 组件组 | 已接入定义 | RN 呈现与行为 |
 | --- | --- | --- |
-| `Stack` | 原生方向、间距、对齐、契约指定的换行与嵌套；文字包入 Text，子项允许收缩 | 不擅自改变 wrap 参数；复杂嵌套宽度及阅读顺序待设备检查 |
-| `TextContent` | 五档 size；原生 Markdown 的标题、段落、强调、链接、列表/任务状态、引用、代码、表格与图片；系统字体缩放与文本选择 | HTML 只显示为文字，不执行；无语法着色、数学公式或单条长文内部虚拟化 |
-| `CardHeader` | 标题、说明与标题语义；空内容不生成占位 | 字体、中文换行和大字号需两端视觉验证 |
-| `Separator` | 水平/垂直分隔与 decorative 无障碍语义 | 垂直高度依赖父容器约束，复杂布局待验证 |
-| `Input` | 官方字段绑定；文本/数字/邮箱/密码键盘；blur 后字段反馈、编辑修复、官方校验规则与 Reset 同步；保留未完成数字草稿 | 当前注册子集无 Form/FormControl，不承诺整表提交门禁；IME/选区草稿不随消息卸载保存 |
-| `Button` | 官方动作 hook；平台圆角/ripple；主题、触摸区、焦点、busy/disabled；重复触发隔离、失败展示与重试 | pending 覆盖官方 trigger Promise，不能代替宿主远程事务的状态、幂等与取消 |
-| `Image` | 同一参数契约的原生图片；alt、加载占位、失败/重试、比例约束；旧请求/旧 epoch 回调隔离 | 流式完成后才加载；默认 HTTPS，可信本地资源和 URL 改写由宿主 resolver 提供 |
+| 布局与容器（11） | Stack、Card、Tabs / TabItem、Accordion / AccordionItem、Steps / StepsItem、Carousel、Separator、Modal | 原生布局、保留隐藏面板字段、测量宽度后分页、布尔绑定弹窗；不擅自改变契约中的 wrap |
+| 文本与媒体（10） | TextContent、MarkDownRenderer、CardHeader、InlineHeader、Callout、TextCallout、CodeBlock、Image、ImageBlock、ImageGallery | 原生 Markdown、代码着色、标题层级、提示、图片与独立预览；绑定 Callout 按源契约延时关闭 |
+| 动作（3） | Button、Buttons、IconButton | 官方动作 hook、平台按钮呈现、触摸区与 busy/disabled、重复触发隔离、错误反馈与重试 |
+| 表单（19） | Form、FormControl、Label、Input、TextArea、Select / SelectItem、DatePicker、Slider、CheckBoxGroup / CheckBoxItem、RadioGroup / RadioItem、SwitchGroup / SwitchItem、Chips / ChipItem、OptionCards / OptionCard | 官方 Store 绑定与校验、整表提交门禁、原生输入/选择器/日期/滑块、单选多选、字段快照恢复 |
+| 表格（3） | Table、Col、EditableTable | 按列输入、组件单元格、横向滚动、每页 10 行；可编辑文本、数字、URL、选择与日期，显式保存草稿 |
+| 图表与数据（13） | BarChart、HorizontalBarChart、LineChart、AreaChart、RadarChart、PieChart、RadialChart、SingleStackedBarChart、ScatterChart；Series、Slice、ScatterSeries、Point | SVG 图形、分组/堆叠、线形插值、饼/环/半圆、雷达与散点；点选读数、可访问完整数据视图 |
+| 卡片（17） | Snippet / Overview / Context / Composite / Visual 的 CardBlock 与 CardItem；Text、BoldText、IconText、ImageText、ImageTextLarge、MetricIndicatorInline、MetricIndicatorWithStrikethrough | 响应式卡片组、图片与图标、组合内容、价格/指标以及官方条目上下文动作 |
+| 数据展示（6） | TagBlock、Tag、Icon、EntityList、ListBlock、ListItem | 标签、键值列表、图标、编号/图片列表及可选动作 |
+| 后续建议（2） | FollowUpBlock、FollowUpItem | 建议按钮与官方继续对话事件 |
+| 地图与矢量（3） | Map、MapPoint、SVG | MapLibre 原生地图与选点；经校验的 SVG 原生渲染、远程加载与放大查看 |
 
-组件参数契约与原目录保持一致，不代表呈现语义已全部迁移。生成 prompt 只包含这 7 个已实现组件；Node 契约导出和原生注册共用同一 schema 适配路径。OpenIntelligentUI、地图、SVG、图表及完整表单容器尚未接入。
+Node 契约导出和 RN 注册共用 official authoring 路径。源导出中的位置签名也用于 prompt：固定版本官方 authoring 会给所有 Zod optional/default 字段加 `?`，不区分后面仍有必填参数的位置槽；适配仅保留已有导出签名，再调用官方 prompt generator，不修改 parser、Store 或 Renderer。真实 Query/Mutation provider 尚未接入宿主，当前 prompt 禁用工具调用。OpenIntelligentUI 暂未同步。
 
-`NativeThemeProvider` 提供系统/浅色/深色外观和语义 token 覆盖；控件默认触摸高度至少 48，正文、说明、边界、焦点和破坏性动作分别取色。平台文件承担 Button 的 iOS/Android 差异，其他组件共享设计。当前视觉仍需两端原生对照，不承诺与现有 SwiftUI 逐像素相同。
+### 交互与视觉边界
 
-Markdown 不使用 WebView。代码与宽表使用横向 ScrollView，图片从原生 Text 中分离并保留相邻文字样式，避免在 Text 内嵌原生 View。每段 TextContent 在 65,536 UTF-16 单元、4,096 个结构节点、24 层嵌套范围内进行富文本呈现；超限或 lexer 失败回退完整纯文本，不截断原始内容。解析预算发生在 lexer 后，不能作为抢占式 CPU 限制。
+`NativeThemeProvider` 提供系统/浅色/深色外观和语义 token 覆盖；控件默认触摸高度至少 48，正文、说明、边界、焦点和破坏性动作分别取色。Button 保留 iOS/Android 平台文件，选择器、日期、滑块和地图使用各自原生模块。日期范围由两个原生日期选择器组成；数组 Slider 由多个不能交叉的原生滑块编辑，不是同轨多滑柄。当前视觉仍需两端原生对照，不承诺与现有 SwiftUI 逐像素相同。
 
-`NativeContentProvider` 由宿主选择图片来源和错误上报方式。默认仅接收合法 HTTPS 图片；显式 resolver 可返回可信静态资源 ID，或允许的 HTTP/HTTPS 原生图片 source（含宿主头部）。链接仅允许合法 HTTP/HTTPS/mailto，禁止控制字符与 URL 凭据，再转成官方 OpenUrl 宿主事件；组件不会自行打开外部页面。资源错误不破坏正文。Gallery 使用现有西湖照片及 Morio / CC BY-SA 4.0 署名，不增加一份重复素材。
+Form 使用官方注册、校验、formState 与动作。显式 `@Reset($字段, …)` 重置目标；固定官方版本的无参 `@Reset()` 不表示清空全部字段。EditableTable 的编辑先保留本地草稿，Save Changes 将完整行数据写入官方字段，再发出 `continue_conversation` 事件；源数据在编辑中变化时让用户选择保留或重新载入。无效数字草稿不能保存，不会静默变成 0。按钮 pending 对应官方 trigger Promise；官方 `onAction` 回调类型为 void，任意宿主异步任务并不因此自动等待，远程业务状态由宿主负责。
 
-当前仅 complete 阶段允许输入、按钮、链接和图片重试；streaming、interrupted、error 均为禁用预览。执行时再次检查文档身份，防止旧原生事件越过换消息或停止边界。卸载/重挂载只承诺已保存字段值的恢复，焦点、键盘和临时草稿需要原生设备验收。Gallery 提供阅读、交互、32 段长文、明暗主题、原始源码检查和有限多消息列表；宿主动作只在本地记录，不执行真实模型、导航或外部业务。
+仅 complete 阶段允许输入、按钮、链接和资源重试；streaming、interrupted、error 为禁用预览。执行时复查文档身份，同 epoch 下改变字段绑定或动作语义也会退休旧原生回调，A→B→A 不会复活第一次 A 的事件。卸载/重挂载只承诺已保存 JSON 字段值的恢复，焦点、键盘、IME 组合、选区及临时草稿不属于持久化快照。
+
+### 阅读、图表与资源
+
+Markdown 与代码不使用 WebView。Prism 对 JavaScript、TypeScript、JSON、Python、Bash、HTML/XML、CSS 着色，未知语言显示完整纯文本；HTML 不执行。代码与宽表横向滚动，图片从原生 Text 中分离并保留相邻文字样式。Markdown 与代码各自限制为 65,536 UTF-16 单元、4,096 个结构节点、24 层嵌套；超限或解析失败显示完整纯文本。结构检查发生在 lexer/tokenizer 后，不能作为抢占式 CPU 限制，也不代表单条长文已内部虚拟化。静态 Markdown 子树隔离无关字段编辑，真实文本与主题变化仍生效。
+
+图表普通视图只展示图形、必要图例与选中值；长按、无障碍动作或紧凑更多入口打开完整数据 Modal，每页 12 行。超过 2,000 点时停止绘制图形与大图例，仍能逐页查看全部数据。比例图/雷达图的负值、非有限数、溢出、全零和空数据有独立处理，避免以误导图形代替无效数据。数据表格按 10 行分页，不删除后续行。
+
+`NativeContentProvider` 由宿主选择图片来源和错误上报方式。默认仅接收合法 HTTPS 图片；显式 resolver 可返回可信静态资源 ID，或允许的 HTTP/HTTPS 原生图片 source（含宿主头部）。图片失败时点按原占位重试，并重新调用 resolver 以刷新 URL/头部。链接允许合法 HTTP/HTTPS/mailto，禁止控制字符与 URL 凭据，再转成官方 OpenUrl 宿主事件；组件不自行打开外部页面。相同图片 URL 的多个预览状态相互独立，旧请求与旧目标回调不覆盖新资源。
+
+地图完成流式输入后才挂载原生视图并请求瓦片；支持 WGS84/GCJ02、筛选、内部点位卡片、选择、全览、展开/收起及失败重试，跨日期变更线的视野采用短区间。最多同时显示 512 点；超出时提示筛选，完整点集仍可在虚拟列表中选择。`NativeMapProvider` 接收宿主 HTTPS 样式；默认 MapLibre demo 样式用于开发，生产宿主应使用自己的样式与瓦片来源。地图不表示真实导航、交通或已执行业务。
+
+SVG 通过 fast-xml-parser 校验后交给 SvgXml，支持几何、文本、渐变、裁剪/遮罩、pattern/marker 与有限本地引用；拒绝 script、foreignObject、image、动画、filter、style 元素、CDATA、自定义实体和外部引用，不声称支持浏览器全部 SVG。资源限制为 1 MiB UTF-8、4,096 个节点或引用展开、32 层嵌套、65,536 个数值坐标。远程 src 使用 HTTPS、宿主 resolver 头部、15 秒超时和读取流字节上限，拒绝重定向，不携带环境凭据；退休请求中止且不能回填。有效 viewBox 决定展示比例，旧 height 参数兼容保留但不强制视图尺寸。
+
+Gallery 保留原有 87 个 OpenUI 组件程序，提供搜索、分类与组合场景，以及明暗主题、原始源码检查和有限多消息列表。照片复用现有西湖与 Nikon 素材，署名和许可沿用原图片清单；图标复用固定 Lucide 资源。宿主动作只在本地记录，不执行真实模型、导航或外部业务。实际契约、交互回归、原生构建结果和未完成的设备验收统一见[验证说明](validation-and-security.md#5-react-native-基础验证)。
