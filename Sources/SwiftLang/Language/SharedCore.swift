@@ -7,6 +7,25 @@ final class CoreLibraryCache: @unchecked Sendable {
     var value: JSValue?
 }
 
+/// A native value owns its JS identity for exactly as long as that value lives.
+/// Mutable fields are accessed only under SharedCore's realm lock. Final ARC
+/// release is exclusive and removes only a weak lookup under a separate lock:
+/// native values can be released by JSC callbacks, so deinit must not wait for
+/// the realm lock while the VM may already hold its own internal lock.
+final class CoreValueIdentity: @unchecked Sendable {
+    fileprivate var value: JSValue?
+    fileprivate var identifier: Int?
+
+    deinit {
+        // Ordinary values that never cross the bridge do not initialize JSC.
+        if let identifier {
+            SharedCore.shared.forgetDecoded(identifier, owner: ObjectIdentifier(self))
+        }
+        // JSValue ARC uses JSC's own synchronization. It runs after the weak
+        // lookup lock has been released, never while holding that short lock.
+    }
+}
+
 /// JSValue is used only while holding SharedCore's serialized realm lock.
 final class CoreParseSnapshot: @unchecked Sendable {
     let value: JSValue
@@ -49,15 +68,18 @@ enum LangCoreResources {
     }
 }
 
-/// Private serialized realm. Instances own parser/store/query objects; the realm
-/// owns only immutable code and weak native identity records. No model JS runs.
+/// Private serialized realm. Instances own parser/store/query objects and each
+/// native reference owns its JS identity. The realm keeps only weak reverse
+/// lookups; it does not keep retired document graphs alive. No model JS runs.
 final class SharedCore {
     static let shared = SharedCore()
     let context: JSContext
     private let lock = NSRecursiveLock()
-    private var identities: [ObjectIdentifier: Record] = [:]
+    // Take this short lock only to read/write weak entries. Never call JSC or
+    // release a strong native value while holding it. An owner may be released
+    // from outside the realm, including from a native callback owned by JSC.
+    private let decodedLock = NSLock()
     private var decoded: [Int: WeakObject] = [:]
-    private var operations = 0
     private var depth = 0
     private var timers: [Int: DispatchSourceTimer] = [:]
     private var timerID = 0
@@ -67,11 +89,12 @@ final class SharedCore {
         let values = call("sourcePresentationDefaults")
         return (values.atIndex(0)!, values.atIndex(1)!)
     }()
-    private final class WeakObject { weak var object: AnyObject?; init(_ object: AnyObject) { self.object = object } }
-    private final class Record {
+    private final class WeakObject {
         weak var object: AnyObject?
-        let value: JSValue
-        init(_ object: AnyObject, _ value: JSValue) { self.object = object; self.value = value }
+        let owner: ObjectIdentifier
+        init(_ object: AnyObject, owner: ObjectIdentifier) {
+            self.object = object; self.owner = owner
+        }
     }
     private init() {
         context = JSContext()!
@@ -119,15 +142,6 @@ final class SharedCore {
         lock.lock(); depth += 1
         defer {
             depth -= 1
-            if depth == 0 {
-                operations += 1
-                if operations % 32 == 0 {
-                    NativeRuntimeTrace.measure("Bridge cleanup") {
-                        identities = identities.filter { $0.value.object != nil }
-                        decoded = decoded.filter { $0.value.object != nil }
-                    }
-                }
-            }
             lock.unlock()
         }
         // A host may feed many chunks synchronously without returning to its
@@ -236,7 +250,33 @@ final class SharedCore {
         }
         return try project(result, depth: 0)
     }
+    private func identity(of object: AnyObject) -> CoreValueIdentity? {
+        switch object {
+        case let value as OpenUIArray: return value.coreIdentity
+        case let value as OpenUIObject: return value.coreIdentity
+        case let value as EvaluatedElement: return value.coreIdentity
+        case let value as ActionPlan: return value.coreIdentity
+        case let value as ReactiveAssign: return value.coreIdentity
+        default: return nil
+        }
+    }
+    private func decodedObject(_ identifier: Int) -> AnyObject? {
+        decodedLock.lock()
+        let object = decoded[identifier]?.object
+        decodedLock.unlock()
+        // A successful weak load is returned strongly only after unlocking.
+        return object
+    }
+    fileprivate func forgetDecoded(_ identifier: Int, owner: ObjectIdentifier) {
+        decodedLock.lock()
+        // Several immutable readiness snapshots may share one JS identity.
+        // Retiring an older snapshot must not erase the newer reverse lookup.
+        if decoded[identifier]?.owner == owner { decoded.removeValue(forKey: identifier) }
+        decodedLock.unlock()
+    }
     func remember(_ object: AnyObject, _ js: JSValue, identity: Int? = nil, tag: Bool = true) {
+        defer { withExtendedLifetime(object) {} }
+        guard let record = self.identity(of: object) else { return }
         if tag {
             let kind: String
             switch object {
@@ -249,19 +289,26 @@ final class SharedCore {
             }
             _ = call("tag", [js, kind])
         }
-        identities[ObjectIdentifier(object)] = Record(object, js)
-        decoded[identity ?? Int(call("identity", [js]).toInt32())] = WeakObject(object)
+        let identifier = identity ?? Int(call("identity", [js]).toInt32())
+        let owner = ObjectIdentifier(record)
+        if let previous = record.identifier { forgetDecoded(previous, owner: owner) }
+        record.value = js
+        record.identifier = identifier
+        let weakObject = WeakObject(object, owner: owner)
+        decodedLock.lock()
+        decoded[identifier] = weakObject
+        decodedLock.unlock()
     }
     /// Presentation can produce another immutable native snapshot of the same
     /// JS value. Reuse the bridge's existing mapping for ECMAScript identity.
     func sameReference(_ lhs: AnyObject, _ rhs: AnyObject) -> Bool { sync {
-        guard let left = identities[ObjectIdentifier(lhs)], left.object === lhs,
-              let right = identities[ObjectIdentifier(rhs)], right.object === rhs else { return false }
-        return JSValueIsStrictEqual(context.jsGlobalContextRef, left.value.jsValueRef, right.value.jsValueRef)
+        guard let left = identity(of: lhs)?.value,
+              let right = identity(of: rhs)?.value else { return false }
+        return JSValueIsStrictEqual(context.jsGlobalContextRef, left.jsValueRef, right.jsValueRef)
     } }
     func encode(_ value: Value) -> JSValue {
         let native = value.referenceObject
-        if let native, let record = identities[ObjectIdentifier(native)], record.object === native { return record.value }
+        if let native, let existing = identity(of: native)?.value { return existing }
         let result: JSValue
         switch value {
         case .null: return JSValue(nullIn: context)
@@ -316,7 +363,7 @@ final class SharedCore {
         // calls bounded too, without expanding a shared DAG on every edge.
         guard projection.path.insert(id).inserted else { return .null }
         defer { projection.path.remove(id) }
-        let cached = decoded[id]?.object
+        let cached = decodedObject(id)
         var descriptor: JSValue?
         func metadata() -> JSValue {
             if let descriptor { return descriptor }
@@ -338,8 +385,8 @@ final class SharedCore {
         }
         func refreshed(_ value: Value) -> Value {
             guard value.containsSourceMetadata, let object = value.referenceObject,
-                  let record = identities[ObjectIdentifier(object)], record.object === object else { return value }
-            return child(record.value)
+                  let existing = identity(of: object)?.value else { return value }
+            return child(existing)
         }
         func sourceDetails() -> (complete: Bool, readiness: NativeSourceReadiness) {
             let details = metadata()

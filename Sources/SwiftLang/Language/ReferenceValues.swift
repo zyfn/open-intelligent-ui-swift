@@ -3,6 +3,7 @@ import Foundation
 /// Immutable containers retain ECMAScript identity across state/cache reads.
 /// Constructing another container allocates a distinct identity, even if equal.
 public final class OpenUIArray: RandomAccessCollection, Sendable {
+    let coreIdentity = CoreValueIdentity()
     public typealias Index = Int
     public let values: [Value]
     // Immutable summary: ordinary state/tool data never needs a presentation
@@ -18,6 +19,7 @@ public final class OpenUIArray: RandomAccessCollection, Sendable {
 }
 
 public final class OpenUIObject: RandomAccessCollection, Sendable {
+    let coreIdentity = CoreValueIdentity()
     public typealias Index = Int
     public let fields: [ObjectField]
     let containsSourceMetadata: Bool
@@ -64,6 +66,7 @@ public final class StateDefault: Sendable {
 }
 
 public final class ReactiveAssign: Sendable {
+    let coreIdentity = CoreValueIdentity()
     public let target: String
     public let expression: ASTNode
     public init(target: String, expression: ASTNode) { self.target = target; self.expression = expression }

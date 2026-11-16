@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.9 · 更新日期：2026-11-17
+文档版本：1.10 · 更新日期：2026-11-17
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -97,7 +97,7 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 
 1. 宿主选择 OpenUILibrary.openUI() 或 .openIntelligentUI()；自建组件使用 OpenUILibrary(components:)。
 2. 同一个 library 提供 systemPrompt、specificationJSON 和 makeState(toolProvider:persistedState:)。
-3. 宿主长期持有每份文档的 OpenUIState，输入完整源码或 push 增量，并明确 complete、interrupt、reset 或替换。
+3. 宿主在文档活跃期间稳定持有同一个 OpenUIState，输入完整源码或 push 增量，并明确 complete、interrupt、reset 或替换。
 4. State 调用 parser/Store/evaluator，并同步声明 Query；工具、取消和定时器通过 Swift 桥接。
 5. OpenUIView(state:library:) 交给同一适配层 renderer，按选定库的注册表构建原生组件。
 6. 组件通过 OpenUIComponentContext 读取值、渲染子项、编辑字段和触发动作；业务结果经宿主回填。
@@ -118,6 +118,25 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 | 资源请求及解码结果 | 请求 Store / 媒体 cache 各自的 owner | 缓存命中和 await 返回都复核取消、generation 与鉴权作用域 |
 
 输入入口负责顺序，执行入口负责值与副作用，呈现入口负责完整快照，组件入口负责实际依赖。任何优化先说明改变哪一条交接边界；没有所有权或失效条件的缓存、revision、广播不进入主线。
+
+### 文档与资源的生命周期
+
+独立的 Lang 文档通常对应独立的 `OpenUIState`，其 parser、Store、Query、源文本、原生呈现和编辑记录随文档存活；所有文档共享一份 JavaScriptCore 执行环境。`OpenUIView` 和 `SwiftLangView` 使用宿主传入的 state，不替宿主分页或淘汰历史消息。离屏不会自动销毁 state，`complete()` 只结束流式输入，已完成文档的 Query、控件和刷新仍可工作。宿主需要控制强持有的活跃文档范围，同时明确历史交互、草稿与恢复策略；SDK 不按可见性擅自暂停工具或清除业务状态。
+
+`snapshotState()` 只读取 Store 的业务值。它可用于 `persistedState:` 或 `restoreState`，并非完整的历史文档 checkpoint，不包含 Query 执行进度、呈现编辑记录、焦点或资源请求，也不提供卸载能力。销毁后用源码和这些值重新创建文档，会重新建立文档执行状态，并可能再次派发 Query；不能用它承诺无副作用的原样恢复。
+
+可重建的已完成资源继续由各文档的资源 Store 和媒体 cache 持有，各自使用一份 `NativeResourceCache` 保存值、成本及访问顺序。共享预算只弱引用非空 cache；不同文档不会因为 URL 相同而共享响应、鉴权状态或请求结果。
+
+| 已完成缓存 | 每份文档上限 | 全 SDK 合计上限 |
+| --- | --- | --- |
+| 解码图片 | 32 MiB / 8 项 | 64 MiB / 128 项 |
+| 原始响应数据 | 2 MiB / 16 项 | 8 MiB / 128 项 |
+
+命中更新访问序号，插入时先满足文档额度，再按所有已登记 cache 中最久未访问的条目满足合计额度。成本与条数同时限制，大于任一允许额度的单项不进入缓存，也不挤掉已有可用条目。全局条数限制同时约束非空 cache 的登记规模，不遍历所有文档或业务对象。
+
+首次使用默认预算时注册一次平台内存压力监听：iOS 接收内存警告，macOS 接收 warning/critical 事件，在 MainActor 上清理这两类已完成缓存。清理不递增文档 generation，不取消 pending 请求，不更换鉴权 scope，不清除已接受的业务值或草稿。正在显示的图片由视图继续持有；后续缓存未命中可重新获取资源，原有高分辨率优先、显式 reload、请求合并和取消规则保持。
+
+这些上限只覆盖 SDK 已完成缓存中的成本，不覆盖挂载视图保留的图片、在途传输/解码、parser/Store/Query/草稿或 WebKit、MapKit 等系统资源，也不是进程内存上限。清理可能让以后访问旧资源时重新加载。宿主永久保留所有历史 state 的累计成本仍需由消息列表生命周期解决，完整冻结与恢复不是当前接口的能力。
 
 ### 求值、发布与外部副作用
 
@@ -181,7 +200,9 @@ ElementErrorBoundary 以不可变元素快照的身份观察输入，保留同�
 
 同次原生呈现批量读取 Query 状态，仅提取一次管理器快照并建立本次错误索引；缺失声明直接退出，批次之外不缓存结果或错误。管理器内部完整 JSON 快照比较仍保留，因为共享默认值可在 provider/listener 或两次调用之间改变。该批量读取处理 Query 呈现成本，不能据此解释无已派发 Query 的持续文本流 CPU。
 
-解析、解析投影、求值上下文、root 求值、原生投影、live index、呈现提交、桥接调用及弱引用清理通过内部 Instruments interval 分开记录；tracing 关闭时不创建 interval，也不记录源码或用户值。基准同时保留 p95、最大值和最慢分片位置，以识别整树增长与周期性长调用。整 root 求值/投影及定期弱引用清理仍存在，没有认定 80–100ms 长尾来自 GC，也没有宣布长尾已修复。重入队列、预算、缓存及通知收敛不等于流畅度已验收；实际效果仍由相同输入的 Release 及 App 回放验证。
+原生引用值各自持有一枚私有桥接身份记录；SharedCore 只保存 JS 身份到原生对象的弱反查。原生值销毁时按自身记录身份撤销对应反查，不再依赖每 32 次调用扫描全部记录。不同 readiness 快照可继续共享同一 JS 语义身份，旧快照销毁不能删除新快照的映射。JS 操作及记录更新仍由原有串行执行域保护；析构只使用一把保护弱反查字典的短锁，解锁后才释放 JSValue，避免从 JavaScriptCore 回收线程反向等待执行域锁。原生值编码为 JS 数据，不把拥有 JSValue 的原生对象直接导出为 JS 包装对象。未桥接的值不触发 JS 环境初始化，但每个引用值会多持有一枚空记录；净分配与释放成本仍需原生测量。
+
+解析、解析投影、求值上下文、root 求值、原生投影、live index、呈现提交和桥接调用通过内部 Instruments interval 分开记录；tracing 关闭时不创建 interval，也不记录源码或用户值。原来的 `Bridge cleanup` 全表扫描区间已随该路径删除。基准同时保留 p95、最大值和最慢分片位置，以识别整树增长与长调用。整 root 求值/投影仍存在，没有认定 80–100ms 长尾来自 GC，也没有宣布长尾已修复。重入队列、预算、缓存及通知收敛不等于流畅度已验收；实际效果仍由相同输入的 Release 及 App 回放验证。
 
 **输入与完成。** `push` 接收内容后仍同步更新。Lang 入口使用一次增量传输探测，仅将原始 Lang 引号/转义/行注释之外的首次标记视作封包边界；此前的源码作为数据保留。进入封包后，同一个消息解析器继续处理部分消息头和截断重试。公开 `parseMessage` 保留完整协议语义及 context；Lang 入口只投影选中的 content。普通注释和多行字符串内的 marker 不得静默删掉 root。任何内部优化都必须保留精确 UTF-16 内容、到达顺序、已闭合节点可交互以及末尾分块的处理语义。
 
@@ -211,7 +232,7 @@ ElementErrorBoundary 以不可变元素快照的身份观察输入，保留同�
 - OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。SwiftLangView 观察完整的只读呈现提交；轻量 OpenUIComponentHost 仍解析并观察最近 OpenUIState，内部内容边界持有节点订阅。OpenUI 的 ActionSurface、原生字段及 EditableTable 通过 Context 的现有作用域或独立挂载订阅读取，没有各自再观察整份 State；其他库与宿主观察仍须按实际代码核对，不能描述为整棵树只观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
 - 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
 - typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
-- 通用资源 Context 管理地址、宿主 loader、鉴权作用域、预算和文档生命周期。各 UI 的图片缓存/解码、占位、重试、预览和地图交互保持在所属组件库。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。
+- 通用资源 Context 管理地址、宿主 loader、鉴权作用域和文档生命周期；SwiftLang 的共享基础设施负责原生资源请求、图片解码和缓存预算。占位、裁剪、重试、预览和地图交互由所属组件库决定。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。
 - OpenIntelligentUI 的地图筛选、内部点位卡片、选中、全览与原生展开由 Map 自身管理；场景不补建另一套基本交互，组件不虚构导航或业务结果。
 - 宿主负责模型/Agent/工具通信、账号权限、消息列表、滚动、业务数据、交易与真实操作结果。Gallery 的模拟工具与动作记录不代表远程业务成功。
 

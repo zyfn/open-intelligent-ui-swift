@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.13 · 更新日期：2026-11-17
+文档版本：1.14 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -100,7 +100,26 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-当前候选的全面清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。下文各历史轮次的通过数量、客户端样本和 CI 状态仅属于其标明的版本。
+当前候选在 main `22229873c72cb70c3bec7a7f56b0a16165d6e73d` 上继续处理文档资源生命周期，见下一节；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。下文各历史轮次的通过数量、客户端样本和 CI 状态仅属于其标明的版本。
+
+### 文档资源生命周期
+
+本轮沿用现有 State、Store、Query 和同步输入 API，收敛已完成资源缓存与桥接身份记录的所有权。两类缓存共用一个内部实现，保留单文档额度并加入跨文档合计额度；数据不跨文档共享。iOS 内存警告和 macOS 内存压力只清理可重建的已完成缓存，保留 pending 请求、鉴权 scope、generation 和视图已持有图片。预算与宿主责任只在[架构](architecture.md#文档与资源的生命周期)维护，客户端不需要新增 `snapshotState()` 调用。
+
+桥接的五类原生引用值各自持有 JS 身份，SharedCore 只留弱反查。销毁旧快照按记录身份精确撤销，移除原来每 32 次调用的全表扫描；JS 堆的垃圾回收时机仍由 JavaScriptCore 决定。析构不获取执行域锁，弱表短锁内不调用 JS 或释放强原生/JS 引用，防止 VM 回收回调与执行域锁形成反向等待。该锁序依据 [Apple 的 JavaScriptCore 线程说明](https://developer.apple.com/documentation/javascriptcore/jsvirtualmachine) 和 [WebKit 的 JSValue 析构实现](https://github.com/WebKit/WebKit/blob/main/Source/JavaScriptCore/API/JSValue.mm)核对；源码推导仍须通过原生并发与生命周期回归。原生对象编码为 JS 数据，不能改为直接导出拥有 JSValue 的原生包装对象。
+
+新增 15 项 XCTest：`ResourceCacheBudgetTests` 6 项、`ResourceStoreTests` 4 项、`SharedCoreBridgeTests` 5 项。覆盖跨文档 LRU、单文档/合计额度、超大候选保留旧值、替换成本、零成本条数限制、弱 owner 释放、压力下 pending 成功、请求 scope 与图片快照保留，以及桥接包装立即释放、旧/新 readiness 身份和跨线程析构。图片测试使用小图和显式成本，不作为实际内存或画面测量；桥接释放断言针对原生对象及 JSValue 包装，不把 JS GC 或 RSS 回落当作同步承诺。Release 定向集合加入这两个测试类，保留原有全部集合与断言。
+
+| 本轮检查 | 实际结果与边界 |
+| --- | --- |
+| 实际打包核心的 JS 回归 | 167/167 通过，0 failed、0 skipped；本轮 JS 资源未修改，这只保留语言行为基线，不覆盖新的 Swift 实现 |
+| Validation / catalog compatibility | 6/6 与 7/7 通过，0 failed、0 skipped |
+| 资源完整性与源码归属 | `check_openui_integration.py` 通过；lang-core.js、manifest 和许可 SHA-256 与基线一致；没有修改历史 fixture |
+| 原生测试与完整 SwiftPM 图 | 本地 `swift test` 与模块图检查实际受缺少 Swift 工具链阻塞；新增 XCTest 未编译、未执行，Release fitting 与设备 UI 复测未运行 |
+
+本地日志在忽略的 `outputs/document-resource-lifetime/`。缓存上限不包含宿主强持有的所有历史 State、挂载图片、工具结果和系统资源；本轮没有自动卸载文档、暂停 Query、删除未提交草稿或实现完整 checkpoint。缓存淘汰后再次访问旧资源可能重新加载。每个未桥接原生引用现在也持有一枚空身份记录，净分配成本和移除全表扫描的实际收益需同条件 Release 测量。尚无本候选的 App CPU、真机内存、帧率或持续滚动证据，不据此宣布客户端卡顿或长会话问题已全部解决。
+
+### 历史修复记录
 
 本节保留各轮修复的执行证据。早期以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线完成下表修复，经 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 合入 main，随后继续处理原生执行及文本同步；`c7310054e5a58ecb7e42e9f37e4c77e7fed30ce7` 是后续客户端审查的历史基线，不是本节所记录的最新修复。
 

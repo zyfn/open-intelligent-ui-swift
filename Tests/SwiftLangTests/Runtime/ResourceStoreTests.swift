@@ -461,6 +461,91 @@ extension ResourceStoreTests {
     XCTAssertEqual(counts.started, 1)
     cache.removeAll()
   }
+
+  @MainActor func testCompletedByteBudgetUsesGlobalLRUWithoutSharingDocumentData() async throws {
+    let payloadSize = Data("resource bytes".utf8).count
+    let budget = NativeResourceCacheBudget(maximumCost: payloadSize * 2, maximumCount: 128)
+    let first = NativeResourceStore(budget: budget), second = NativeResourceStore(budget: budget)
+    let third = NativeResourceStore(budget: budget), loader = ByteLoader()
+    let a = first.scoped(.init(loader: loader)), b = second.scoped(.init(loader: loader))
+    let c = third.scoped(.init(loader: loader))
+    let request = try XCTUnwrap(a.request(for: "https://resource.example/shared-address"))
+    _ = try await a.loader.data(for: request)
+    _ = try await b.loader.data(for: request)
+    XCTAssertEqual(loader.count, 2, "Sharing a budget must not share another document's response")
+    _ = try await a.loader.data(for: request)
+    _ = try await c.loader.data(for: request)
+    XCTAssertEqual(loader.count, 3)
+    _ = try await a.loader.data(for: request)
+    XCTAssertEqual(loader.count, 3, "A cache hit makes the first document more recent than the second")
+    _ = try await b.loader.data(for: request)
+    XCTAssertEqual(loader.count, 4, "The globally oldest response must be fetched again")
+    XCTAssertEqual(budget.retainedCost, payloadSize * 2)
+    XCTAssertEqual(budget.retainedCount, 2)
+  }
+
+  @MainActor func testSharedByteCountLimitAlsoBoundsEmptyResponses() async throws {
+    let budget = NativeResourceCacheBudget(maximumCost: 1, maximumCount: 2)
+    let stores = (0..<3).map { _ in NativeResourceStore(budget: budget) }
+    let loader = ScopedFixtureLoader()
+    loader.account = ""
+    let contexts = stores.map { $0.scoped(.init(loader: loader)) }
+    let request = try XCTUnwrap(contexts[0].request(for: "https://resource.example/empty"))
+    for context in contexts {
+      let response = try await context.loader.data(for: request)
+      XCTAssertTrue(response.isEmpty)
+    }
+    XCTAssertEqual(budget.retainedCost, 0)
+    XCTAssertEqual(budget.retainedCount, 2)
+    _ = try await contexts[1].loader.data(for: request)
+    XCTAssertEqual(loader.calls, 3)
+    _ = try await contexts[0].loader.data(for: request)
+    XCTAssertEqual(loader.calls, 4, "Zero-cost entries still participate in the shared count limit")
+  }
+
+  @MainActor func testTrimmingCompletedBytesKeepsScopesAndPendingConsumersValid() async throws {
+    let budget = NativeResourceCacheBudget(maximumCost: 128, maximumCount: 8)
+    let cachedStore = NativeResourceStore(budget: budget), activeStore = NativeResourceStore(budget: budget)
+    let loader = ByteLoader(), cached = cachedStore.scoped(.init(loader: loader))
+    let request = try XCTUnwrap(cached.request(for: "https://resource.example/completed"))
+    _ = try await cached.loader.data(for: request)
+    let started = expectation(description: "pending transport started")
+    let activeLoader = ControlledImageLoader(started: started)
+    let active = activeStore.scoped(.init(loader: activeLoader))
+    let activeRequest = try XCTUnwrap(active.request(for: "https://resource.example/pending"))
+    let pending = Task { try await active.loader.data(for: activeRequest) }
+    defer { pending.cancel(); cachedStore.removeAll(); activeStore.removeAll() }
+    await fulfillment(of: [started], timeout: 2)
+    budget.removeAll()
+    XCTAssertEqual(budget.retainedCount, 0)
+    XCTAssertEqual(activeStore.pendingSubscriberCount, 1)
+    XCTAssertNotNil(cached.request(for: "https://resource.example/completed"))
+    _ = try await cached.loader.data(for: request)
+    XCTAssertEqual(loader.count, 2, "Trimming drops cached bytes without retiring their request scope")
+    await activeLoader.gate.release(id: 1, data: Data("current".utf8))
+    let result = try await pending.value
+    XCTAssertEqual(result, Data("current".utf8))
+    let retained = try await active.loader.data(for: activeRequest)
+    XCTAssertEqual(retained, result)
+    let counts = await activeLoader.gate.counts
+    XCTAssertEqual(counts.started, 1); XCTAssertEqual(counts.cancelled, 0)
+  }
+
+  @MainActor func testSharedByteBudgetDoesNotKeepResourceStoreAlive() async throws {
+    let budget = NativeResourceCacheBudget(maximumCost: 128, maximumCount: 8)
+    var store: NativeResourceStore? = NativeResourceStore(budget: budget)
+    weak var releasedStore = store
+    do {
+      let context = try XCTUnwrap(store).scoped(.init(loader: ByteLoader()))
+      let request = try XCTUnwrap(context.request(for: "https://resource.example/retired"))
+      _ = try await context.loader.data(for: request)
+    }
+    XCTAssertEqual(budget.retainedCount, 1)
+    store = nil
+    XCTAssertNil(releasedStore)
+    XCTAssertEqual(budget.retainedCount, 0)
+    XCTAssertEqual(budget.retainedCost, 0)
+  }
 }
 
 private final class ControlledImageLoader: OpenUIResourceLoading {

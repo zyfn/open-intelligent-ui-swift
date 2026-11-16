@@ -199,6 +199,7 @@ public struct ElementNode: Sendable {
 /// An evaluated element tree: all props resolved to runtime Values.
 /// Produced by Evaluator.evaluateRoot / evaluateElementProps.
 public final class EvaluatedElement: Sendable, Equatable {
+    let coreIdentity = CoreValueIdentity()
     public let typeName: String
     public let props: [(String, Value)]
     public let statementId: String?
@@ -416,6 +417,7 @@ extension ASTNode: Equatable {
 }
 
 public final class ActionPlan: Sendable {
+    let coreIdentity = CoreValueIdentity()
     public let steps: [ActionStep]
     public let isSourceComplete: Bool
     public init(steps: [ActionStep] = [], isSourceComplete: Bool = true) {

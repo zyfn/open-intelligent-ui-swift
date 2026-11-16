@@ -1,5 +1,7 @@
 # OpenUI Swift SDK
 
+文档版本：1.0 · 更新日期：2026-11-17
+
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择OpenUI 或 OpenIntelligentUI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
 ## Lang 与 UI 独立引入
@@ -82,7 +84,7 @@ let library: OpenUILibrary = try .openUI()
 
 ### 2. 创建并持有一条消息的状态
 
-在宿主的 `@MainActor` 初始化流程中创建，随该消息长期持有：
+在宿主的 `@MainActor` 初始化流程中创建；同一份活跃文档持续使用同一个 state：
 
 ~~~swift
 let state = library.makeState()
@@ -95,6 +97,8 @@ let content = OpenUIView(state: state, library: library)
 ~~~
 
 同一个工厂也接受宿主的 `toolProvider:` 和 `persistedState:`，两套组件库使用完全相同的参数。持久化数据可以使用 `[OpenUIString: Value]` 或 `[String: Value]`；自定义函数来自所选库的实际 reader。
+
+`snapshotState()` 是可选的 Store 业务值快照，普通渲染不需要调用；它不包含完整文档、Query 执行状态、未提交输入草稿或焦点，也不会释放 state。消息离屏和 `complete()` 均不表示文档退休。长会话的历史分页与活跃 state 持有范围由宿主管理，不能将销毁后重新解析等同于完整恢复；具体边界见[文档与资源的生命周期](docs/architecture.md#文档与资源的生命周期)。
 
 普通接入只需 `import` 所选 UI 模块，它已导出 SwiftLang 的公共适配接口。需要独立使用解析、组件注册或文档状态时直接 `import SwiftLang`。
 

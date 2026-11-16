@@ -180,7 +180,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test -c release --filter 'StreamingRenderIsolationTests|MountedStreamingTextProgressTests|ComponentRenderInputTests|NativeComponentSubscriptionTests|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|ActionWorkBudgetTests|RuntimeReentrancyTests|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceStoreTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|BoundaryIdentityTests|NativeActionRenderingTests|FieldSelectionRenderingTests|TableMountedViewTests' \
+          swift test -c release --filter 'StreamingRenderIsolationTests|MountedStreamingTextProgressTests|ComponentRenderInputTests|NativeComponentSubscriptionTests|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|ActionWorkBudgetTests|RuntimeReentrancyTests|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceStoreTests|ResourceCacheBudgetTests|SharedCoreBridgeTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|BoundaryIdentityTests|NativeActionRenderingTests|FieldSelectionRenderingTests|TableMountedViewTests' \
             2>&1 | tee outputs/verification/release-streaming.log
       - name: Standalone Gallery tests
         if: ${{ !cancelled() }}

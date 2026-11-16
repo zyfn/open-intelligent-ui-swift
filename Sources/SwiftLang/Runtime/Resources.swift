@@ -178,7 +178,10 @@ public struct OpenUIResourceContext {
 /// A view relocation does not own/cancel the underlying request. Credentials,
 /// resource policy and source addresses continue to belong to the injected loader.
 @MainActor package final class NativeResourceStore {
-    package init() {}
+    package convenience init() { self.init(budget: NativeResourceCacheBudgets.responseBytes) }
+    init(budget: NativeResourceCacheBudget) {
+        completed = NativeResourceCache(maximumCost: 2 * 1024 * 1024, maximumCount: 16, budget: budget)
+    }
     private struct OwnerKey: Hashable {
         let identity: ObjectIdentifier
         let scope: String
@@ -195,9 +198,7 @@ public struct OpenUIResourceContext {
     }
     private var loaders: [OwnerKey: ScopedResourceLoader] = [:]
     private var pending: [Key: Pending] = [:]
-    private var completed: [Key: Data] = [:]
-    private var order: [Key] = []
-    private var completedBytes = 0
+    private let completed: NativeResourceCache<Key, Data>
     private var generation = 0
     package var pendingSubscriberCount: Int { pending.values.reduce(0) { $0 + $1.waiters.count } }
 
@@ -211,8 +212,7 @@ public struct OpenUIResourceContext {
             loaders[old]?.invalidateScope()
             loaders.removeValue(forKey: old)
             for resource in completed.keys.filter({ $0.owner == old }) {
-                if let bytes = completed.removeValue(forKey: resource) { completedBytes -= bytes.count }
-                order.removeAll { $0 == resource }
+                completed.removeValue(forKey: resource)
             }
             for resource in pending.keys.filter({ $0.owner == old }) {
                 guard let group = pending.removeValue(forKey: resource) else { continue }
@@ -279,13 +279,8 @@ public struct OpenUIResourceContext {
     private func finish(_ key: Key, id: UUID, epoch: Int, retains: Bool, result: Result<Data, Error>) {
         guard generation == epoch, let group = pending[key], group.id == id else { return }
         pending.removeValue(forKey: key)
-        if retains, case .success(let data) = result, data.count <= 2 * 1024 * 1024 {
-            if let previous = completed.updateValue(data, forKey: key) { completedBytes -= previous.count }
-            completedBytes += data.count
-            order.removeAll { $0 == key }; order.append(key)
-            while order.count > 16 || completedBytes > 2 * 1024 * 1024 {
-                if let evicted = completed.removeValue(forKey: order.removeFirst()) { completedBytes -= evicted.count }
-            }
+        if retains, case .success(let data) = result {
+            completed.insert(data, for: key, cost: data.count)
         }
         for continuation in group.waiters.values { continuation.resume(with: result) }
         group.waiters.removeAll(); group.task = nil
@@ -309,7 +304,7 @@ public struct OpenUIResourceContext {
             for continuation in group.waiters.values { continuation.resume(throwing: CancellationError()) }
             group.waiters.removeAll()
         }
-        completed.removeAll(); completedBytes = 0; order.removeAll(); loaders.removeAll()
+        completed.removeAll(); loaders.removeAll()
     }
 }
 
