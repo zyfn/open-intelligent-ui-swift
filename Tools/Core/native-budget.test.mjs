@@ -88,7 +88,8 @@ test('incomplete Each visits shared metadata once and still counts every output 
   const outcome = render(result, { getState: name => name === '$items' ? shared : null, resolveRef: () => null });
   assert.equal(traversals, 1, 'idempotent readiness traversal must not revisit the shared array');
   assert.equal(visits, size, 'count actual child visits instead of imposing a machine timing threshold');
-  assert.equal(bridge.sourceComplete(shared), false);
+  assert.equal(bridge.sourceComplete(shared, outcome.sourceSnapshot), false);
+  assert.equal(bridge.sourceComplete(shared), true, 'evaluation must not change the shared input baseline');
   assert.equal(outcome.limitExceeded, true, '500 repeated 500-value arrays still exceed the expanded output budget');
   assert.equal(outcome.value, null);
   assert(outcome.work <= 100001);
@@ -109,8 +110,9 @@ test('incomplete Each preserves values and invalidates nested shared controls', 
   assert.equal(outcome.value.props.value.length, 4);
   for (const item of outcome.value.props.value) assert.equal(item, shared);
   for (const value of [shared, nested, child]) {
-    assert.equal(bridge.sourceComplete(value), false);
-    assert.equal(bridge.sourcePresentation(value).complete, false);
+    assert.equal(bridge.sourceComplete(value, outcome.sourceSnapshot), false);
+    assert.equal(bridge.sourcePresentation(value, outcome.sourceSnapshot).complete, false);
+    assert.equal(bridge.sourceComplete(value), true, 'an incomplete result cannot poison another evaluation');
   }
   assert.equal(child.props.label, 'Go');
 });
@@ -176,6 +178,66 @@ test('host data is rechecked after mutation and cyclic output is rejected', () =
   assert.equal(render(result, context).limitExceeded, false);
 });
 
+for (const boundary of ['getState', 'resolveRef', 'customFunction']) {
+  test(`native input failure from ${boundary} stops later callbacks and preserves the next scope`, () => {
+    const { bridge } = runtime();
+    let later = 0;
+    const fail = () => { throw bridge.nativeInputFailure(); };
+    const call = name => ({ k: 'Comp', name, args: [], fn: true });
+    const context = { getState: () => null, resolveRef: () => null,
+      functions: { Fail: { params: [], fn: fail }, Later: { params: [], fn: () => ++later } } };
+    let first;
+    if (boundary === 'getState') { context.getState = fail; first = { k: 'StateRef', n: '$value' }; }
+    else if (boundary === 'resolveRef') { context.resolveRef = fail; first = { k: 'RuntimeRef', n: 'query', refType: 'query' }; }
+    else first = call('Fail');
+    const outcome = bridge.boundedEvaluate({ k: 'Arr', els: [first, call('Later')] }, context, bridge.library(schema, {}));
+    assert.equal(outcome.limitExceeded, true);
+    assert.equal(outcome.value, null);
+    assert.equal(later, 0, 'the private failure must not become an ordinary null argument');
+    const next = bridge.boundedEvaluate({ k: 'Num', v: 3 }, context, bridge.library(schema, {}));
+    assert.equal(next.limitExceeded, false);
+    assert.equal(next.value, 3);
+  });
+}
+
+test('native input failure poisons the active scope even if a callback returns normally', () => {
+  const { bridge } = runtime();
+  let later = 0;
+  const call = name => ({ k: 'Comp', name, args: [], fn: true });
+  const context = { getState: () => null, resolveRef: () => null, functions: {
+    Fail: { params: [], fn: () => { bridge.nativeInputFailure(); return null; } },
+    Later: { params: [], fn: () => ++later },
+  } };
+  const outcome = bridge.boundedEvaluate({ k: 'Arr', els: [call('Fail'), call('Later')] }, context, bridge.library(schema, {}));
+  assert.equal(outcome.limitExceeded, true);
+  assert.equal(outcome.value, null);
+  assert.equal(later, 0);
+});
+
+test('native input failure is not swallowed by a dynamic prop fallback', () => {
+  const { realm, bridge, parse, render } = runtime();
+  const outcome = render(parse('root=Box($value)'), {
+    getState: () => { throw bridge.nativeInputFailure(); }, resolveRef: () => null,
+  });
+  assert.equal(outcome.limitExceeded, true);
+  assert.equal(outcome.value, null);
+  assert.deepEqual(plain(realm.errors), []);
+});
+
+test('native input failure in query arguments never dispatches a tool', () => {
+  const { bridge, core, parse } = runtime();
+  const result = parse('q=Query("load",{value:$value},[])\nroot=Box("ok")');
+  const calls = []; let failures = 0;
+  const manager = core.createQueryManager({ callTool: async name => { calls.push(name); return []; } });
+  manager.evaluateStatements(result.queryStatements, {
+    getState: () => { throw bridge.nativeInputFailure(); }, resolveRef: () => null,
+    reportNativeLimit: () => failures++,
+  });
+  assert.equal(failures, 1);
+  assert.deepEqual(calls, []);
+  manager.dispose();
+});
+
 test('elementwise builtins inspect a compact hostile DAG before expanding it', () => {
   const { parse, render } = runtime();
   let value = [1];
@@ -192,6 +254,120 @@ test('string concatenation is bounded before producing an oversized string', () 
   });
   assert.equal(outcome.limitExceeded, true);
   assert.equal(outcome.value, null);
+});
+
+for (const [name, body] of [
+  ['equality', value => `Box(${value} == "")`],
+  ['inequality', value => `Box(${value} != "")`],
+  ['object index', value => `Box({}[${value}])`],
+  ['assistant message', value => `Button("Go",@ToAssistant(${value}))`],
+  ['URL action', value => `Button("Go",@OpenUrl(${value}))`],
+  ['concatenation', value => `Box("prefix"+${value})`],
+]) test(`implicit ${name} rejects shared expansion before primitive conversion`, () => {
+  const { bridge, parse, render } = runtime();
+  const size = 400;
+  const result = parse(`$items=${list(size)}\nroot=${body('@Each($items,item,$items)')}`);
+  assert.equal(bridge.nativeBudgetExceeded(result), false);
+  assert.deepEqual(plain(result.meta.errors), []);
+  let reads = 0;
+  const shared = new Proxy(Array(size).fill(1), {
+    get(target, key, receiver) {
+      if (typeof key === 'string' && /^\d+$/.test(key)) reads++;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  const outcome = render(result, { getState: () => shared, resolveRef: () => null });
+  assert.equal(outcome.limitExceeded, true);
+  assert.equal(outcome.value, null);
+  assert(reads <= size * 2, `shared occurrence inspection must precede coercion; observed ${reads} reads`);
+  assert(outcome.work <= 100001);
+  assert.equal(render(parse('root=Box("next")')).value.props.value, 'next');
+});
+
+test('repeated individually bounded conversions share the evaluation work budget', () => {
+  for (const expression of [
+    '@Each($times,i,$data=="")',
+    '@Each($times,i,"prefix"+$data)',
+    '@Filter($times,"","==",$data)',
+    '@Filter($times,"","contains",$data)',
+  ]) {
+    const { bridge, parse, render } = runtime();
+    const result = parse(`$times=${list(400)}\n$data=${list(300)}\nroot=Box(${expression})`);
+    assert.equal(bridge.nativeBudgetExceeded(result), false);
+    const outcome = render(result);
+    assert.equal(outcome.limitExceeded, true, expression);
+    assert.equal(outcome.value, null);
+    assert(outcome.work <= 100001);
+  }
+});
+
+test('object identity and null comparisons do not expand shared values', () => {
+  const { parse, render } = runtime();
+  const shared = Array(400).fill(Array(400).fill(1));
+  const other = [...shared];
+  const outcome = render(parse('root=Box([$a==$a,$a==$b,$a==null,$a!=null])'), {
+    getState: name => name === '$a' ? shared : other, resolveRef: () => null,
+  });
+  assert.equal(outcome.limitExceeded, false);
+  assert.deepEqual(plain(outcome.value.props.value), [true, false, false, true]);
+});
+
+test('a host mutation cannot reuse a stale cost before another conversion', () => {
+  const { parse, render } = runtime();
+  const shared = [1];
+  const outcome = render(parse('root=Box([$data=="",$change,$data==""])'), {
+    getState(name) {
+      if (name === '$change') { shared.length = 400; shared.fill(Array(400).fill(1)); return null; }
+      return shared;
+    },
+    resolveRef: () => null,
+  });
+  assert.equal(outcome.limitExceeded, true);
+  assert.equal(outcome.value, null);
+});
+
+test('ordinary array coercions retain comparison, key, builtin and action values', () => {
+  const { parse, render } = runtime();
+  for (const [expression, expected] of [
+    ['[1,2]=="1,2"', true],
+    ['[1,2]!="1,2"', false],
+    ['[]==0', true],
+    ['{"1,2":"yes"}[[1,2]]', 'yes'],
+    ['{"[object Object]":"yes"}[{}]', 'yes'],
+    ['"prefix"+[1,2]', 'prefix1,2'],
+    ['@Filter([[1],[2]],"","==",1)', [[1]]],
+    ['@Filter(["a1","a2"],"","contains",[1])', ['a1']],
+    ['@Sort([[2],[1]],"","asc")', [[1], [2]]],
+  ]) {
+    const outcome = render(parse(`root=Box(${expression})`));
+    assert.equal(outcome.limitExceeded, false, expression);
+    assert.deepEqual(plain(outcome.value.props.value), expected, expression);
+  }
+  for (const [call, key] of [['ToAssistant', 'message'], ['OpenUrl', 'url']]) {
+    const outcome = render(parse(`root=Button("Go",@${call}([1,null,[2,3]]))`));
+    assert.equal(outcome.limitExceeded, false);
+    assert.equal(outcome.value.props.action.steps[0][key], '1,,2,3');
+  }
+});
+
+test('coercion exhaustion marks state defaults and blocks query argument dispatch', () => {
+  const { bridge, core, parse } = runtime();
+  const declarations = `$items=${list(400)}\n`;
+  const expression = '@Each($items,item,$items)==""';
+  const defaults = parse(`${declarations}$same=${expression}\nroot=Box($same)`);
+  assert.equal(bridge.nativeBudgetExceeded(defaults), true);
+  assert.deepEqual(plain(defaults.stateDeclarations), {});
+  const result = parse(`${declarations}q=Query("load",{same:${expression}},[])\nroot=Box("ok")`);
+  assert.equal(bridge.nativeBudgetExceeded(result), false);
+  const store = core.createStore(); store.initialize(result.stateDeclarations, {});
+  const calls = []; let failures = 0;
+  const manager = core.createQueryManager({ callTool: async (name, args) => { calls.push({ name, args }); return []; } });
+  manager.evaluateStatements(result.queryStatements, {
+    getState: name => store.get(name), resolveRef: () => null, reportNativeLimit: () => failures++,
+  });
+  assert.equal(failures, 1);
+  assert.deepEqual(calls, []);
+  manager.dispose();
 });
 
 test('query argument exhaustion cancels the batch before any tool dispatch', () => {

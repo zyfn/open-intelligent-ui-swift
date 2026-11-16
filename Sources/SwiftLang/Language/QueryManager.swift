@@ -69,6 +69,7 @@ public final class QueryManager {
         let arguments: OpenUIObject
         let resolve: JSValue
         let reject: JSValue
+        let canDispatch: JSValue?
         let owner: UUID
     }
     private let queryOwner = UUID()
@@ -82,8 +83,13 @@ public final class QueryManager {
     private var pending: [UUID: PendingTool] = [:]
     private var dispatchDepth = 0
     private var dispatchAccepted = true
+    private var automaticDispatchCheck: (@Sendable (Bool) async -> Bool)?
+    private var nativeLimitHandler: (@Sendable () -> Void)?
+    private var exceededNativeLimit = false
     private var settled: [String: [@Sendable () -> Void]] = [:]
     private var disposed = false
+    var isDisposed: Bool { core.sync { disposed } }
+    var nativeLimitExceeded: Bool { core.sync { exceededNativeLimit } }
     public init(provider: ToolProvider?) { self.provider = provider; tools = nil; initialize() }
     public init(tools: [String: ToolFn]) {
         provider = nil; self.tools = Dictionary(tools.map { (OpenUIString($0.key), $0.value) }, uniquingKeysWith: { _, new in new }); initialize()
@@ -93,10 +99,10 @@ public final class QueryManager {
     private func initialize() { core.sync { manager = makeManager(owner: queryOwner) } }
     private func makeManager(owner: UUID) -> JSValue {
         activeOwners.insert(owner)
-        let call: @convention(block) (JSValue, JSValue) -> JSValue = { [weak self] name, args in
+        let call: @convention(block) (JSValue, JSValue, JSValue) -> JSValue = { [weak self] name, args, canDispatch in
             guard let self else { return JSValue(undefinedIn: SharedCore.shared.context) }
             let start: @convention(block) (JSValue, JSValue) -> Void = { [weak self] resolve, reject in
-                self?.startTool(name, args, resolve, reject, owner: owner)
+                self?.startTool(name, args, resolve, reject, canDispatch: canDispatch, owner: owner)
             }
             return self.core.call("promise", [start])
         }
@@ -106,7 +112,8 @@ public final class QueryManager {
         let changed: @convention(block) () -> Void = { [weak self] in self?.notify() }
         _ = js.invokeMethod("subscribe", withArguments: [changed]);return js
     }
-    private func startTool(_ name: JSValue, _ args: JSValue, _ resolve: JSValue, _ reject: JSValue, owner: UUID) {
+    private func startTool(_ name: JSValue, _ args: JSValue, _ resolve: JSValue, _ reject: JSValue,
+                           canDispatch: JSValue, owner: UUID) {
         guard !disposed, activeOwners.contains(owner) else {
             reject.call(withArguments: [core.call("error", ["Disposed"])]); return
         }
@@ -115,16 +122,50 @@ public final class QueryManager {
         let arguments: OpenUIObject
         if case .object(let fields) = decoded { arguments = fields } else { arguments = OpenUIObject([]) }
         pending[id] = PendingTool(task: nil, tool: tool, arguments: arguments,
-            resolve: resolve, reject: reject, owner: owner)
+            resolve: resolve, reject: reject,
+            canDispatch: canDispatch.isUndefined || canDispatch.isNull ? nil : canDispatch, owner: owner)
         if dispatchDepth == 0 { launchTool(id) }
     }
-    private func launchTool(_ id: UUID) {
+    /// All Query providers wait until the synchronous presentation commits.
+    /// Automatic readers also revalidate a root changed by an async result;
+    /// already checked deferred batches need only the document liveness gate.
+    func setAutomaticDispatchCheck(_ check: @escaping @Sendable (Bool) async -> Bool) { core.sync {
+        automaticDispatchCheck = check
+    } }
+    func setNativeLimitHandler(_ handler: @escaping @Sendable () -> Void) { core.sync {
+        nativeLimitHandler = handler
+    } }
+    private func retireForNativeLimit() {
+        guard !disposed else { return }
+        exceededNativeLimit = true
+        let notifyLimit = nativeLimitHandler
+        let completionCallbacks = settled.values.flatMap { $0 }
+        // Retire upstream readers before rejecting their Promises. A rejection
+        // must not schedule more tools from the oversized result's defaults.
+        dispose()
+        notifyLimit?()
+        completionCallbacks.forEach { $0() }
+    }
+    private func mayEnterProvider(_ id: UUID) -> Bool { core.sync {
+        guard !disposed, let request = pending[id], activeOwners.contains(request.owner) else { return false }
+        if let check = request.canDispatch { return check.call(withArguments: [])?.toBool() == true }
+        return true
+    } }
+    private func launchTool(_ id: UUID, revalidateRoot: Bool = true) {
         guard !disposed, let request = pending[id], request.task == nil, activeOwners.contains(request.owner) else { return }
         let tool = request.tool, arguments = request.arguments
         let provider = self.provider, tools = self.tools, realm = core
+        let preflight = request.owner == queryOwner ? automaticDispatchCheck : nil
         let task = Task { [weak self] in
             let result: Result<Value, Error>
             do {
+                try Task.checkCancellation()
+                if let preflight {
+                    guard await preflight(revalidateRoot) else { throw CancellationError() }
+                }
+                // Look up the private JS check only after suspension. The task
+                // must not retain it across retirement of the pending request.
+                guard self?.mayEnterProvider(id) == true else { throw CancellationError() }
                 try Task.checkCancellation()
                 if let tools {
                     guard let fn = tools[tool] else { throw ToolNotFoundError(toolName: tool, availableTools: tools.keys.sorted { $0.codeUnits.lexicographicallyPrecedes($1.codeUnits) }) }
@@ -152,7 +193,7 @@ public final class QueryManager {
         if dispatchDepth == 0 {
             if dispatchAccepted {
                 let deferred = pending.compactMap { id, request in request.task == nil ? id : nil }
-                deferred.forEach(launchTool)
+                deferred.forEach { launchTool($0, revalidateRoot: false) }
             } else {
                 dispose()
             }
@@ -162,7 +203,13 @@ public final class QueryManager {
     private func finishTool(_ id: UUID, _ result: Result<Value, Error>) { core.sync {
         guard let request = pending.removeValue(forKey: id), !disposed else { return }
         switch result {
-        case .success(let value): request.resolve.call(withArguments: [core.encode(value)])
+        case .success(let value):
+            guard !nativeValueExceedsLimits(value) else {
+                retireForNativeLimit()
+                request.reject.call(withArguments: [core.call("error", [runtimeBudgetError().message])])
+                return
+            }
+            request.resolve.call(withArguments: [core.encode(value)])
         case .failure(let error):
             let js: JSValue
             if let error = error as? ToolNotFoundError { js = core.call("toolError", [core.string(error.toolName), core.array(error.availableTools.map(core.string))]) }
@@ -193,7 +240,7 @@ public final class QueryManager {
     } }
     private func evaluateStatementQueries() {
         guard !disposed, let evaluator = statementEvaluator else { return }
-        guard !evaluator.nativeLimitExceeded else { dispose(); return }
+        guard !evaluator.nativeLimitExceeded else { retireForNativeLimit(); return }
         let nodes = statements.map { statement -> JSValue in
             let node = core.object([
                 ("statementId", core.string(OpenUIString(statement.statementId))),
@@ -207,8 +254,10 @@ public final class QueryManager {
             if let waitFor = statement.waitFor { node.setValue(waitFor, forProperty: "waitFor") }
             return node
         }
-        _ = core.call("evaluateQueryStatements", [manager!, core.array(nodes), evaluator.jsContext()])
-        if evaluator.nativeLimitExceeded { dispose() }
+        let context = evaluator.jsContext()
+        guard !evaluator.nativeLimitExceeded else { retireForNativeLimit(); return }
+        _ = core.call("evaluateQueryStatements", [manager!, core.array(nodes), context])
+        if evaluator.nativeLimitExceeded { retireForNativeLimit() }
     }
     public func invalidateQuery(statementId: String) { core.sync {
         guard !disposed, statementEvaluator?.nativeLimitExceeded != true, statementIDs.contains(statementId) else { return }
@@ -217,18 +266,23 @@ public final class QueryManager {
     public func runQuery(statementId: String, tool: OpenUIString, args: Value, defaults: Value, onSettled: (@Sendable () -> Void)? = nil) { core.sync {
         guard !disposed else { return }
         guard let evaluator = statementEvaluator else { return }
-        guard !evaluator.nativeLimitExceeded else { dispose(); return }
         if let onSettled { settled[statementId, default: []].append(onSettled) }
+        guard !evaluator.nativeLimitExceeded else { retireForNativeLimit(); return }
+        guard !nativeValueExceedsLimits(args), !nativeValueExceedsLimits(defaults) else {
+            retireForNativeLimit(); return
+        }
         if let index = statements.firstIndex(where: { $0.statementId == statementId }) {
             let previous = statements[index]
             let sameRequest = previous.toolAST.map(evaluator.evaluate) == .string(tool)
                 && previous.argsAST.map(evaluator.evaluate) == args
-            guard !disposed, !evaluator.nativeLimitExceeded else { dispose(); return }
+            guard !disposed else { return }
+            guard !evaluator.nativeLimitExceeded else { retireForNativeLimit(); return }
             if sameRequest {
                 // An explicit retry must not replace a parsed query with its
                 // current values: doing so would lose future dependency reads.
                 let previousDefaults = previous.defaultsAST.map(evaluator.evaluate) ?? .null
-                guard !disposed, !evaluator.nativeLimitExceeded else { dispose(); return }
+                guard !disposed else { return }
+                guard !evaluator.nativeLimitExceeded else { retireForNativeLimit(); return }
                 if previousDefaults != defaults {
                     statements[index].defaultsAST = .runtimeValue(defaults)
                     evaluateStatementQueries()
@@ -310,6 +364,11 @@ public final class QueryManager {
     public func runMutation(statementId: String, tool: OpenUIString, args: Value) async -> MutationState {
         await withCheckedContinuation { continuation in core.sync {
             guard !disposed else { continuation.resume(returning: MutationState(status: .error));return }
+            guard !nativeValueExceedsLimits(args) else {
+                retireForNativeLimit()
+                continuation.resume(returning: MutationState(status: .error, error: runtimeBudgetError()))
+                return
+            }
             if mutationTools[statementId] != tool {
                 var declarations = mutationTools;declarations[statementId] = tool;registerMutations(declarations)
             }
@@ -334,6 +393,8 @@ public final class QueryManager {
         mutations.values.forEach { _ = $0.value.invokeMethod("dispose", withArguments: []) }
         listeners.removeAll();settled.removeAll();mutations.removeAll()
         statements = []; statementIDs = []; statementEvaluator = nil
+        automaticDispatchCheck = nil
+        nativeLimitHandler = nil
         manager = nil
         cancelPending()
     } }

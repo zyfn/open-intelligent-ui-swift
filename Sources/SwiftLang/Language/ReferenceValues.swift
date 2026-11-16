@@ -5,7 +5,13 @@ import Foundation
 public final class OpenUIArray: RandomAccessCollection, Sendable {
     public typealias Index = Int
     public let values: [Value]
-    public init(_ values: [Value]) { self.values = values }
+    // Immutable summary: ordinary state/tool data never needs a presentation
+    // walk when the JavaScript object is found in the native identity cache.
+    let containsSourceMetadata: Bool
+    public init(_ values: [Value]) {
+        self.values = values
+        containsSourceMetadata = values.contains { $0.containsSourceMetadata }
+    }
     public var startIndex: Int { values.startIndex }
     public var endIndex: Int { values.endIndex }
     public subscript(index: Int) -> Value { values[index] }
@@ -14,7 +20,11 @@ public final class OpenUIArray: RandomAccessCollection, Sendable {
 public final class OpenUIObject: RandomAccessCollection, Sendable {
     public typealias Index = Int
     public let fields: [ObjectField]
-    public init(_ fields: [ObjectField]) { self.fields = orderedObjectFields(fields) }
+    let containsSourceMetadata: Bool
+    public init(_ fields: [ObjectField]) {
+        self.fields = orderedObjectFields(fields)
+        containsSourceMetadata = self.fields.contains { $0.value.containsSourceMetadata }
+    }
     public var startIndex: Int { fields.startIndex }
     public var endIndex: Int { fields.endIndex }
     public subscript(index: Int) -> ObjectField { fields[index] }
@@ -31,10 +41,10 @@ extension Value {
             return (a.isNaN && b.isNaN) || (a == b && (a != 0 || a.sign == b.sign))
         case (.binding(let a), .binding(let b)), (.reactiveBinding(let a), .reactiveBinding(let b)),
              (.binding(let a), .reactiveBinding(let b)), (.reactiveBinding(let a), .binding(let b)): return a === b
-        case (.array(let a), .array(let b)): return a === b
-        case (.object(let a), .object(let b)): return a === b
-        case (.element(let a), .element(let b)): return a === b
-        case (.actionPlan(let a), .actionPlan(let b)): return a === b
+        case (.array(let a), .array(let b)): return a === b || (a.containsSourceMetadata && b.containsSourceMetadata && SharedCore.shared.sameReference(a, b))
+        case (.object(let a), .object(let b)): return a === b || (a.containsSourceMetadata && b.containsSourceMetadata && SharedCore.shared.sameReference(a, b))
+        case (.element(let a), .element(let b)): return a === b || SharedCore.shared.sameReference(a, b)
+        case (.actionPlan(let a), .actionPlan(let b)): return a === b || SharedCore.shared.sameReference(a, b)
         default: return self == other
         }
     }

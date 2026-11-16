@@ -71,7 +71,8 @@ public struct OpenUILibrary {
 }
 
 /// The common document view for every OpenUI library.
-/// The selected library owns appearance; SwiftLangView observes the state once.
+/// The selected library owns appearance; the renderer and component hosts
+/// observe the shared document state.
 @MainActor public struct OpenUIView: View {
     private let state: OpenUIState
     private let library: OpenUILibrary

@@ -27,6 +27,13 @@ export function markBudgetExceeded<T extends object>(value: T): T {
   failedValues.add(value); return value;
 }
 export function isNativeBudgetError(error: unknown): boolean { return error === limit; }
+// Native callbacks obtain the private token without throwing through the
+// bridge's call/assert boundary, then install it as the JSContext exception.
+// Also poison the active scope so swallowing the exception cannot resume work.
+export function nativeInputFailure(): object {
+  if (active) active.reason ??= 'output';
+  return limit;
+}
 export function hasActiveBudget(): boolean { return active !== undefined; }
 function fail(state: Scope, reason: Reason): never {
   state.reason ??= reason; throw limit;
@@ -154,9 +161,30 @@ export function budgetLiteral<T>(value: unknown, body: () => T): T {
 export function budgetInput(value: unknown): void {
   if (active && object(value)) inspect(value, active);
 }
+function budgetCoercion(value: unknown): void {
+  if (!active || !object(value)) return;
+  // String/abstract-equality conversion can expand a compact shared array even
+  // when the final value is only a boolean. Charge every conversion, including
+  // repeated calls in Each/Filter/Sort, before JavaScript starts that work.
+  // A host callback may have changed this object since an earlier conversion.
+  const measured = inspect(value, active, true);
+  reserveWork(measured.nodes + Math.ceil(measured.utf16 / 64));
+}
+export function budgetString(value: unknown): string {
+  budgetCoercion(value);
+  const result = String(value);
+  if (active && result.length > nativeBudgetLimits.utf16) fail(active, 'output');
+  return result;
+}
+export function budgetEqual(left: unknown, right: unknown): boolean {
+  // Object/object comparisons use identity; null/undefined do not coerce an
+  // object either. Leave those cheap upstream comparisons untouched.
+  if (object(left) && right != null && !object(right) && typeof right !== 'function') budgetCoercion(left);
+  if (object(right) && left != null && !object(left) && typeof left !== 'function') budgetCoercion(right);
+  return left == right;
+}
 export function budgetConcat(left: unknown, right: unknown): string {
-  budgetInput(left); budgetInput(right);
-  const a = String(left ?? ''), b = String(right ?? '');
+  const a = budgetString(left ?? ''), b = budgetString(right ?? '');
   if (active && a.length + b.length > nativeBudgetLimits.utf16) fail(active, 'output');
   reserveWork(Math.ceil((a.length + b.length) / 64));
   return a + b;

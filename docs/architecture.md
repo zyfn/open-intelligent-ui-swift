@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.0 · 更新日期：2026-11-16
+文档版本：1.1 · 更新日期：2026-11-16
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -15,6 +15,14 @@
 | 官方内核 | 官方 lang-core 1.1.1，随包分发的 lang-core.js | 词法、解析、流式补全、求值、Store、Query 依赖调度、Schema、签名与 Prompt 规则 |
 | Swift/SwiftUI 适配 | SwiftLang | 官方内核桥接、Swift 数据契约、文档状态、组件注册、Context、原生递归渲染、绑定、动作与异步生命周期 |
 | 组件库 | SwiftOpenUI、SwiftIntelligentUI | OpenUI 与 OpenIntelligentUI 各自的组件目录、设计系统、布局、媒体呈现、特有函数及模型生成契约 |
+
+### React Native 对照的准确范围
+
+固定官方提交中的 [React Native 入口](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/packages/react-lang/src/index.native.ts) 继续导出同一 React 状态和 Renderer，仅将基础组件解析到原生实现。其 [状态 hook](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/packages/react-lang/src/hooks/useOpenUIState.ts) 通过 `useSyncExternalStore` 读取 Store/Query 快照，将 Query 派发放在 effect；[Renderer](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/packages/react-lang/src/Renderer.tsx) 用 `React.memo` 和显示值比较跳过未变节点，但 Store/Query/Context 变化仍可能刷新多个节点。不能将其描述为所有更新都已具备属性级订阅。
+
+官方 [RN 示例的 streamStore](https://github.com/thesysdev/openui/blob/39a4e3f6493673fdf2de04681240374c8d6f6be8/examples/app-frameworks/react-native/chat-app/store/streamStore.ts) 用 `requestAnimationFrame` 合并视图更新；这是示例宿主调度，不是 `lang-core` 自动节流。React Native 框架的 [Render/Commit/Mount](https://reactnative.dev/architecture/render-pipeline) 与 [线程模型](https://reactnative.dev/architecture/threading-model) 属于另一层：不可变树、计算和提交分离、原生视图在 UI 线程更新。这些原则适用于 Swift 适配，但复用相同 Lang 核心不会自动获得 Fabric 调度或独立 JS 执行线程。
+
+### 产品与依赖
 
 根 Swift Package 名为 openui-swift-sdk。库产品使用短横线，Swift 模块使用标识符；名称映射只维护这一份，不提供旧名转发：
 
@@ -87,7 +95,26 @@ Language 中的文件按调用职责保留，不再镜像一套官方算法：
 
 每份文档拥有独立的 parser、Store、查询和 revision/epoch。共享官方代码及 JS 执行环境不代表共享用户状态。旧文档回调、工具结果和资源结果不得写回替换后的文档。
 
+### 求值、发布与外部副作用
+
+`OpenUIState` 最外层同步调用在返回前排空本次重入请求。宿主在同步发布回调中再次调用换源、reset 或状态写入时，重入调用先入队，等当前 setter 完成后顺序执行，防止 `@Published` 的旧赋值覆盖新文档。过期轮次不能继续派发工具或投递解析回调；组件捕获的 revision 在实际执行排队写入时再次验证。这个短队列只处理同步重入，不是分块节流器，也不使解析后台化；宿主不得在每次状态通知中无条件再写入同一状态，队列不替代回声循环的终止条件。
+
+Query 依赖排序继续由官方管理器拥有。原生首次同步 Query 批次先暂缓 provider，再检查呈现预算；所有 Query 进入 provider 前等待当前同步发布及重入队列完成，已检查批次只复核存活状态，异步结果触发的自动下游派发还要重验 root。官方 Query 实例和请求 key 的私有有效性回调拒绝改参、删除与重建后的旧请求，同 key 的有效请求可跨 patch 保留。它不新增请求调度器，也不能撤回已经进入外部 provider 的工作。
+
+工具输入/返回、Evaluator 上下文及原生 AST、State 写入/恢复在对应桥接入口检查图大小与深度；不能等整份数据编码或下游派发完成后才拒绝。失败传播到文档的只读末次有效呈现，不能把预算失败产生的 `null` 当业务结果提交。原生 AST、捕获及 readiness 成本比最终 JS 数据图更保守，边界与仍未统一防护的底层入口见[验证说明](validation-and-security.md#性能证据与未完成项)。
+
+运行期 readiness 是一次求值的上下文，不属于可共享 Lang 对象的永久状态。parser/native 基础元数据与单次求值覆盖分开；投影显式携带本次 snapshot。原生旧快照不可原地改写，带元数据的容器在必要路径上重投影，普通数据保留缓存快径。重投影必须沿用同一 JS 对象的语义身份，不能因为显示就绪状态改变而让 `SameValue`、Store 或 Query 误判为新数据。
+
 两套库始终使用同一个 OpenUILibrary、OpenUIState、OpenUIView、ActionEvent 和组件 Context。产品特有主题、服务和呈现参数使用 OpenUI / OpenIntelligentUI 前缀；不再提供产品专属 State/Event 别名或旧工厂转发入口。
+
+### 尚未落地的性能收敛方向
+
+下列是后续实现约束，不是当前能力声明；完成条件见[内核验收](validation-and-security.md#性能证据与未完成项)。
+
+1. 输入调度在宿主/流式适配入口合并同一显示周期内收到的分块，保留全部 UTF-16 内容与顺序；不能丢弃中间增量后只取最后一块。正常完成先处理全部已收内容再 `complete`，停止保留已收内容的未完成语义，换源清理旧队列。现有同步 `push` 的返回和回调契约应保留，调度能力通过显式入口接入。
+2. 后台化必须同时划清计算和提交：官方 parser、Store、Query 与 JS 值由一个串行执行域拥有；跨域传输不可变原生快照和有代次的命令，主线程只提交当前文档快照和原生 UI。不要复制出第二个 Store，不把 JSValue 或旧回调任意投递到全局线程池。宿主自定义函数的执行域与取消边界须一起定义。
+3. 发布范围需要与节点语义身份、显示元数据和表单/Query 状态分开验证。值未变的稳定兄弟应能跳过重复投影与 body 工作，readiness、动作可用性和查询状态变化仍必须送达。单纯增加 `equatable()` 或只比较 Lang 的 `SameValue` 不能满足这个条件。
+4. 以上调整按相同 workload 做 Release 前后比较：细分块、长尾文本、共享 DAG、匿名重复节点、多文档并行、输入中换源与取消。先获得逐阶段耗时、发布/body 次数和设备帧数据，再决定工作线程数量与订阅粒度；不以单次微基准或 JS 耗时推断整个 App 的帧率。
 
 ## 4. 适配层、组件与宿主的边界
 

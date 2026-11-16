@@ -13,9 +13,17 @@ struct NativeLiveElementIndex {
   }
 
   private var buckets: [Key: [EvaluatedElement]] = [:]
+  private var members: Set<ObjectIdentifier> = []
 
   mutating func insert(_ element: EvaluatedElement) {
+    members.insert(ObjectIdentifier(element))
     buckets[Key(element), default: []].append(element)
+  }
+
+  /// A node already in this tree has its current metadata. Only older native
+  /// snapshots need the semantic candidate search and ambiguity check.
+  func contains(_ element: EvaluatedElement) -> Bool {
+    members.contains(ObjectIdentifier(element))
   }
 
   func candidates(for element: EvaluatedElement) -> [EvaluatedElement] {
@@ -24,5 +32,6 @@ struct NativeLiveElementIndex {
 
   mutating func removeAll(keepingCapacity: Bool = false) {
     buckets.removeAll(keepingCapacity: keepingCapacity)
+    members.removeAll(keepingCapacity: keepingCapacity)
   }
 }

@@ -130,7 +130,7 @@ function nativeMaterializeExpr(node:ASTNode,ctx:MaterializeCtx,scopedRefs:Readon
 // query scheduling still come from the pinned core. Exhaustion is a private
 // signal, caught before a native bridge call or asynchronous reader returns.
 export function evaluationBudget(source, kind, path) {
-  const imports = `import {budgetFrame as nativeBudgetFrame,enterBudget as nativeEnterBudget,leaveBudget as nativeLeaveBudget,reserveWork as nativeReserveWork,budgetBuiltin as nativeBudgetBuiltin,budgetLiteral as nativeBudgetLiteral,budgetConcat as nativeBudgetConcat,budgetInput as nativeBudgetInput,isNativeBudgetError,hasActiveBudget as nativeHasBudget,runBudget as nativeRunBudget,nativeBudgetExceeded,markBudgetExceeded as nativeMarkBudgetExceeded,materializationEvaluation as nativeMaterializationEvaluation} from ${JSON.stringify(path)};\n`;
+  const imports = `import {budgetFrame as nativeBudgetFrame,enterBudget as nativeEnterBudget,leaveBudget as nativeLeaveBudget,reserveWork as nativeReserveWork,budgetBuiltin as nativeBudgetBuiltin,budgetLiteral as nativeBudgetLiteral,budgetConcat as nativeBudgetConcat,budgetInput as nativeBudgetInput,budgetString as nativeBudgetString,budgetEqual as nativeBudgetEqual,isNativeBudgetError,hasActiveBudget as nativeHasBudget,runBudget as nativeRunBudget,nativeBudgetExceeded,markBudgetExceeded as nativeMarkBudgetExceeded,materializationEvaluation as nativeMaterializationEvaluation} from ${JSON.stringify(path)};\n`;
   if (kind === 'parser') {
     source = replaceOnce(source, 'function extractStatements(', `function extractStatements(stmts:Statement[],ctx:MaterializeCtx,partialRef?:PartialRef) {
   return nativeMaterializationEvaluation(ctx,()=>nativeExtractStatements(stmts,ctx,partialRef),{
@@ -144,6 +144,17 @@ function nativeExtractStatements(`);
     source = replaceOnce(source, '  return value;\n}\n\n/** True when every call', '  return value;\n  } finally { nativeLeaveBudget(nativeScope); }\n}\n\n/** True when every call');
     source = replaceOnce(source, '  if (Array.isArray(value)) return value.map((item) => stateDefault(item, declared));', '  if (Array.isArray(value)) { nativeReserveWork(value.length); return value.map((item) => stateDefault(item, declared)); }');
     source = replaceOnce(source, '    if (current.k === "Comp" && BUILTIN_CALLS.get(current.name)?.kind !== "function") ok = false;', '    nativeReserveWork();\n    if (current.k === "Comp" && BUILTIN_CALLS.get(current.name)?.kind !== "function") ok = false;');
+  } else if (kind === 'builtins') {
+    source = replaceOnce(source, '      const f = String(field ?? "");\n      const desc = String(direction ?? "asc") === "desc";',
+      '      const f = nativeBudgetString(field ?? "");\n      const desc = nativeBudgetString(direction ?? "asc") === "desc";');
+    source = replaceOnce(source, '      const f = String(field ?? "");\n      const o = String(operator ?? "==");',
+      '      const f = nativeBudgetString(field ?? "");\n      const o = nativeBudgetString(operator ?? "==");');
+    source = replaceOnce(source, 'String(av ?? "").localeCompare(String(bv ?? ""))', 'nativeBudgetString(av ?? "").localeCompare(nativeBudgetString(bv ?? ""))');
+    source = replaceOnce(source, 'String(v ?? "").includes(String(value ?? ""))', 'nativeBudgetString(v ?? "").includes(nativeBudgetString(value ?? ""))');
+    source = replaceOnce(source, 'return v == value;', 'return nativeBudgetEqual(v,value);');
+    source = replaceOnce(source, 'return v != value;', 'return !nativeBudgetEqual(v,value);');
+    source = replaceOnce(source, 'message: String(message ?? ""),', 'message: nativeBudgetString(message ?? ""),');
+    source = replaceOnce(source, 'url: String(url ?? "")', 'url: nativeBudgetString(url ?? "")');
   } else if (kind === 'evaluator') {
     source = replaceOnce(source, '): unknown {\n  switch (node.k) {', `): unknown {
   return nativeBudgetFrame(()=>nativeBudgetEvaluate(node,context,schemaCtx),context);
@@ -167,6 +178,10 @@ function nativeBudgetEvaluate(node:ASTNode,context:EvaluationContext,schemaCtx?:
     source = replaceOnce(source, '        return obj.map((item: any) => item?.[node.field] ?? null);', '        nativeReserveWork(obj.length);\n        return obj.map((item: any) => item?.[node.field] ?? null);');
     source = replaceOnce(source, 'return builtin.fn!(evaluateArgs(node, context));', 'return nativeBudgetBuiltin(node.name,builtin.fn!,evaluateArgs(node,context));');
     source = replaceOnce(source, 'return String(left ?? "") + String(right ?? "");', 'return nativeBudgetConcat(left,right);');
+    source = replaceOnce(source, 'return left == right;', 'return nativeBudgetEqual(left,right);');
+    source = replaceOnce(source, 'return left != right;', 'return !nativeBudgetEqual(left,right);');
+    source = replaceOnce(source, 'return obj[String(idx)];', 'return obj[nativeBudgetString(idx)];');
+    source = replaceOnce(source, 'e instanceof Error ? e.message : String(e)', 'e instanceof Error ? e.message : nativeBudgetString(e)');
     source = replaceOnce(source, '  const ctx = { errors: [], partial: false } as unknown as MaterializeCtx;', '  nativeBudgetInput(value);\n  const ctx = { errors: [], partial: false } as unknown as MaterializeCtx;');
     source = replaceOnce(source, '  } catch (e) {\n    context.reportError?', '  } catch (e) {\n    if (isNativeBudgetError(e)) throw e;\n    context.reportError?');
   } else if (kind === 'evaluate-tree') {
@@ -175,6 +190,7 @@ function nativeBudgetEvaluate(node:ASTNode,context:EvaluationContext,schemaCtx?:
 }
 function nativeBudgetElementProps(el: ElementNode, evalCtx: EvalContext): ElementNode {`);
     source = replaceOnce(source, '    } catch (e) {\n      // Use raw value', '    } catch (e) {\n      if (isNativeBudgetError(e)) throw e;\n      // Use raw value');
+    source = replaceOnce(source, 'e instanceof Error ? e.message : String(e)', 'e instanceof Error ? e.message : nativeBudgetString(e)');
   } else if (kind === 'evaluate-prop') {
     source = replaceOnce(source, '  const result = evaluatePropValue(value, context, schemaCtx, reactiveSchema, callbacks);', `  const nativeScope=nativeEnterBudget();
   try {
@@ -183,6 +199,13 @@ function nativeBudgetElementProps(el: ElementNode, evalCtx: EvalContext): Elemen
     source = replaceOnce(source, '      return result.map((item) =>', '      nativeReserveWork(result.length);\n      return result.map((item) =>');
     source = replaceOnce(source, '    return value.map((v) => callbacks.recurse(v, reactiveSchema));', '    nativeReserveWork(value.length);\n    return value.map((v) => callbacks.recurse(v, reactiveSchema));');
   } else if (kind === 'query-manager') {
+    // Native presentation checks can suspend dispatch after executeFetch has
+    // captured its request. Retain the official key test across that await;
+    // patches preserving the key keep their existing in-flight request.
+    source = replaceOnce(source,
+      'const data = await toolProvider.callTool(toolName, (args as Record<string, unknown>) ?? {});',
+      `const data = await (toolProvider.callTool as any)(toolName, (args as Record<string, unknown>) ?? {},
+        () => !disposed && queries.get(statementId) === q && q.cacheKey === fetchKey);`);
     source = replaceOnce(source, '): QueryNode {\n  const toolName', `): QueryNode {
   const outcome=nativeRunBudget(()=>nativeBudgetQueryNode(statement,context,extraDeps));
   if (!outcome.limitExceeded) return outcome.value as QueryNode;

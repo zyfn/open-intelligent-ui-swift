@@ -216,6 +216,18 @@ jobs:
             2>&1 | tee outputs/verification/contract-tool.log
           swift build --configuration release --package-path Benchmarks/LanguageRuntime \
             2>&1 | tee outputs/verification/benchmark-build.log
+      - name: Release language and changing-tail streaming measurements
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for chunk in 32 256; do
+            swift run --configuration release --package-path Benchmarks/LanguageRuntime --skip-build \
+              LanguageBenchmark --iterations 100 --warmup 5 --rows 200 \
+              --stream-iterations 5 --chunk-units "$chunk" \
+              --output "outputs/verification/language-stream-$chunk.json" \
+              2>&1 | tee "outputs/verification/language-stream-$chunk.log"
+          done
       - name: All library products for iOS 16 Simulator
         if: ${{ !cancelled() }}
         shell: bash

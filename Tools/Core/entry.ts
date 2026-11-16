@@ -1,8 +1,9 @@
 import { capture, hasCapture, capturedValue, nativePlan, isNativePlan, isRuntimePlan, evaluationContext } from './captures';
 export { capture, hasCapture, capturedValue, nativePlan, isRuntimePlan };
 import { runBudget } from './budget';
-export { nativeBudgetExceeded } from './budget';
-export { sourceComplete, sourcePresentation, tagNativeSource } from './readiness';
+import { sourceEvaluation } from './readiness';
+export { nativeBudgetExceeded, nativeInputFailure } from './budget';
+export { sourceComplete, sourcePresentation, tagNativeSource, currentSourceSnapshot } from './readiness';
 import * as core from '@openui/core-source';
 import { isASTNode } from '@openui/core-source/parser/ast';
 import {
@@ -49,7 +50,7 @@ export function storeRead(store: any, name: string): { found: boolean, value?: u
     ? { found: true, value: store.get(name) } : { found: false };
 }
 export const boundedEvaluate = (node: any, ctx: any, lib: any) =>
-  runBudget(() => core.evaluate(node, evaluationContext(ctx), { library: lib }));
+  sourceEvaluation(() => runBudget(() => core.evaluate(node, evaluationContext(ctx), { library: lib })));
 export const evaluate = (node: any, ctx: any, lib: any) => boundedEvaluate(node, ctx, lib).value;
 export const boundedRoot = (
   result: any,
@@ -57,7 +58,7 @@ export const boundedRoot = (
   lib: any,
   store: any,
   errors: any[],
-) => runBudget(() => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors }));
+) => sourceEvaluation(() => runBudget(() => core.evaluateRoot(result, { ctx: evaluationContext(ctx), library: lib, store, errors })));
 export const root = (result: any, ctx: any, lib: any, store: any, errors: any[]) =>
   boundedRoot(result, ctx, lib, store, errors).value;
 // Invalid rule data must not leave an uncaught exception in the shared realm.

@@ -1,6 +1,36 @@
 // Native data projection and structural comparison, without schema validation.
 import Foundation
 
+extension Value {
+    /// Source metadata belongs to a presentation snapshot, not Lang identity.
+    /// The summaries on immutable containers make plain-data cache hits O(1).
+    var containsSourceMetadata: Bool {
+        switch self {
+        case .element, .actionPlan: return true
+        case .array(let values): return values.containsSourceMetadata
+        case .object(let fields): return fields.containsSourceMetadata
+        default: return false
+        }
+    }
+
+    var referenceObject: AnyObject? {
+        switch self {
+        case .array(let value): return value
+        case .object(let value): return value
+        case .element(let value): return value
+        case .actionPlan(let value): return value
+        case .binding(let value), .reactiveBinding(let value): return value
+        default: return nil
+        }
+    }
+
+    /// A metadata-only re-projection is SameValue but is a new native snapshot.
+    func isSameSnapshot(as other: Value) -> Bool {
+        if let object = referenceObject { return other.referenceObject.map { object === $0 } ?? false }
+        return self == other
+    }
+}
+
 public func jsonToValue(_ j: JSONValue) -> Value {
     switch j {
     case .string(let s): return .string(s)
