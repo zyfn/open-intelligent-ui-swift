@@ -168,16 +168,6 @@ struct NativeChartData: Equatable {
   }
 }
 
-/// The parser can auto-close a partial numeric token. Keep the last completed
-/// chart during a stream instead of presenting that provisional number as fact.
-/// Valid complete inputs keep upstream data rules. Missing or invalid completed
-/// samples are diagnosed locally rather than rendered as fabricated zeroes.
-enum NativeChartStreamingPresentation {
-  static func data(current: NativeChartData, stable: NativeChartData?, partial: Bool) -> NativeChartData {
-    partial ? stable ?? NativeChartData() : current
-  }
-}
-
 /// Canvas renders chart families on the package's supported platforms. All chart families
 /// use actual plotted geometry, with axes, legends, pointer inspection and
 /// complete VoiceOver data, including negative and degenerate domains.
@@ -238,16 +228,17 @@ struct NativeChart: View {
   }
   private var measuredAxisLabels: some View {
     let labels = drawing.axisLabels
+    let left = name == "HorizontalBarChart" ? [] : labels.left
     let style = context.theme.textStyle(.caption)
     return HStack(spacing: 0) {
-      ForEach(Array((labels.left + labels.bottom).enumerated()), id: \.offset) { index, label in
+      ForEach(Array((left + labels.bottom).enumerated()), id: \.offset) { index, label in
         Text(label).nativeTextStyle(style).monospacedDigit()
           .lineLimit(1).fixedSize()
           .background(GeometryReader { geometry in
             Color.clear.preference(key: NativeChartAxisMeasurementKey.self, value: [measurementScope:
               NativeChartAxisMeasurements(
-                leftWidth: index < labels.left.count ? geometry.size.width : 0,
-                bottomWidth: index >= labels.left.count ? geometry.size.width : 0,
+                leftWidth: index < left.count ? geometry.size.width : 0,
+                bottomWidth: index >= left.count ? geometry.size.width : 0,
                 lineHeight: max(geometry.size.height, style.font.measuredLineHeight(scale: axisScale)))])
           })
       }
@@ -293,60 +284,81 @@ struct NativeChart: View {
 
   private var chartContent: some View {
     VStack(alignment: .leading, spacing: context.theme.spaceM) {
-      GeometryReader { geometry in
-        Canvas { canvas, size in
-          drawing.draw(
-            in: &canvas, size: size, xLabel: context.string("xLabel"),
-            yLabel: context.string("yLabel"))
-        }
-        .lineLimit(1).truncationMode(.middle)
-        .contentShape(Rectangle())
-        .modifier(NativeChartInteraction { point, pinned in
-          let next = point.flatMap { drawing.inspectionIndex(at: $0, size: geometry.size) }
-          if pinned && pinnedInspection && next == inspected { inspected = nil; pinnedInspection = false }
-          else {
-            inspected = next; pinnedInspection = pinned
-            if let point { inspectionLocation = point }
+      NativeChartPlotLayout(drawing: drawing, explicitHeight: context.presentationNumber("height"),
+        defaultHeight: defaultHeight) {
+        GeometryReader { geometry in
+          Canvas { canvas, size in
+            drawing.draw(
+              in: &canvas, size: size, xLabel: context.string("xLabel"),
+              yLabel: context.string("yLabel"))
           }
-        })
-        .accessibilityIdentifier("openui-chart-" + name)
-        .accessibilityLabel([name, context.string("xLabel"), context.string("yLabel")]
-          .compactMap { $0 }.joined(separator: ", "))
-        .accessibilityChildren {
-          ForEach(Array(data.accessibilityRows.enumerated()), id: \.offset) { _, row in Text(row) }
+          .lineLimit(1).truncationMode(.middle)
+          .contentShape(Rectangle())
+          .modifier(NativeChartInteraction { point, pinned in
+            let next = point.flatMap { drawing.inspectionIndex(at: $0, size: geometry.size) }
+            if pinned && pinnedInspection && next == inspected { inspected = nil; pinnedInspection = false }
+            else {
+              inspected = next; pinnedInspection = pinned
+              if let point {
+                let origin = geometry.frame(in: .named(measurementScope)).origin
+                inspectionLocation = CGPoint(x: origin.x + point.x, y: origin.y + point.y)
+              }
+            }
+          })
+          .accessibilityIdentifier("openui-chart-" + name)
+          .accessibilityLabel([name, context.string("xLabel"), context.string("yLabel")]
+            .compactMap { $0 }.joined(separator: ", "))
+          .accessibilityChildren {
+            ForEach(Array(data.accessibilityRows.enumerated()), id: \.offset) { _, row in Text(row) }
+          }
+          .accessibilityActions { dataDetailsAction }
+          .overlay(alignment: .topLeading) {
+            if ["BarChart", "LineChart", "AreaChart"].contains(name) {
+              NativeChartCategoryAxis(labels: data.labels, layout: drawing.layout(geometry.size), theme: context.theme)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .allowsHitTesting(false).accessibilityHidden(true)
+            }
+            if name == "RadarChart" {
+              NativeRadarLabels(labels: data.labels, theme: context.theme, scale: axisScale)
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .allowsHitTesting(false).accessibilityHidden(true)
+            }
+          }
+          .overlay(alignment: .topTrailing) {
+            NativeDelayedPresentation(active: waiting && allData.hasContent(for: name)) { visible in
+              if visible { NativeLoadingIndicator().padding(context.theme.space2xs) }
+            }
+          }
+          .overlay {
+            if data.hasZeroTotal(for: name) {
+              Text("Total is zero", bundle: NativeControlResources.bundle)
+                .nativeTextStyle(context.theme.textStyle(.supporting))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(context.theme.spaceM).allowsHitTesting(false)
+            }
+          }
+          .accessibilityValue(Text(waiting ? "Loading data" : incomplete ? "Chart is incomplete"
+            : data.hasZeroTotal(for: name) ? "Total is zero" : "", bundle: NativeControlResources.bundle))
+          .allowsHitTesting(data.hasContent(for: name))
         }
-        .accessibilityActions { dataDetailsAction }
-        .overlay(alignment: .topLeading) {
-          if ["BarChart", "LineChart", "AreaChart"].contains(name) {
-            NativeChartCategoryAxis(labels: data.labels, layout: drawing.layout(geometry.size), theme: context.theme)
-              .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+        .environment(\.layoutDirection, direction)
+        if name == "HorizontalBarChart" {
+          // Position is the category identity, including repeated source labels.
+          // These are the visible labels, measured synchronously by the plot layout.
+          ForEach(Array(data.labels.enumerated()), id: \.offset) { _, label in
+            Text(label).nativeTextStyle(context.theme.textStyle(.caption), color: context.presentation.chartAxis)
+              .monospacedDigit()
+              .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+              .multilineTextAlignment(direction == .rightToLeft ? .leading : .trailing)
+              .environment(\.layoutDirection, direction)
               .allowsHitTesting(false).accessibilityHidden(true)
           }
-          if name == "RadarChart" {
-            NativeRadarLabels(labels: data.labels, theme: context.theme, scale: axisScale)
-              .frame(width: geometry.size.width, height: geometry.size.height)
-              .allowsHitTesting(false).accessibilityHidden(true)
-          }
         }
-        .overlay(alignment: .topTrailing) {
-          NativeDelayedPresentation(active: waiting && allData.hasContent(for: name)) { visible in
-            if visible { NativeLoadingIndicator().padding(context.theme.space2xs) }
-          }
-        }
-        .overlay {
-          if data.hasZeroTotal(for: name) {
-            Text("Total is zero", bundle: NativeControlResources.bundle)
-              .nativeTextStyle(context.theme.textStyle(.supporting))
-              .fixedSize(horizontal: false, vertical: true)
-              .padding(context.theme.spaceM).allowsHitTesting(false)
-          }
-        }
-        .accessibilityValue(Text(waiting ? "Loading data" : incomplete ? "Chart is incomplete"
-          : data.hasZeroTotal(for: name) ? "Total is zero" : "", bundle: NativeControlResources.bundle))
-        .allowsHitTesting(data.hasContent(for: name))
-      }.frame(height: NativeChartHeight.value(explicit: context.presentationNumber("height"),
-        defaultHeight: defaultHeight, scale: axisScale,
-        minimumHeight: name == "SingleStackedBarChart" ? 0 : 100))
+      }
+        // Plot placement and inspection use physical coordinates. Keep the
+        // layout from mirroring them; each text-bearing child keeps the host's
+        // writing direction through its own environment above.
+        .environment(\.layoutDirection, .leftToRight)
         // The data menu also covers an empty plot after all series are hidden.
         .contentShape(Rectangle())
         .contextMenu { dataDetailsAction }
@@ -387,6 +399,7 @@ struct NativeChart: View {
           .nativeTextStyle(context.theme.textStyle(.supporting))
       }
     }.frame(maxWidth: .infinity, alignment: .leading)
+      .coordinateSpace(name: measurementScope)
       .background(alignment: .topLeading) { measuredAxisLabels }
       // Inspection stays within the chart; complete data remains available
       // through the plot's context menu and accessibility action.
@@ -447,6 +460,64 @@ enum NativeChartHeight {
   static func value(explicit: Double?, defaultHeight: Double, scale: CGFloat, minimumHeight: Double = 100) -> CGFloat {
     if let explicit, explicit.isFinite, explicit > 0 { return CGFloat(explicit) }
     return CGFloat(max(minimumHeight, defaultHeight * Double(max(1, scale))))
+  }
+}
+
+/// The first child is the plot; horizontal category labels are subsequent
+/// children. Measuring the real labels before placing the plot lets it grow
+/// without a geometry-to-state feedback loop or a second set of label views.
+struct NativeChartPlotLayout: Layout {
+  let drawing: NativeChartDrawing
+  let explicitHeight: Double?
+  let defaultHeight: Double
+
+  private func categoryGutter(width: CGFloat, subviews: Subviews) -> CGFloat {
+    guard drawing.name == "HorizontalBarChart", subviews.count > 1 else { return 0 }
+    let gap = 8 * max(1, drawing.axisScale)
+    let measuredWidth = subviews.dropFirst().reduce(CGFloat.zero) {
+      max($0, $1.sizeThatFits(.unspecified).width)
+    }
+    // Reserve at least half the width for data. A longer category wraps in
+    // the remaining column instead of hiding itself or every other label.
+    return min(measuredWidth + gap, max(0, width / 2))
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let offeredWidth = proposal.width.flatMap { $0.isFinite ? max(0, $0) : nil }
+    let width = offeredWidth ?? subviews.first?.sizeThatFits(.unspecified).width ?? 0
+    let height = NativeChartHeight.value(explicit: explicitHeight, defaultHeight: defaultHeight,
+      scale: drawing.axisScale, minimumHeight: drawing.name == "SingleStackedBarChart" ? 0 : 100)
+    let size = CGSize(width: width, height: height)
+    guard drawing.name == "HorizontalBarChart", subviews.count > 1,
+      !(explicitHeight.map { $0.isFinite && $0 > 0 } ?? false) else { return size }
+
+    let gutter = categoryGutter(width: width, subviews: subviews)
+    let layout = drawing.layout(CGSize(width: max(0, width - gutter), height: height))
+    let labelWidth = max(1, gutter - 8 * layout.scale)
+    let labelProposal = ProposedViewSize(width: labelWidth, height: nil)
+    let labelHeight = subviews.dropFirst().reduce(layout.lineHeight) {
+      max($0, $1.sizeThatFits(labelProposal).height)
+    }
+    let rowsHeight = CGFloat(subviews.count - 1) * (labelHeight + 12 * layout.scale)
+    let axisHeight = height - layout.rect.height
+    return CGSize(width: width, height: max(height, axisHeight + rowsHeight))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    guard let plot = subviews.first else { return }
+    let gutter = categoryGutter(width: bounds.width, subviews: subviews)
+    let plotSize = CGSize(width: max(0, bounds.width - gutter), height: bounds.height)
+    plot.place(at: CGPoint(x: bounds.minX + gutter, y: bounds.minY), anchor: .topLeading,
+      proposal: ProposedViewSize(plotSize))
+    guard drawing.name == "HorizontalBarChart", subviews.count > 1 else { return }
+    let layout = drawing.layout(plotSize)
+    let labelWidth = max(1, gutter - 8 * layout.scale)
+    let pitch = layout.rect.height / CGFloat(subviews.count - 1)
+    for (index, label) in subviews.dropFirst().enumerated() {
+      label.place(at: CGPoint(x: bounds.minX + labelWidth,
+        y: bounds.minY + layout.rect.minY + pitch * (CGFloat(index) + 0.5)), anchor: .trailing,
+        proposal: ProposedViewSize(width: labelWidth, height: nil))
+    }
   }
 }
 
@@ -686,13 +757,15 @@ struct NativeChartLayout {
   let categoryLabelLines: Int
 
   init(size: CGSize, scale: CGFloat = 1, measurements: NativeChartAxisMeasurements = .init(), hasYAxisTitle: Bool = false,
-       categoryLabelLines: Int = 1) {
+       categoryLabelLines: Int = 1, horizontalCategories: Bool = false) {
     let scale = max(1, scale)
     let lineHeight = max(16 * scale, measurements.lineHeight)
     let tickOffset = max(12 * scale, lineHeight / 2 + 4 * scale)
     let right = min(12 * scale, size.width)
     let idealLeft = max(44 * scale, measurements.leftWidth + 8 * scale)
-    let left = min(idealLeft,
+    // Horizontal categories are real Text children next to this plot. Their
+    // measured column is already excluded from the proposed drawing width.
+    let left = horizontalCategories ? 0 : min(idealLeft,
       max(0, size.width - right - min(80, size.width)))
     let titleClearance = lineHeight * 1.5 + 10 * scale
     let top = min(hasYAxisTitle ? titleClearance : max(18 * scale, lineHeight + 2 * scale), max(0, size.height - 40))
@@ -710,7 +783,7 @@ struct NativeChartLayout {
     // A compact preview can reserve a useful plot while lacking a complete
     // axis gutter. Omit those ticks instead of drawing clipped digit fragments;
     // values remain available through inspection and accessibility rows.
-    showsLeftLabels = left >= idealLeft
+    showsLeftLabels = !horizontalCategories && left >= idealLeft
     bottomLabelWidth = max(56 * scale, measurements.bottomWidth + 12 * scale)
     measuredBottomLabelWidth = measurements.bottomWidth > 0 ? measurements.bottomWidth : 44 * scale
     showsXAxisTitle = bottom >= lineHeight + 2 * scale
@@ -843,12 +916,14 @@ struct NativeChartDrawing {
     // whole categories. Dense axes and numeric domains retain sparse ticks.
     let categorical = ["BarChart", "LineChart", "AreaChart"].contains(name)
     let regular = NativeChartLayout(size: size, scale: axisScale,
-      measurements: axisMeasurements, hasYAxisTitle: hasYAxisTitle)
+      measurements: axisMeasurements, hasYAxisTitle: hasYAxisTitle,
+      horizontalCategories: name == "HorizontalBarChart")
     let pitch = regular.rect.width / CGFloat(max(1, data.labels.count))
     let needsWrapping = axisMeasurements.bottomWidth > max(1, pitch - 8 * axisScale)
     let lines = categorical && (1...4).contains(data.labels.count) && needsWrapping ? 2 : 1
     return NativeChartLayout(size: size, scale: axisScale, measurements: axisMeasurements,
-      hasYAxisTitle: hasYAxisTitle, categoryLabelLines: lines)
+      hasYAxisTitle: hasYAxisTitle, categoryLabelLines: lines,
+      horizontalCategories: name == "HorizontalBarChart")
   }
   private var domain: (low: Double, high: Double) {
     let stacked = ["BarChart", "HorizontalBarChart"].contains(name) && variant == "stacked"
@@ -943,15 +1018,6 @@ struct NativeChartDrawing {
       return horizontal ? rect.minX + rect.width * f : rect.maxY - rect.height * f
     }
     let pitch = (horizontal ? rect.height : rect.width) / CGFloat(count)
-    if horizontal {
-      let labelStride = max(1, Int(ceil(CGFloat(count) / max(1,
-        rect.height / (layout.lineHeight + 12 * layout.scale)))))
-      for i in 0..<count where layout.showsLeftLabels && i % labelStride == 0 {
-        text(
-          data.labels[i], at: CGPoint(x: rect.minX - 6, y: rect.minY + pitch * (CGFloat(i) + 0.5)),
-          canvas: &canvas, anchor: .trailing, maxWidth: max(1, rect.minX - 6))
-      }
-    }
     if let inspected, (0..<count).contains(inspected) {
       let band = horizontal
         ? CGRect(x: rect.minX, y: rect.minY + pitch * CGFloat(inspected), width: rect.width, height: pitch)

@@ -7,11 +7,13 @@ struct NativeHeading: View {
   let compact: Bool
   var body: some View {
     VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
-      if let title = context.string(compact ? "heading" : "title") {
+      if let title = context.string(compact ? "heading" : "title"),
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         Text(title).nativeTextStyle(compact ? context.theme.objectTitleStyle() : context.theme.sectionTitleStyle()).accessibilityAddTraits(
           .isHeader)
       }
-      if let detail = context.string(compact ? "description" : "subtitle") {
+      if let detail = context.string(compact ? "description" : "subtitle"),
+        !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         Text(detail).nativeTextStyle(context.theme.textStyle(.supporting))
       }
     }.fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
@@ -131,7 +133,7 @@ struct NativeImageBlock: View {
   let context: OpenUIComponentContext
   var body: some View {
     NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-      layout: .aspect(context.presentation.coverAspectRatio), role: .content)
+      layout: .aspect(context.presentation.coverAspectRatio, contentMode: .fit), role: .content)
       .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
   }
 }
@@ -266,10 +268,12 @@ struct NativeMediaText: View {
   }
   private var words: some View {
     VStack(alignment: centered ? .center : .leading, spacing: context.theme.componentStyle.titleDetailGap) {
-      NativeMarkdownText(text: context.string("title") ?? "", mode: .inline,
-        style: context.theme.objectTitleStyle(emphasized: media == .banner || context.flag("bold") == true).richText())
+      if let title = context.string("title"), !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        NativeMarkdownText(text: title, mode: .inline,
+          style: context.theme.objectTitleStyle(emphasized: media == .banner || context.flag("bold") == true).richText())
+      }
 
-      if let sub = context.string("subtitle") {
+      if let sub = context.string("subtitle"), !sub.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         NativeMarkdownText(text: sub, mode: .inline, style: context.theme.textStyle(.supporting).richText())
       }
     }.fixedSize(horizontal: false, vertical: true)
@@ -766,8 +770,12 @@ struct NativeCardItem: View {
           }.allowsHitTesting(false)
           copy.background {
             GeometryReader { geometry in
+              let frame = geometry.frame(in: .named(artworkLayoutScope))
+              let photo = NativeArtworkCardMetrics(width: frame.width,
+                aspectRatio: context.presentation.coverAspectRatio,
+                copyHeight: frame.height, accessibility: typeSize.isAccessibilitySize).photo
               Color.clear.preference(key: NativeArtworkCopyPlacementKey.self,
-                value: [artworkLayoutScope: geometry.frame(in: .named(artworkLayoutScope)).minY > 0.5])
+                value: [artworkLayoutScope: frame.minY >= photo.maxY - 0.5])
             }
             if usesArtworkOverlay {
               LinearGradient(colors: [.black.opacity(0.62), .black.opacity(0.72)],
@@ -824,7 +832,6 @@ struct NativeCardItem: View {
           .alignmentGuide(.nativeOverviewMetricTop) { _ in 0 }
       case "Context":
         contextTitle
-        if artworkSource != nil { Spacer(minLength: context.theme.spaceM) }
         if let body = context.string("body") {
           NativeMarkdownText(text: body, mode: .inline, style: contentTheme.textStyle(.compactBody).richText())
         }
@@ -833,7 +840,6 @@ struct NativeCardItem: View {
           .environment(\.openUIArtworkTag, usesArtworkOverlay)
           .environment(\.openUITheme, context.theme)
           .environment(\.colorScheme, colorScheme)
-        if artworkSource != nil { Spacer(minLength: context.theme.spaceM) }
         HStack(alignment: .center, spacing: context.theme.spacing("s")) {
           context.slot("body")
           if isAction {

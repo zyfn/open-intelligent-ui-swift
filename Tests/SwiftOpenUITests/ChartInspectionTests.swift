@@ -1,6 +1,9 @@
 import SwiftLang
 import SwiftUI
 import XCTest
+#if os(macOS)
+import AppKit
+#endif
 
 @testable import SwiftOpenUI
 
@@ -37,50 +40,73 @@ final class ChartInspectionTests: XCTestCase {
     XCTAssertEqual(NativeEditableColumn.width(nil), 160)
   }
 
-  func testStreamingChartsKeepOnlyCommittedNumbers() {
-    var current = NativeChartData()
-    current.labels = ["Food", "Transport", "Activities", "Buffer"]
-    current.slices = [80, 20, 100, 4]
-    let pending = NativeChartStreamingPresentation.data(current: current, stable: nil, partial: true)
-    XCTAssertFalse(pending.hasContent(for: "PieChart"))
-
-    var stable = current
-    stable.slices[3] = 40
-    let retained = NativeChartStreamingPresentation.data(current: current, stable: stable, partial: true)
-    XCTAssertEqual(retained.slices, [80, 20, 100, 40])
-    let finished = NativeChartStreamingPresentation.data(current: current, stable: stable, partial: false)
-    XCTAssertEqual(finished.slices, [80, 20, 100, 4],
-      "Complete input keeps the upstream data values even when they differ from an older snapshot")
-  }
-
-  @MainActor func testRealSdkStreamDoesNotPresentAnIncompletePieAsZero() throws {
+  #if os(macOS)
+  @MainActor func testMountedPieRetainsCompletedValuesUntilReplacementDataCloses() throws {
+    _ = NSApplication.shared
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
-    state.push("root=PieChart([\"Food\",\"Transport\",\"Activities\",\"Flexibility\"],[80,20,100")
-    let incomplete = try XCTUnwrap(state.root)
-    XCTAssertTrue(incomplete.partial)
-    let incompleteData = NativeChartData(context: .init(element: incomplete,
-      registry: library.registry, state: state))
-    XCTAssertFalse(NativeChartStreamingPresentation.data(current: incompleteData,
-      stable: nil, partial: incomplete.partial).hasContent(for: "PieChart"))
-    state.push(",40],\"donut\")")
-    let ready = try XCTUnwrap(state.root)
-    XCTAssertFalse(ready.partial)
-    let stable = NativeChartData(context: .init(element: ready,
-      registry: library.registry, state: state))
-    XCTAssertEqual(stable.slices, [80, 20, 100, 40])
-    state.complete()
-    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    state.push("root=PieChart([\"A\",\"B\"],values)\nvalues=[1,3]\n")
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .openUITheme { $0.pieChartPalette = [.blue, .orange] }
+      .environment(\.colorScheme, .light).frame(width: 320).background(Color.white))
+    let window = NSWindow(contentRect: CGRect(origin: .zero, size: host.fittingSize),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false; window.contentView = host
+    window.setFrameOrigin(.init(x: -10000, y: -10000)); window.orderFront(nil)
+    defer { window.close() }
+    func blueFraction() throws -> Double {
+      host.layoutSubtreeIfNeeded()
+      RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+      host.layoutSubtreeIfNeeded()
+      let image = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: image)
+      var blue = 0, orange = 0
+      for y in 0..<image.pixelsHigh {
+        for x in 0..<image.pixelsWide {
+          guard let color = image.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+          if color.blueComponent > color.redComponent + 0.3,
+            color.blueComponent > color.greenComponent + 0.2 { blue += 1 }
+          if color.redComponent > 0.6, color.greenComponent > 0.2,
+            color.blueComponent < 0.3 { orange += 1 }
+        }
+      }
+      XCTAssertGreaterThan(blue + orange, 100, "A blank or loading chart cannot pass data retention")
+      return Double(blue) / Double(max(1, blue + orange))
+    }
 
-    state.reset()
+    let initial = try blueFraction()
+    XCTAssertEqual(initial, 0.25, accuracy: 0.03)
+    state.push("values=[3")
+    XCTAssertFalse(state.isComplete)
+    XCTAssertEqual(try blueFraction(), initial, accuracy: 0.02,
+      "An open replacement token must keep the last completed chart on screen")
+    state.push(",1]\n")
+    state.complete()
+    XCTAssertEqual(try blueFraction(), 0.75, accuracy: 0.03,
+      "The same mounted chart must present the completed replacement values")
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+  }
+  #endif
+
+  @MainActor func testChartCacheDoesNotPublishAnOpenNumericTokenOrReuseStagedDataAfterReset() throws {
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    let cache = NativeChartPresentationCache()
+    func values() throws -> (current: NativeChartData, staged: NativeChartData?) {
+      cache.values(.init(element: try XCTUnwrap(state.root), registry: library.registry, state: state))
+    }
     state.push("root=PieChart([\"Only\"],[4")
-    let unfinishedNumber = try XCTUnwrap(state.root)
-    let tokenData = NativeChartData(context: .init(element: unfinishedNumber,
-      registry: library.registry, state: state))
-    XCTAssertEqual(tokenData.slices, [4], "The parser has a provisional numeric value")
-    XCTAssertFalse(NativeChartStreamingPresentation.data(current: tokenData,
-      stable: nil, partial: unfinishedNumber.partial).hasContent(for: "PieChart"),
-      "The renderer must not turn the provisional number into a chart")
+    let open = try values()
+    XCTAssertEqual(open.current.slices, [4], "The parser has a provisional numeric value")
+    XCTAssertNil(open.staged, "The production cache must not stage an unfinished total")
+    state.push("0])")
+    state.complete()
+    XCTAssertEqual(try values().staged?.slices, [40])
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    state.reset()
+    state.push("root=PieChart([\"Only\"],[2")
+    XCTAssertEqual(try values().current.slices, [2])
+    XCTAssertNil(try values().staged, "A new document must not reuse the previous cache's completed chart")
   }
 
   func testYAxisTitleDoesNotOverlapTheHighestTick() {

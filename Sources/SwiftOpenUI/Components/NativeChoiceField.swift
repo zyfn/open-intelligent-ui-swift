@@ -43,6 +43,7 @@ struct NativeChoiceField: View {
   @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
   private var field: NativeFieldState { NativeFieldState(context: context) }
   private var selection: [OpenUIString] { NativeChoiceSelection.values(field.value) }
+  private var isSingle: Bool { NativeChoiceSelection.isSingle(context) }
   var body: some View {
     Group {
       if cards {
@@ -62,7 +63,7 @@ struct NativeChoiceField: View {
           guard PropValue.value(item, "disabled") != .boolean(true) else { return }
           field.write(
             NativeChoiceSelection.toggle(
-              key, value: field.value, single: NativeChoiceSelection.isSingle(context)))
+              key, value: field.value, single: isSingle))
         } label: {
           choice(item, selected: selected).openUIControlTarget(alignment: .leading)
             .environment(\.openUICardIsAction, true)
@@ -113,9 +114,12 @@ struct NativeChoiceField: View {
         .fixedSize(horizontal: false, vertical: true)
         if cards {
           Spacer(minLength: 4)
-          Image(systemName: selected ? "checkmark.circle.fill" : "circle").foregroundStyle(
+          Image(systemName: isSingle
+            ? (selected ? "checkmark.circle.fill" : "circle")
+            : (selected ? "checkmark.square.fill" : "square")).foregroundStyle(
             isDisabled(item) ? context.theme.componentStyle.disabledText
               : selected ? context.theme.componentStyle.selectedBorder : context.theme.textNeutralSecondary)
+            .accessibilityHidden(true)
         }
       }
       if cards, let subtitle = PropValue.string(item, "subtitle") {

@@ -23,13 +23,7 @@
 "Swipe to change place" = "Swipe left or right to change place";
 "Loading image" = "Loading image";
 "Image unavailable" = "Image unavailable";
-"Retry" = "Retry";
-"Open original image" = "Open original image";
-"%lld images unavailable" = "%lld images unavailable";
-"Image descriptions" = "Image descriptions";
-"All photos" = "All photos";
 "Show all photos" = "Show all photos";
-"Close gallery" = "Close gallery";
 "View image" = "View image";
 
 "Previous page" = "Previous page";
@@ -52,9 +46,6 @@
 "Places" = "Places";
 
 // Embedded SVG and WebView presentation.
-"Illustration unavailable" = "This illustration could not be displayed.";
-"Reload" = "Reload";
-"Scroll horizontally to see all columns" = "Scroll horizontally to see all columns";
 "More tabs" = "More tabs";
 "No data" = "No data";
 "Chart is incomplete" = "Chart is incomplete";
@@ -123,5 +114,3 @@
 "Total is zero" = "Total is zero";
 "View chart data" = "View chart data";
 "Chart data" = "Chart data";
-"Show table" = "Show table";
-"Read by row" = "Read by row";

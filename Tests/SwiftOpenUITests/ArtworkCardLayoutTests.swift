@@ -6,9 +6,18 @@ import XCTest
 final class ArtworkCardLayoutTests: XCTestCase {
   func testOverflowingCopyMovesBelowTheUnchangedPhotoInsteadOfBeingClipped() {
     for width in [CGFloat(160), 320, 600] {
-      let short = NativeArtworkCardMetrics(width: width, aspectRatio: 1.5, copyHeight: 60, accessibility: false)
+      let short = NativeArtworkCardMetrics(width: width, aspectRatio: 1.5,
+        copyHeight: width / 1.5 / 3, accessibility: false)
       XCTAssertTrue(short.overlaysCopy)
       XCTAssertEqual(short.size.height, width / 1.5, accuracy: 0.01)
+      XCTAssertEqual(short.copy.maxY, short.photo.maxY, accuracy: 0.01)
+      XCTAssertGreaterThanOrEqual(short.copy.minY, short.photo.midY,
+        "Compact copy must leave the upper photograph visible")
+      let dense = NativeArtworkCardMetrics(width: width, aspectRatio: 1.5,
+        copyHeight: short.photo.height * 0.75, accessibility: false)
+      XCTAssertFalse(dense.overlaysCopy,
+        "Copy can fit inside the image and still obscure too much of it")
+      XCTAssertEqual(dense.copy.minY, dense.photo.maxY, accuracy: 0.01)
       let tall = NativeArtworkCardMetrics(width: width, aspectRatio: 1.5, copyHeight: 700, accessibility: false)
       XCTAssertFalse(tall.overlaysCopy)
       XCTAssertEqual(tall.photo, short.photo)

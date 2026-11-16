@@ -6,13 +6,15 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class GalleryReadingWidthTests: XCTestCase {
-  @MainActor private func height(_ source: String, width: CGFloat, streaming: Bool = false) throws -> CGFloat {
+  @MainActor private func height(_ source: String, width: CGFloat, streaming: Bool = false,
+    typeSize: DynamicTypeSize = .large) throws -> CGFloat {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
     if streaming { state.push(source) } else { state.setSource(source) }
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry).frame(width: width))
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .environment(\.dynamicTypeSize, typeSize).frame(width: width))
     let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: width, height: 1400),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
@@ -21,12 +23,29 @@ final class GalleryReadingWidthTests: XCTestCase {
     return host.fittingSize.height
   }
 
-  @MainActor func testActualGalleryReflowsThreeImagesAtReadingWidths() throws {
+  @MainActor func testPhotoOnlyGalleryUsesThumbnailWidthsAcrossNarrowContainers() throws {
     let source = "root=Stack([ImageGallery([{src:\"\",alt:\"A\"},{src:\"\",alt:\"B\"},{src:\"\",alt:\"C\"}])])"
     // Validate the real registered renderer, not just the generic grid helper.
     XCTAssertEqual(try height(source, width: 350), 169 * 9 / 16 * 2 + 12, accuracy: 1)
+    XCTAssertEqual(try height(source, width: 280), 134 * 9 / 16 * 2 + 12, accuracy: 1)
     XCTAssertEqual(try height(source, width: 530), (530 - 24) / 3 * 9 / 16, accuracy: 1)
-    XCTAssertEqual(try height(source, width: 240), 240 * 9 / 16 * 3 + 24, accuracy: 1)
+    XCTAssertEqual(try height(source, width: 240), 114 * 9 / 16 * 2 + 12, accuracy: 1)
+    XCTAssertEqual(try height(source, width: 200), 200 * 9 / 16 * 3 + 24, accuracy: 1)
+    XCTAssertEqual(try height(source, width: 280, typeSize: .accessibility3),
+      try height(source, width: 280), accuracy: 1,
+      "Font preferences must not turn a captionless photo preview into full-width text cards")
+  }
+
+  @MainActor func testCaptionedGalleryRetainsReadingWidthAndAccessibilityReflow() throws {
+    let source = "root=Stack([ImageGallery([{src:\"\",alt:\"A\",details:\"完整的第一张图片说明\"},{src:\"\",alt:\"B\",details:\"第二张图片的背景说明\"},{src:\"\",alt:\"C\",details:\"第三张图片的补充说明\"}])])"
+    let regular = try height(source, width: 350)
+    let narrow = try height(source, width: 280)
+    XCTAssertGreaterThan(narrow, 280 * 9 / 16 * 3 + 24,
+      "Captions retain their own height below full-width photos when reading columns no longer fit")
+    XCTAssertGreaterThan(narrow, regular)
+    XCTAssertGreaterThan(try height(source, width: 350, typeSize: .accessibility3),
+      350 * 9 / 16 * 3 + 24,
+      "Captioned galleries use a complete reading column at accessibility sizes")
   }
 
   @MainActor func testInlinePreviewAllocatesOnlyItsFiveVisibleSlotsWhileReferencesArrive() throws {

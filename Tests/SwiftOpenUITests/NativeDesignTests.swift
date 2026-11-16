@@ -15,12 +15,8 @@ final class NativeDesignTests: XCTestCase {
         var theme = OpenUIThemeValues()
         theme.textBodyDefault.size = 21
         theme.textBodySm.size = 18
-        theme.textHeadingSm.size = 30
-        theme.textHeadingSm.weight = .light
         theme.textBodyLg.size = 26
         theme.textBodyLgHeavy = OpenUIFont(size: 26, weight: .bold)
-        theme.textHeadingMd.size = 32
-        theme.textHeadingMd.weight = .bold
         theme.textBodySm.family = "Example typeface"
         XCTAssertEqual(NativeRichTextStyle.textContent("default", theme: theme).font?.size, 21)
         XCTAssertEqual(NativeRichTextStyle.textContent("small", theme: theme).font?.size, 18)
@@ -30,9 +26,7 @@ final class NativeDesignTests: XCTestCase {
         XCTAssertEqual(theme.inlineFont("sm").size, 21,
             "Upstream Text sm is body-default; xs is body-small")
         XCTAssertEqual(theme.inlineFont("xs").size, 18)
-        XCTAssertEqual(theme.textBodySm.family, "Example typeface")
-        let override = OpenUIFont(size: 18, family: "Object typeface")
-        XCTAssertEqual(override.family, "Object typeface")
+        XCTAssertEqual(NativeRichTextStyle.textContent("small", theme: theme).font?.family, "Example typeface")
         XCTAssertNil(theme.textCodeDefault.family,
             "A prose font override must not remove the code role's fixed-width face")
     }

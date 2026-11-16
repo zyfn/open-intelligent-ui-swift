@@ -23,13 +23,7 @@
 "Swipe to change place" = "左右滑动切换地点";
 "Loading image" = "图片加载中";
 "Image unavailable" = "图片暂不可用";
-"Retry" = "重试";
-"Open original image" = "打开原图";
-"%lld images unavailable" = "%lld 张图片暂不可用";
-"Image descriptions" = "图片说明";
-"All photos" = "全部图片";
 "Show all photos" = "查看全部图片";
-"Close gallery" = "关闭图库";
 "View image" = "查看图片";
 
 "Previous page" = "上一页";
@@ -52,9 +46,6 @@
 "Places" = "地点列表";
 
 // Embedded SVG and WebView presentation.
-"Illustration unavailable" = "这张图暂时无法显示。";
-"Reload" = "重新加载";
-"Scroll horizontally to see all columns" = "左右滑动查看全部列";
 "More tabs" = "更多标签";
 "No data" = "暂无数据";
 "Chart is incomplete" = "图表尚未完整生成";
@@ -123,5 +114,3 @@
 "Total is zero" = "总量为零";
 "View chart data" = "查看图表数据";
 "Chart data" = "图表数据";
-"Show table" = "表格视图";
-"Read by row" = "按行阅读";

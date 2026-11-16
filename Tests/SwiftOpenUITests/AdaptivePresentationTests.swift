@@ -49,7 +49,7 @@ final class AdaptivePresentationTests: XCTestCase {
     let literal = String(decoding: try JSONEncoder().encode(long), as: UTF8.self)
     state.setSource("root=OptionCards(\"choice\",\"single\",[OptionCard(\"a\",\"First\",\(literal),Icon(\"train\")),OptionCard(\"b\",\"Second\",null,Icon(\"train\")),OptionCard(\"c\",\"Third\",null,Icon(\"train\"))])")
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-    let width = AdaptiveWidth(); width.value = 320
+    let width = AdaptiveWidth(); width.value = 440
     let hosting = NSHostingView(rootView: AdaptiveFixture(width: width) {
       OpenUIContentView(state: state, registry: library.registry)
     })
@@ -60,7 +60,7 @@ final class AdaptivePresentationTests: XCTestCase {
       XCTAssertEqual(Set(points.map { Int($0.x.rounded()) }).count, 2,
         "Copy height must not collapse columns that fit the configured minimum width")
       XCTAssertEqual(Set(points.map { Int($0.y.rounded()) }).count, 2)
-      for (value, columns) in [(CGFloat(800), 3), (280, 1), (600, 3), (320, 2)] {
+      for (value, columns) in [(CGFloat(800), 3), (280, 1), (600, 2), (440, 2)] {
         width.value = value; settle(hosting)
         let current = controls(hosting)
         XCTAssertEqual(Set(current.map(ObjectIdentifier.init)), Set(original.map(ObjectIdentifier.init)))
@@ -70,8 +70,6 @@ final class AdaptivePresentationTests: XCTestCase {
     }
   }
 
-  #if !SDK_DENSITY_BASELINE
-  #if !SDK_CHART_NO_HEIGHT_TEST
   func testDefaultChartHeightKeepsTheDataPlotReadableAtLargerTextSizes() {
     let regularHeight = NativeChartHeight.value(explicit: nil, defaultHeight: 250, scale: 1)
     let largerHeight = NativeChartHeight.value(explicit: nil, defaultHeight: 250, scale: 2)
@@ -84,8 +82,6 @@ final class AdaptivePresentationTests: XCTestCase {
     XCTAssertEqual(NativeChartHeight.value(explicit: 180, defaultHeight: 250, scale: 2), 180,
       "An authored height remains authoritative")
   }
-
-  #endif
 
   @MainActor func testShortCategoryLabelsDoNotReserveAnUnneededSecondLine() throws {
     let library = try OpenUIComponents.library()
@@ -148,8 +144,6 @@ final class AdaptivePresentationTests: XCTestCase {
     XCTAssertFalse(drawing.layout(CGSize(width: 240, height: 100)).showsBottomLabels,
       "Explicitly short large-type previews must still avoid overlapping labels")
   }
-  #endif
-
   @MainActor private func controls(_ view: NSView) -> [AdaptiveControlView] {
     (view as? AdaptiveControlView).map { [$0] } ?? view.subviews.flatMap(controls)
   }

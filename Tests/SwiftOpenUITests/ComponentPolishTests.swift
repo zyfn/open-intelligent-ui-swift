@@ -72,7 +72,6 @@ final class ComponentPolishTests: XCTestCase {
     }
   }
 
-  #if !SDK_POLISH_BASELINE
   @MainActor func testMissingFooterSlotsDoNotAddSpaceToTheRemainingContent() throws {
     _ = NSApplication.shared
     let standard = try OpenUIComponents.library()
@@ -102,7 +101,6 @@ final class ComponentPolishTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(marker.fittingSize.height, text.fittingSize.height)
     XCTAssertGreaterThanOrEqual(marker.fittingSize.width, text.fittingSize.width)
   }
-  #endif
 }
 
 @MainActor private final class FooterWidth: ObservableObject { @Published var width: CGFloat = 500 }

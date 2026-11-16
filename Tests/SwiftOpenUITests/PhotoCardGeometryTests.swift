@@ -107,15 +107,43 @@ final class PhotoCardGeometryTests: XCTestCase {
     return NSHostingView(rootView: view).fittingSize.height
   }
 
-  @MainActor func testPictureCardsUseTheirAvailableWidthInsteadOfAnUnrelatedMinimumHeight() throws {
-    let cases = [
-      ("Visual", "root=VisualCardBlock([VisualCardItem(BoldText(\"text\",\"Short\",null,\"text\",\"sm\"),\"a\",\"photo.jpg\",null,\"alt\")],\"grid\",true)"),
-      ("Context", "root=ContextCardBlock([ContextCardItem(\"a\",\"Short\",\"One fact\",null,\"photo.jpg\",\"alt\")],\"grid\",true)")
-    ]
-    for (kind, source) in cases {
-      for width in [CGFloat(240), 320, 600] {
-        XCTAssertEqual(try card(source, kind: kind, width: width), width / OpenUIPresentation().coverAspectRatio, accuracy: 1,
-          "\(kind) at \(width): the container width defines the photo card")
+  @MainActor func testPictureKeepsItsDeclaredGeometryWhenCopyMovesBelowIt() throws {
+    _ = NSApplication.shared
+    let presentation = OpenUIPresentation()
+    let longCopy = String(repeating: "A complete explanation that must remain readable. ", count: 20)
+    for width in [CGFloat(240), 320, 600] {
+      for text in ["Short", longCopy] {
+        var measured: [String: CGRect] = [:]
+        func probe(_ name: String) -> some View {
+          GeometryReader { geometry in
+            Color.clear.onAppear { measured[name] = geometry.frame(in: .named("artwork")) }
+              .onChange(of: geometry.frame(in: .named("artwork"))) { measured[name] = $0 }
+          }
+        }
+        let host = NSHostingView(rootView: NativeArtworkCardLayout(
+          aspectRatio: presentation.coverAspectRatio, fallbackWidth: presentation.minimumCardWidth,
+          accessibility: false) {
+            NativeRemoteImage(src: nil, layout: .cover).background(probe("photo"))
+            Text(text).font(.body).padding(12).frame(maxWidth: .infinity).background(probe("copy"))
+          }.frame(width: width).coordinateSpace(name: "artwork"))
+        let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: width, height: 2000),
+          styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let photo = try XCTUnwrap(measured["photo"]), copy = try XCTUnwrap(measured["copy"])
+        XCTAssertEqual(photo.width, width, accuracy: 1)
+        XCTAssertEqual(photo.height, width / presentation.coverAspectRatio, accuracy: 1,
+          "Copy placement must not change the real photo view's reserved geometry")
+        if text == longCopy {
+          XCTAssertGreaterThanOrEqual(copy.minY, photo.maxY - 1,
+            "Long explanations read below the photograph without covering it")
+          XCTAssertGreaterThan(host.fittingSize.height, photo.height)
+        } else {
+          XCTAssertEqual(copy.maxY, photo.maxY, accuracy: 1,
+            "A short caption sits at the bottom without masking the whole photograph")
+          XCTAssertEqual(host.fittingSize.height, photo.height, accuracy: 1)
+        }
       }
     }
   }
@@ -140,7 +168,7 @@ final class PhotoCardGeometryTests: XCTestCase {
     let view = OpenUIContentView(state: state, registry: library.registry).frame(width: 300)
     XCTAssertFalse(state.isComplete)
     XCTAssertEqual(NSHostingView(rootView: view).fittingSize.height, 300 / OpenUIPresentation().coverAspectRatio, accuracy: 1,
-      "The public Image default reserves its cover frame without waiting for original pixels or unrelated text")
+      "The public Image default reserves its aspect-ratio slot without waiting for original pixels or unrelated text")
   }
 
   @MainActor func testSingleResponsiveCardUsesTheFullAvailableColumn() throws {

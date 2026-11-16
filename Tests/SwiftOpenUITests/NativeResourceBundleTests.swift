@@ -22,7 +22,7 @@ final class NativeResourceBundleTests: XCTestCase {
         let folder = try XCTUnwrap(selected.path(forResource: language, ofType: "lproj"))
         let localized = try XCTUnwrap(Bundle(path: folder))
         XCTAssertEqual(localized.localizedString(forKey: "Start date", value: nil, table: nil), "开始日期")
-        XCTAssertEqual(localized.localizedString(forKey: "Illustration unavailable", value: nil, table: nil), "这张图暂时无法显示。")
+        XCTAssertEqual(localized.localizedString(forKey: "Unable to load graphic", value: nil, table: nil), "图形加载失败")
     }
 
     func testRootPackageLocalizationTakesPriorityWithoutEvaluatingSwiftPMFallback() throws {
@@ -42,7 +42,7 @@ final class NativeResourceBundleTests: XCTestCase {
         let folder = try XCTUnwrap(selected.path(forResource: language, ofType: "lproj"))
         let localized = try XCTUnwrap(Bundle(path: folder))
         XCTAssertEqual(localized.localizedString(forKey: "Start date", value: nil, table: nil), "开始日期")
-        XCTAssertEqual(localized.localizedString(forKey: "Illustration unavailable", value: nil, table: nil), "这张图暂时无法显示。")
+        XCTAssertEqual(localized.localizedString(forKey: "Unable to load graphic", value: nil, table: nil), "图形加载失败")
     }
 
     func testMissingPackagedLocalizationUsesSwiftPMFallback() throws {

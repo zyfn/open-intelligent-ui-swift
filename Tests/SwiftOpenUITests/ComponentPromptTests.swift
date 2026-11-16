@@ -3,7 +3,7 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class ComponentPromptTests: XCTestCase {
-    func testOfficialGeneralPresetIsIncludedOnlyWhenRequested() throws {
+    func testCompositionPresetIsIncludedOnlyWhenRequested() throws {
         let library = try OpenUIComponents.library()
         var options = OpenUIComponents.promptOptions
         let examples = try XCTUnwrap(options.examples)

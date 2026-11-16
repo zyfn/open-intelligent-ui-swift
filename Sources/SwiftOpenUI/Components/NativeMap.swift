@@ -84,6 +84,7 @@ private struct NativeMap: View {
     @State private var camera: MapCameraPosition = .automatic
     @State private var fullscreenCamera: MapCameraPosition = .automatic
     @State private var expanded = false
+    @State private var expandedSourceRevision: Int?
     @ScaledMetric(relativeTo: NativeTextRole.label.textStyle) private var titleScale: CGFloat = 1
     @ScaledMetric(relativeTo: NativeTextRole.caption.textStyle) private var captionScale: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -94,11 +95,12 @@ private struct NativeMap: View {
         guard context.element.sourceReadiness["crs"].complete else { return [] }
         return NativeMapPlace.decode(context.value("points"), crs: context.string("crs") ?? "wgs84")
     }
-    private var selectedID: String {
-        if let binding = context.presentationBinding("value"), case .string(let value) = binding.wrappedValue {
-            return places.first { OpenUIString($0.id) == value }?.id ?? ""
+    private var selectedID: String? {
+        if let binding = context.presentationBinding("value") {
+            guard case .string(let value) = binding.wrappedValue else { return nil }
+            return places.first { OpenUIString($0.id) == value }?.id
         }
-        return places.first(where: { $0.id == localSelection })?.id ?? places.first?.id ?? ""
+        return places.first(where: { $0.id == localSelection })?.id
     }
     private func number(_ place: NativeMapPlace) -> Int {
         (places.firstIndex { $0.id == place.id } ?? 0) + 1
@@ -113,28 +115,30 @@ private struct NativeMap: View {
         // Use a consistent neighborhood context instead of reusing a region
         // reported by the other (inline/fullscreen) map instance.
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-            let position = MapCameraPosition.region(MKCoordinateRegion(center: place.coordinate,
-                                                latitudinalMeters: 1600, longitudinalMeters: 1600))
-            camera = position; fullscreenCamera = position
+            focus(place)
         }
     }
-    private var selectedIndex: Int { places.firstIndex { $0.id == selectedID } ?? 0 }
+    private func focus(_ place: NativeMapPlace) {
+        let position = MapCameraPosition.region(MKCoordinateRegion(center: place.coordinate,
+            latitudinalMeters: 1600, longitudinalMeters: 1600))
+        camera = position; fullscreenCamera = position
+    }
+    private var selectedIndex: Int? { places.firstIndex { $0.id == selectedID } }
     private func moveSelection(_ offset: Int) {
-        let index = selectedIndex + offset
+        let index = (selectedIndex ?? -1) + offset
         guard places.indices.contains(index) else { return }
         select(places[index].id)
     }
     private func restoreInlineOverview() {
-        // The preview returns to an overview without losing the selected card.
-        // The point collection is never reduced by the name picker.
-        if !places.contains(where: { $0.id == localSelection }) { localSelection = places.first?.id }
+        guard context.isCurrentPresentation,
+            expandedSourceRevision == context.presentationSourceRevision else { return }
+        expandedSourceRevision = nil
+        // Preserve a deliberate selection when returning from the preview.
         camera = .automatic
     }
     private func fitPlaces() {
         if places.count == 1, let place = places.first {
-            let position = MapCameraPosition.region(MKCoordinateRegion(center: place.coordinate,
-                                                latitudinalMeters: 1600, longitudinalMeters: 1600))
-            camera = position; fullscreenCamera = position
+            focus(place)
         } else { camera = .automatic; fullscreenCamera = .automatic }
     }
     private var textBlockHeight: CGFloat {
@@ -144,46 +148,48 @@ private struct NativeMap: View {
     }
     private var cardBaseHeight: CGFloat { max(80, textBlockHeight + 24) }
     var body: some View {
-        if !places.isEmpty || context.isStreaming {
-            Color.clear.aspectRatio(1.1, contentMode: .fit)
-                .frame(minHeight: 320, maxHeight: 360)
-                .overlay {
-                    if !places.isEmpty {
-                        surface(fullscreen: false)
-                    } else {
-                        NativeMapPlaceholder(theme: context.theme, status: "Loading")
-                            .accessibilityIdentifier("openui.map.pending")
+        Group {
+            if !places.isEmpty || context.isStreaming {
+                Color.clear.aspectRatio(1.1, contentMode: .fit)
+                    .frame(minHeight: 320, maxHeight: 360)
+                    .overlay {
+                        if !places.isEmpty {
+                            surface(fullscreen: false)
+                        } else {
+                            NativeMapPlaceholder(theme: context.theme, status: "Loading")
+                                .accessibilityIdentifier("openui.map.pending")
+                        }
                     }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: context.theme.radius5xl))
-                .overlay(RoundedRectangle(cornerRadius: context.theme.radius5xl).stroke(.primary.opacity(0.06)))
-                .accessibilityIdentifier("openui.map")
-            #if os(iOS)
-            .fullScreenCover(isPresented: $expanded, onDismiss: restoreInlineOverview) { surface(fullscreen: true) }
-            #else
-            .sheet(isPresented: $expanded, onDismiss: restoreInlineOverview) { surface(fullscreen: true) }
-            #endif
-            .onChange(of: selectedID) { id in
-                guard context.presentationBinding("value") != nil,
-                    let place = places.first(where: { $0.id == id }) else { return }
-                let position = MapCameraPosition.region(MKCoordinateRegion(center: place.coordinate,
-                    latitudinalMeters: 1600, longitudinalMeters: 1600))
-                camera = position; fullscreenCamera = position
+                    .clipShape(RoundedRectangle(cornerRadius: context.theme.radius5xl))
+                    .overlay(RoundedRectangle(cornerRadius: context.theme.radius5xl).stroke(.primary.opacity(0.06)))
+                    .accessibilityIdentifier("openui.map")
+                #if os(iOS)
+                .fullScreenCover(isPresented: $expanded, onDismiss: restoreInlineOverview) { surface(fullscreen: true) }
+                #else
+                .sheet(isPresented: $expanded, onDismiss: restoreInlineOverview) { surface(fullscreen: true) }
+                #endif
+            } else {
+                NativeMapPlaceholder(theme: context.theme, status: "No valid locations")
+                    .aspectRatio(1.1, contentMode: .fit)
+                    .frame(minHeight: 320, maxHeight: 360)
+                    .clipShape(RoundedRectangle(cornerRadius: context.theme.radius5xl))
+                    .accessibilityIdentifier("openui.map.empty")
             }
-            .task(id: "\(context.canInteract):\(places.map(\.id))") {
-                guard context.canInteract else { return }
-                if !places.contains(where: { $0.id == localSelection }) {
-                    localSelection = places.first?.id
-                }
-                fitPlaces()
-            }
-
-        } else {
-            NativeMapPlaceholder(theme: context.theme, status: "No valid locations")
-                .aspectRatio(1.1, contentMode: .fit)
-                .frame(minHeight: 320, maxHeight: 360)
-                .clipShape(RoundedRectangle(cornerRadius: context.theme.radius5xl))
-                .accessibilityIdentifier("openui.map.empty")
+        }
+        .onChange(of: selectedID, initial: true) { _, id in
+            if let place = places.first(where: { $0.id == id }) { focus(place) }
+            else { fitPlaces() }
+        }
+        .onChange(of: places.map(\.id)) { _, _ in
+            if !places.contains(where: { $0.id == localSelection }) { localSelection = nil }
+            if selectedID == nil { fitPlaces() }
+        }
+        .onChange(of: context.presentationSourceRevision) { _, _ in
+            localSelection = nil
+            expanded = false
+            expandedSourceRevision = nil
+            if let place = places.first(where: { $0.id == selectedID }) { focus(place) }
+            else { fitPlaces() }
         }
     }
     private var pointMenu: some View {
@@ -235,16 +241,19 @@ private struct NativeMap: View {
                 mapButton("Close map", icon: "xmark") { expanded = false }
                 Spacer(minLength: 0)
                 capsuleGroup {
-                    groupButton("Previous place", icon: "arrow.left", disabled: selectedIndex == 0 || !context.canInteract) { moveSelection(-1) }
-                    groupButton("Next place", icon: "arrow.right", disabled: selectedIndex >= places.count - 1 || !context.canInteract) { moveSelection(1) }
+                    groupButton("Previous place", icon: "arrow.left", disabled: (selectedIndex ?? 0) == 0 || !context.canInteract) { moveSelection(-1) }
+                    groupButton("Next place", icon: "arrow.right", disabled: (selectedIndex ?? -1) >= places.count - 1 || !context.canInteract) { moveSelection(1) }
                 }
                 capsuleGroup {
-                    groupButton("Recenter on selection", icon: "location", disabled: !context.canInteract) { select(selectedID) }
+                    groupButton("Recenter on selection", icon: "location", disabled: selectedID == nil || !context.canInteract) {
+                        if let selectedID { select(selectedID) }
+                    }
                     pointMenu
                 }
             } else {
                 Spacer(minLength: 8)
                 mapButton("Expand map", icon: "arrow.up.left.and.arrow.down.right") {
+                    expandedSourceRevision = context.presentationSourceRevision
                     fullscreenCamera = camera; expanded = true
                 }
             }
@@ -275,11 +284,10 @@ private struct NativeMap: View {
         .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll, showsTraffic: false))
         .safeAreaInset(edge: .top, spacing: 0) { controls(fullscreen: fullscreen) }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !places.isEmpty { pages.padding(.bottom, 12) }
+            if let selectedID { pages(selectedID: selectedID).padding(.bottom, 12) }
         }
-        .onChange(of: places.map(\.id)) { _, _ in fitPlaces() }
     }
-    private var pages: some View {
+    private func pages(selectedID: String) -> some View {
         MapPlaceCarousel(places: places, selectedID: selectedID, minimumHeight: cardBaseHeight,
                          surfaceColor: surfaceColor, onSelect: select) { page($0, width: $1) }
     }

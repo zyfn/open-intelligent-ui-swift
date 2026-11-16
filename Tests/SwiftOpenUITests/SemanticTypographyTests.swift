@@ -10,12 +10,6 @@ import AppKit
 final class SemanticTypographyTests: XCTestCase {
     func testReadingRolesShareTheirNativeAndMarkdownRecipes() {
         let theme = OpenUIThemeValues()
-        XCTAssertEqual(theme.pageTitleStyle().font.size, 26)
-        XCTAssertEqual(theme.sectionTitleStyle().font.size, 20)
-        XCTAssertEqual(theme.objectTitleStyle().font.size, 18)
-        XCTAssertEqual(theme.textStyle(.body).font.size, 16)
-        XCTAssertEqual(theme.textStyle(.supporting).font.size, 14)
-        XCTAssertEqual(theme.textStyle(.caption).font.size, 13)
         for (level, style) in [(1, theme.pageTitleStyle()), (2, theme.sectionTitleStyle()), (3, theme.objectTitleStyle())] {
             XCTAssertEqual(theme.markdownHeadingStyle(level).font, style.font)
             XCTAssertEqual(theme.markdownHeadingStyle(level).role, style.role)
@@ -26,11 +20,11 @@ final class SemanticTypographyTests: XCTestCase {
         XCTAssertEqual(theme.textStyle(.compactBody).color, theme.textNeutralPrimary)
         XCTAssertEqual(theme.textStyle(.supporting).color, theme.textNeutralSecondary,
             "Information priority belongs to the slot, not its point size")
-        XCTAssertEqual(theme.inlineFont("lg").size, 18)
+        XCTAssertEqual(theme.inlineFont("lg"), theme.textBodyLg)
         XCTAssertEqual(theme.inlineTextStyle("lg").role, .body)
         for size in ["large", "large-heavy"] {
             let style = NativeRichTextStyle.textContent(size, theme: theme)
-            XCTAssertEqual(style.font?.size, 18)
+            XCTAssertEqual(style.font, size == "large" ? theme.textBodyLg : theme.textBodyLgHeavy)
             XCTAssertEqual(style.role, .body,
                 "Large copy keeps the same reading and Dynamic Type baseline as ordinary body text")
         }

@@ -10,7 +10,7 @@ import AppKit
 
 enum NativeMediaStatus: Equatable { case loading, loaded, unavailable }
 enum NativeMediaLayout {
-  case cover, aspect(CGFloat), thumbnail(CGSize), fit, fill, intrinsic
+  case cover, aspect(CGFloat, contentMode: ContentMode = .fill), thumbnail(CGSize), fit, fill, intrinsic
 }
 /// Content images retain a quiet surface; compact artwork uses its owner's
 /// surface. Neither role adds error copy or changes its reserved geometry.
@@ -246,13 +246,15 @@ struct NativeRemoteImage: View {
     }
   }
   private func picture(_ image: Image, retainedSize: CGSize? = nil, reveal: Bool = true) -> some View {
-    Group {
-      switch layout {
-      case .intrinsic, .fit:
-        canvas(sourceSize: retainedSize) { image.resizable().scaledToFit().modifier(NativeMediaReveal(enabled: reveal, fallbackSystemImage: fallbackSystemImage)) }
-      default:
-        canvas(sourceSize: retainedSize) { image.resizable().scaledToFill().modifier(NativeMediaReveal(enabled: reveal, fallbackSystemImage: fallbackSystemImage)) }
-      }
+    let mode: ContentMode
+    switch layout {
+    case .intrinsic, .fit: mode = .fit
+    case .aspect(_, let contentMode): mode = contentMode
+    default: mode = .fill
+    }
+    return canvas(sourceSize: retainedSize) {
+      image.resizable().aspectRatio(contentMode: mode)
+        .modifier(NativeMediaReveal(enabled: reveal, fallbackSystemImage: fallbackSystemImage))
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(alt.isEmpty ? Text("View image", bundle: NativeControlResources.bundle) : Text(alt))
@@ -289,7 +291,7 @@ struct NativeRemoteImage: View {
     switch layout {
     case .cover:
       surface.aspectRatio(nativePresentation.coverAspectRatio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)
-    case .aspect(let ratio):
+    case .aspect(let ratio, _):
       surface.aspectRatio(ratio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)
     case .thumbnail(let size): surface.frame(width: size.width, height: size.height)
     case .fit, .fill: surface.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -404,6 +406,10 @@ struct NativeImageGallery: View {
     }
   }
   private var visible: [NativeGalleryImage] { Array(images.prefix(previewLimit)) }
+  // A declared details slot needs reading width, even while its text is still
+  // streaming. Photo-only previews use their thumbnail width and do not grow
+  // into text cards when the reader changes their preferred font size.
+  private var hasDetails: Bool { visible.contains { $0.details != nil } }
   private var gridReady: Bool {
     if stableImages != nil && (context.hasPendingData || context.hasDataFailure) { return true }
     return NativeLayoutContract.collectionShapeReady(context.element.sourceReadiness["images"], count: images.count)
@@ -420,9 +426,10 @@ struct NativeImageGallery: View {
       if !gridReady || (visible.isEmpty && (context.hasPendingData || (context.isStreaming && !context.element.isSourceComplete))) {
         NativePendingContent(loading: !context.hasDataFailure && (context.isStreaming || context.hasPendingData), message: "Loading image")
       } else if !visible.isEmpty {
-        NativeGalleryGridLayout(minimumWidth: max(context.presentation.thumbnailSize,
-            context.presentation.minimumCompactCardWidth * readingScale),
-          gap: context.theme.spaceM, maximumColumns: typeSize.isAccessibilitySize ? 1 : nil, layoutCount: layoutCount) {
+        NativeGalleryGridLayout(minimumWidth: hasDetails
+            ? max(context.presentation.thumbnailSize, context.presentation.minimumCompactCardWidth * readingScale)
+            : context.presentation.thumbnailSize,
+          gap: context.theme.spaceM, maximumColumns: hasDetails && typeSize.isAccessibilitySize ? 1 : nil, layoutCount: layoutCount) {
           ForEach(visible) { image in
             VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
               Button {

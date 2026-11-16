@@ -1,6 +1,6 @@
 import SwiftLang
 
-extension NativeChartStreamingPresentation {
+enum NativeChartStreamingPresentation {
   /// Only completed literal/data boundaries become samples. Expressions whose
   /// boundaries cannot be attributed safely keep the previous presentation.
   static func staged(context: OpenUIComponentContext, current prepared: NativeChartData? = nil) -> NativeChartData? {

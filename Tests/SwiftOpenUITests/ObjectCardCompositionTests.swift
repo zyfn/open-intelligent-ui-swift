@@ -90,25 +90,28 @@ final class ObjectCardCompositionTests: XCTestCase {
     }
   }
 
-  @MainActor func testLeadingImagesFillCardEdgesWhileBodyImagesRetainTheirInset() throws {
+  @MainActor func testContentImagesPreserveTheirPixelsAndCardInsets() throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
     var theme = OpenUIThemeValues()
     // Geometry must be measured with loaded artwork. A compact placeholder
     // glyph cannot establish the image's full bounds.
-    theme.sunk = .blue; theme.foreground = .white
+    theme.sunk = Color(red: 0, green: 0, blue: 1); theme.foreground = .white
     let imageSource = "https://fixture.invalid/card.png"
     let pixels = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
-      pixelsWide: 1, pixelsHigh: 1, bitsPerSample: 8, samplesPerPixel: 4,
+      pixelsWide: 16, pixelsHigh: 9, bitsPerSample: 8, samplesPerPixel: 4,
       hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-      bytesPerRow: 4, bitsPerPixel: 32))
-    pixels.setColor(NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 1), atX: 0, y: 0)
-    let loader = ObjectCardImageLoader(source: imageSource,
-      bytes: try XCTUnwrap(pixels.representation(using: .png, properties: [:])))
-    let resources = OpenUIResourceContext(loader: loader)
+      bytesPerRow: 16 * 4, bitsPerPixel: 32))
+    // Match the declared slot to isolate container insets from image fitting.
+    for y in 0..<9 { for x in 0..<16 {
+      pixels.setColor(NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 1), atX: x, y: y)
+    } }
+    var imageBytes = try XCTUnwrap(pixels.representation(using: .png, properties: [:]))
     var presentation = OpenUIPresentation()
     presentation.motion.mediaRevealDuration = 0
     func bitmap(_ source: String, name: String, width: CGFloat = 320) throws -> NSBitmapImageRep {
+      let loader = ObjectCardImageLoader(source: imageSource, bytes: imageBytes)
+      let resources = OpenUIResourceContext(loader: loader)
       let state = OpenUIState(schema: library.library.toSchema()); state.setSource(source)
       XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
       let scoped = state.resourceStore.scoped(resources)
@@ -186,10 +189,57 @@ final class ObjectCardCompositionTests: XCTestCase {
     for (x, y) in [(5, 60), (60, 5), (160, 60)] {
       let color = try XCTUnwrap(missing.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
       let detail = try sample(missing, x: x, y: y).detail
-      XCTAssertGreaterThan(color.redComponent, 0.9, "Missing artwork must leave the white card surface visible; \(detail)")
-      XCTAssertGreaterThan(color.greenComponent, 0.9, detail)
+      XCTAssertLessThan(color.redComponent, 0.1, "Missing content images retain their declared media surface; \(detail)")
+      XCTAssertLessThan(color.greenComponent, 0.1, detail)
       XCTAssertGreaterThan(color.blueComponent, 0.9, detail)
     }
+
+    // Corner markers disappear under a square-to-banner crop. The public
+    // content-image renderers must preserve all four, while a banner keeps
+    // its explicitly photographic crop. Use the same loader and view path.
+    let square = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
+      pixelsWide: 100, pixelsHigh: 100, bitsPerSample: 8, samplesPerPixel: 4,
+      hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+      bytesPerRow: 100 * 4, bitsPerPixel: 32))
+    for y in 0..<100 { for x in 0..<100 {
+      let color: NSColor
+      if x < 15 && y < 15 { color = NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 1) }
+      else if x >= 85 && y < 15 { color = NSColor(deviceRed: 0, green: 1, blue: 0, alpha: 1) }
+      else if x < 15 && y >= 85 { color = NSColor(deviceRed: 0, green: 0, blue: 1, alpha: 1) }
+      else if x >= 85 && y >= 85 { color = NSColor(deviceRed: 1, green: 1, blue: 0, alpha: 1) }
+      else { color = .white }
+      square.setColor(color, atX: x, y: y)
+    } }
+    imageBytes = try XCTUnwrap(square.representation(using: .png, properties: [:]))
+    func markerColors(_ image: NSBitmapImageRep) throws -> Set<String> {
+      var colors: Set<String> = []
+      for y in stride(from: 4, to: image.pixelsHigh, by: 8) {
+        for x in stride(from: 4, to: image.pixelsWide, by: 8) {
+          let c = try XCTUnwrap(image.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+          if c.redComponent > 0.9 && c.greenComponent < 0.1 && c.blueComponent < 0.1 { colors.insert("red") }
+          if c.redComponent < 0.1 && c.greenComponent > 0.9 && c.blueComponent < 0.1 { colors.insert("green") }
+          if c.redComponent < 0.1 && c.greenComponent < 0.1 && c.blueComponent > 0.9 { colors.insert("blue") }
+          if c.redComponent > 0.9 && c.greenComponent > 0.9 && c.blueComponent < 0.1 { colors.insert("yellow") }
+        }
+      }
+      return colors
+    }
+    for (name, source, empty) in [
+      ("complete-image", "root=Image(\"Corners\",\"\(imageSource)\")", "root=Image(\"Corners\")"),
+      ("complete-block", "root=ImageBlock(\"\(imageSource)\",\"Corners\")", "root=ImageBlock(\"\",\"Corners\")")
+    ] {
+      let loaded = try bitmap(source, name: name)
+      let placeholder = try bitmap(empty, name: name + "-placeholder")
+      XCTAssertEqual(try markerColors(loaded), Set(["red", "green", "blue", "yellow"]),
+        "\(name) must preserve the entire content image inside its declared slot")
+      XCTAssertEqual(loaded.pixelsWide, placeholder.pixelsWide)
+      XCTAssertEqual(loaded.pixelsHigh, placeholder.pixelsHigh,
+        "Receiving a square source must not change the reserved content-image height")
+      XCTAssertEqual(loaded.pixelsHigh, 180)
+    }
+    let banner = try bitmap("root=ImageTextLarge(\"\(imageSource)\",\"Corners\",\"Banner\")", name: "cropped-banner")
+    XCTAssertTrue(try markerColors(banner).isEmpty,
+      "A banner still fills its declared photo slot rather than acquiring content-image margins")
   }
 
   @MainActor func testWrappingCardsKeepReadingSpaceAndFillAnIncompleteRow() throws {

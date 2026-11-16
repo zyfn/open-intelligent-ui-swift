@@ -8,7 +8,6 @@ final class NativeAffordanceTests: XCTestCase {
         let theme = OpenUIThemeValues.defaults
         let title = theme.objectTitleStyle().font
         XCTAssertEqual(title, theme.textHeadingXs.resolved(for: .title))
-        XCTAssertEqual(title, theme.objectTitleStyle().font)
         XCTAssertEqual(title.size, 18)
         XCTAssertLessThan(title.size, theme.textHeadingMd.size)
         XCTAssertEqual(theme.textBodyDefaultHeavy.size, 16)
@@ -32,7 +31,6 @@ final class NativeAffordanceTests: XCTestCase {
         XCTAssertEqual(theme.inlineFont("sm", numeric: true).family, "HostNumeric")
         XCTAssertEqual(theme.inlineFont("sm", numeric: true).lineHeight, 1.8)
         theme.textHeadingXs = OpenUIFont(size: 22, weight: .bold, lineHeight: 1.6)
-        XCTAssertEqual(theme.objectTitleStyle().font, theme.textHeadingXs.resolved(for: .title))
         XCTAssertEqual(theme.objectTitleStyle().font, theme.textHeadingXs.resolved(for: .title))
     }
 
