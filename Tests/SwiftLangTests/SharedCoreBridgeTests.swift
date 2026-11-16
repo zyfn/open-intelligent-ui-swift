@@ -166,6 +166,44 @@ final class SharedCoreBridgeTests: XCTestCase {
         XCTAssertFalse(evaluator.nativeLimitExceeded)
     }
 
+    func testBindingCachePreservesDirectAndReactiveCases() {
+        let core = SharedCore.shared
+        core.sync {
+            for expression in [ASTNode.stateRef("$value"), .binOp("+", .stateRef("$value"), .num(2))] {
+                let raw = core.object([
+                    ("__reactive", core.string("assign")),
+                    ("target", core.string("$field")),
+                    ("expr", core.ast(expression))
+                ])
+                let first = core.decode(raw), second = core.decode(raw)
+                XCTAssertEqual(second, first)
+                XCTAssertTrue(second.isSameValue(as: first))
+                if expression == .stateRef("$value") {
+                    guard case .binding(let binding) = second else { return XCTFail("A cached direct binding changed its Value case") }
+                    XCTAssertEqual(binding.target, "$field")
+                } else {
+                    guard case .reactiveBinding(let binding) = second else { return XCTFail("A reactive expression became a direct binding") }
+                    XCTAssertEqual(binding.expression, expression)
+                }
+            }
+        }
+    }
+
+    func testStoreBindingRoundTripsPreserveCasesAndIdentity() throws {
+        let store = createStore()
+        let values: [Value] = [.binding("$field"), .reactiveBinding(target: "$field",
+            expression: .binOp("+", .stateRef("$value"), .num(2)))]
+        for (index, value) in values.enumerated() {
+            let key = OpenUIString("$binding\(index)")
+            store.set(key, value: value, pristine: false)
+            let first = try XCTUnwrap(store.get(key)), second = try XCTUnwrap(store.get(key))
+            XCTAssertEqual(first, value)
+            XCTAssertEqual(second, value)
+            XCTAssertTrue(first.isSameValue(as: value))
+            XCTAssertTrue(second.isSameValue(as: value))
+        }
+    }
+
     func testOpaqueRuntimeCapturesRetainIdentityInsideExpressions() {
         let object = Value.object([.init(key: "n", value: .number(3))])
         let identity = CustomFunction(params: [ParamDef(name: "value", required: true)], fn: { $0["value"] ?? .null })

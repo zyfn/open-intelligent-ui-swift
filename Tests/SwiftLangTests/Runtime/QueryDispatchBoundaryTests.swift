@@ -131,6 +131,124 @@ final class QueryDispatchBoundaryTests: XCTestCase {
         XCTAssertFalse(state.errors.isEmpty)
     }
 
+    @MainActor func testObsoleteOversizedQueryResultCannotStopChangedArguments() async throws {
+        try await checkObsoleteOversizedQueryResponse(recreateDeclaration: false, result: .success(deepValue()))
+    }
+
+    @MainActor func testObsoleteOversizedQueryResultCannotStopRecreatedDeclaration() async throws {
+        try await checkObsoleteOversizedQueryResponse(recreateDeclaration: true, result: .success(deepValue()))
+    }
+
+    @MainActor func testObsoleteOversizedQueryErrorIsDiscardedBeforeReadingItsDescription() async throws {
+        for recreateDeclaration in [false, true] {
+            let error = DescribedToolFailure(String(repeating: "x", count: NativeValueCost.maximumUTF16 + 1))
+            try await checkObsoleteOversizedQueryResponse(recreateDeclaration: recreateDeclaration, result: .failure(error))
+            XCTAssertEqual(error.descriptionCount, 0, "Obsolete errors must not be inspected or encoded")
+        }
+    }
+
+    @MainActor private func checkObsoleteOversizedQueryResponse(recreateDeclaration: Bool, result: Result<Value, Error>) async throws {
+        let firstStarted = expectation(description: "Original request entered provider")
+        let currentStarted = expectation(description: "Current request entered provider")
+        let obsoleteLimit = expectation(description: "Obsolete response stopped the current document")
+        obsoleteLimit.isInverted = true
+        let provider = ControlledResponseProvider { index in
+            if index == 0 { firstStarted.fulfill() } else { currentStarted.fulfill() }
+        }
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        state.onError = { [weak state] errors in
+            if !errors.isEmpty, state?.isInterrupted == true { obsoleteLimit.fulfill() }
+        }
+        defer { state.onError = nil; state.reset(); provider.finishAll() }
+        state.setSource("$version=1\nq=Query(\"load\",{version:$version},\"waiting\")\nroot=Box(q)")
+        await fulfillment(of: [firstStarted], timeout: 2)
+        if recreateDeclaration {
+            // Preserve the same native manager while removing and recreating
+            // the declaration with exactly the original request key.
+            state.applyPatch("q=null")
+            state.applyPatch("q=Query(\"load\",{version:$version},\"waiting\")")
+        } else {
+            state.setState("$version", value: .number(2))
+        }
+        await fulfillment(of: [currentStarted], timeout: 2)
+        provider.finish(0, result: result)
+        await fulfillment(of: [obsoleteLimit], timeout: 0.2)
+        XCTAssertFalse(state.isInterrupted)
+        XCTAssertTrue(state.errors.isEmpty)
+
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            state.queryStates["q"]?.status == .success
+                && state.root.flatMap { PropValue.value($0, "value") } == .string("current")
+        }, object: nil)
+        provider.finish(1, value: .string("current"))
+        await fulfillment(of: [settled], timeout: 2)
+        XCTAssertTrue(state.canExecuteActions)
+        XCTAssertTrue(state.errors.isEmpty)
+        XCTAssertEqual(provider.callCount, 2)
+    }
+
+    @MainActor func testCurrentOversizedQueryResultStillStopsItsDocument() async throws {
+        let started = expectation(description: "Current request entered provider")
+        let stopped = expectation(description: "Current oversized result rejected")
+        let provider = ControlledResponseProvider { _ in started.fulfill() }
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        var reported = false
+        state.onError = { [weak state] errors in
+            if !reported, !errors.isEmpty, state?.isInterrupted == true {
+                reported = true; stopped.fulfill()
+            }
+        }
+        defer { state.onError = nil; state.reset(); provider.finishAll() }
+        state.setSource("q=Query(\"load\",{},\"bounded\")\nroot=Box(q)")
+        await fulfillment(of: [started], timeout: 2)
+        provider.finish(0, value: deepValue())
+        await fulfillment(of: [stopped], timeout: 2)
+        XCTAssertTrue(state.isInterrupted)
+        XCTAssertFalse(state.canExecuteActions)
+        XCTAssertEqual(PropValue.value(try XCTUnwrap(state.root), "value"), .string("bounded"))
+    }
+
+    @MainActor func testCurrentOversizedQueryErrorStopsItsDocument() async throws {
+        let started = expectation(description: "Current request entered provider")
+        let stopped = expectation(description: "Current oversized error rejected")
+        let provider = ControlledResponseProvider { _ in started.fulfill() }
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        var reported = false
+        state.onError = { [weak state] errors in
+            if !reported, !errors.isEmpty, state?.isInterrupted == true {
+                reported = true; stopped.fulfill()
+            }
+        }
+        defer { state.onError = nil; state.reset(); provider.finishAll() }
+        state.setSource("q=Query(\"load\",{},\"bounded\")\nroot=Box(q)")
+        await fulfillment(of: [started], timeout: 2)
+        provider.finish(0, result: .failure(MCPToolError(String(repeating: "x", count: NativeValueCost.maximumUTF16 + 1))))
+        await fulfillment(of: [stopped], timeout: 2)
+        XCTAssertTrue(state.isInterrupted)
+        XCTAssertFalse(state.canExecuteActions)
+        XCTAssertEqual(PropValue.value(try XCTUnwrap(state.root), "value"), .string("bounded"))
+    }
+
+    @MainActor func testSharedQueryRequestSurvivesRemovalOfItsOriginalDeclaration() async throws {
+        let started = expectation(description: "Shared request entered provider")
+        let provider = ControlledResponseProvider { index in if index == 0 { started.fulfill() } }
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        defer { state.reset(); provider.finishAll() }
+        state.setSource("first=Query(\"load\",{},null)\nkept=Query(\"load\",{},null)\nroot=Box(kept)")
+        await fulfillment(of: [started], timeout: 2)
+        XCTAssertEqual(provider.callCount, 1, "Both declarations share the same in-flight cache entry")
+        state.applyPatch("first=null")
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            state.queryStates["kept"]?.status == .success
+                && state.root.flatMap { PropValue.value($0, "value") } == .string("shared")
+        }, object: nil)
+        provider.finish(0, value: .string("shared"))
+        await fulfillment(of: [settled], timeout: 2)
+        XCTAssertTrue(state.canExecuteActions)
+        XCTAssertTrue(state.errors.isEmpty)
+        XCTAssertEqual(provider.callCount, 1, "Removing one consumer must not discard useful shared work")
+    }
+
     func testStandaloneMutationRejectsOversizedResultsWithoutHangingItsAwait() async {
         let provider = FixedProvider(result: deepValue())
         let manager = QueryManager(provider: provider)
@@ -140,6 +258,192 @@ final class QueryDispatchBoundaryTests: XCTestCase {
         XCTAssertTrue(manager.isDisposed)
         let calls = await provider.calls
         XCTAssertEqual(calls, 1)
+    }
+
+    func testOversizedToolErrorsRetireTheManagerAndSettleMutationWaiters() async {
+        let oversized = String(repeating: "x", count: NativeValueCost.maximumUTF16 + 1)
+        let described = DescribedToolFailure(oversized)
+        let failures: [Error] = [
+            MCPToolError(oversized),
+            described,
+            ToolNotFoundError(toolName: oversized),
+            ToolNotFoundError(toolName: "save", availableTools: Array(repeating: OpenUIString(""), count: NativeValueCost.maximumNodes)),
+            ToolNotFoundError(toolName: "save", availableTools: Array(repeating: OpenUIString(String(repeating: "x", count: 1_024)), count: 1_025)),
+        ]
+        for failure in failures {
+            let manager = QueryManager(tools: ["save": { _ in throw failure }])
+            defer { manager.dispose() }
+            let outcome = await manager.runMutation(statementId: "save", tool: "save", args: .object([]))
+            XCTAssertEqual(outcome.status, .error)
+            XCTAssertTrue(manager.nativeLimitExceeded)
+            XCTAssertTrue(manager.isDisposed)
+        }
+        XCTAssertEqual(described.descriptionCount, 1, "Measure and encode from one Error description")
+    }
+
+    func testOrdinaryToolErrorsKeepTheirExistingCodesAndText() async throws {
+        let described = DescribedToolFailure("transport unavailable")
+        let failures: [(error: Error, code: OpenUIErrorCode, message: String, text: String, hint: String?)] = [
+            (described, .toolError, "Mutation \"save\" failed: transport unavailable", "transport unavailable", nil),
+            (MCPToolError("permission denied"), .mcpError, "Mutation \"save\" returned an error: permission denied", "MCP tool error: permission denied", nil),
+            (ToolNotFoundError(toolName: "save", availableTools: ["read", "list"]), .toolNotFound,
+                "Mutation tool \"save\" not found", "[openui] No handler for tool \"save\". Available: read, list", "Available tools: read, list"),
+        ]
+        for failure in failures {
+            let manager = QueryManager(tools: ["save": { _ in throw failure.error }])
+            defer { manager.dispose() }
+            let outcome = await manager.runMutation(statementId: "save", tool: "save", args: .object([]))
+            XCTAssertEqual(outcome.status, .error)
+            let error = try XCTUnwrap(outcome.error)
+            XCTAssertEqual(error.source, .mutation)
+            XCTAssertEqual(error.code, failure.code)
+            XCTAssertEqual(error.message, failure.message)
+            XCTAssertEqual(error.hint, failure.hint)
+            guard case .object(let fields) = outcome.value else { return XCTFail("Expected the ordinary mutation result") }
+            XCTAssertEqual(fields["error"], .string(OpenUIString(failure.text)))
+            XCTAssertFalse(manager.nativeLimitExceeded)
+            XCTAssertFalse(manager.isDisposed)
+        }
+        XCTAssertEqual(described.descriptionCount, 1)
+    }
+
+    func testChangedAndRemovedQueriesCancelSuspendedProvidersBeforeTheyReturn() async {
+        let started = (0..<3).map { expectation(description: "Request \($0) entered provider") }
+        let cancelled = (0..<3).map { expectation(description: "Request \($0) cancelled while suspended") }
+        let provider = ControlledResponseProvider(onCall: { index in fulfillProviderEvent(started, at: index) },
+            onCancellation: { index in fulfillProviderEvent(cancelled, at: index) })
+        let manager = QueryManager(provider: provider)
+        defer { manager.dispose(); provider.finishAll() }
+        let evaluator = queryEvaluator()
+        for version in 1...3 {
+            manager.evaluateStatements([query(version: Double(version))], evaluator: evaluator)
+            await fulfillment(of: [started[version - 1]], timeout: 2)
+            if version > 1 { await fulfillment(of: [cancelled[version - 2]], timeout: 2) }
+            XCTAssertEqual(provider.cancelledIndices.sorted(), Array(0..<(version - 1)))
+            XCTAssertEqual(manager.queryState(for: "q")?.status, .loading)
+        }
+        manager.evaluateStatements([], evaluator: evaluator)
+        await fulfillment(of: [cancelled[2]], timeout: 2)
+        XCTAssertEqual(provider.cancelledIndices.sorted(), [0, 1, 2])
+        XCTAssertEqual(provider.callCount, 3)
+        XCTAssertNil(manager.queryState(for: "q"))
+        XCTAssertFalse(manager.isDisposed)
+        XCTAssertFalse(manager.nativeLimitExceeded)
+        // No provider continuation has returned: cancellation and native
+        // Promise retirement must not depend on cooperation from transport.
+    }
+
+    func testSharedQueryCancelsItsProviderOnlyAfterTheLastConsumerIsRemoved() async {
+        let started = expectation(description: "Shared provider entered")
+        let cancelled = expectation(description: "Last consumer released shared provider")
+        let provider = ControlledResponseProvider(onCall: { _ in started.fulfill() },
+            onCancellation: { _ in cancelled.fulfill() })
+        let manager = QueryManager(provider: provider)
+        defer { manager.dispose(); provider.finishAll() }
+        let evaluator = queryEvaluator()
+        manager.evaluateStatements([query(version: 1, id: "first"), query(version: 1, id: "kept")], evaluator: evaluator)
+        await fulfillment(of: [started], timeout: 2)
+        manager.evaluateStatements([query(version: 1, id: "kept")], evaluator: evaluator)
+        XCTAssertTrue(provider.cancelledIndices.isEmpty)
+        XCTAssertEqual(provider.callCount, 1)
+        XCTAssertEqual(manager.queryState(for: "kept")?.status, .loading)
+        manager.evaluateStatements([], evaluator: evaluator)
+        await fulfillment(of: [cancelled], timeout: 2)
+        XCTAssertEqual(provider.cancelledIndices, [0])
+        XCTAssertFalse(manager.isDisposed)
+    }
+
+    func testQueryKeyExchangeSurvivesAnIntermediateNewRequestNotification() async {
+        let started = (0..<3).map { expectation(description: "Request \($0) entered provider") }
+        let provider = ControlledResponseProvider { index in fulfillProviderEvent(started, at: index) }
+        let manager = QueryManager(provider: provider)
+        defer { manager.dispose(); provider.finishAll() }
+        let evaluator = queryEvaluator()
+        manager.evaluateStatements([query(version: 1, id: "left")], evaluator: evaluator)
+        await fulfillment(of: [started[0]], timeout: 2)
+        manager.evaluateStatements([query(version: 1, id: "left"), query(version: 2, id: "right")], evaluator: evaluator)
+        await fulfillment(of: [started[1]], timeout: 2)
+        // Starting middle publishes inside applyNodes, after left changes
+        // away from key 1 but before right becomes that key's next consumer.
+        manager.evaluateStatements([query(version: 2, id: "left"), query(version: 3, id: "middle"),
+            query(version: 1, id: "right")], evaluator: evaluator)
+        await fulfillment(of: [started[2]], timeout: 2)
+        XCTAssertTrue(provider.cancelledIndices.isEmpty)
+        XCTAssertEqual(provider.callCount, 3)
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            manager.queryState(for: "left")?.data == .string("B")
+                && manager.queryState(for: "right")?.data == .string("A")
+                && manager.queryState(for: "middle")?.data == .string("C")
+        }, object: nil)
+        provider.finish(0, value: .string("A"))
+        provider.finish(1, value: .string("B"))
+        provider.finish(2, value: .string("C"))
+        await fulfillment(of: [settled], timeout: 2)
+        XCTAssertTrue(provider.cancelledIndices.isEmpty)
+    }
+
+    @MainActor func testUpstreamCompletionCancelsItsObsoleteReaderWithoutWaitingForThatReader() async {
+        let started = (0..<4).map { expectation(description: "Request \($0) entered provider") }
+        let readerCancelled = expectation(description: "Old reader cancelled while suspended")
+        let provider = ControlledResponseProvider(onCall: { index in fulfillProviderEvent(started, at: index) },
+            onCancellation: { index in if index == 1 { readerCancelled.fulfill() } })
+        let state = OpenUIState(schema: schema(), toolProvider: provider)
+        defer { state.reset(); provider.finishAll() }
+        state.setSource("upstream=Query(\"load\",{},0)\nreader=Query(\"read\",{version:upstream},\"waiting\")\nroot=Box(reader)")
+        await fulfillment(of: [started[0]], timeout: 2)
+        provider.finish(0, value: .number(1))
+        await fulfillment(of: [started[1]], timeout: 2)
+        state.runQuery(statementId: "upstream", tool: "load", args: .object([]), defaults: .number(0))
+        await fulfillment(of: [started[2]], timeout: 2)
+        provider.finish(2, value: .number(2))
+        await fulfillment(of: [started[3], readerCancelled], timeout: 2)
+        XCTAssertEqual(provider.cancelledIndices, [1])
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            state.queryStates["reader"]?.status == .success
+                && state.root.flatMap { PropValue.value($0, "value") } == .string("current")
+        }, object: nil)
+        provider.finish(3, value: .string("current"))
+        await fulfillment(of: [settled], timeout: 2)
+        XCTAssertTrue(state.errors.isEmpty)
+        XCTAssertTrue(state.canExecuteActions)
+    }
+
+    func testBatchRetirementSettlesEveryPromiseBeforeCancellationHandlersReenter() async {
+        let started = (0..<5).map { expectation(description: "Request \($0) entered provider") }
+        let reentered = expectation(description: "First cancellation synchronously reused the other old key")
+        let provider = ControlledResponseProvider { index in fulfillProviderEvent(started, at: index) }
+        let manager = QueryManager(provider: provider)
+        defer { manager.dispose(); provider.finishAll() }
+        let evaluator = queryEvaluator()
+        let replacements = [query(version: 3, id: "left"), query(version: 4, id: "right")]
+        let returned = [query(version: 2, id: "returned"), query(version: 1, id: "returned")]
+        let reentry = ProviderCancellationGate()
+        provider.setCancellationHandler { [weak manager] index in
+            guard index < 2, reentry.claim() else { return }
+            // Whichever old request is cancelled first, adopt the other old
+            // key. Keeping left/right also keeps that key as previous data.
+            manager?.evaluateStatements(replacements + [returned[index]], evaluator: evaluator)
+            reentered.fulfill()
+        }
+        manager.evaluateStatements([query(version: 1, id: "left")], evaluator: evaluator)
+        await fulfillment(of: [started[0]], timeout: 2)
+        manager.evaluateStatements([query(version: 1, id: "left"), query(version: 2, id: "right")], evaluator: evaluator)
+        await fulfillment(of: [started[1]], timeout: 2)
+        manager.evaluateStatements(replacements, evaluator: evaluator)
+        await fulfillment(of: [reentered, started[2], started[3], started[4]], timeout: 2)
+        XCTAssertEqual(provider.callCount, 5, "The reused old key needs a new provider request")
+        XCTAssertEqual(provider.callVersions.filter { $0 == .number(1) || $0 == .number(2) }.count, 3)
+        XCTAssertEqual(provider.cancelledIndices.sorted(), [0, 1])
+        XCTAssertEqual(manager.queryState(for: "returned")?.status, .loading)
+        XCTAssertNil(manager.queryState(for: "returned")?.error)
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            manager.queryState(for: "returned")?.status == .success
+                && manager.queryState(for: "returned")?.data == .string("accepted")
+        }, object: nil)
+        for index in 2..<5 { provider.finish(index, value: .string("accepted")) }
+        await fulfillment(of: [settled], timeout: 2)
+        XCTAssertNil(manager.queryState(for: "returned")?.error)
+        XCTAssertFalse(manager.nativeLimitExceeded)
     }
 
     func testChangedQueryKeyCannotDispatchAnOldRequestAfterPreflightSuspends() async {
@@ -231,8 +535,8 @@ final class QueryDispatchBoundaryTests: XCTestCase {
         XCTAssertTrue(manager.isDisposed)
     }
 
-    private func query(version: Double, defaults: ASTNode = .null) -> QueryStatementInfo {
-        QueryStatementInfo(statementId: "q", toolAST: .str("load"), argsAST: .obj([("version", .num(version))]),
+    private func query(version: Double, defaults: ASTNode = .null, id: String = "q") -> QueryStatementInfo {
+        QueryStatementInfo(statementId: id, toolAST: .str("load"), argsAST: .obj([("version", .num(version))]),
             defaultsAST: defaults, refreshAST: nil, deps: nil, complete: true)
     }
 
@@ -291,6 +595,98 @@ private actor FixedProvider: ToolProvider {
     func callTool(name: OpenUIString, arguments: OpenUIObject) async throws -> Value {
         calls += 1
         return result
+    }
+}
+
+private func fulfillProviderEvent(_ expectations: [XCTestExpectation], at index: Int) {
+    guard expectations.indices.contains(index) else {
+        XCTFail("Unexpected provider event at request \(index)")
+        return
+    }
+    expectations[index].fulfill()
+}
+
+private final class ProviderCancellationGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var claimed = false
+    func claim() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard !claimed else { return false }
+        claimed = true
+        return true
+    }
+}
+
+/// Intentionally ignores task cancellation so that acceptance is tested at the
+/// SDK boundary, independently of whether a network provider cooperates.
+private final class ControlledResponseProvider: ToolProvider, @unchecked Sendable {
+    private let lock = NSLock()
+    private var pending: [Int: CheckedContinuation<Value, Error>] = [:]
+    private var count = 0
+    private var closed = false
+    private var cancelled: [Int] = []
+    private var versions: [Value] = []
+    private let onCall: @Sendable (Int) -> Void
+    private var onCancellation: @Sendable (Int) -> Void
+    convenience init(onCall: @escaping @Sendable (Int) -> Void) {
+        self.init(onCall: onCall, onCancellation: { _ in })
+    }
+    init(onCall: @escaping @Sendable (Int) -> Void, onCancellation: @escaping @Sendable (Int) -> Void) {
+        self.onCall = onCall; self.onCancellation = onCancellation
+    }
+    var callCount: Int { lock.lock(); defer { lock.unlock() }; return count }
+    var callVersions: [Value] { lock.lock(); defer { lock.unlock() }; return versions }
+    var cancelledIndices: [Int] { lock.lock(); defer { lock.unlock() }; return cancelled }
+    func setCancellationHandler(_ handler: @escaping @Sendable (Int) -> Void) {
+        lock.lock(); onCancellation = handler; lock.unlock()
+    }
+    private func nextIndex(arguments: OpenUIObject) -> Int? {
+        lock.lock(); defer { lock.unlock() }
+        guard !closed else { return nil }
+        let index = count; count += 1
+        versions.append(arguments["version"] ?? .undefined)
+        return index
+    }
+    private func recordCancellation(_ index: Int) {
+        lock.lock(); cancelled.append(index)
+        let handler = onCancellation; lock.unlock()
+        handler(index)
+    }
+    func callTool(name: OpenUIString, arguments: OpenUIObject) async throws -> Value {
+        guard let index = nextIndex(arguments: arguments) else { return .null }
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                lock.lock()
+                guard !closed else { lock.unlock(); continuation.resume(returning: .null); return }
+                pending[index] = continuation
+                lock.unlock()
+                onCall(index)
+            }
+        }, onCancel: { self.recordCancellation(index) })
+    }
+    func finish(_ index: Int, value: Value) {
+        finish(index, result: .success(value))
+    }
+    func finish(_ index: Int, result: Result<Value, Error>) {
+        lock.lock(); let continuation = pending.removeValue(forKey: index); lock.unlock()
+        continuation?.resume(with: result)
+    }
+    func finishAll() {
+        lock.lock(); closed = true
+        let continuations = Array(pending.values); pending.removeAll(); lock.unlock()
+        continuations.forEach { $0.resume(returning: .null) }
+    }
+}
+
+private final class DescribedToolFailure: Error, CustomStringConvertible, @unchecked Sendable {
+    private let text: String
+    private let lock = NSLock()
+    private var reads = 0
+    init(_ text: String) { self.text = text }
+    var descriptionCount: Int { lock.lock(); defer { lock.unlock() }; return reads }
+    var description: String {
+        lock.lock(); reads += 1; lock.unlock()
+        return text
     }
 }
 

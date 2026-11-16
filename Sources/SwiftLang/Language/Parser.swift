@@ -9,4 +9,4 @@ public func parseExpression(_ tokens: [Token]) -> ASTNode {
 func emptyParseResult(incomplete: Bool = true) -> ParseResult {
     ParseResult(root: nil, rootExpression: nil, meta: ParseMeta(incomplete: incomplete, unresolved: [], orphaned: [], statementCount: 0, errors: []), stateDeclarations: [], queryStatements: [], mutationStatements: [])
 }
-func stripMessageMarkers(_ text: String) -> String { text.contains("]]>openui:") ? parseMessage(text).content : text }
+func stripMessageMarkers(_ text: String) -> String { text.contains("]]>openui:") ? parseMessageContent(text) : text }

@@ -72,7 +72,7 @@ final class CoreStreamParser: StreamParser {
             // The official protocol handles partial lines, mid-line retries,
             // CRLF and the last content frame. A new frame can replace a broken
             // quoted prefix, so it must not be appended to that prefix's parser.
-            selectedSource = parseMessage(input, streaming: !complete).content
+            selectedSource = parseMessageContent(input, streaming: !complete)
             selectedEnvelope = NativeSourceEnvelope()
             guard selectedEnvelope.append(selectedSource!) else {
                 blocked = true; return limited

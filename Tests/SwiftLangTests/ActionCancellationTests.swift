@@ -3,6 +3,33 @@ import XCTest
 @testable import SwiftLang
 
 final class ActionCancellationTests: XCTestCase {
+    @MainActor func testCancelledTriggerRejectsLegacyPlanAndDefaultActions() async {
+        let schema = LibrarySchema(components: ["Button": [ParamDef(name: "action", required: true)]], callDefs: builtinCallDefs)
+        let state = OpenUIState(schema: schema)
+        state.setSource("root=Button(@ToAssistant(\"ready\"))")
+        let legacy = Value.object([
+            ObjectField(key: "type", value: .string("open_url")),
+            ObjectField(key: "url", value: .string("https://example.com")),
+        ])
+        let plan = Value.actionPlan(ActionPlan(steps: [.openUrl(urlAST: .str("https://example.com"))]))
+        var dispatched: [ActionEvent] = []
+        state.onAction = { dispatched.append($0) }
+        let actions: [Value?] = [legacy, plan, nil, .null]
+        for action in actions {
+            // This test owns MainActor until the await below, so cancellation
+            // precedes entry into every representation of triggerAction.
+            let task = Task { await state.triggerAction("Open", action: action) }
+            task.cancel()
+            let events = await task.value
+            XCTAssertTrue(events.isEmpty)
+        }
+        XCTAssertTrue(dispatched.isEmpty)
+        let accepted = await state.triggerAction("Open", action: legacy)
+        XCTAssertEqual(accepted.count, 1, "An active legacy action retains its existing behavior")
+        XCTAssertEqual(dispatched.count, 1)
+        XCTAssertEqual(accepted.first?.type, "open_url")
+    }
+
     /// Cancellation is observed but intentionally does not release the await.
     /// The SDK must finish its own waiter without depending on this provider.
     private final class SuspendedProvider: ToolProvider, @unchecked Sendable {

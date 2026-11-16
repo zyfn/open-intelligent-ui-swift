@@ -1,3 +1,4 @@
+import JavaScriptCore
 import XCTest
 @testable import SwiftLang
 
@@ -91,6 +92,53 @@ final class FramedStreamingTests: XCTestCase {
             // A plain prefix can be followed by a new framed attempt as well.
             let framedAgain = parser.push("\n]]>openui:content\nroot=Box(\"framed\")", complete: true)
             assertEquivalent(framedAgain, createParser(schema: schema()).parse("root=Box(\"framed\")"), "new frame")
+        }
+    }
+
+    func testParserDoesNotProjectUnusedMessageContext() throws {
+        let core = SharedCore.shared
+        try core.sync {
+            // Count actual context enumeration at the bridge boundary. The
+            // shared message parser can return this context without reading
+            // its keys; converting it to Swift JSONValue would enumerate it.
+            let probe = try XCTUnwrap(core.context.evaluateScript("""
+                (() => {
+                    const original = JSON.parse;
+                    let enumerations = 0;
+                    JSON.parse = function(text, ...rest) {
+                        const value = original.call(this, text, ...rest);
+                        if (value && value.nativeMessageContextProbe === true) {
+                            return new Proxy(value, {
+                                ownKeys(target) { enumerations++; return Reflect.ownKeys(target); }
+                            });
+                        }
+                        return value;
+                    };
+                    return {
+                        count: () => enumerations,
+                        restore: () => { JSON.parse = original; }
+                    };
+                })()
+                """))
+            defer { probe.invokeMethod("restore", withArguments: []) }
+            let wire = "]]>openui:content\nroot=Box(\"kept\")\n"
+                + "]]>openui:context\n{\"nativeMessageContextProbe\":true,\"items\":[1,2,3]}"
+            let batch = createParser(schema: schema()).parse(wire)
+            let stream = createStreamingParser(schema: schema())
+            let first = stream.set(wire)
+            let final = stream.push("\n", complete: true)
+            for result in [batch, first, final] {
+                XCTAssertNotNil(result.root)
+                XCTAssertTrue(result.meta.errors.isEmpty)
+            }
+            XCTAssertEqual(probe.invokeMethod("count", withArguments: []).toInt32(), 0,
+                "Parsing Lang must not enumerate unused message context")
+
+            let message = parseMessage(wire)
+            XCTAssertEqual(message.context.field("nativeMessageContextProbe"), .boolean(true))
+            XCTAssertEqual(message.context.field("items"), .array([.number(1), .number(2), .number(3)]))
+            XCTAssertGreaterThan(probe.invokeMethod("count", withArguments: []).toInt32(), 0,
+                "The public message API must still project and return its context")
         }
     }
 

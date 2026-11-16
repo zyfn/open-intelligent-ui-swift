@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.6 · 更新日期：2026-11-16
+文档版本：1.7 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -100,7 +100,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-前一轮以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线完成下表修复，已通过 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 合入 main，其源码树为 `786a43155949e57ada4ea8bd898d381ab17420c3`。本轮从该 main 建立 `fix/kernel-stability-20261116`，继续修复重新审查确认的问题；下文将前轮记录、本轮候选与客户端尚未关闭的验收分开。设计约束见[架构](architecture.md#内核必须保持的约束)，依赖版本及兼容性检查仍按第 3 节记录。源码修改、JS 通过或合并均不代表原生验收已通过。
+早期以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线完成下表修复，经 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 合入 main，随后继续处理原生执行及文本同步。本次重新确认 main 为 `c7310054e5a58ecb7e42e9f37e4c77e7fed30ce7`，按用户要求沿用 `fix/kernel-stability-20261116`，仅修复内核；组件视觉由独立任务负责。下文保留历史执行证据，并单列本次追加修复与尚未关闭的客户端验收。设计约束见[架构](architecture.md#内核必须保持的约束)，依赖版本及兼容性检查仍按第 3 节记录。源码修改、JS 通过或合并均不代表原生验收已通过。
 
 | 问题 | 触发与依据 | 前轮处理及验证层级 |
 | --- | --- | --- |
@@ -117,11 +117,11 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 前轮修复新增 54 项 XCTest，但本审查环境缺少 Swift/Xcode，`swift test` 曾实际返回 `swift: command not found`；完整 SwiftPM 模块图检查也受阻。已回读前轮合并提交的 [CI run 43809174570](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43809174570)：reproducible-inputs 与 dependency-security 为 failure，runner 与 steps 为空；native-sdk 为 skipped。该记录既不是前轮原生通过证据，也不是本轮候选的 CI 结果。本轮 Swift/XCTest 同样未编译、未执行，Release 宿主测试和设备基准未运行。前轮日志保存在忽略的 `outputs/kernel-audit-9e05d88/`，不另建并行设计或审查文档。
 
-### 本轮候选的实际修复与验证
+### 已合入基线的前轮修复与验证
 
-本轮已修改下列生产实现并补充回归，状态是“代码已实现，原生验收待执行”。客户端继续使用现有 `push`、`complete`、`interrupt` 及既有回调；没有新增流句柄、`beginStream` 或替代接入方式。公开 Lang 值、参数及业务回调顺序保留。裸 `push(String)` 本身没有请求来源信息；过滤已退休请求的迟到分块仍属于宿主现有请求生命周期管理，不能把这一限制包装成新的 SDK 用法。
+该轮已修改下列生产实现并补充回归，状态是“代码已实现，原生验收待执行”。客户端继续使用现有 `push`、`complete`、`interrupt` 及既有回调；没有新增流句柄、`beginStream` 或替代接入方式。公开 Lang 值、参数及业务回调顺序保留。裸 `push(String)` 本身没有请求来源信息；过滤已退休请求的迟到分块仍属于宿主现有请求生命周期管理，不能把这一限制包装成新的 SDK 用法。
 
-| 本轮修复 | 实际处理 | 已执行证据与待验收范围 |
+| 该轮修复 | 实际处理 | 已执行证据与待验收范围 |
 | --- | --- | --- |
 | Store 总量与原子初始化 | `CoreStore` 在编码前检查写入后的整份状态，用字段成本账本计算替换后的总量；initialize 分别预检 defaults/persisted 输入并检查最终候选，确认后一次提交。失败保留旧值，合法后续写入可恢复，原 JS Store 仍持有业务值和通知 | 已补增量写入后的 snapshot 往返、替换、pristine/undefined 与失败不部分提交回归；Swift 未运行，不能声称真实 Store 往返已验收 |
 | Action 调用方取消与 Mutation 等待退出 | 步骤前后及 await 返回后检查 `Task.isCancelled`；Mutation waiter 处理取消、完成、退休和 dispose 的竞争，并只恢复一次 continuation。取消对应请求后可重新操作，其他 Query/Mutation 不随之退休 | 已补已取消入口、等待中取消、忽略取消的 provider、迟到结果和后续步骤停止等原生回归；尚未执行。SDK 结束等待不代表可以抢占宿主 provider 的外部工作 |
@@ -136,19 +136,19 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | IntelligentUI 预览签名快照 | 稳定 source/owner/retry 沿用解析后的 request snapshot；以宿主 cap 后的有效像素决定尺寸档，避免等效尺寸因重复签名产生不同请求 | nonce 签名及 cap 回归已加入，尚未运行；不能以源码变化关闭用户报告的三项 signed media 失败 |
 | 同源远程 SVG 重试 | 可重试的网络/内容失败显示重试操作，增加 attempt 并重新请求同一 source；保留 readiness、授权和目标存活检查，无效请求不绕过既有校验 | 首次失败、同节点重试恢复的原生回归已加入，未执行；此修复与用户 SVG 拖动像素失败属于不同验收 |
 
-最终生成资源已执行 **96/96** 项 `node --test Tools/Core/native-*.test.mjs`，**0 failed、0 skipped**。其中包含本轮 49 项定向集合；49 是全量的子集，不能相加。独立 `verify-compatibility` 另执行 **51 parser、5 action、4 Query、6 serializer round-trip、21 Lang 1.1**，`unexplainedDifferences=0`。对照使用未应用原生补丁的固定官方源码；没有修改历史业务 fixture 来接受漂移。日志位于忽略的 `outputs/kernel-repair-native-tests.log` 与 `outputs/kernel-repair-compatibility.log`。
+最终生成资源已执行 **96/96** 项 `node --test Tools/Core/native-*.test.mjs`，**0 failed、0 skipped**。其中包含该轮 49 项定向集合；49 是全量的子集，不能相加。独立 `verify-compatibility` 另执行 **51 parser、5 action、4 Query、6 serializer round-trip、21 Lang 1.1**，`unexplainedDifferences=0`。对照使用未应用原生补丁的固定官方源码；没有修改历史业务 fixture 来接受漂移。日志位于忽略的 `outputs/kernel-repair-native-tests.log` 与 `outputs/kernel-repair-compatibility.log`。
 
-| 其他本轮检查 | 结果与边界 |
+| 其他该轮检查 | 结果与边界 |
 | --- | --- |
 | Validation 与 catalog compatibility | 13/13 PASS，0 failed、0 skipped；覆盖契约、输入验证及目录兼容性。日志为 `outputs/kernel-repair-contract-tests.log`，不代表原生界面通过 |
 | 源码与所有权检查 | PASS；确认源码职责/归属约束，属于静态检查，不是 Swift 编译或并发时序测试 |
 | Gallery 目录完整性检查 | PASS；确认目录完整性，不代表 Gallery 的窗口、拖动、图片升级或内存已通过原生验收 |
 | 本地化与文档链接 | PASS；检查既有资源键、调用位置与修改文档的本地链接 |
-| 本轮 GitHub Actions 原生流水线 | BLOCKED；已对代码提交 `5f4ed69b0eb7815e07704fc36f12449c6caa4db9` 的新分支手动触发 [run 43815639524](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43815639524)。两个前置任务的 runner/steps 均为空，页面明确提示账户付款或支出限额阻止启动；`native-sdk` 为 skipped，未进入 Swift 编译/XCTest，不能视为源码测试失败或通过 |
+| 该轮 GitHub Actions 原生流水线 | BLOCKED；已对代码提交 `5f4ed69b0eb7815e07704fc36f12449c6caa4db9` 的新分支手动触发 [run 43815639524](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43815639524)。两个前置任务的 runner/steps 均为空，页面明确提示账户付款或支出限额阻止启动；`native-sdk` 为 skipped，未进入 Swift 编译/XCTest，不能视为源码测试失败或通过 |
 
-本轮 `lang-core.js` SHA-256 为 `ebabf51a466bc64aa250579397ffa635332ac8153d0867b28f26fb6528b293a8`，`core-manifest.json` SHA-256 为 `4cd06294b0bd03e903848cf1d9bcc62407f2751fd5e3adfbf2813468376f1fb8`。bundle、manifest 与适配清单由固定输入重新生成。预算新增参数和 readiness scope 仅存在于私有 SwiftCore bridge，不要求客户端采用新的 Lang 语法、公开参数或调用方式。
+该轮 `lang-core.js` SHA-256 为 `ebabf51a466bc64aa250579397ffa635332ac8153d0867b28f26fb6528b293a8`，`core-manifest.json` SHA-256 为 `4cd06294b0bd03e903848cf1d9bcc62407f2751fd5e3adfbf2813468376f1fb8`。bundle、manifest 与适配清单由固定输入重新生成。预算新增参数和 readiness scope 仅存在于私有 SwiftCore bridge，不要求客户端采用新的 Lang 语法、公开参数或调用方式。
 
-**本轮全部 Swift/XCTest 均未编译、未执行，所有媒体原生测试待验收。** 新增 `MountedStreamingTextProgressTests` 挂载真实 NSHostingView/OpenUIContentView，先显示半句 plain heading 与 Markdown，补全字段后继续用现有 push 追加无关节点约三秒，并从 AppKit accessibility 控件断言 done 前已出现完整文本。这只是已写入的回归，不是本环境的运行结果，更不是 Muse 回放、像素或 FPS 验收。旧 Slider 的 `testDraftFeedbackRefreshDoesNotFlushWritesOrRequestFocus` 已迁入现有测试文件，同样待执行。
+**该轮全部 Swift/XCTest 均未编译、未执行，所有媒体原生测试待验收。** 新增 `MountedStreamingTextProgressTests` 挂载真实 NSHostingView/OpenUIContentView，先显示半句 plain heading 与 Markdown，补全字段后继续用现有 push 追加无关节点约三秒，并从 AppKit accessibility 控件断言 done 前已出现完整文本。这只是已写入的回归，不是本环境的运行结果，更不是 Muse 回放、像素或 FPS 验收。旧 Slider 的 `testDraftFeedbackRefreshDoesNotFlushWritesOrRequestFocus` 已迁入现有测试文件，同样待执行。
 
 ### 原生文本流中停滞
 
@@ -161,6 +161,37 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 `MountedStreamingTextProgressTests` 在既有挂载回归上扩展为 4 项 XCTest、6 个场景，使用实际挂载的文本和标准 `OpenUIState.push` 路径，覆盖目标字段完成后其它节点继续生成、文字与流式状态同帧变化，以及最终分片紧接 `complete` / `interrupt`。验收必须确认缓冲和 Markdown 准备都收到完整文字、界面在 `complete` 之前更新；一次性输入完整程序或仅在流结束后检查正确文字不能替代该项。既有 `StreamingTextPresentationTests` 的无副作用读取和合并约束保留。
 
 本次源码/所有权检查与 `git diff --check` 通过；`swift test` 实际因环境找不到 `swift` 返回 127，原生 XCTest 与客户端分块回放尚未执行，不能将源码修正称为 App 验收通过。执行结果与环境阻塞记录在忽略的 `outputs/verification/native-text-sync/`，不另建并行报告。
+
+### 本次内核追加修复与验证
+
+本次代码只涉及 SwiftLang 的语言/运行时、Core 适配与对应回归；未修改两个组件库的 UI 源码、历史 fixture、公开 `push / complete / interrupt` 入口或业务回调协议。新增 29 个 XCTest 方法，均仍待 Apple 环境编译和运行。
+
+| 问题 | 实际修复及回归边界 |
+| --- | --- |
+| 旧 Query 结果污染同名同 key 的新请求 | 以已有 cache entry 身份及当前消费者判定有效性；success、error、finally 和原生 provider 入口/返回统一遵守。受控 Promise 回归在旧 `c7310054` 资源中复现旧失败清掉新 loading、带入旧 error 等问题；修复后通过 |
+| 共享请求状态与缓存恢复不一致 | 原声明移除或改参后，其他消费者仍接收有效共享结果；loading、refetching、错误与旧缓存引用一起更新。成功缓存命中也清理旧错误；多消费者 invalidate 只形成一个待刷新请求，dispose 自身生成停止加载的末态快照。清理统一在完整节点批次之后决定，保留同批接手和有效 fallback，移除连续改参后无消费者的旧缓存 |
+| 旧请求长期不返回时持续积压 | 声明完整评估以及工具结果触发的 reader 重算结束后，整批移除已经失效的原生 pending，先 reject 全部旧 Promise，再向 Task 发取消，避免同步取消处理器重新消费未退休的旧条目；不在节点更新中途通知时清理。新增连续改参/删除、共享消费者、跨 ID key 交换、自动 reader 更新及双请求取消重入 5 项回归；原生未运行。库不能强制停止 provider 自身不响应取消的工作 |
+| 旧超大结果或错误停止新文档 | Swift 返回阶段先复核请求，再扫描 Value、读取 Error 描述或编码。旧结果直接结束原 Promise；当前请求仍受完整预算约束。新增改参、删除再建立、共享消费者和旧错误描述零读取回归；原生未运行 |
+| 错误负载和 MCP 提取绕过预算 | MCP 文本、普通 Error 描述、ToolNotFound 名称及名单在 JS 分配前检查总量；MCP 原始 JSON 先预检，文本展开后再验图预算。沿用既有错误渠道，正常错误类型/文本不变，Mutation 等待者能结束。当前超限及普通错误的原生回归未运行；MCP 展开拒绝在 JS 中已执行 |
+| 合法深度边界静默截断 | 256 层容器后的标量在 JS 预算内，原 Swift guard 却先返回 null。现在先解标量，再限制继续展开的容器；新增 256 层 number/bool/string/null 保值与 257 层拒绝回归。JS 接受边界已验证，Swift 保值回归未运行 |
+| 同代已移除组件的旧写入与动作 | revision 不变时也必须属于当前 live tree；绑定、字段及初始化在实际排队执行时复核目标。保留 partial 呈现开关、公开 Host 写入、相同 props 的最新 readiness 和有效动作自移除后的后续步骤；对应 7 项原生回归待运行 |
+| 直接绑定往返后改变内部类型 | ReactiveAssign 缓存命中使用与首次解码相同的分类；直接 `$value` 仍为 binding，真实表达式仍为 reactiveBinding。新增首次/缓存及 Store 往返的类型、值和身份回归，原生未运行 |
+| 取消任务中的 legacy 动作仍派发 | triggerAction 的公共执行入口检查 Task 取消，覆盖 legacy、plan 和默认动作；取消后的外部事件不能继续发送，正常动作不变，原生回归未运行 |
+| Lang 解析重复投影未使用的消息 context | Parser 和 StreamParser 只读取共享消息解析器选中的 content，避免逐块创建无用 Swift JSONValue。公开 parseMessage 保留完整 context；新增桥接枚举计数回归，原生未运行。未改消息协议，也未移除 JS 对 context 的解析 |
+
+本次实际执行结果：
+
+| 检查 | 结果与限制 |
+| --- | --- |
+| 正式 Core 生成 | PASS；固定上游、锁文件及生成器生成 bundle/manifest。追加缓存清理后已重建并重新执行全套 JS 回归 |
+| Core 全套 JS 回归 | **119/119 PASS，0 failed、0 skipped**；包含 Query 22 项、MCP 6 项，以及原有流式分片、预算、readiness 等回归。最终缓存清理修复后已重新运行整套 |
+| 旧资源反证 | 旧 `c7310054` 的 Query 定向 **5 pass / 10 fail**；MCP 原 5 项 **1 pass / 4 fail**。相同用例在修复资源均通过。追加缓存清理回归在本轮前一候选 `39df813e…` 上为 22 项中的 4 项失败，最终资源已通过；新增合法深度对照不是旧失败案例 |
+| 独立兼容性 | PASS：51 parser、5 action、4 Query、6 serializer round-trip、21 Lang 1.1，`unexplainedDifferences=0`。对照源码与历史 fixture 预期未改 |
+| 源码/所有权与 diff | `check_openui_integration.py` 和 `git diff --check` PASS；仅说明静态范围和格式 |
+| Swift 与完整模块图 | BLOCKED；本机 `swift test` 返回 127（找不到 swift），`check_module_boundaries.py` 同样无法取得 SwiftPM 模块图。新增/既有 XCTest 均未在本次运行 |
+| App、Release、设备性能 | 未执行；不能据此关闭用户的实际分块回放、半句显示、帧率或长期内存验收 |
+
+最终 `lang-core.js` SHA-256 为 `52011d566280a76acb794ff2b1db5170be02f79ae0590bc7655e568379ac6715`；`core-manifest.json` SHA-256 为 `27f2924f2735144ef89ca4a9eeef12886b2aba1a1bb064681248ec3e79d6d00b`。执行证据保存在忽略的 `outputs/kernel-followup/`：正式生成、旧资源失败、修复后定向/全量以及独立兼容性日志均在该目录。Swift 未执行的项目仍是验收缺口，不以 JS 或静态检查替代。
 
 ### 客户端仍未关闭的验收
 
@@ -201,12 +232,14 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 计划累计预算的修复依据也保留为历史证据：修复前，128 个 Set 与 128 行 Each 的合法程序按原生控制流会产生 129 次 root 求值，Node 单次 root 为 1,549 work；另一份 100 个 Set 的程序逐步调用 boundedEvaluate 并写入 JS Store，每步 19,315 work、合计 1,931,500 work，仍无单步超限。前者是源码次数推导，后者是 JS 单步预算探针，都不是设备阻塞时长。本轮已加整条 action 额度与步骤间取消检查，原生累计拒绝的实际运行和响应效果仍待验收，不能继续将“完全没有计划预算”列为当前实现状态。
 
-以下仍是开放项，不能标为本轮已解决：
+本次还对 Query 快照序列化做了计数探针：共享一个 1,000 项默认数组，分别建立 10、20、40 个合法独立 Query；输入长 2,292 / 2,582 / 3,162 UTF-16 units，均无解析错误。整个初始化分别发生 12 / 22 / 42 次全快照 JSON.stringify，累计序列化 131,597 / 464,387 / 1,734,167 UTF-16 units，而已记录求值 work 仅 40 / 80 / 160。它证明快照比较中的重复工作接近平方增长，现有求值 work 不能代表该路径成本。记录在 `outputs/kernel-followup/query-snapshot-cost.jsonl`；不是 Apple CPU、帧率或本轮前后提速结论。另用实际 manager 验证：provider 同步入口、同步 listener 或两次求值之间可原地修改共享默认对象；现有快照会正确通知变化，未变时保持 snapshot identity。因此不能直接省掉收尾比较或按对象 identity 复用序列化；本次未通过削减通知、改变快照相等语义或假定任意工具对象不可变来掩盖该项。
+
+以下仍是开放项，不能标为本次已解决：
 
 - `OpenUIState.push` 仍在 MainActor 同步解析、整 root 求值/投影并建立 live index。持续细分块仍会增加整轮工作次数；本轮没有自动按显示帧合并输入，也没有改客户端的 push/complete/interrupt 使用方式。
 - SourceBudget 超过快速包络阈值后仍再次扫描完整前缀。优化必须保留截断 token、注释、转义、消息封包和实际表达式深度限制，不能为降低次数删掉保护。
 - 多步 Action 的累计额度已经加入，但逐步 Set/Reset 引发的 root 更新及计划结束后的更新仍保留。尚未实现渲染合并或节点级依赖计算；必须保留每步 Store 可见性、Mutation 失败即停止和事件次序，不可直接删中间通知。
-- Query 的内部通知投递已合并，实际原生执行次数和整 root 工作量尚未测量。旧 JS manager 探针中 100 个独立请求产生 100 次初始通知和 100 次完成通知；该计数不能直接换算成新实现的 MainActor 任务数，也不能宣称已测得“200 次变成 1 次”。不同执行时刻仍可能各产生一次呈现更新。
+- Query 快照比较仍重复序列化完整数据，上述计数已确认其规模增长；优化需保持 snapshot 值、正常通知及共享对象语义。Query 的内部通知投递已合并，实际原生执行次数和整 root 工作量尚未测量。旧 JS manager 探针中 100 个独立请求产生 100 次初始通知和 100 次完成通知；该计数不能直接换算成新实现的 MainActor 任务数，也不能宣称已测得“200 次变成 1 次”。不同执行时刻仍可能各产生一次呈现更新。
 - SwiftLangView 与各 ComponentHost 广泛订阅同一个 ObservableObject，尚未获得真实“尾部更新而稳定兄弟不重算”的 body 计数。不能仅加 `equatable()` 就假定依赖已被隔离。
 - SharedCore 用锁串行化共享 JavaScriptCore。锁保护线程安全，不会自动把工作移到后台；多个文档可能相互等待。迁移到 worker 需要同步定义不可变输入/输出、回调线程、取消和提交代次，不能用 `Task.detached` 直接包住当前 MainActor State。
 - 当前节点的 identity 快径不消除所有旧快照的语义搜索；规模较大的匿名桶需原生计数与耗时证明，再决定索引粒度。

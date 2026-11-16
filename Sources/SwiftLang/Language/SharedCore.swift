@@ -300,9 +300,11 @@ final class SharedCore {
     }
     private func decode(_ js: JSValue, level: Int, interpret: Bool, projection: ValueProjection,
                         source: ValueProjection.Scope) -> Value {
-        guard level < 256 else { return .null }
         if js.isUndefined { return .undefined }; if js.isNull { return .null }
         if js.isString { return .string(string(js)) }; if js.isBoolean { return .boolean(js.toBool()) }; if js.isNumber { return .number(js.toDouble()) }
+        // A primitive at the maximum depth is still within the value budget;
+        // only another container would add a level. Do not truncate that leaf.
+        guard level < NativeValueCost.maximumDepth else { return .null }
         let id = Int(call("identity", [js]).toInt32())
         let key = ValueProjection.Key(value: id, scope: source.identity)
         if let value = projection.values[key] { return value }
@@ -360,7 +362,7 @@ final class SharedCore {
             result = plan.isSourceComplete == isComplete ? .actionPlan(plan)
                 : .actionPlan(ActionPlan(steps: plan.steps, isSourceComplete: isComplete))
         } else if let binding = cached as? ReactiveAssign {
-            result = .reactiveBinding(binding)
+            result = binding.expression == .stateRef("$value") ? .binding(binding) : .reactiveBinding(binding)
         } else {
             let tagged = call("kind", [js]).toString()
             let runtimeShape = interpret && tagged != "object"

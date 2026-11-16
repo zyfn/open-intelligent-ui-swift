@@ -56,7 +56,8 @@ public struct OpenUIComponentContext {
     /// Local presentation controls such as Modal close can update their value
     /// while streaming. Epoch checks still reject callbacks from replaced UI.
     @MainActor package func presentationBinding(_ name: String) -> Binding<Value>? {
-        guard let binding = state.binding(for: element, prop: name, expectedSourceRevision: sourceRevision) else { return nil }
+        guard let binding = state.binding(for: element, prop: name, expectedSourceRevision: sourceRevision,
+                                          presentation: true) else { return nil }
         return Binding(get: { binding.wrappedValue }, set: { if isCurrentPresentation { binding.wrappedValue = $0 } })
     }
     @MainActor package func presentationFieldValue(_ name: OpenUIString, fallback: Value) -> Value {
@@ -65,7 +66,7 @@ public struct OpenUIComponentContext {
     @MainActor package func setPresentationFieldValue(_ name: OpenUIString, value: Value) {
         guard isCurrentPresentation else { return }
         state.setFieldValue(form: exactFormName, name: name, value: value, componentType: nil,
-                            expectedSourceRevision: sourceRevision)
+                            expectedSourceRevision: sourceRevision, source: element, presentation: true)
     }
     /// Editing records can be retained by the document. Their callbacks must
     /// not retain the document in return, or releasing a renderer leaks it.
@@ -138,7 +139,7 @@ public struct OpenUIComponentContext {
     }
     @MainActor public func fieldBinding(_ name: OpenUIString, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {
         let binding = state.fieldBinding(form: exactFormName, name: name, fallback: fallback, componentType: componentType,
-                                         expectedSourceRevision: sourceRevision)
+                                         expectedSourceRevision: sourceRevision, source: element)
         return Binding(get: { binding.wrappedValue }, set: { if canInteract { binding.wrappedValue = $0 } })
     }
     @MainActor @_disfavoredOverload public func initializeField<S: StringProtocol>(_ name: S, value: Value, componentType: String = "input") {
@@ -147,7 +148,7 @@ public struct OpenUIComponentContext {
     @MainActor public func initializeField(_ name: OpenUIString, value: Value, componentType: String = "input") {
         guard canInteract else { return }
         state.initializeField(form: exactFormName, name: name, value: value, componentType: componentType,
-                              expectedSourceRevision: sourceRevision)
+                              expectedSourceRevision: sourceRevision, source: element)
     }
 
     @discardableResult
@@ -156,7 +157,7 @@ public struct OpenUIComponentContext {
         onDispatch: (() -> Void)? = nil) async -> [ActionEvent] {
         guard canActivate, canDispatch(nil) else { return [] }
         state.setFieldValue(form: form, name: name, value: value, componentType: componentType,
-                            expectedSourceRevision: sourceRevision)
+                            expectedSourceRevision: sourceRevision, source: element)
         // A host state-update callback may synchronously replace this answer.
         // Preserve the captured presentation when dispatching the committed value.
         guard canActivate, canDispatch(nil) else { return [] }

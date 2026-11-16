@@ -27,6 +27,12 @@ func nativeValueExceedsLimits(_ value: Value) -> Bool {
 
 func nativeValueCost(_ value: Value) -> NativeValueCost { NativeValueBudget().value(value, at: 0) }
 
+/// MCP JSON is still host input before it becomes a Lang Value. Inspect the
+/// original tree before allocating a duplicate JavaScript representation.
+func nativeJSONExceedsLimits(_ value: JSONValue) -> Bool {
+    NativeValueBudget().json(value, at: 0).exceeds
+}
+
 /// Inspect a host scope without first copying its keys into OpenUIString or
 /// allocating the object projection that this check is meant to protect.
 func nativeScopeExceedsLimits(_ values: [String: Value]) -> Bool {
@@ -203,6 +209,25 @@ private final class NativeValueBudget {
         guard visit() else { return .oversized }
         return fields(values, at: 0, key: { $0.key.count }) {
             self.value($0.value, at: $1)
+        }
+    }
+    func json(_ value: JSONValue, at depth: Int) -> Cost {
+        guard visit(), depth <= Cost.maximumDepth else { return .oversized }
+        switch value {
+        case .null, .boolean, .number: return Cost()
+        case .string(let value): return text(value)
+        case .array(let values):
+            return sequence(values, at: depth) { self.json($0, at: $1) }
+        case .object(let values):
+            var hasElementMarker = false
+            var cost = fields(values, at: depth, key: { $0.key.count }) { field, level in
+                if field.key == "type", case .string(let type) = field.value, type == "element" {
+                    hasElementMarker = true
+                }
+                return self.json(field.value, at: level)
+            }
+            if hasElementMarker { cost.elements = min(Cost.maximumElements + 1, cost.elements + 1) }
+            return cost
         }
     }
     func expression(_ node: ASTNode) -> Cost { ast(node, at: 0) }
