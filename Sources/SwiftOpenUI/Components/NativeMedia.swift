@@ -10,10 +10,10 @@ import AppKit
 
 enum NativeMediaStatus: Equatable { case loading, loaded, unavailable }
 enum NativeMediaLayout {
-  case cover, aspect(CGFloat, contentMode: ContentMode = .fill), thumbnail(CGSize), fit, fill, intrinsic
+  case cover, aspect(CGFloat), thumbnail(CGSize), fit, fill, intrinsic
 }
 /// Content images retain a quiet surface; compact artwork uses its owner's
-/// surface. Neither role adds error copy or changes its reserved geometry.
+/// surface. The layout determines geometry; neither role adds error copy.
 enum NativeMediaRole: Equatable { case artwork, content }
 
 /// Missing or failed images keep a visible, lightweight fallback in their
@@ -249,7 +249,6 @@ struct NativeRemoteImage: View {
     let mode: ContentMode
     switch layout {
     case .intrinsic, .fit: mode = .fit
-    case .aspect(_, let contentMode): mode = contentMode
     default: mode = .fill
     }
     return canvas(sourceSize: retainedSize) {
@@ -291,12 +290,14 @@ struct NativeRemoteImage: View {
     switch layout {
     case .cover:
       surface.aspectRatio(nativePresentation.coverAspectRatio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)
-    case .aspect(let ratio, _):
+    case .aspect(let ratio):
       surface.aspectRatio(ratio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)
     case .thumbnail(let size): surface.frame(width: size.width, height: size.height)
     case .fit, .fill: surface.frame(maxWidth: .infinity, maxHeight: .infinity)
     case .intrinsic:
-      surface.aspectRatio(NativeMediaPreview.aspectRatio(sourceSize: sourceSize ?? loadedEntry?.size), contentMode: .fit)
+      // Only the currently presented resource supplies its dimensions. A new
+      // source or failure must not inherit the previous image's proportions.
+      surface.aspectRatio(NativeMediaPreview.aspectRatio(sourceSize: sourceSize), contentMode: .fit)
         .fixedSize(horizontal: false, vertical: true)
     }
   }

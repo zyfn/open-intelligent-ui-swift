@@ -23,14 +23,6 @@ struct NativeCardTopMediaShape: Shape {
 
 struct OpenUIStyledCard: View {
     let context: OpenUIComponentContext
-    @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
-
-    private var minimumWidth: CGFloat {
-        let surface = NativeContentSurface(context.string("variant"), fallback: .card)
-        let width = surface == .clear ? context.presentation.minimumTextColumnWidth
-            : context.presentation.minimumCardWidth
-        return max(0, width.isFinite ? width * readingScale : 0)
-    }
 
     var body: some View {
         OpenUIStack(context: context)
@@ -39,8 +31,6 @@ struct OpenUIStyledCard: View {
                     ? 0 : context.theme.componentStyle.panelInset)
             .modifier(OpenUICardSurface(theme: context.theme, variant: context.string("variant"),
                 active: context.layoutConfigurationReady))
-            .layoutValue(key: OpenUIFlexGrowKey.self, value: true)
-            .layoutValue(key: OpenUIFlexMinimumWidthKey.self, value: minimumWidth)
     }
 }
 
@@ -84,6 +74,7 @@ struct OpenUIStack: View {
     @Environment(\.openUIMediaWidthReady) private var parentMediaWidthReady
     @Environment(\.openUIAncestorLayoutReady) private var parentLayoutReady
     @Environment(\.openUICardMediaInset) private var cardMediaInset
+    @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
     let context: OpenUIComponentContext
     // Upstream Stack normalizes wrapped space-between; upstream Card does not.
     var wrapJustifyBetweenAsStart = false
@@ -110,7 +101,7 @@ struct OpenUIStack: View {
             wrapJustifyBetweenAsStart: wrapJustifyBetweenAsStart
         ) {
             ForEach(content) { child in
-                context.render(child.value)
+                renderChild(child)
                     .environment(\.openUICardMediaInset,
                         layoutReady && direction == "column" && child.id == first ? cardMediaInset : 0)
                     .environment(\.openUIAncestorLayoutReady, layoutReady)
@@ -129,6 +120,24 @@ struct OpenUIStack: View {
             }
         }
     }
+
+    @ViewBuilder private func renderChild(_ child: OpenUIRenderChild) -> some View {
+        if case .element(let element) = child.value, element.typeName == "Card",
+           !context.registry.presentationLayoutFields("Card").isEmpty {
+            let surface = NativeContentSurface(PropValue.codeUnitString(element, "variant")?.displayString,
+                fallback: .card)
+            let width = surface == .clear ? context.presentation.minimumTextColumnWidth
+                : context.presentation.minimumCardWidth
+            // The parent owns allocation at its direct child boundary, outside
+            // the dynamic renderer. Replaced renderers keep their own contract.
+            context.render(child.value)
+                .layoutValue(key: OpenUIFlexGrowKey.self, value: true)
+                .layoutValue(key: OpenUIFlexMinimumWidthKey.self,
+                    value: max(0, width.isFinite ? width * readingScale : 0))
+        } else {
+            context.render(child.value)
+        }
+    }
     private var stretches: Bool { !layoutReady || context.string("align") == nil || context.string("align") == "stretch" }
 }
 
@@ -137,10 +146,10 @@ struct NativeContentImage: View {
     @Environment(\.openUICardMediaInset) private var cardMediaInset
     var body: some View {
         NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-            layout: .aspect(context.presentation.coverAspectRatio, contentMode: .fit), role: .content)
+            layout: .intrinsic, role: .content)
             // Suggest a media width when a row measures its children. Grid card
             // widths are unrelated; the parent still controls the final width.
-            // Standalone content keeps its full image inside the stable media slot.
+            // The source proportions determine height once its pixels arrive.
             .frame(idealWidth: context.presentation.thumbnailSize)
             .clipShape(NativeCardTopMediaShape(radius: cardMediaInset > 0 ? context.theme.radius3xl : context.theme.radiusM,
                 topOnly: cardMediaInset > 0))

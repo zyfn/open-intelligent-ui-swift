@@ -110,7 +110,9 @@ final class PhotoCardGeometryTests: XCTestCase {
   @MainActor func testPictureKeepsItsDeclaredGeometryWhenCopyMovesBelowIt() throws {
     _ = NSApplication.shared
     let presentation = OpenUIPresentation()
-    let longCopy = String(repeating: "A complete explanation that must remain readable. ", count: 20)
+    // Explicit lines keep this genuinely taller than the photograph even in
+    // the widest viewport, where a paragraph would otherwise fit as an overlay.
+    let longCopy = String(repeating: "A complete explanation that must remain readable.\n", count: 24)
     for width in [CGFloat(240), 320, 600] {
       for text in ["Short", longCopy] {
         var measured: [String: CGRect] = [:]
@@ -124,7 +126,11 @@ final class PhotoCardGeometryTests: XCTestCase {
           aspectRatio: presentation.coverAspectRatio, fallbackWidth: presentation.minimumCardWidth,
           accessibility: false) {
             NativeRemoteImage(src: nil, layout: .cover).background(probe("photo"))
-            Text(text).font(.body).padding(12).frame(maxWidth: .infinity).background(probe("copy"))
+            VStack(alignment: .leading, spacing: 12) {
+              Text("Tag").font(.caption)
+              Spacer(minLength: 12)
+              Text(text).font(.body)
+            }.padding(12).frame(maxWidth: .infinity).background(probe("copy"))
           }.frame(width: width).coordinateSpace(name: "artwork"))
         let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: width, height: 2000),
           styleMask: [.borderless], backing: .buffered, defer: false)
@@ -140,8 +146,9 @@ final class PhotoCardGeometryTests: XCTestCase {
             "Long explanations read below the photograph without covering it")
           XCTAssertGreaterThan(host.fittingSize.height, photo.height)
         } else {
+          XCTAssertEqual(copy.minY, photo.minY, accuracy: 1)
           XCTAssertEqual(copy.maxY, photo.maxY, accuracy: 1,
-            "A short caption sits at the bottom without masking the whole photograph")
+            "The visual card allocates the photo to its top label and bottom copy")
           XCTAssertEqual(host.fittingSize.height, photo.height, accuracy: 1)
         }
       }
@@ -160,15 +167,15 @@ final class PhotoCardGeometryTests: XCTestCase {
     }
   }
 
-  @MainActor func testStandardImageUsesThePinnedReferenceDefaultBeforeItsFileArrives() throws {
+  @MainActor func testStandardImageReservesAPlaceholderBeforeItsFileArrives() throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
     state.push("root=Image(\"photo\",\"photo.jpg\")\nother=TextContent(\"still arriving")
     let view = OpenUIContentView(state: state, registry: library.registry).frame(width: 300)
     XCTAssertFalse(state.isComplete)
-    XCTAssertEqual(NSHostingView(rootView: view).fittingSize.height, 300 / OpenUIPresentation().coverAspectRatio, accuracy: 1,
-      "The public Image default reserves its aspect-ratio slot without waiting for original pixels or unrelated text")
+    XCTAssertEqual(NSHostingView(rootView: view).fittingSize.height, 225, accuracy: 1,
+      "An unknown image uses the existing 4:3 placeholder without waiting for unrelated text")
   }
 
   @MainActor func testSingleResponsiveCardUsesTheFullAvailableColumn() throws {

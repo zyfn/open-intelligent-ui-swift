@@ -133,7 +133,7 @@ struct NativeImageBlock: View {
   let context: OpenUIComponentContext
   var body: some View {
     NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-      layout: .aspect(context.presentation.coverAspectRatio, contentMode: .fit), role: .content)
+      layout: .intrinsic, role: .content)
       .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
   }
 }
@@ -770,12 +770,8 @@ struct NativeCardItem: View {
           }.allowsHitTesting(false)
           copy.background {
             GeometryReader { geometry in
-              let frame = geometry.frame(in: .named(artworkLayoutScope))
-              let photo = NativeArtworkCardMetrics(width: frame.width,
-                aspectRatio: context.presentation.coverAspectRatio,
-                copyHeight: frame.height, accessibility: typeSize.isAccessibilitySize).photo
               Color.clear.preference(key: NativeArtworkCopyPlacementKey.self,
-                value: [artworkLayoutScope: frame.minY >= photo.maxY - 0.5])
+                value: [artworkLayoutScope: geometry.frame(in: .named(artworkLayoutScope)).minY > 0.5])
             }
             if usesArtworkOverlay {
               LinearGradient(colors: [.black.opacity(0.62), .black.opacity(0.72)],
@@ -832,6 +828,7 @@ struct NativeCardItem: View {
           .alignmentGuide(.nativeOverviewMetricTop) { _ in 0 }
       case "Context":
         contextTitle
+        if artworkSource != nil { Spacer(minLength: context.theme.spaceM) }
         if let body = context.string("body") {
           NativeMarkdownText(text: body, mode: .inline, style: contentTheme.textStyle(.compactBody).richText())
         }
@@ -840,6 +837,7 @@ struct NativeCardItem: View {
           .environment(\.openUIArtworkTag, usesArtworkOverlay)
           .environment(\.openUITheme, context.theme)
           .environment(\.colorScheme, colorScheme)
+        if artworkSource != nil { Spacer(minLength: context.theme.spaceM) }
         HStack(alignment: .center, spacing: context.theme.spacing("s")) {
           context.slot("body")
           if isAction {

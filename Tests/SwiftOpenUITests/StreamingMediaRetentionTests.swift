@@ -139,12 +139,12 @@ final class StreamingMediaRetentionTests: XCTestCase {
     cache.insert(.init(image: Image(systemName: "photo"), size: CGSize(width: 100, height: 200),
       cost: 80_000, resourceOwner: loader), for: first)
     cache.markPresented(first)
-    func view(_ alt: String) -> some View {
-      NativeRemoteImage(src: "https://images.example/a.png", alt: alt, layout: .intrinsic,
+    func view(_ alt: String, source: String? = "https://images.example/a.png") -> some View {
+      NativeRemoteImage(src: source, alt: alt, layout: .intrinsic,
         onStatus: { status, _ in log.statuses["A", default: []].append(status) })
         .environment(\.openUIMediaCache, cache)
         .openUIResourceContext(OpenUIResourceContext(loader: loader))
-        .frame(width: 100, height: 200)
+        .frame(width: 100)
     }
     let hosting = NSHostingView(rootView: view("A"))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 200),
@@ -164,6 +164,7 @@ final class StreamingMediaRetentionTests: XCTestCase {
     }
     settle()
     XCTAssertTrue(log.statuses["A", default: []].contains(.loaded))
+    XCTAssertEqual(hosting.fittingSize.height, 200, accuracy: 1)
     for index in 0..<9 {
       cache.insert(.init(image: Image(systemName: "photo"), size: CGSize(width: 1, height: 1),
         cost: 4, resourceOwner: loader), for: key("later-\(index)"))
@@ -174,6 +175,12 @@ final class StreamingMediaRetentionTests: XCTestCase {
     XCTAssertFalse(log.statuses["A", default: []].contains(.loading),
       "Evicting a shared cache entry must not erase a mounted image's successful phase")
     XCTAssertEqual(loader.count("a.png"), 0, "A mounted cache-restored image must not refetch")
+    XCTAssertEqual(hosting.fittingSize.height, 200, accuracy: 1,
+      "Eviction must not change the mounted image's original proportions")
+    hosting.rootView = view("No source", source: nil)
+    settle()
+    XCTAssertEqual(hosting.fittingSize.height, 75, accuracy: 1,
+      "An unavailable source must not inherit the previous portrait's dimensions")
   }
 
   @MainActor func testLoadedFirstCardDoesNotReloadWhenLaterReferencedCardsArrive() throws {

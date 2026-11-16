@@ -11,7 +11,7 @@ export const groupNotes = {
     '- Use TextContent Markdown headings for page/section hierarchy, InlineHeader for object names, and ordinary TextContent for the main explanation. Large or heavy body variants are emphasis, not substitutes for headings.',
     '- Card groups an independent object or bounded task. Ordinary sections and explanations can remain directly in a Stack.',
     '- TextCallout is a persistent aside or constraint. Callout with a writable visible binding can show transient feedback; unbound Callout remains visible. Use neutral/info for quiet notes and explicit status variants for real status.',
-    '- Image and ImageBlock preserve the complete image in a stable media slot. ImageTextLarge is a cover/banner; ImageText is a thumbnail. Choose the component by purpose, using real provided image URLs.',
+    '- Image and ImageBlock show the complete image at the available width with its original aspect ratio. ImageTextLarge is a cover/banner; ImageText is a thumbnail. Choose the component by purpose, using real provided image URLs.',
     '- ImageGallery previews related images. Supply details only when there is meaningful accompanying information; keep long explanations in normal reading content.',
   ],
   'Charts (2D)': [
@@ -31,7 +31,7 @@ export const groupNotes = {
     '- Use card collections for independent, comparable objects with consistent anatomy. Do not invent more objects to fill a grid or use a card for every paragraph.',
     '- SnippetCardItem presents a compact key/value fact; OverviewCardItem presents a compact object with an optional metric. Core explanations belong in body text, not in a small subtitle.',
     '- CompositeCardItem accepts its declared header, body and footer slots. Use object naming in the header, new supporting information in the body, and price/action in the footer; avoid repeating the same phrase in every slot.',
-    '- VisualCardItem and background-image ContextCardItem suit short copy over photographs. Long explanations belong below or outside the photo, preserving the photograph itself.',
+    '- VisualCardItem and background-image ContextCardItem use a photograph as the card background, with their tag/title and body over the image. Keep overlay copy concise; put extended explanations in adjacent reading content.',
     '- Text, BoldText, IconText, ImageText, ImageTextLarge and MetricIndicator components are object building blocks. Follow the declared slot schemas and prefer TextContent for a continuous explanation.',
   ],
 };

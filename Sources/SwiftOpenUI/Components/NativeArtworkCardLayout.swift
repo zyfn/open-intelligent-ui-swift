@@ -26,11 +26,10 @@ struct NativeArtworkCardMetrics {
     let ratio = aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : 1.5
     let height = copyHeight.isFinite ? max(0, copyHeight) : 0
     let photoHeight = width / ratio
-    // Keep at least half the photograph unobscured; longer copy reads below it.
-    overlaysCopy = !accessibility && height <= photoHeight / 2
+    overlaysCopy = !accessibility && height <= photoHeight + 0.5
     photo = CGRect(x: 0, y: 0, width: width, height: photoHeight)
-    copy = CGRect(x: 0, y: overlaysCopy ? photoHeight - height : photoHeight,
-      width: width, height: height)
+    copy = CGRect(x: 0, y: overlaysCopy ? 0 : photoHeight,
+      width: width, height: overlaysCopy ? photoHeight : height)
     size = CGSize(width: width, height: overlaysCopy ? photoHeight : photoHeight + height)
   }
 }

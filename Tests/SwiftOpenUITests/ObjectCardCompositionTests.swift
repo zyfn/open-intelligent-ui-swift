@@ -194,23 +194,26 @@ final class ObjectCardCompositionTests: XCTestCase {
       XCTAssertGreaterThan(color.blueComponent, 0.9, detail)
     }
 
-    // Corner markers disappear under a square-to-banner crop. The public
-    // content-image renderers must preserve all four, while a banner keeps
-    // its explicitly photographic crop. Use the same loader and view path.
-    let square = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
-      pixelsWide: 100, pixelsHigh: 100, bitsPerSample: 8, samplesPerPixel: 4,
-      hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-      bytesPerRow: 100 * 4, bitsPerPixel: 32))
-    for y in 0..<100 { for x in 0..<100 {
-      let color: NSColor
-      if x < 15 && y < 15 { color = NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 1) }
-      else if x >= 85 && y < 15 { color = NSColor(deviceRed: 0, green: 1, blue: 0, alpha: 1) }
-      else if x < 15 && y >= 85 { color = NSColor(deviceRed: 0, green: 0, blue: 1, alpha: 1) }
-      else if x >= 85 && y >= 85 { color = NSColor(deviceRed: 1, green: 1, blue: 0, alpha: 1) }
-      else { color = .white }
-      square.setColor(color, atX: x, y: y)
-    } }
-    imageBytes = try XCTUnwrap(square.representation(using: .png, properties: [:]))
+    // Content images preserve all corner markers at their source proportions.
+    // These pixels and the rendered bounds catch both cropping and fitting
+    // the image into a differently proportioned, letterboxed slot.
+    func cornerImage(width: Int, height: Int) throws -> Data {
+      let pixels = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
+        pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
+        hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+        bytesPerRow: width * 4, bitsPerPixel: 32))
+      let marker = min(width, height) * 15 / 100
+      for y in 0..<height { for x in 0..<width {
+        let color: NSColor
+        if x < marker && y < marker { color = NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 1) }
+        else if x >= width - marker && y < marker { color = NSColor(deviceRed: 0, green: 1, blue: 0, alpha: 1) }
+        else if x < marker && y >= height - marker { color = NSColor(deviceRed: 0, green: 0, blue: 1, alpha: 1) }
+        else if x >= width - marker && y >= height - marker { color = NSColor(deviceRed: 1, green: 1, blue: 0, alpha: 1) }
+        else { color = .white }
+        pixels.setColor(color, atX: x, y: y)
+      } }
+      return try XCTUnwrap(pixels.representation(using: .png, properties: [:]))
+    }
     func markerColors(_ image: NSBitmapImageRep) throws -> Set<String> {
       var colors: Set<String> = []
       for y in stride(from: 4, to: image.pixelsHigh, by: 8) {
@@ -228,14 +231,18 @@ final class ObjectCardCompositionTests: XCTestCase {
       ("complete-image", "root=Image(\"Corners\",\"\(imageSource)\")", "root=Image(\"Corners\")"),
       ("complete-block", "root=ImageBlock(\"\(imageSource)\",\"Corners\")", "root=ImageBlock(\"\",\"Corners\")")
     ] {
-      let loaded = try bitmap(source, name: name)
       let placeholder = try bitmap(empty, name: name + "-placeholder")
-      XCTAssertEqual(try markerColors(loaded), Set(["red", "green", "blue", "yellow"]),
-        "\(name) must preserve the entire content image inside its declared slot")
-      XCTAssertEqual(loaded.pixelsWide, placeholder.pixelsWide)
-      XCTAssertEqual(loaded.pixelsHigh, placeholder.pixelsHigh,
-        "Receiving a square source must not change the reserved content-image height")
-      XCTAssertEqual(loaded.pixelsHigh, 180)
+      XCTAssertEqual(placeholder.pixelsWide, 320)
+      XCTAssertEqual(placeholder.pixelsHigh, 240)
+      for (width, height) in [(100, 100), (120, 80), (80, 120)] {
+        imageBytes = try cornerImage(width: width, height: height)
+        let loaded = try bitmap(source, name: name + "-\(width)x\(height)")
+        XCTAssertEqual(try markerColors(loaded), Set(["red", "green", "blue", "yellow"]),
+          "\(name) must preserve every corner of the original image")
+        XCTAssertEqual(loaded.pixelsWide, 320, "Content images use the full available width")
+        XCTAssertEqual(CGFloat(loaded.pixelsHigh), 320 * CGFloat(height) / CGFloat(width), accuracy: 1,
+          "The source proportions determine height, without a fixed cover slot")
+      }
     }
     let banner = try bitmap("root=ImageTextLarge(\"\(imageSource)\",\"Corners\",\"Banner\")", name: "cropped-banner")
     XCTAssertTrue(try markerColors(banner).isEmpty,
@@ -243,12 +250,17 @@ final class ObjectCardCompositionTests: XCTestCase {
   }
 
   @MainActor func testWrappingCardsKeepReadingSpaceAndFillAnIncompleteRow() throws {
+    func source(count: Int, detail: String) -> String {
+      let cards = ["a", "b", "c"].prefix(count).map { key in
+        #"Card([Image("\#(key)"),CardHeader("完整的图文对象标题 \#(key)","独立的辅助说明"),TextContent("\#(detail)")],"clear","column","xs")"#
+      }
+      return #"root=Stack([\#(cards.joined(separator: ","))],"row","m","start","start",true)"#
+    }
+    let detail = "说明保持完整换行，标题与图片一起参与同一张卡片的实际布局。"
     let cases: [(CGFloat, [CGFloat])] = [(320, [320, 320, 320]),
       (350, [169, 169, 350]), (530, [506 / 3, 506 / 3, 506 / 3])]
     for (width, expected) in cases {
-      let source = "root=Stack([Card([Image(\"a\")],\"clear\"),Card([Image(\"b\")],\"clear\"),Card([Image(\"c\")],\"clear\")],\"row\",\"m\",\"start\",\"start\",true)"
-      // Individual Image names are recorded separately by their alt in a dedicated probe below.
-      let measured = try imageFrames(source, width: width)
+      let measured = try imageFrames(source(count: 3, detail: detail), width: width)
       for (index, key) in ["a", "b", "c"].enumerated() {
         XCTAssertEqual(try XCTUnwrap(measured[key]).width, expected[index], accuracy: 1)
       }
@@ -256,6 +268,17 @@ final class ObjectCardCompositionTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(measured["a"]).minY, try XCTUnwrap(measured["b"]).minY, accuracy: 1)
         XCTAssertGreaterThan(try XCTUnwrap(measured["c"]).minY, try XCTUnwrap(measured["a"]).maxY)
       }
+    }
+    // A 390 pt preview with 20 pt side insets has 350 pt available. Two
+    // complete image/title/body cards must share it even as their copy grows.
+    for text in [detail, String(repeating: detail, count: 5)] {
+      let measured = try imageFrames(source(count: 2, detail: text), width: 350)
+      let first = try XCTUnwrap(measured["a"]), second = try XCTUnwrap(measured["b"])
+      XCTAssertEqual(first.width, 169, accuracy: 1)
+      XCTAssertEqual(second.width, 169, accuracy: 1)
+      XCTAssertEqual(first.minY, second.minY, accuracy: 1,
+        "Long titles and body copy must wrap inside the two allocated columns")
+      XCTAssertEqual(second.minX - first.maxX, 12, accuracy: 1)
     }
   }
 
@@ -271,7 +294,8 @@ final class ObjectCardCompositionTests: XCTestCase {
       }))
     }
     let state = OpenUIState(schema: library.library.toSchema()); state.setSource(source)
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry).frame(width: width))
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry)
+      .dynamicTypeSize(.large).frame(width: width))
     let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: width, height: 1600),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
@@ -293,8 +317,9 @@ final class ObjectCardCompositionTests: XCTestCase {
       }))
     }
     let state = OpenUIState(schema: library.library.toSchema())
-    state.push("root=Stack([a,b],\"row\",\"m\",\"start\",\"start\",true)\na=Card([Image(\"a\")],\"clear\")\n")
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry).frame(width: 350))
+    state.push("$surface=\"clear\"\nroot=Stack([a,b],\"row\",\"m\",\"start\",\"start\",true)\na=Card([Image(\"a\"),Form(\"draft\",Buttons([]),[FormControl(\"Note\",Input(\"note\"))])],$surface)\n")
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry)
+      .dynamicTypeSize(.large).frame(width: 350))
     let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: 350, height: 1400),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
@@ -303,17 +328,42 @@ final class ObjectCardCompositionTests: XCTestCase {
     settle()
     XCTAssertLessThan(try XCTUnwrap(measured.values["a"]).height, 40,
       "Only compact pending feedback, not a full-width picture, may appear while a sibling's role is unknown")
-    state.push("b=Card([Image(\"b\"),copy],\"clear\")\ncopy=TextContent(\"Short")
+    state.push("b=Card([Image(\"b\"),copy],$surface)\ncopy=TextContent(\"Short")
     settle()
     let before = try XCTUnwrap(measured.values["a"])
     XCTAssertEqual(before.width, 169, accuracy: 1)
-    XCTAssertEqual(before.height, 169 * 9 / 16, accuracy: 1)
+    XCTAssertEqual(before.height, 169 * 3 / 4, accuracy: 1,
+      "An unknown source uses the intrinsic image's 4:3 placeholder inside its allocated column")
     state.push(" copy that grows across many lines inside the same reading column.")
     settle()
     XCTAssertEqual(try XCTUnwrap(measured.values["a"]).width, before.width, accuracy: 1)
     XCTAssertEqual(try XCTUnwrap(measured.values["a"]).height, before.height, accuracy: 1)
     state.push("\")"); state.complete(); settle()
     XCTAssertEqual(try XCTUnwrap(measured.values["a"]).width, before.width, accuracy: 1)
+
+    // Layout fields can change through a component-local update after the
+    // document completes. The parent must reallocate its existing children.
+    let sourceRevision = state.sourceRevision, presentationRevision = state.presentationRevision
+    state.setFieldValue(form: "draft", name: "note", value: .string("Keep this edit"))
+    settle()
+    let inset = OpenUIThemeValues.defaults.componentStyle.panelInset
+    for (surface, expectedWidth) in [("card", 350 - 2 * inset), ("clear", CGFloat(169))] {
+      state.setState("$surface", value: .string(OpenUIString(surface))); settle()
+      XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      let first = try XCTUnwrap(measured.values["a"]), second = try XCTUnwrap(measured.values["b"])
+      XCTAssertEqual(first.width, expectedWidth, accuracy: 1)
+      XCTAssertEqual(second.width, expectedWidth, accuracy: 1)
+      if surface == "card" {
+        XCTAssertEqual(first.minX, second.minX, accuracy: 1)
+        XCTAssertGreaterThan(second.minY, first.maxY, "The larger card basis must wrap the existing row")
+      } else {
+        XCTAssertEqual(first.minY, second.minY, accuracy: 1)
+        XCTAssertEqual(second.minX - first.maxX, 12, accuracy: 1)
+      }
+      XCTAssertEqual(state.sourceRevision, sourceRevision)
+      XCTAssertEqual(state.presentationRevision, presentationRevision, "Reflow must not replace the document")
+      XCTAssertEqual(state.fieldValue(form: "draft", name: "note"), .string("Keep this edit"))
+    }
   }
 }
 

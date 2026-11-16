@@ -19,6 +19,10 @@ final class ArtworkPresentationTests: XCTestCase {
         NativeComponentHost(context: context) { context in
           MainActor.assumeIsolated { probe.titleInk = context.theme.textNeutralPrimary }
           return NativeInlineText(context: context, bold: true)
+            .background(GeometryReader { geometry in
+              Color.clear.onAppear { probe.titleFrame = geometry.frame(in: .named("artwork-card")) }
+                .onChange(of: geometry.frame(in: .named("artwork-card"))) { probe.titleFrame = $0 }
+            })
         }
       },
       OpenUIComponent(tag) { context in
@@ -28,6 +32,10 @@ final class ArtworkPresentationTests: XCTestCase {
             probe.tagSurface = context.theme.foreground
           }
           return NativeTag(context: context)
+            .background(GeometryReader { geometry in
+              Color.clear.onAppear { probe.tagFrame = geometry.frame(in: .named("artwork-card")) }
+                .onChange(of: geometry.frame(in: .named("artwork-card"))) { probe.tagFrame = $0 }
+            })
         }
       },
     ])
@@ -37,7 +45,7 @@ final class ArtworkPresentationTests: XCTestCase {
     let base = OpenUIThemeValues()
     let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
       .openUITheme(base).openUIResourceContext(.init(loader: loader))
-      .environment(\.colorScheme, .light).frame(width: 320))
+      .environment(\.colorScheme, .light).frame(width: 320).coordinateSpace(name: "artwork-card"))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false; window.contentView = host
@@ -65,6 +73,11 @@ final class ArtworkPresentationTests: XCTestCase {
     let loadingSize = host.fittingSize
     settle { probe.titleInk == .white }
     XCTAssertEqual(host.fittingSize, loadingSize, "Loading does not change the photo or copy allocation")
+    let tagFrame = try XCTUnwrap(probe.tagFrame), titleFrame = try XCTUnwrap(probe.titleFrame)
+    XCTAssertLessThan(tagFrame.maxY, loadingSize.height / 2,
+      "The visual card's label stays at the top of the photograph")
+    XCTAssertGreaterThan(titleFrame.minY, loadingSize.height / 2,
+      "The visual card's title stays over the bottom of the photograph")
     XCTAssertEqual(probe.tagInk, base.textNeutralPrimary, "The tag must not inherit white photo-overlay ink")
     XCTAssertEqual(probe.tagSurface, base.foreground, "The tag keeps the opaque host surface")
     XCTAssertEqual(loader.count, 1, "Changing copy appearance must not refetch the image")
@@ -120,6 +133,8 @@ final class ArtworkPresentationTests: XCTestCase {
   var titleInk: Color?
   var tagInk: Color?
   var tagSurface: Color?
+  var titleFrame: CGRect?
+  var tagFrame: CGRect?
 }
 
 private final class ArtworkImageLoader: OpenUIResourceLoading {
