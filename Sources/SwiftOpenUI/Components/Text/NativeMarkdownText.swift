@@ -39,6 +39,13 @@ struct NativeMarkdownText: View {
   private var font: OpenUIFont { (style.font ?? inheritedFont ?? theme.textBodyDefault).resolved(for: style.role) }
   private var mathSize: CGFloat { font.size * scale }
   private var mathColor: String { NativeCSSColor.css(foreground, scheme: colorScheme) }
+  private struct StreamingInput: Equatable {
+    let source: OpenUIString
+    let active: Bool
+  }
+  private var streamingInput: StreamingInput {
+    .init(source: OpenUIString(text), active: streamActive)
+  }
   private var visibleText: String {
     streamText.text(for: text, streaming: streamActive)
   }
@@ -103,8 +110,11 @@ struct NativeMarkdownText: View {
       // already-visible paragraphs as the final line grows.
       .transaction { if streamActive { $0.animation = nil } }
       .onAppear { streamText.receive(text, streaming: streamActive) }
-      .onChange(of: OpenUIString(text)) { _ in streamText.receive(text, streaming: streamActive) }
-      .onChange(of: streamActive) { active in streamText.receive(text, streaming: active) }
+      // The single-parameter onChange captures the previous view. Consume its
+      // new value, keeping source and streaming status in the same snapshot.
+      .onChange(of: streamingInput) { input in
+        streamText.receive(input.source.displayString, streaming: input.active)
+      }
       .onAppear { document.receive(request) }
       .onChange(of: request) { document.receive($0) }
       .onDisappear { document.cancel(); streamText.cancel(); math.cancel() }
@@ -329,8 +339,11 @@ private struct NativeMarkdownImage: View {
 
 // Internal test seam; normal consumers still use the registered components.
 extension NativeMarkdownText {
-  @MainActor init(text: String, document: NativeMarkdownDocument) {
-    self.init(text: text)
+  @MainActor init(text: String, mode: NativeRichTextMode = .markdown,
+    streamText: NativeStreamingTextBuffer? = nil,
+    document: NativeMarkdownDocument) {
+    self.init(text: text, mode: mode)
+    if let streamText { _streamText = StateObject(wrappedValue: streamText) }
     _document = StateObject(wrappedValue: document)
   }
 }

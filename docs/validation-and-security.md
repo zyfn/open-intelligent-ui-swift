@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.2 · 更新日期：2026-11-16
+文档版本：1.3 · 更新日期：2026-11-16
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -114,6 +114,18 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 本轮正式生成资源已执行 **84/84** 项 `Tools/Core/native-*.test.mjs`，覆盖 26 个分块不变量案例的 **2,123 个中间前缀**及其末态；比较公开值、声明、诊断与私有 readiness。增量 push 与同前缀 fresh set 一致，这是分片不变量检查，不是独立官方 oracle。独立官方检查另执行 51 项 parser、5 项动作、4 项 Query、6 项 round-trip、21 项 Lang 1.1 专项，未发现未解释差异；额外 1,053 项隐式转换对照也无差异。新加入的 6 项原生输入失败 JS 回归在旧资源均失败，当前通过；5 项 Query 请求有效性回归覆盖变参、删除、保留、删除后重建与 dispose。未修改历史 fixture 预期。
 
 本轮新增 54 项 XCTest，原生测试、Release 宿主测试和新基准尚未执行：当前审查环境缺少 Swift/Xcode，`swift test` 实际返回 `swift: command not found`；完整 SwiftPM 模块图检查也被同一条件阻塞。最近 `main` 的原生 CI job 为 skipped，不能作为这轮代码的编译或验收证据。源码归属检查、生成资源和 JS 检查通过不能替代该缺口。日志及独立探针放在忽略的 `outputs/kernel-audit-9e05d88/`，不另建并行设计或审查文档。
+
+### 原生文本流中停滞
+
+2026-11-16 依据客户端提供的调试记录继续检查 `bdac1bf`：`source` 已是 `SHANGHAI → SUZHOU · 2 DAYS`，而 `NativeStreamingTextBuffer.received/displayed` 仍为 `SHANGHAI → SUZH`。记录来自客户端，本次未重新运行该 App 或原始回放。
+
+确定的源码缺陷位于 `NativeMarkdownText`：单参数 `onChange(of:perform:)` 忽略传入的新值，改读闭包捕获的旧 `text`。该 API 的[闭包语义](https://developer.apple.com/documentation/swiftui/view/onchange(of:perform:))使 A → AB 的更新再次交付 A；若该字段不再变化，即使其它节点继续生成，也不会补交 AB，直到停止流式时才绕过旧显示值。这条路径与记录相符；单次断点本身不足以证明全部实际时序。
+
+修正将文字的精确 UTF-16 值与流式状态组成私有输入，并由一个变化回调消费新参数，避免同帧变化时两个回调混用新旧值。保留 iOS 16 / macOS 13 支持、48ms 呈现合并、只读尺寸拟合和现有 Markdown 工作队列；不修改 parser、公共状态入口或客户端调用方式。
+
+`MountedStreamingTextProgressTests` 新增 4 项 XCTest、6 个场景，使用实际挂载的文本和标准 `OpenUIState.push` 路径，覆盖目标字段完成后其它节点继续生成、文字与流式状态同帧变化，以及最终分片紧接 `complete` / `interrupt`。验收必须确认缓冲和 Markdown 准备都收到完整文字、界面在 `complete` 之前更新；一次性输入完整程序或仅在流结束后检查正确文字不能替代该项。既有 `StreamingTextPresentationTests` 的无副作用读取和合并约束保留。
+
+本次源码/所有权检查与 `git diff --check` 通过；`swift test` 实际因环境找不到 `swift` 返回 127，原生 XCTest 与客户端分块回放尚未执行，不能将源码修正称为 App 验收通过。执行结果与环境阻塞记录在忽略的 `outputs/verification/native-text-sync/`，不另建并行报告。
 
 ### 性能证据与未完成项
 
