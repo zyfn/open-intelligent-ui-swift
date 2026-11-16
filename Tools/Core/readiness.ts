@@ -10,6 +10,22 @@ type Presentation = { complete: boolean; closed: boolean; count?: number; querie
 const presentation = new WeakMap<object, Presentation>();
 const ready = new WeakMap<object, boolean>();
 const nativeValues = new WeakMap<object, boolean>();
+// Parser/native metadata belongs to the immutable value. Evaluation can use the
+// same value in a different source context without rewriting that baseline.
+// The native bridge keeps this opaque snapshot only while projecting its result.
+type SourceSnapshot = {
+  ready: WeakMap<object, boolean>;
+  presentation: WeakMap<object, Presentation>;
+};
+let evaluating: SourceSnapshot | undefined;
+export const currentSourceSnapshot = (): SourceSnapshot | undefined => evaluating;
+export function sourceEvaluation<T extends object>(body: () => T): T & { sourceSnapshot: SourceSnapshot } {
+  const previous = evaluating;
+  const sourceSnapshot: SourceSnapshot = { ready: new WeakMap(), presentation: new WeakMap() };
+  evaluating = sourceSnapshot;
+  try { return Object.assign(body(), { sourceSnapshot }); }
+  finally { evaluating = previous; }
+}
 const memo = Symbol('native.source.memo');
 const path = Symbol('native.source.path');
 // This memo belongs to a materialization context, never to a protocol value.
@@ -29,22 +45,34 @@ export function tagNativeSource<T extends object>(value: T, complete: boolean, d
   if (details) presentation.set(value, details);
   nativeValues.set(value, complete); return tagReady(value, complete);
 }
-export function sourceComplete(value: any): boolean {
-  return (value && typeof value === 'object' ? ready.get(value) : undefined) ?? value?.[syntax] ?? !value?.partial;
+export function sourceComplete(value: any, snapshot?: SourceSnapshot): boolean {
+  return (value && typeof value === 'object' ? snapshot?.ready.get(value) ?? ready.get(value) : undefined)
+    ?? value?.[syntax] ?? !value?.partial;
 }
 
 // Advisory source boundaries only. Kept out of enumerable values, AST/wire
 // serialization and schema validation. Unknown expressions remain conservative.
-export function sourcePresentation(value: any): Presentation {
-  return (value && typeof value === 'object' ? presentation.get(value) : undefined)
-    ?? { complete: sourceComplete(value), closed: sourceComplete(value) };
+export function sourcePresentation(value: any, snapshot?: SourceSnapshot): Presentation {
+  return (value && typeof value === 'object' ? snapshot?.presentation.get(value) ?? presentation.get(value) : undefined)
+    ?? { complete: sourceComplete(value, snapshot), closed: sourceComplete(value, snapshot) };
 }
 export function copyPresentation<T>(from: any, to: T, observed?: Set<string>): T {
-  const previous = sourcePresentation(from);
+  // Materializer copies omit observed; evaluator copies always supply a Set.
+  // A synchronous host callback can parse another document inside evaluation.
+  const snapshot = observed === undefined ? undefined : evaluating;
+  const previous = sourcePresentation(from, snapshot);
   const details = observed ? { ...previous,
     queries: [...new Set([...(previous.observed ? previous.queries ?? [] : []), ...observed])], observed: true } : previous;
-  if (to && typeof to === 'object') presentation.set(to as object, details);
-  return tagReady(to, sourceComplete(from));
+  if (to && typeof to === 'object') {
+    if (observed === undefined) {
+      presentation.set(to as object, details);
+      tagReady(to, sourceComplete(from));
+    } else {
+      snapshot?.presentation.set(to as object, details);
+      snapshot?.ready.set(to as object, sourceComplete(from, snapshot));
+    }
+  }
+  return to;
 }
 export function observeQueries(source: any, context: any): { context: any; queries: Set<string> } {
   const candidates = new Set(sourcePresentation(source).queries ?? []);
@@ -235,11 +263,15 @@ export function astComplete(node: any, ctx: any, scope: ReadonlySet<string> = em
 
 export function finishEvaluation(node: any, value: any, observed?: Set<string>): any {
   const complete = sourceComplete(node) && (value && typeof value === 'object' ? nativeValues.get(value) ?? true : true);
-  tagReady(value, complete);
+  const snapshot = evaluating;
+  // Unscoped internal query evaluation only computes Lang data. Presentation
+  // is projected by boundedEvaluate/boundedRoot with an explicit snapshot.
+  if (!snapshot) return value;
   if (value && typeof value === 'object') {
+    snapshot.ready.set(value, complete);
     const known = sourcePresentation(node);
     const queries = observed ? [...observed] : known.queries;
-    presentation.set(value, complete ? { complete: true, closed: true, queries, observed: observed !== undefined }
+    snapshot.presentation.set(value, complete ? { complete: true, closed: true, queries, observed: observed !== undefined }
       : { ...known, complete: false, queries, observed: observed !== undefined });
     // Generated elements depend on the collection that produced them, even
     // when the template only reads its local iterator rather than Query refs.
@@ -250,8 +282,8 @@ export function finishEvaluation(node: any, value: any, observed?: Set<string>):
         seen.add(item);
         if (Array.isArray(item)) item.forEach(v => inherit(v, depth + 1));
         else if (item.type === 'element') {
-          const own = sourcePresentation(item);
-          presentation.set(item, { ...own, queries: [...new Set([...(own.queries ?? []), ...queries])], observed: true });
+          const own = sourcePresentation(item, snapshot);
+          snapshot.presentation.set(item, { ...own, queries: [...new Set([...(own.queries ?? []), ...queries])], observed: true });
           Object.values(item.props).forEach(v => inherit(v, depth + 1));
         }
       };
@@ -267,9 +299,9 @@ export function finishEvaluation(node: any, value: any, observed?: Set<string>):
     const invalidate = (item: any) => {
       if (!item || typeof item !== 'object' || seen.has(item)) return;
       seen.add(item);
-      tagReady(item, false);
-      const own = sourcePresentation(item);
-      presentation.set(item, { complete: false, closed: false, queries: own.queries, observed: own.observed });
+      snapshot.ready.set(item, false);
+      const own = sourcePresentation(item, snapshot);
+      snapshot.presentation.set(item, { complete: false, closed: false, queries: own.queries, observed: own.observed });
       if (Array.isArray(item)) item.forEach(invalidate);
       else if (item.type === 'element') Object.values(item.props).forEach(invalidate);
     };

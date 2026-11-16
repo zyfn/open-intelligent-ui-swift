@@ -242,6 +242,13 @@ final class SharedCore {
         identities[ObjectIdentifier(object)] = Record(object, js)
         decoded[Int(call("identity", [js]).toInt32())] = WeakObject(object)
     }
+    /// Presentation can produce another immutable native snapshot of the same
+    /// JS value. Reuse the bridge's existing mapping for ECMAScript identity.
+    func sameReference(_ lhs: AnyObject, _ rhs: AnyObject) -> Bool { sync {
+        guard let left = identities[ObjectIdentifier(lhs)], left.object === lhs,
+              let right = identities[ObjectIdentifier(rhs)], right.object === rhs else { return false }
+        return JSValueIsStrictEqual(context.jsGlobalContextRef, left.value.jsValueRef, right.value.jsValueRef)
+    } }
     func encode(_ value: Value) -> JSValue {
         let native: AnyObject?
         switch value {
@@ -270,39 +277,85 @@ final class SharedCore {
         if let native { remember(native, result) }
         return result
     }
-    func decode(_ js: JSValue, level: Int = 0, interpret: Bool = true) -> Value {
+    private final class ValueProjection {
+        let sourceSnapshot: JSValue?
+        var values: [Int: Value] = [:]
+        var path: Set<Int> = []
+        init(sourceSnapshot: JSValue?) { self.sourceSnapshot = sourceSnapshot }
+    }
+    func decode(_ js: JSValue, level: Int = 0, interpret: Bool = true, sourceSnapshot: JSValue? = nil) -> Value {
+        decode(js, level: level, interpret: interpret, projection: ValueProjection(sourceSnapshot: sourceSnapshot))
+    }
+    private func decode(_ js: JSValue, level: Int, interpret: Bool, projection: ValueProjection) -> Value {
         guard level < 256 else { return .null }
         if js.isUndefined { return .undefined }; if js.isNull { return .null }
         if js.isString { return .string(string(js)) }; if js.isBoolean { return .boolean(js.toBool()) }; if js.isNumber { return .number(js.toDouble()) }
         let id = Int(call("identity", [js]).toInt32())
-        if let obj = decoded[id]?.object {
-            if let a = obj as? OpenUIArray { return .array(a) }; if let o = obj as? OpenUIObject { return .object(o) }
-            if let e = obj as? EvaluatedElement, e.isSourceComplete == call("sourceComplete", [js]).toBool(),
-               e.sourceReadiness == sourceReadiness(call("sourcePresentation", [js])) { return .element(e) }
-            if let a = obj as? ActionPlan, a.isSourceComplete == call("sourceComplete", [js]).toBool() { return .actionPlan(a) }
-            if let b = obj as? ReactiveAssign { return .reactiveBinding(b) }
+        if let value = projection.values[id] { return value }
+        // Values crossing bounded evaluation are acyclic. Keep direct bridge
+        // calls bounded too, without expanding a shared DAG on every edge.
+        guard projection.path.insert(id).inserted else { return .null }
+        defer { projection.path.remove(id) }
+        let cached = decoded[id]?.object
+        func child(_ value: JSValue) -> Value {
+            decode(value, level: level + 1, interpret: interpret, projection: projection)
         }
+        func refreshed(_ value: Value) -> Value {
+            guard value.containsSourceMetadata, let object = value.referenceObject,
+                  let record = identities[ObjectIdentifier(object)], record.object === object else { return value }
+            return child(record.value)
+        }
+        var sourceArguments: [Any] { [js, projection.sourceSnapshot ?? JSValue(undefinedIn: context)!] }
+        var complete: Bool { call("sourceComplete", sourceArguments).toBool() }
+        var readiness: NativeSourceReadiness { sourceReadiness(call("sourcePresentation", sourceArguments)) }
         let result: Value
-        let tagged = call("kind", [js]).toString()
-        let runtimeShape = interpret && tagged != "object"
-        if js.isArray { result = .array(items(js).map { decode($0, level: level + 1, interpret: interpret) }) }
-        else if runtimeShape && js.forProperty("type").isString && js.forProperty("type").toString() == "element" {
-            result = .element(EvaluatedElement(typeName: js.forProperty("typeName").toString(), props: entries(js.forProperty("props")).map { ($0.0.displayString, decode($0.1, level: level + 1, interpret: interpret)) }, statementId: optionalString(js.forProperty("statementId")), partial: js.forProperty("partial").toBool(), isSourceComplete: call("sourceComplete", [js]).toBool(), sourceReadiness: sourceReadiness(call("sourcePresentation", [js]))))
-        } else if runtimeShape && js.forProperty("__reactive").isString && js.forProperty("__reactive").toString() == "assign" {
-            let target = js.forProperty("target").toString()!
-            let expression = decodeAST(js.forProperty("expr"))
-            result = expression == .stateRef("$value") ? .binding(target) : .reactiveBinding(target: target, expression: expression)
-        } else if runtimeShape && call("isRuntimePlan", [js]).toBool() {
-            result = .actionPlan(ActionPlan(steps: items(call("actionSteps", [js])).compactMap(decodeStep), isSourceComplete: call("sourceComplete", [js]).toBool()))
-        } else { result = .object(entries(js).map { ObjectField(key: $0.0, value: decode($0.1, level: level + 1, interpret: interpret)) }) }
-        switch result {
-        case .array(let a): remember(a, js)
-        case .object(let o): remember(o, js)
-        case .element(let e): remember(e, js)
-        case .actionPlan(let a): remember(a, js)
-        case .binding(let b), .reactiveBinding(let b): remember(b, js)
-        default: break
+        if let array = cached as? OpenUIArray {
+            if array.containsSourceMetadata {
+                let values = array.values.map(refreshed)
+                result = zip(values, array.values).allSatisfy { $0.isSameSnapshot(as: $1) } ? .array(array) : .array(values)
+            } else { result = .array(array) }
+        } else if let object = cached as? OpenUIObject {
+            if object.containsSourceMetadata {
+                let fields = object.fields.map { ObjectField(key: $0.key, value: refreshed($0.value)) }
+                result = zip(fields, object.fields).allSatisfy { $0.value.isSameSnapshot(as: $1.value) } ? .object(object) : .object(fields)
+            } else { result = .object(object) }
+        } else if let element = cached as? EvaluatedElement {
+            let isComplete = complete, details = readiness
+            let props = element.props.map { ($0.0, refreshed($0.1)) }
+            if element.isSourceComplete == isComplete, element.sourceReadiness == details,
+               zip(props, element.props).allSatisfy({ $0.1.isSameSnapshot(as: $1.1) }) {
+                result = .element(element)
+            } else {
+                result = .element(EvaluatedElement(typeName: element.typeName, props: props,
+                    statementId: element.statementId, partial: element.partial,
+                    isSourceComplete: isComplete, sourceReadiness: details))
+            }
+        } else if let plan = cached as? ActionPlan {
+            // Step captures remain Lang data. Presentation changes the plan's
+            // readiness, not the captured payload or its native snapshot.
+            let isComplete = complete
+            result = plan.isSourceComplete == isComplete ? .actionPlan(plan)
+                : .actionPlan(ActionPlan(steps: plan.steps, isSourceComplete: isComplete))
+        } else if let binding = cached as? ReactiveAssign {
+            result = .reactiveBinding(binding)
+        } else {
+            let tagged = call("kind", [js]).toString()
+            let runtimeShape = interpret && tagged != "object"
+            if js.isArray { result = .array(items(js).map(child)) }
+            else if runtimeShape && js.forProperty("type").isString && js.forProperty("type").toString() == "element" {
+                result = .element(EvaluatedElement(typeName: js.forProperty("typeName").toString(), props: entries(js.forProperty("props")).map { ($0.0.displayString, child($0.1)) }, statementId: optionalString(js.forProperty("statementId")), partial: js.forProperty("partial").toBool(), isSourceComplete: complete, sourceReadiness: readiness))
+            } else if runtimeShape && js.forProperty("__reactive").isString && js.forProperty("__reactive").toString() == "assign" {
+                let target = js.forProperty("target").toString()!
+                let expression = decodeAST(js.forProperty("expr"))
+                result = expression == .stateRef("$value") ? .binding(target) : .reactiveBinding(target: target, expression: expression)
+            } else if runtimeShape && call("isRuntimePlan", [js]).toBool() {
+                result = .actionPlan(ActionPlan(steps: items(call("actionSteps", [js])).compactMap {
+                    decodeStep($0, projection: projection, level: level + 1)
+                }, isSourceComplete: complete))
+            } else { result = .object(entries(js).map { ObjectField(key: $0.0, value: child($0.1)) }) }
         }
+        if let object = result.referenceObject, object !== cached { remember(object, js) }
+        projection.values[id] = result
         return result
     }
     func items(_ js: JSValue) -> [JSValue] {
@@ -441,15 +494,18 @@ final class SharedCore {
         case .custom(let n, let a): return obj("custom_action", [("name", string(OpenUIString(n))), ("params", object(a.map { (OpenUIString($0.0), encode(literalValue($0.1) ?? .null)) }))])
         }
     }
-    func decodeStep(_ js: JSValue) -> ActionStep? {
+    private func decodeStep(_ js: JSValue, projection: ValueProjection, level: Int) -> ActionStep? {
         guard js.isObject, js.forProperty("type").isString else { return nil }
+        func value(_ js: JSValue, interpret: Bool = true) -> Value {
+            decode(js, level: level, interpret: interpret, projection: projection)
+        }
         switch js.forProperty("type").toString()! {
         case "set": return .set(target: js.forProperty("target").toString(), valueAST: decodeAST(js.forProperty("valueAST")))
         case "reset": return .reset(targets: items(js.forProperty("targets")).map { $0.toString() })
         case "run": return .run(statementId: js.forProperty("statementId").toString(), refType: QueryRefType(rawValue: js.forProperty("refType").toString()) ?? .query)
-        case "continue_conversation": return .continueConversation(messageAST: .runtimeValue(decode(js.forProperty("message"))), contextAST: js.forProperty("context").isNull || js.forProperty("context").isUndefined ? nil : .runtimeValue(decode(js.forProperty("context"), interpret: false)))
-        case "open_url": return .openUrl(urlAST: .runtimeValue(decode(js.forProperty("url"))))
-        case "custom_action": return .custom(name: js.forProperty("name").toString(), args: entries(js.forProperty("params")).map { ($0.0.displayString, .runtimeValue(decode($0.1, interpret: false))) })
+        case "continue_conversation": return .continueConversation(messageAST: .runtimeValue(value(js.forProperty("message"))), contextAST: js.forProperty("context").isNull || js.forProperty("context").isUndefined ? nil : .runtimeValue(value(js.forProperty("context"), interpret: false)))
+        case "open_url": return .openUrl(urlAST: .runtimeValue(value(js.forProperty("url"))))
+        case "custom_action": return .custom(name: js.forProperty("name").toString(), args: entries(js.forProperty("params")).map { ($0.0.displayString, .runtimeValue(value($0.1, interpret: false))) })
         default: return nil
         }
     }

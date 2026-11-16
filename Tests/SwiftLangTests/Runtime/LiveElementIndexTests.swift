@@ -53,6 +53,25 @@ final class LiveElementIndexTests: XCTestCase {
     assertIdentities(index.candidates(for: first), [first, second])
   }
 
+  func testMembershipRequiresTheExactCurrentSnapshot() {
+    var index = NativeLiveElementIndex()
+    let current = element("TextContent", "same", complete: false)
+    let older = element("TextContent", "same", complete: false)
+    let ready = element("TextContent", "same", complete: true)
+    index.insert(current); index.insert(ready)
+    XCTAssertTrue(index.contains(current))
+    XCTAssertTrue(index.contains(ready))
+    XCTAssertFalse(index.contains(older), "Equal props and statement ID do not prove current membership")
+    assertIdentities(index.candidates(for: older), [current, ready],
+      file: #filePath, line: #line)
+    index.removeAll(keepingCapacity: true)
+    XCTAssertFalse(index.contains(current))
+    XCTAssertFalse(index.contains(ready))
+    index.insert(older)
+    XCTAssertTrue(index.contains(older))
+    XCTAssertFalse(index.contains(current), "Rebuilding must retire the previous snapshot")
+  }
+
   func testKeyUsesTheSameSwiftStringEqualityAsThePreviousFilter() {
     var index = NativeLiveElementIndex()
     let composed = element("TextContent", "\u{00E9}")
@@ -117,6 +136,32 @@ final class LiveElementIndexTests: XCTestCase {
     state.setSource("root=Stack([first])\nfirst=TextContent(\"After\")\n")
     XCTAssertTrue(state.liveElement(matching: stale) === stale,
       "A previous match must not survive rebuilding the live index")
+  }
+
+  @MainActor func testCurrentMembersBypassSearchWhileAnOlderAmbiguousSnapshotStaysUnresolved() throws {
+    let pending = EvaluatedElement(typeName: "TextContent", props: [("text", .string("Same"))],
+      statementId: "shared", isSourceComplete: false)
+    let ready = EvaluatedElement(typeName: "TextContent", props: pending.props,
+      statementId: "shared", isSourceComplete: true)
+    let base = customSchema()
+    let schema = LibrarySchema(components: base.components,
+      callDefs: base.callDefs.merging(["Nodes": CallDef(kind: .function, params: [])]) { _, new in new },
+      rootComponent: "Stack")
+    let state = OpenUIState(schema: schema, functions: [
+      "Nodes": CustomFunction(params: [], fn: { _ in .array([.element(pending), .element(ready)]) })
+    ])
+    state.setSource("root=Stack(@Nodes())")
+    let children = PropValue.children(try XCTUnwrap(state.root))
+    XCTAssertEqual(children.count, 2)
+    guard children.count == 2 else { return }
+    XCTAssertFalse(children[0].isSourceComplete)
+    XCTAssertTrue(children[1].isSourceComplete)
+    XCTAssertTrue(state.liveElement(matching: children[0]) === children[0])
+    XCTAssertTrue(state.liveElement(matching: children[1]) === children[1])
+    let older = EvaluatedElement(typeName: "TextContent", props: pending.props,
+      statementId: "shared", isSourceComplete: false)
+    XCTAssertTrue(state.liveElement(matching: older) === older,
+      "Membership must not replace the existing readiness ambiguity check for old snapshots")
   }
 
   private func customSchema() -> LibrarySchema {

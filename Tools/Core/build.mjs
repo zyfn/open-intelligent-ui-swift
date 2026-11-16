@@ -97,6 +97,7 @@ const result = await build({
           return { contents: readiness(source, kind, join(bridge, 'readiness.ts')), loader: 'ts' };
         });
         for (const [kind, filter] of [
+          ['builtins', /\/parser\/builtins\.ts$/],
           ['evaluate-prop', /\/runtime\/evaluate-prop\.ts$/],
           ['query-manager', /\/runtime\/queryManager\.ts$/],
         ]) b.onLoad({filter}, args => {
@@ -219,6 +220,7 @@ writeFileSync(
         'serializer precedence and lossless keys',
         'materialization depth/node budgets',
         'shared evaluation work and expanded-output budgets',
+        'native pre-encode budgets for tool/context values, Evaluator ASTs and high-level State inputs; conservative non-data metadata/AST costs',
       ],
       adaptations: JSON.parse(readFileSync(join(here, 'adaptations.json'), 'utf8')),
       retainedPatches: [
@@ -233,8 +235,8 @@ writeFileSync(
           removal: 'Equivalent shared-core or host execution bounds verified on Apple runtimes.',
         },
         {
-          module: 'runtime/evaluator.ts, runtime/evaluate-tree.ts, runtime/evaluate-prop.ts, runtime/queryManager.ts',
-          reason: 'Bound synchronous work, projected values and element occurrences before native rendering or tool dispatch, including automatic query readers.',
+          module: 'parser/builtins.ts, runtime/evaluator.ts, runtime/evaluate-tree.ts, runtime/evaluate-prop.ts, runtime/queryManager.ts',
+          reason: 'Bound synchronous work, implicit primitive conversions, projected values and element occurrences before native rendering or tool dispatch, including automatic query readers.',
           removal: 'Equivalent shared-core budgets verified against normal official results and bounded expansion regressions.',
         },
         {
@@ -243,8 +245,13 @@ writeFileSync(
           removal: 'Equivalent bounded pattern execution in the shared core or host runtime.',
         },
         {
+          module: 'runtime/queryManager.ts',
+          reason: 'Pass a private declaration/cache-key validity predicate to the native tool bridge so asynchronous host preflight cannot dispatch a superseded queued query.',
+          removal: 'Equivalent upstream tool-dispatch validity token verified across native asynchronous preflight.',
+        },
+        {
           module: 'parser/lexer.ts, parser/expressions.ts, parser/parser.ts, parser/materialize.ts, runtime/evaluator.ts, runtime/evaluate-tree.ts',
-          reason: 'Readiness source provenance is private native metadata; the pinned core has no equivalent complete-control/dependency API.',
+          reason: 'Readiness source provenance is private native metadata; per-evaluation snapshots isolate shared values and retain old projections. The pinned core has no equivalent complete-control/dependency API.',
           removal: 'Equivalent source/dependency readiness supplied by upstream and verified against strict intermediate snapshots.',
         },
       ],

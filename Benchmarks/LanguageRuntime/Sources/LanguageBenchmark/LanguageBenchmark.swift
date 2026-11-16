@@ -1,6 +1,7 @@
 import Darwin
 import Dispatch
 import Foundation
+import Combine
 import SwiftLang
 
 private enum BenchmarkError: Error {
@@ -12,6 +13,8 @@ private struct Options {
     var iterations = 500
     var warmup = 10
     var rows = 30
+    var streamIterations = 20
+    var chunkUnits = 128
     var output: String?
 
     init(_ arguments: [String]) throws {
@@ -19,19 +22,21 @@ private struct Options {
         while index < arguments.count {
             let name = arguments[index]
             if name == "--help" {
-                print("LanguageBenchmark [--iterations 500] [--warmup 10] [--rows 30] [--output report.json]")
+                print("LanguageBenchmark [--iterations 500] [--warmup 10] [--rows 30] [--stream-iterations 20] [--chunk-units 128] [--output report.json]")
                 exit(0)
             }
             guard index + 1 < arguments.count else { throw BenchmarkError.usage("Missing value for " + name) }
             let value = arguments[index + 1]
             switch name {
             case "--output": output = value
-            case "--iterations", "--warmup", "--rows":
+            case "--iterations", "--warmup", "--rows", "--stream-iterations", "--chunk-units":
                 guard let number = Int(value), number >= (name == "--warmup" ? 0 : 1) else {
                     throw BenchmarkError.usage("Invalid value for " + name)
                 }
                 if name == "--iterations" { iterations = number }
                 else if name == "--warmup" { warmup = number }
+                else if name == "--stream-iterations" { streamIterations = number }
+                else if name == "--chunk-units" { chunkUnits = number }
                 else { rows = number }
             default: throw BenchmarkError.usage("Unknown option: " + name)
             }
@@ -52,7 +57,7 @@ private func residentBytes() -> UInt64? {
 }
 
 @main private enum LanguageBenchmark {
-    static func main() throws {
+    @MainActor static func main() throws {
         let options = try Options(Array(CommandLine.arguments.dropFirst()))
         // These contracts describe a language workload, not rendered UI views.
         let schema = LibrarySchema(components: [
@@ -68,7 +73,7 @@ private func residentBytes() -> UInt64? {
             store.initialize(defaults: result.stateDeclarations, persisted: [:])
             let evaluator = Evaluator(context: EvaluationContext(
                 getState: { store.get($0) ?? .null }, resolveRef: { _ in .null }
-            ), store: store, schema: schema)
+            ), schema: schema)
             guard result.meta.errors.isEmpty, evaluator.evaluateRoot(result)?.typeName == "BenchmarkColumn" else {
                 throw BenchmarkError.invalidProgram(String(describing: result.meta.errors))
             }
@@ -99,9 +104,79 @@ private func residentBytes() -> UInt64? {
             }
         }
         timings.sort()
-        func percentile(_ proportion: Double) -> Double {
-            timings[min(timings.count - 1, max(0, Int(ceil(Double(timings.count) * proportion)) - 1))]
+        func statistics(_ samples: [Double]) -> [String: Double] {
+            let sorted = samples.sorted()
+            func percentile(_ proportion: Double) -> Double {
+                sorted[min(sorted.count - 1, max(0, Int(ceil(Double(sorted.count) * proportion)) - 1))]
+            }
+            return ["p50Milliseconds": percentile(0.50), "p95Milliseconds": percentile(0.95),
+                    "maxMilliseconds": sorted.last ?? 0]
         }
+        // Exercise the public MainActor adapter as well as the parser-only
+        // workload above. A changing tail is distinct from repeatedly setting
+        // an unchanged buffer. The generated workload is ASCII, so slicing at
+        // these byte boundaries also gives exact UTF-16 chunk sizes.
+        let names = (0..<options.rows).map { "row\($0)" }
+        let declarations = names.enumerated().map {
+            "\($0.element)=BenchmarkText(\"stable row \($0.offset)\")"
+        }
+        let streamingSource = (["root=BenchmarkColumn([" + (names + ["tail"]).joined(separator: ",") + "])"]
+            + declarations + ["tail=BenchmarkText(\"" + String(repeating: "streaming text ", count: 128) + "\")"])
+            .joined(separator: "\n")
+        let wire = Array(streamingSource.utf8)
+        let chunks = stride(from: 0, to: wire.count, by: options.chunkUnits).map {
+            String(decoding: wire[$0..<min(wire.count, $0 + options.chunkUnits)], as: UTF8.self)
+        }
+        var pushSamples: [Double] = [], completionSamples: [Double] = [], streamSamples: [Double] = []
+        var parseCallbacks = 0, publications = 0
+        @MainActor func streamIteration(record: Bool) throws {
+            let state = OpenUIState(schema: schema)
+            state.onParseResult = { _ in if record { parseCallbacks += 1 } }
+            let subscription = state.objectWillChange.sink { if record { publications += 1 } }
+            defer { subscription.cancel() }
+            let started = DispatchTime.now().uptimeNanoseconds
+            for chunk in chunks {
+                let start = DispatchTime.now().uptimeNanoseconds
+                state.push(chunk)
+                if record { pushSamples.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000) }
+            }
+            let completionStart = DispatchTime.now().uptimeNanoseconds
+            state.complete()
+            let completed = DispatchTime.now().uptimeNanoseconds
+            guard state.errors.isEmpty, state.root?.typeName == "BenchmarkColumn", !state.isInterrupted else {
+                throw BenchmarkError.invalidProgram("Streaming adapter: " + String(describing: state.errors))
+            }
+            guard let root = state.root,
+                  PropValue.children(root).count == options.rows + 1,
+                  PropValue.string(PropValue.children(root).last!, "value") == String(repeating: "streaming text ", count: 128) else {
+                throw BenchmarkError.invalidProgram("Streaming lost a completed sibling or its final tail")
+            }
+            if record {
+                completionSamples.append(Double(completed - completionStart) / 1_000_000)
+                streamSamples.append(Double(completed - started) / 1_000_000)
+            }
+        }
+        for _ in 0..<min(options.warmup, 3) { try autoreleasepool { try streamIteration(record: false) } }
+        for _ in 0..<options.streamIterations { try autoreleasepool { try streamIteration(record: true) } }
+        // Tool responses can be wide without being deeply nested. Measure the
+        // native ordered-object construction that happens outside the JS work
+        // counter; a small final UI must not conceal quadratic input work.
+        let fieldCount = 10_000
+        var fields = (0..<fieldCount).map { ObjectField(key: "field\($0)", value: .number(Double($0))) }
+        fields.append(ObjectField(key: "field0", value: .number(-1)))
+        var objectSamples: [Double] = []
+        for _ in 0..<options.streamIterations {
+            try autoreleasepool {
+                let start = DispatchTime.now().uptimeNanoseconds
+                let object = OpenUIObject(fields)
+                objectSamples.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
+                guard object.count == fieldCount, object.first?.value == .number(-1),
+                      object.last?.key == OpenUIString("field\(fieldCount - 1)") else {
+                    throw BenchmarkError.invalidProgram("Wide-object ordering or last-write semantics changed")
+                }
+            }
+        }
+        let languageStatistics = statistics(timings)
         #if DEBUG
         let configuration = "debug"
         #else
@@ -114,9 +189,20 @@ private func residentBytes() -> UInt64? {
             "programBytes": source.utf8.count, "components": options.rows + 1,
             "iterations": options.iterations, "warmupIterations": options.warmup,
             "perIteration": "parse + initial render-tree evaluation + 3 state writes and reevaluations",
-            "p50Milliseconds": percentile(0.50), "p95Milliseconds": percentile(0.95),
+            "p50Milliseconds": languageStatistics["p50Milliseconds"]!, "p95Milliseconds": languageStatistics["p95Milliseconds"]!,
             "maxMilliseconds": timings.last!, "residentSamples": memory,
-            "limits": "Language work only: no SwiftUI layout, frame rate or physical-device profile. RSS includes JavaScript VM and allocator retention; growth alone is not evidence of a leak. No internal garbage-collection API is invoked."
+            "streaming": [
+                "workload": "public OpenUIState.push with stable siblings and a changing text tail, then complete",
+                "iterations": options.streamIterations, "chunkUTF16Units": options.chunkUnits,
+                "chunksPerIteration": chunks.count, "sourceUTF16Units": streamingSource.utf16.count,
+                "push": statistics(pushSamples), "complete": statistics(completionSamples),
+                "wholeStream": statistics(streamSamples), "parseCallbacks": parseCallbacks,
+                "objectWillChangePublications": publications,
+                "instrumentation": "Callbacks count synchronous publications; they do not count SwiftUI body evaluations or frames."
+            ] as [String: Any],
+            "orderedFieldConstruction": ["fields": fieldCount, "iterations": options.streamIterations,
+                                           "timing": statistics(objectSamples)] as [String: Any],
+            "limits": "Language and public MainActor adapter work only: no SwiftUI layout, frame rate or physical-device profile. RSS samples cover the parser workload and include JavaScript VM and allocator retention; growth alone is not evidence of a leak. No internal garbage-collection API is invoked."
         ]
         let data = try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
         if let path = options.output {

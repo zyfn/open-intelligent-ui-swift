@@ -36,15 +36,30 @@ extension Value {
 /// JS object construction is last-write-wins and enumerates integer keys first.
 func orderedObjectFields(_ fields: [ObjectField]) -> [ObjectField] {
     var result: [ObjectField] = []
+    result.reserveCapacity(fields.count)
+    // Keep the first insertion position and the last value, using exact UTF-16
+    // keys. Scanning all earlier fields for every key makes large tool/state
+    // objects quadratic before they ever reach the evaluator's JS budget.
+    var positions: [OpenUIString: Int] = [:]
+    positions.reserveCapacity(fields.count)
     for field in fields {
-        if let i = result.firstIndex(where: { jsStringEqual($0.key, field.key) }) { result[i] = field }
-        else { result.append(field) }
+        if let i = positions[field.key] { result[i] = field }
+        else {
+            positions[field.key] = result.count
+            result.append(field)
+        }
     }
     func index(_ key: OpenUIString) -> UInt32? {
         guard let text = key.wellFormedString, let n = UInt32(text), n != UInt32.max, String(n) == text else { return nil }; return n
     }
-    let integers = result.filter { index($0.key) != nil }.sorted { index($0.key)! < index($1.key)! }
-    return integers + result.filter { index($0.key) == nil }
+    var integers: [(index: UInt32, field: ObjectField)] = []
+    var other: [ObjectField] = []
+    for field in result {
+        if let value = index(field.key) { integers.append((value, field)) }
+        else { other.append(field) }
+    }
+    integers.sort { $0.index < $1.index }
+    return integers.map(\.field) + other
 }
 
 

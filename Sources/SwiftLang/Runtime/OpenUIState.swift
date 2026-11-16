@@ -57,6 +57,9 @@ public final class OpenUIState: ObservableObject {
     private var liveElementCache: [ObjectIdentifier: (snapshot: EvaluatedElement, current: EvaluatedElement)] = [:]
     package func liveElement(matching element: EvaluatedElement) -> EvaluatedElement {
         guard let root, root !== element else { return element }
+        // Current nodes already carry this publication's metadata. Only older
+        // snapshots need semantic matching against their candidate bucket.
+        if liveElements.contains(element) { return element }
         let key = ObjectIdentifier(element)
         if let cached = liveElementCache[key], cached.snapshot === element { return cached.current }
         func same(_ a: Value, _ b: Value, depth: Int) -> Bool {
@@ -177,6 +180,32 @@ public final class OpenUIState: ObservableObject {
     private var querySourceGeneration = -1
     private var queryStoreSnapshot: [OpenUIString: Value] = [:]
     private var idleMutations: [String: Value] = [:]
+    // @Published delivers synchronously from willSet. A host may request a
+    // new source/state from that callback; run it after the current setter
+    // finishes so the old assignment cannot overwrite the newer document.
+    private var mutationSequence = 0
+    private var activeMutation = 0
+    private var drainingMutations = false
+    private var queuedMutations: ArraySlice<() -> Void> = []
+    private var activeSourceRequest: (text: String, streaming: Bool)?
+    private var finishingSource = false
+    private func mutate(_ body: @escaping () -> Void) {
+        mutationSequence &+= 1
+        queuedMutations.append(body)
+        guard !drainingMutations else { return }
+        drainingMutations = true
+        defer {
+            queuedMutations.removeAll()
+            drainingMutations = false
+        }
+        while let next = queuedMutations.popFirst() {
+            // Already queued work runs in FIFO order. Only a new request made
+            // during this operation supersedes its remaining publication.
+            activeMutation = mutationSequence
+            next()
+        }
+    }
+    private var mutationIsCurrent: Bool { activeMutation == mutationSequence }
     package let mediaCache = NativeMediaCache()
     package let resourceStore = NativeResourceStore()
     // Unrepresentable edits may outlive a mounted view. These records are not
@@ -217,23 +246,66 @@ public final class OpenUIState: ObservableObject {
 
     private func observeQueries() {
         let generation = streamGeneration
+        let manager = queryManager
+        manager.setNativeLimitHandler { [weak self, weak manager] in
+            Task { @MainActor [weak self, weak manager] in
+                guard let self, let manager, self.queryManager === manager, manager.nativeLimitExceeded else { return }
+                self.stopForRuntimeLimit()
+            }
+        }
+        manager.setAutomaticDispatchCheck { [weak self, weak manager] revalidateRoot in
+            await MainActor.run {
+                guard let self, let manager, self.queryManager === manager else { return false }
+                if revalidateRoot {
+                    let epoch = self.streamGeneration
+                    self.mutate {
+                        guard self.queryManager === manager, self.streamGeneration == epoch,
+                              let result = self.latestResult else { return }
+                        self.update(from: result, synchronizeQueries: false)
+                    }
+                }
+                // A synchronous callback may have applied a same-manager
+                // patch. Its committed root is checked too; the official
+                // request-key predicate decides whether this fetch survived.
+                return self.queryManager === manager
+                    && self.isComplete && !self.isInterrupted && self.latestResult?.nativeLimitExceeded != true
+            }
+        }
         unsubscribe = queryManager.subscribe { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self, self.streamGeneration == generation, let result = self.latestResult else { return }
-                self.update(from: result, synchronizeQueries: false)
+                guard let self else { return }
+                self.mutate {
+                    guard self.streamGeneration == generation, let result = self.latestResult else { return }
+                    self.update(from: result, synchronizeQueries: false)
+                }
             }
         }
     }
 
     public func push(_ chunk: String) {
+        guard !chunk.isEmpty else { return }
+        if queuedMutations.isEmpty && latestResult?.nativeLimitExceeded == true { return }
+        mutate { self.pushNow(chunk) }
+    }
+    private func pushNow(_ chunk: String) {
         guard !chunk.isEmpty, latestResult?.nativeLimitExceeded != true else { return }
-        if isComplete { reset() }
+        if isComplete { resetNow() }
         let result = parser.push(chunk, complete: false)
         if !result.nativeLimitExceeded { source += chunk }
         acceptSource(result)
     }
 
     public func complete() {
+        if queuedMutations.isEmpty {
+            guard !isComplete, !finishingSource, activeSourceRequest?.streaming != false else { return }
+        }
+        mutate {
+            self.finishingSource = true
+            defer { self.finishingSource = false }
+            self.completeNow()
+        }
+    }
+    private func completeNow() {
         guard !isComplete else { return }
         isComplete = true
         acceptSource(parser.getResult(complete: true))
@@ -243,6 +315,16 @@ public final class OpenUIState: ObservableObject {
     /// token or starting deferred tools. Already completed content is retained.
     /// Use complete() for a normally finished response, not for cancellation.
     public func interrupt() {
+        if queuedMutations.isEmpty {
+            guard !isComplete, !finishingSource, activeSourceRequest?.streaming != false else { return }
+        }
+        mutate {
+            self.finishingSource = true
+            defer { self.finishingSource = false }
+            self.interruptNow()
+        }
+    }
+    private func interruptNow() {
         guard !isComplete else { return }
         isInterrupted = true
         isComplete = true
@@ -250,6 +332,9 @@ public final class OpenUIState: ObservableObject {
     }
 
     public func reset() {
+        mutate { self.resetNow() }
+    }
+    private func resetNow() {
         let hadErrors = !errors.isEmpty
         streamGeneration += 1
         mediaCache.removeAll()
@@ -265,11 +350,24 @@ public final class OpenUIState: ObservableObject {
         root = nil; presentationRoot = nil; errors = []; queryStates = [:]; mutationStates = [:]; isComplete = false; isInterrupted = false
         errorRevision = nil
         observeQueries()
-        if hadErrors { onError?([]) }
+        if hadErrors && mutationIsCurrent { onError?([]) }
     }
 
     /// Host-owned full-response and editing surfaces can retain user state.
     public func setSource(_ text: String, streaming: Bool = false) {
+        if queuedMutations.isEmpty, let activeSourceRequest,
+           activeSourceRequest.streaming == streaming, activeSourceRequest.text.utf16.elementsEqual(text.utf16) { return }
+        if queuedMutations.isEmpty, !isInterrupted, source.utf16.elementsEqual(text.utf16) {
+            if streaming && !isComplete && latestResult != nil { return }
+            if !streaming && isComplete { return }
+        }
+        mutate {
+            self.activeSourceRequest = (text, streaming)
+            defer { self.activeSourceRequest = nil }
+            self.setSourceNow(text, streaming: streaming)
+        }
+    }
+    private func setSourceNow(_ text: String, streaming: Bool) {
         guard OpenUIRuntimeBudget.acceptsSource(text) else {
             acceptSource(parser.set(text, complete: !streaming)); return
         }
@@ -280,7 +378,7 @@ public final class OpenUIState: ObservableObject {
             if !streaming {
                 // An unchanged final snapshot must still commit the trailing
                 // token and enable completed actions exactly once.
-                complete()
+                completeNow()
                 return
             }
             if !isComplete, latestResult != nil {
@@ -329,42 +427,74 @@ public final class OpenUIState: ObservableObject {
 
     /// A patch is merged only once its stream is finished.
     public func applyPatch(_ patch: String) {
-        guard isComplete else { return }
-        replaceSource(mergeStatements(source, patch), streaming: false, replacesPresentation: false)
+        if queuedMutations.isEmpty && !isComplete { return }
+        mutate {
+            guard self.isComplete else { return }
+            self.replaceSource(mergeStatements(self.source, patch), streaming: false, replacesPresentation: false)
+        }
     }
 
     public func stateValue(_ name: OpenUIString) -> Value { store.get(name) ?? .null }
 
     public func setState(_ name: OpenUIString, value: Value) {
+        if queuedMutations.isEmpty {
+            guard let result = latestResult, !result.nativeLimitExceeded else { return }
+        }
+        mutate { self.setStateNow(name, value: value) }
+    }
+    private func setStateNow(_ name: OpenUIString, value: Value) {
         guard let result = latestResult, !result.nativeLimitExceeded else { return }
+        guard !nativeValueExceedsLimits(value) else { stopForRuntimeLimit(); return }
         store.set(name, value: value, pristine: false)
-        update(from: result); onStateUpdate?(store.getSnapshot())
+        update(from: result)
+        if mutationIsCurrent { onStateUpdate?(store.getSnapshot()) }
     }
 
     public func snapshotState() -> [OpenUIString: Value] { store.getSnapshot() }
 
     public func restoreState(_ values: [OpenUIString: Value]) {
-        persistedState = values
-        if let result = latestResult { update(from: result) }
+        mutate {
+            self.persistedState = values
+            if let result = self.latestResult { self.update(from: result) }
+        }
     }
 
     /// Components keep native Binding ownership while writing through this runtime.
     public func binding(for name: String) -> Binding<Value> {
+        binding(for: name, expectedSourceRevision: nil)
+    }
+    private func binding(for name: String, expectedSourceRevision: Int?) -> Binding<Value> {
         Binding(get: { [weak self] in self?.stateValue(name) ?? .null },
-                set: { [weak self] in self?.setState(name, value: $0) })
+                set: { [weak self] value in
+                    guard let self, expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+                    if self.queuedMutations.isEmpty && self.latestResult?.nativeLimitExceeded != false { return }
+                    self.mutate {
+                        guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+                        self.setStateNow(OpenUIString(name), value: value)
+                    }
+                })
     }
 
     public func binding(for element: EvaluatedElement, prop: String) -> Binding<Value>? {
+        binding(for: element, prop: prop, expectedSourceRevision: nil)
+    }
+    package func binding(for element: EvaluatedElement, prop: String, expectedSourceRevision: Int?) -> Binding<Value>? {
         guard let value = element.props.last(where: { $0.0 == prop })?.1 else { return nil }
-        if case .binding(let assignment) = value { return binding(for: assignment.target) }
+        if case .binding(let assignment) = value { return binding(for: assignment.target, expectedSourceRevision: expectedSourceRevision) }
         if case .reactiveBinding(let assignment) = value {
             let target = assignment.target, expression = assignment.expression
             return Binding(get: { [weak self] in self?.stateValue(target) ?? .null }, set: { [weak self] newValue in
-                guard let self, let result = self.latestResult, !result.nativeLimitExceeded else { return }
-                let evaluator = self.makeEvaluator(result: result, extraScope: ["$value": newValue])
-                let value = evaluator.evaluate(expression)
-                guard !evaluator.nativeLimitExceeded else { self.stopForRuntimeLimit(); return }
-                self.setState(target, value: value)
+                guard let self, expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+                if self.queuedMutations.isEmpty && self.latestResult?.nativeLimitExceeded != false { return }
+                self.mutate {
+                    guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision,
+                          let result = self.latestResult, !result.nativeLimitExceeded else { return }
+                    let evaluator = self.makeEvaluator(result: result, extraScope: ["$value": newValue])
+                    let value = evaluator.evaluate(expression)
+                    guard self.mutationIsCurrent else { return }
+                    guard !evaluator.nativeLimitExceeded else { self.stopForRuntimeLimit(); return }
+                    self.setStateNow(OpenUIString(target), value: value)
+                }
             })
         }
         return nil
@@ -380,6 +510,25 @@ public final class OpenUIState: ObservableObject {
     }
 
     public func setFieldValue(form: OpenUIString?, name: OpenUIString, value: Value, componentType: String? = "input") {
+        enqueueFieldValue(form: form, name: name, value: value, componentType: componentType, expectedSourceRevision: nil)
+    }
+    package func setFieldValue(form: OpenUIString?, name: OpenUIString, value: Value,
+                               componentType: String?, expectedSourceRevision: Int) {
+        enqueueFieldValue(form: form, name: name, value: value, componentType: componentType,
+                          expectedSourceRevision: expectedSourceRevision)
+    }
+    private func enqueueFieldValue(form: OpenUIString?, name: OpenUIString, value: Value,
+                                   componentType: String?, expectedSourceRevision: Int?) {
+        guard expectedSourceRevision == nil || streamGeneration == expectedSourceRevision else { return }
+        if queuedMutations.isEmpty {
+            guard let result = latestResult, !result.nativeLimitExceeded else { return }
+        }
+        mutate {
+            guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+            self.setFieldValueNow(form: form, name: name, value: value, componentType: componentType)
+        }
+    }
+    private func setFieldValueNow(form: OpenUIString?, name: OpenUIString, value: Value, componentType: String?) {
         var properties = [ObjectField(key: "value", value: value)]
         if let componentType { properties.append(ObjectField(key: "componentType", value: .string(componentType))) }
         let wrapped = Value.object(properties)
@@ -387,23 +536,50 @@ public final class OpenUIState: ObservableObject {
             var fields: [ObjectField] = []
             if case .object(let current) = store.get(form) { fields = Array(current) }
             fields.removeAll { $0.key == name }; fields.append(ObjectField(key: name, value: wrapped))
-            setState(form, value: .object(fields))
-        } else { setState(name, value: wrapped) }
+            setStateNow(form, value: .object(fields))
+        } else { setStateNow(name, value: wrapped) }
     }
 
     /// Call when an application field mounts. Persisted/user-entered values
     /// win over the component's initial value.
     public func initializeField(form: OpenUIString?, name: OpenUIString, value: Value, componentType: String = "input") {
+        enqueueInitialField(form: form, name: name, value: value, componentType: componentType, expectedSourceRevision: nil)
+    }
+    package func initializeField(form: OpenUIString?, name: OpenUIString, value: Value,
+                                 componentType: String, expectedSourceRevision: Int) {
+        enqueueInitialField(form: form, name: name, value: value, componentType: componentType,
+                            expectedSourceRevision: expectedSourceRevision)
+    }
+    private func enqueueInitialField(form: OpenUIString?, name: OpenUIString, value: Value,
+                                     componentType: String, expectedSourceRevision: Int?) {
+        guard expectedSourceRevision == nil || streamGeneration == expectedSourceRevision else { return }
+        if queuedMutations.isEmpty {
+            guard !hasField(form: form, name: name), let result = latestResult, !result.nativeLimitExceeded else { return }
+        }
+        mutate {
+            guard expectedSourceRevision == nil || self.streamGeneration == expectedSourceRevision else { return }
+            self.initializeFieldNow(form: form, name: name, value: value, componentType: componentType)
+        }
+    }
+    private func initializeFieldNow(form: OpenUIString?, name: OpenUIString, value: Value, componentType: String) {
+        guard !hasField(form: form, name: name) else { return }
+        setFieldValueNow(form: form, name: name, value: value, componentType: componentType)
+    }
+    private func hasField(form: OpenUIString?, name: OpenUIString) -> Bool {
         let existing: Value?
         if let form, case .object(let fields) = store.get(form) { existing = fields.last(where: { $0.key == name })?.value }
         else if form == nil { existing = store.get(name) } else { existing = nil }
-        guard existing == nil else { return }
-        setFieldValue(form: form, name: name, value: value, componentType: componentType)
+        return existing != nil
     }
 
     public func fieldBinding(form: OpenUIString?, name: OpenUIString, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {
+        fieldBinding(form: form, name: name, fallback: fallback, componentType: componentType, expectedSourceRevision: nil)
+    }
+    package func fieldBinding(form: OpenUIString?, name: OpenUIString, fallback: Value,
+                              componentType: String, expectedSourceRevision: Int?) -> Binding<Value> {
         Binding(get: { [weak self] in self?.fieldValue(form: form, name: name, fallback: fallback) ?? fallback },
-                set: { [weak self] in self?.setFieldValue(form: form, name: name, value: $0, componentType: componentType) })
+                set: { [weak self] in self?.enqueueFieldValue(form: form, name: name, value: $0,
+                    componentType: componentType, expectedSourceRevision: expectedSourceRevision) })
     }
 
     private func formPayload(_ name: OpenUIString?) -> [(OpenUIString, Value)] {
@@ -489,8 +665,12 @@ public final class OpenUIState: ObservableObject {
             formState: { [weak self] in self?.formPayload(formName) ?? [] }, formName: formName,
             isActive: { [weak self] in self?.streamGeneration == generation },
             onStateChange: { [weak self] in
-                guard let self, self.streamGeneration == generation, let result = self.latestResult else { return }
-                self.update(from: result); self.onStateUpdate?(self.store.getSnapshot())
+                guard let self else { return }
+                self.mutate {
+                    guard self.streamGeneration == generation, let result = self.latestResult else { return }
+                    self.update(from: result)
+                    if self.mutationIsCurrent { self.onStateUpdate?(self.store.getSnapshot()) }
+                }
             },
             onEvent: { [weak self] event in
                 guard let self, self.streamGeneration == generation else { return }
@@ -499,9 +679,12 @@ public final class OpenUIState: ObservableObject {
             }
         )
         let events = await runActionPlan(plan, context: context)
-        guard streamGeneration == generation, let result = latestResult else { return [] }
-        update(from: result)
-        return events
+        guard streamGeneration == generation else { return [] }
+        mutate {
+            guard self.streamGeneration == generation, let result = self.latestResult else { return }
+            self.update(from: result)
+        }
+        return streamGeneration == generation ? events : []
     }
 
     private func runDeclaredQuery(_ id: String) {
@@ -520,18 +703,32 @@ public final class OpenUIState: ObservableObject {
         guard case .string(let tool) = toolValue else { return .failure }
         let arguments = mutation.argsAST.map { evaluator.evaluate($0) } ?? .object([])
         guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(); return .failure }
+        guard !nativeValueExceedsLimits(arguments) else { stopForRuntimeLimit(); return .failure }
         let args = transport(arguments)
         let outcome = await queryManager.runMutation(statementId: id, tool: tool, args: args)
         guard streamGeneration == generation else { return .failure }
-        update(from: latestResult ?? result)
+        mutate {
+            guard self.streamGeneration == generation else { return }
+            self.update(from: self.latestResult ?? result)
+        }
+        guard streamGeneration == generation else { return .failure }
         return outcome.status == .success ? .success(outcome.data ?? .null) : .failure
     }
 
     public func runQuery(statementId: String, tool: OpenUIString, args: Value, defaults: Value = .null) {
-        guard isComplete, !isInterrupted, let result = latestResult, !result.nativeLimitExceeded,
-              result.queryStatements.contains(where: { $0.statementId == statementId }) else { return }
-        queryManager.runQuery(statementId: statementId, tool: tool, args: transport(args), defaults: defaults)
-        update(from: result)
+        if queuedMutations.isEmpty {
+            guard isComplete, !isInterrupted, let result = latestResult, !result.nativeLimitExceeded,
+                  result.queryStatements.contains(where: { $0.statementId == statementId }) else { return }
+        }
+        mutate {
+            guard self.isComplete, !self.isInterrupted, let result = self.latestResult, !result.nativeLimitExceeded,
+                  result.queryStatements.contains(where: { $0.statementId == statementId }) else { return }
+            guard !nativeValueExceedsLimits(args), !nativeValueExceedsLimits(defaults) else {
+                self.stopForRuntimeLimit(); return
+            }
+            self.queryManager.runQuery(statementId: statementId, tool: tool, args: self.transport(args), defaults: defaults)
+            self.update(from: result)
+        }
     }
 
     private func transport(_ value: Value) -> Value {
@@ -575,7 +772,8 @@ public final class OpenUIState: ObservableObject {
             }, functions: functions, actions: schema.callDefs.filter { $0.value.kind == .action }, extraScope: extraScope)
         let evaluator = Evaluator(context: ctx, schema: schema)
         let generation = streamGeneration
-        // Automatic Query reevaluation may run on the serialized JS queue.
+        // Automatic Query reevaluation may run on a background caller while
+        // holding the shared JavaScriptCore lock.
         // The synchronous caller also checks the flag before any side effect;
         // this callback retires a document after an asynchronous failure.
         evaluator.onNativeLimit = { [weak self] in
@@ -591,10 +789,15 @@ public final class OpenUIState: ObservableObject {
 
     private func acceptSource(_ result: ParseResult) {
         update(from: result)
-        onParseResult?(latestResult ?? result)
+        if mutationIsCurrent { onParseResult?(latestResult ?? result) }
     }
 
     private func stopForRuntimeLimit(preserving previous: ParseResult? = nil) {
+        guard drainingMutations else {
+            mutate { self.stopForRuntimeLimit(preserving: previous) }
+            return
+        }
+        guard mutationIsCurrent else { return }
         update(from: limitedParseResult(preserving: previous ?? latestResult, error: runtimeBudgetError()))
     }
 
@@ -617,14 +820,21 @@ public final class OpenUIState: ObservableObject {
                 if !mutationStates.isEmpty { mutationStates = [:] }
                 errorRevision = nil
                 errors = result.meta.errors
-                onError?(errors)
+                if mutationIsCurrent { onError?(errors) }
             }
             return
         }
         let previous = latestResult
+        guard !queryManager.nativeLimitExceeded else { stopForRuntimeLimit(preserving: previous); return }
+        guard !nativeStateExceedsLimits(persistedState) else {
+            persistedState = [:]
+            stopForRuntimeLimit(preserving: previous)
+            return
+        }
         latestResult = result
         store.initialize(defaults: result.stateDeclarations, persisted: persistedState)
         persistedState = [:]
+        guard mutationIsCurrent else { return }
         let evaluator = makeEvaluator(result: result)
         if isComplete && !isInterrupted {
             let declarations = Dictionary(result.mutationStatements.map { mutation in
@@ -632,6 +842,7 @@ public final class OpenUIState: ObservableObject {
             if case .string(let name) = tool { return (mutation.statementId, name) }
             return (mutation.statementId, "")
             }, uniquingKeysWith: { _, new in new })
+            guard mutationIsCurrent else { return }
             guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(preserving: previous); return }
             queryManager.registerMutations(declarations)
         }
@@ -643,9 +854,11 @@ public final class OpenUIState: ObservableObject {
         }
         var evaluatedRoot = evaluator.evaluateRoot(result)
         evaluator.onReferenceRead = nil
+        guard mutationIsCurrent else { return }
         guard !evaluator.nativeLimitExceeded else { stopForRuntimeLimit(preserving: previous); return }
         var queryValues: [String: QueryState] = [:]
         let executable = queryManager.withDeferredToolDispatch {
+            guard mutationIsCurrent else { return false }
             var didSynchronizeQueries = false
             if isComplete && !isInterrupted && synchronizeQueries {
                 let sourceChanged = querySourceGeneration != streamGeneration
@@ -661,12 +874,12 @@ public final class OpenUIState: ObservableObject {
                     didSynchronizeQueries = true
                 }
             }
-            guard !evaluator.nativeLimitExceeded else { return false }
+            guard mutationIsCurrent, !evaluator.nativeLimitExceeded else { return false }
             for query in result.queryStatements {
                 queryValues[query.statementId] = queryManager.queryState(for: query.statementId)
                     ?? QueryState(status: .idle, data: evaluator.context.resolveRef(query.statementId))
             }
-            guard !evaluator.nativeLimitExceeded else { return false }
+            guard mutationIsCurrent, !evaluator.nativeLimitExceeded else { return false }
             // A changed default must be visible in this synchronous update.
             // Only reevaluate when a reference the root actually read changed.
             if didSynchronizeQueries && rootReferences.contains(where: { name, value in
@@ -675,23 +888,39 @@ public final class OpenUIState: ObservableObject {
             }) {
                 evaluatedRoot = evaluator.evaluateRoot(result)
             }
-            return !evaluator.nativeLimitExceeded
+            return mutationIsCurrent && !evaluator.nativeLimitExceeded
+        }
+        guard mutationIsCurrent else {
+            // A reentrant request retired this uncommitted batch. The queued
+            // operation will resynchronize its declarations before dispatch.
+            if queryManager.isDisposed {
+                unsubscribe?()
+                queryManager = QueryManager(provider: toolProvider)
+                querySourceGeneration = -1; queryStoreSnapshot = [:]; idleMutations = [:]
+                observeQueries()
+            }
+            return
         }
         guard executable else { stopForRuntimeLimit(preserving: previous); return }
         presentationRoot = result.presentationRoot
+        guard mutationIsCurrent else { return }
         indexLiveElements(evaluatedRoot)
         root = evaluatedRoot
+        guard mutationIsCurrent else { return }
         // Empty auxiliary channels have no changed value to publish. Root and
         // readiness still update above; nonempty values keep their existing
         // delivery semantics, including the transition back to an empty value.
         if !queryValues.isEmpty || !queryStates.isEmpty { queryStates = queryValues }
+        guard mutationIsCurrent else { return }
         let mutationValues = Dictionary(uniqueKeysWithValues: result.mutationStatements.map {
             ($0.statementId, queryManager.mutationState(for: $0.statementId) ?? MutationState(status: .idle))
         })
         if !mutationValues.isEmpty || !mutationStates.isEmpty { mutationStates = mutationValues }
+        guard mutationIsCurrent else { return }
         let nextErrors = result.meta.errors + (isComplete ? evaluator.errors : [])
             + queryValues.values.compactMap(\.error) + mutationValues.values.compactMap(\.error)
         if !nextErrors.isEmpty || !errors.isEmpty { errors = nextErrors }
+        guard mutationIsCurrent else { return }
         let revision = errors.map { error in
             [error.source?.rawValue ?? "", error.code.rawValue, error.statementId ?? "", error.component ?? "",
              error.path.map(jsonStringLiteral) ?? "", error.severity ?? "", error.message].joined(separator: "\u{0}")
