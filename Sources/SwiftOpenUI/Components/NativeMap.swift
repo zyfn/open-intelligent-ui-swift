@@ -84,7 +84,8 @@ private struct NativeMap: View {
     @State private var camera: MapCameraPosition = .automatic
     @State private var fullscreenCamera: MapCameraPosition = .automatic
     @State private var expanded = false
-    @ScaledMetric(relativeTo: .subheadline) private var textBlockHeight: CGFloat = 54
+    @ScaledMetric(relativeTo: NativeTextRole.label.textStyle) private var titleScale: CGFloat = 1
+    @ScaledMetric(relativeTo: NativeTextRole.caption.textStyle) private var captionScale: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var surfaceColor: Color {
         context.theme.foreground
@@ -135,6 +136,11 @@ private struct NativeMap: View {
                                                 latitudinalMeters: 1600, longitudinalMeters: 1600))
             camera = position; fullscreenCamera = position
         } else { camera = .automatic; fullscreenCamera = .automatic }
+    }
+    private var textBlockHeight: CGFloat {
+        context.theme.textStyle(.fieldLabel).font.measuredLineHeight(scale: titleScale) * 2
+            + context.theme.componentStyle.titleDetailGap
+            + context.theme.textStyle(.caption).font.measuredLineHeight(scale: captionScale)
     }
     private var cardBaseHeight: CGFloat { max(80, textBlockHeight + 24) }
     var body: some View {
@@ -282,7 +288,7 @@ private struct NativeMap: View {
         let rowHeight = max(side, textBlockHeight)
         return HStack(spacing: 10) {
             NativeMapPlaceArtwork(source: place.image, title: place.title, side: side)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
                 Text(place.title).nativeTextStyle(context.theme.textStyle(.fieldLabel)).lineLimit(2)
                 if let description = place.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(description).nativeTextStyle(context.theme.textStyle(.caption)).lineLimit(1)

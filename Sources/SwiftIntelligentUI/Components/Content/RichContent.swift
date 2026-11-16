@@ -1,6 +1,7 @@
 import SwiftUI
 import MarkdownUI
 import SwiftLang
+import CoreText
 
 enum MarkdownComponent {
     static var component: OpenUIComponent {
@@ -16,14 +17,45 @@ struct RichMarkdown: View {
     var compact = false
     var isTitle = false
     @Environment(\.openIntelligentUITheme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.openIntelligentUIEditorial) private var editorial
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
+    @ScaledMetric(relativeTo: .body) private var bodyScale: CGFloat = 1
+    #if compiler(>=6.2)
+    @Environment(\.fontResolutionContext) private var fontContext
+    #endif
     private var typography: TextTypography {
-        TextTypography(size: nil, weight: nil, editorial: editorial, theme: theme, colorScheme: colorScheme)
+        TextTypography(size: nil, weight: nil, theme: theme)
+    }
+    private var usesSystemBodyFamily: Bool {
+        let defaults = OpenIntelligentUITheme()
+        return isTitle ? theme.titleFont == defaults.titleFont : theme.bodyFont == defaults.bodyFont
+    }
+    private var nativeBodyFont: PlatformFont {
+        #if compiler(>=6.2)
+        let font = isTitle ? theme.titleFont : typography.font.weight(typography.weight)
+        if #available(iOS 26, macOS 26, *) { return font.resolve(in: fontContext).ctFont as PlatformFont }
+        #endif
+        let fallback = isTitle
+            ? InlineFonts.semantic(style: .headline, typeSize: typeSize)
+            : typography.nativeFont ?? InlineFonts.semantic(size: typography.sizeName, typeSize: typeSize)
+        return InlineFonts.styled(fallback, weight: isTitle ? theme.headingWeight : typography.weight, tabular: false, italic: false)
+    }
+    private func nativeHeadingFont(level: Int) -> PlatformFont {
+        #if compiler(>=6.2)
+        let font = TitleTypography.font(size: TitleTypography.size(forMarkdownLevel: level), theme: theme)
+        if #available(iOS 26, macOS 26, *) { return font.resolve(in: fontContext).ctFont as PlatformFont }
+        #endif
+        return InlineFonts.styled(InlineFonts.semantic(style: MarkdownTypography.nativeHeadingStyle(level: level), typeSize: typeSize),
+                                  weight: theme.headingWeight, tabular: false, italic: false)
     }
     var body: some View {
+        let bodyFont = nativeBodyFont
         Markdown(text)
+            .markdownTextStyle {
+                MarkdownFontStyle(bodyFont, usesSystemFamily: usesSystemBodyFamily,
+                                  size: MarkdownTypography.rootSize(bodyFont.pointSize, bodyScale: bodyScale))
+                ForegroundColor(theme.primaryText)
+            }
             .markdownTheme(Theme.basic
                 .strong { FontWeight(theme.emphasisWeight) }
                 .paragraph { configuration in
@@ -31,30 +63,12 @@ struct RichMarkdown: View {
                         .lineSpacing(typography.lineSpacing)
                         .markdownMargin(top: 0, bottom: compact ? theme.innerSpacing : theme.paragraphSpacing)
                 }
-                .heading1 { configuration in
-                    configuration.label.markdownTextStyle { FontSize(.em(theme.headingScale(0))); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
-                }
-                .heading2 { configuration in
-                    configuration.label.markdownTextStyle { FontSize(.em(theme.headingScale(1))); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
-                }
-                .heading3 { configuration in
-                    configuration.label.markdownTextStyle { FontSize(.em(theme.headingScale(2))); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
-                }
-                .heading4 { configuration in
-                    configuration.label.markdownTextStyle { FontSize(.em(1)); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
-                }
-                .heading5 { configuration in
-                    configuration.label.markdownTextStyle { FontSize(.em(0.83)); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
-                }
-                .heading6 { configuration in
-                    configuration.label.markdownTextStyle { FontSize(.em(0.67)); FontWeight(theme.headingWeight) }
-                        .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
-                }
+                .heading1 { heading($0, level: 1, bodyFont: bodyFont) }
+                .heading2 { heading($0, level: 2, bodyFont: bodyFont) }
+                .heading3 { heading($0, level: 3, bodyFont: bodyFont) }
+                .heading4 { heading($0, level: 4, bodyFont: bodyFont) }
+                .heading5 { heading($0, level: 5, bodyFont: bodyFont) }
+                .heading6 { heading($0, level: 6, bodyFont: bodyFont) }
                 .codeBlock { configuration in
                     CodeBlockContent(context: context, code: configuration.content, language: configuration.language)
                         .markdownMargin(top: theme.innerSpacing, bottom: theme.groupSpacing)
@@ -64,7 +78,6 @@ struct RichMarkdown: View {
                     .markdownTableBorderStyle(.init(.horizontalBorders, color: theme.separator, width: 0.5))
                     .markdownMargin(top: theme.innerSpacing, bottom: theme.groupSpacing)
             })
-            .font(isTitle ? theme.titleFont : typography.font.weight(typography.weight))
             .foregroundStyle(theme.primaryText)
             .tint(theme.accent)
             .environment(\.openURL, OpenURLAction { url in
@@ -72,6 +85,20 @@ struct RichMarkdown: View {
                 Task { await context.perform(OpenUIActions.openURL(url.absoluteString)) }
                 return .handled
             })
+    }
+    private func heading(_ configuration: BlockConfiguration, level: Int, bodyFont: PlatformFont) -> some View {
+        let semantic = MarkdownTypography.usesSemanticHeading(level: level, theme: theme)
+        let font = semantic ? nativeHeadingFont(level: level) : bodyFont
+        let size = semantic ? font.pointSize : bodyFont.pointSize * CGFloat(MarkdownTypography.headingScale(level: level, theme: theme))
+        let role = TitleTypography.size(forMarkdownLevel: level)
+        let systemFamily = semantic
+            ? TitleTypography.font(size: role, theme: theme) == TitleTypography.font(size: role, theme: OpenIntelligentUITheme())
+            : usesSystemBodyFamily
+        return configuration.label
+            .markdownTextStyle { MarkdownFontStyle(font, usesSystemFamily: systemFamily, size: size, weight: semantic ? nil : theme.headingWeight) }
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+            .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
     }
 }
 

@@ -23,21 +23,24 @@ public struct OpenIntelligentUITheme: Equatable {
     public var chartColors: [Color] = [.blue, .teal, .orange, .purple, .pink, .green, .indigo, .brown]
     public var bodyFont: Font = .body { didSet { nativeTextFonts.removeValue(forKey: .body) } }
     public var secondaryFont: Font = .subheadline { didSet { nativeTextFonts.removeValue(forKey: .secondary) } }
-    public var captionFont: Font = .caption { didSet { nativeTextFonts.removeValue(forKey: .caption) } }
+    public var captionFont: Font = .footnote { didSet { nativeTextFonts.removeValue(forKey: .caption) } }
     public var labelFont: Font = .subheadline.weight(.medium)
     public var bodyLargeFont: Font = .title3 { didSet { nativeTextFonts.removeValue(forKey: .bodyLarge) } }
-    public var sectionTitleFont: Font = .title3.weight(.medium)
-    public var pageTitleFont: Font = .title2.weight(.medium)
-    public var largeTitleFont: Font = .title.weight(.medium)
+    public var sectionTitleFont: Font = .title3.weight(.semibold)
+    public var pageTitleFont: Font = .title2.weight(.semibold)
+    public var largeTitleFont: Font = .title.weight(.semibold)
     public var displayFont: Font = .largeTitle.weight(.semibold)
-    public var headingWeight: Font.Weight = .medium
+    public var headingWeight: Font.Weight = .semibold
     public var emphasisWeight: Font.Weight = .semibold
     public var codeFont: Font = .system(.body, design: .monospaced)
-    public var markdownHeadingScales: [Double] = [22.0 / 17.0, 20.0 / 17.0, 1]
+    public var markdownHeadingScales: [Double] = [22.0 / 17.0, 20.0 / 17.0, 1] {
+        didSet { hasCustomMarkdownHeadingScales = true }
+    }
+    var hasCustomMarkdownHeadingScales = false
     public var codeKeyword: Color = .purple
     public var codeLiteral: Color = .red
     public var codeNumber: Color = .blue
-    public var titleFont: Font = .headline.weight(.medium)
+    public var titleFont: Font = .headline.weight(.semibold)
     public var priceFont: Font = .title3.weight(.semibold)
     public var coverImageAspectRatio: CGFloat = 16.0 / 9.0
     public var compactActionFont: Font = .footnote
@@ -70,14 +73,6 @@ public struct OpenIntelligentUITheme: Equatable {
 
     func headingScale(_ level: Int) -> Double {
         markdownHeadingScales.indices.contains(level) ? markdownHeadingScales[level] : 1
-    }
-
-    func defaultBodyWeight(for colorScheme: ColorScheme) -> Font.Weight {
-        colorScheme == .dark ? .medium : .regular
-    }
-
-    func bodyFont(for colorScheme: ColorScheme) -> Font {
-        bodyFont.weight(defaultBodyWeight(for: colorScheme))
     }
 
     func textColor(_ token: String?) -> Color {

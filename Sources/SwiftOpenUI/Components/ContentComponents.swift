@@ -58,8 +58,11 @@ struct NativeCallout: View {
   private var visible: Bool {
     binding.map { $0.wrappedValue == .boolean(true) || $0.wrappedValue == .string("true") } ?? true
   }
-  private var statusIcon: String? {
+  var authoredTitle: String? { authoredCopy(context.string("title")) }
+  var authoredDescription: String? { authoredCopy(context.string("description")) }
+  var statusIcon: String? {
     switch context.string("variant") {
+    case "info": return "info.circle"
     case "success": return "checkmark.circle"
     case "warning": return "exclamationmark.circle"
     case "error", "danger": return "xmark.circle"
@@ -67,40 +70,38 @@ struct NativeCallout: View {
     }
   }
   private var hasCopy: Bool {
-    [context.string("title"), context.string("description")].contains {
-      !($0 ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    authoredTitle != nil || authoredDescription != nil
+  }
+  private func authoredCopy(_ text: String?) -> String? {
+    guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    return text
   }
   var body: some View {
     Group {
       if visible && hasCopy {
-        HStack(alignment: .firstTextBaseline, spacing: context.theme.spaceM) {
+        HStack(alignment: .firstTextBaseline, spacing: context.theme.spaceXs) {
           if let statusIcon {
             Image(systemName: statusIcon)
-              .openUIFont(context.theme.textLabelDefaultHeavy, role: .control)
+              .openUIFont(context.theme.textLabelSm, role: .label)
               .foregroundStyle(semanticColor(context.string("variant"), theme: context.theme))
               .accessibilityHidden(true)
           }
           VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
-            if let title = context.string("title"), !title.isEmpty {
-              Text(title).openUIFont(context.theme.textBodyDefaultHeavy, role: .title)
+            if let title = authoredTitle {
+              Text(title).nativeTextStyle(context.theme.objectTitleStyle())
+                .fixedSize(horizontal: false, vertical: true)
             }
-            if let detail = context.string("description"), !detail.isEmpty {
-              NativeMarkdownText(text: detail, style: .init(font: context.theme.textBodyDefault,
-                color: context.theme.textNeutralPrimary))
+            if let detail = authoredDescription {
+              NativeMarkdownText(text: detail, style: context.theme.textStyle(.body).richText())
             }
           }
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.leading, statusIcon == nil ? context.theme.spaceML : 0)
-        .padding(.vertical, context.theme.spaceS)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(context.theme.componentStyle.objectInset)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(alignment: .leading) {
-          if statusIcon == nil {
-            RoundedRectangle(cornerRadius: context.theme.radius3xs, style: .continuous)
-              .fill(context.theme.borderDefault).frame(width: 3)
-              .padding(.vertical, context.theme.space2xs).accessibilityHidden(true)
-          }
-        }
+        .background(context.theme.sunk,
+          in: RoundedRectangle(cornerRadius: context.theme.radiusXl, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityValue(Text(statusLabel, bundle: NativeControlResources.bundle))
       }

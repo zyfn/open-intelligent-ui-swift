@@ -37,11 +37,19 @@ enum NativePresentationProxy {
 /// Minimum reading space for a known text role, never guessed paragraph counts.
 struct NativeTextPlaceholder: View {
   let context: OpenUIComponentContext
-  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
-  private var style: NativeRichTextStyle {
+  @ScaledMetric private var scale: CGFloat
+
+  init(context: OpenUIComponentContext) {
+    self.context = context
+    _scale = ScaledMetric(wrappedValue: 1, relativeTo: Self.textStyle(for: context).role.textStyle)
+  }
+
+  private var style: NativeRichTextStyle { Self.textStyle(for: context) }
+  private static func textStyle(for context: OpenUIComponentContext) -> NativeRichTextStyle {
     switch context.element.typeName {
     case "TextContent": return .textContent(context.presentationString("size"), theme: context.theme)
-    case "CardHeader", "InlineHeader": return context.theme.objectTitleStyle().richText()
+    case "CardHeader": return context.theme.sectionTitleStyle().richText()
+    case "InlineHeader": return context.theme.objectTitleStyle().richText()
     case "CodeBlock": return .init(font: context.theme.textCodeDefault, role: .code)
     default: return context.theme.inlineTextStyle(context.presentationString("size"),
       emphasized: context.element.typeName == "BoldText", numeric: context.string("variant") == "number")

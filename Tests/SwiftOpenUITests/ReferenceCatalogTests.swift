@@ -170,6 +170,34 @@ final class ReferenceCatalogTests: XCTestCase {
     }
   }
 
+  @MainActor func testCalloutKeepsAuthoredCopyAndUsesOnlyTheExplicitStatus() throws {
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    let examples: [(String, String, String?)] = [
+      ("TextCallout", "neutral", nil), ("TextCallout", "info", "info.circle"),
+      ("TextCallout", "success", "checkmark.circle"), ("TextCallout", "warning", "exclamationmark.circle"),
+      ("TextCallout", "danger", "xmark.circle"), ("Callout", "error", "xmark.circle")
+    ]
+    for (name, variant, icon) in examples {
+      state.setSource("root=\(name)(\"\(variant)\",\"**Warning / success**\",\"**Explanation** with [source](https://example.com)\")")
+      XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      let context = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: library.registry, state: state)
+      let callout = NativeCallout(context: context, reactive: name == "Callout")
+      XCTAssertEqual(callout.authoredTitle, "**Warning / success**", "The plain-text title keeps the author's literal content")
+      XCTAssertEqual(callout.authoredDescription, "**Explanation** with [source](https://example.com)")
+      XCTAssertEqual(callout.statusIcon, icon, "Words inside authored copy cannot choose a status")
+    }
+    for title in ["null", "\" \\n \""] {
+      state.setSource("root=TextCallout(\"neutral\",\(title),\"Description only\")")
+      XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      let context = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: library.registry, state: state)
+      let callout = NativeCallout(context: context, reactive: false)
+      XCTAssertNil(callout.authoredTitle, "An omitted or blank title must not become a template heading")
+      XCTAssertEqual(callout.authoredDescription, "Description only")
+      XCTAssertNil(callout.statusIcon)
+    }
+  }
+
   @MainActor func testModalAndCalloutBindingsUseSharedStateAndRespectStaleSources() throws {
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
@@ -186,10 +214,15 @@ final class ReferenceCatalogTests: XCTestCase {
     try XCTUnwrap(callout.binding("visible")).wrappedValue = .boolean(false)
     XCTAssertEqual(state.stateValue("$open"), .boolean(false))
     XCTAssertEqual(state.stateValue("$visible"), .boolean(false))
-    state.setSource("$open=true\nroot=Modal(\"Other\",$open,[])")
+    state.setSource("$open=true\n$visible=true\nroot=Modal(\"Other\",$open,[])")
     state.setState("$open", value: .boolean(true))
-    modal.binding("open")?.wrappedValue = .boolean(false)
+    state.setState("$visible", value: .boolean(true))
     XCTAssertEqual(state.stateValue("$open"), .boolean(true))
+    XCTAssertEqual(state.stateValue("$visible"), .boolean(true))
+    modal.binding("open")?.wrappedValue = .boolean(false)
+    callout.binding("visible")?.wrappedValue = .boolean(false)
+    XCTAssertEqual(state.stateValue("$open"), .boolean(true))
+    XCTAssertEqual(state.stateValue("$visible"), .boolean(true), "A retired Callout cannot dismiss a replacement source")
   }
 
   @MainActor func testCardActionsPreserveStepsAndAttachTheClickedItem() async throws {

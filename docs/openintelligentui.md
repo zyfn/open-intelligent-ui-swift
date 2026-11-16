@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.2 · 更新日期：2026-11-16
+文档版本：1.3 · 更新日期：2026-11-16
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -35,18 +35,20 @@
 - Row 支持逐项换行、对齐和剩余空间分配。默认图文规则仅用于可识别的双项媒体/正文关系；显式尺寸、gap、align、justify、wrap 优先。切换窄屏、大字号或 RTL 时复用内容身份。
 - Grid 保留 columns 默认 2 的原有含义；提供 minChildWidth 时才按宽度减少列数，且不超过 columns。无障碍大字号使用单列。生成规则应为需要适应窄屏的内容选择现有 minChildWidth 参数。
 - Card 表示真实对象或连贯分组，不为每个段落增加表面。使用画布背景、连续圆角与轻边框；iOS 默认 16 点内边距，macOS 20 点，嵌套 16 点。单个 ProductCard/TransportCard 沿用自己的表面，透明的单子 Col/Box 不重新触发外层边框与内距；有背景、边框或内距的 Box 继续表示真实分组。
-- Card 不根据子项位置把普通 Text 改成标题或副标题；未显式指定的排版可以使用上下文默认值，显式字号始终优先。
+- Card、Grid、Carousel 和透明 Col/Box 只负责布局，不根据层级或子项位置改变默认 Text/Title 的字号与字重。显式字号始终优先；同一内容在根部和容器内保持同一文字角色。
 - Carousel 使用可用宽度收敛卡宽；默认首选卡宽 240 点，正常字号不超过视口的 85%。同类实体卡保留可比较的高度，普通内容按自然高度显示；横滑容器总体仍由最高内容决定。末尾补足停靠空间，使最后一项可与当前索引一致。iOS 17/macOS 14 起使用原生停靠，旧系统同步偏移位置；桌面和无障碍提供前后操作。子项使用 child.id，方向按宿主 RTL 环境处理。
 - Divider、Spacer 分别负责分隔与剩余空间，不增加额外交互。
 
 ### 2.2 文本、列表与内容
 
-- Text 支持内联 Markdown 和混排组件；字符串与 TextKit 共享字号角色、字重和行距决策。附件按 child.id 保留原生 host，Markdown 解析、同宽测量与附件适配分别缓存；异步尺寸变化使测量失效。maxLines 截断后不可见附件不能继续接受操作。桥接转发 locale、方向、字号、对比度、displayScale 及图片环境。
-- Title、Caption 支持行内 Markdown 和链接；标题读取容器上下文，Caption 靠近所属图片或内容，不自动变成独立来源区块。
+- Text 支持内联 Markdown 和混排组件；字符串与 TextKit 共享字号角色、字重和行距决策。省略 size/weight 与显式 md/normal 等价，深浅外观都使用 regular 正文；显式 medium/semibold 继续生效。小号文字不自动变成次级颜色，加粗不自动变成标题。附件按 child.id 保留原生 host，Markdown 解析、同宽测量与附件适配分别缓存；异步尺寸变化使测量失效。maxLines 截断后不可见附件不能继续接受操作。桥接转发 locale、方向、字号、对比度、displayScale 及图片环境。
+- Title、Caption 支持行内 Markdown 和链接；Title 由显式尺寸选择稳定角色，默认/md 为对象标题、lg 为章节、xl 为页面标题，2xl/3xl 保留大标题层级。Caption 靠近所属图片或内容，不自动变成独立来源区块。
 - Label、Badge 表示字段标签与静态事实。Badge 的 info 为中性，状态背景为浅色；Link 使用正文继承色、下划线和行内尺寸，通过宿主动作打开原 URL。
 - List/ListItem 支持 bullet、数字圆标、自定义短步骤标、时间标记列及连线。none 且无时间标记时不绘制悬空线；description 是次级摘要，主要阅读内容放 children。节点身份由运行时维护，不追加私有 id 参数。
-- Markdown 提供完整文档块排版。ImageText、列表、Quote、Flashcard 等紧凑上下文缩短段距至 innerSpacing，保留多个段落的区分，不把段距归零。Quote 的浅底、圆角、侧线和内边距使用同一表面。Code 与 Markdown 代码块共用原文、着色和复制操作；长代码先显示有界预览，可展开，复制始终派发完整原文。
+- Markdown 提供完整文档块排版，默认正文与 Text 共用阅读角色，H1/H2/H3 对应页面、章节、对象标题；宿主显式 markdownHeadingScales 仍优先。ImageText、列表、Quote、Flashcard 等紧凑上下文只缩短段距至 innerSpacing，保留多个段落的区分，不把段距归零或自动缩小正文。Quote 仍表示引文，浅底、圆角、侧线和内边距使用同一表面。Code 与 Markdown 代码块共用原文、着色和复制操作；长代码先显示有界预览，可展开，复制始终派发完整原文。
 - Citation 在混排段落中使用紧凑内联尺寸，不把完整按钮触达高度带入正文行；独立来源块和多来源 Popover 保留完整触达与导航能力。图片署名和来源可在同一小段 Text 中组合，不额外添加重复的图片链接。
+
+普通 Text/Title 直接应用宿主 Font；Markdown 通过固定 MarkdownUI 的字体属性入口应用已解析字体，并抵消其内部 body 缩放，避免把原生字号再次放大。宿主任何显式 `markdownHeadingScales` 赋值都继续表示原来的前三层相对比例，包括数值与默认数组相同时；未覆盖时才采用语义标题角色。旧系统仍需使用既有 nativeFont 配对，不能自动反解任意 SwiftUI Font；无法按名称回读的私有字体设计回退到系统字体，不猜测私有字族名称。本库没有 Callout 组件：Quote 保持引文语义，Badge 表示短状态，Box 只提供作者明确选择的表面。
 
 ### 2.3 控件、输入与选择
 
@@ -87,7 +89,7 @@ DesignSystem 决定组件在哪些场景按什么规则使用 token 和平台行
 
 - **语义 token**：OpenIntelligentUITheme 只提供可复用的颜色、字体角色、间距、圆角、阅读宽度、图片默认比例与主操作前景/背景。间距与圆角独立定义，不通过 spacingUnit 派生圆角；chart1...chart6 使用独立图表序列色，不复用业务状态色。
 - **组件规格**：表格列宽、商品缩略图、地图高度等留在组件内部；共享图文尺寸由 EditorialMetrics 维护，不全部暴露为公共主题参数。
-- **字体层级**：默认使用系统字族与 Dynamic Type。深色默认正文使用 medium，强调使用 semibold 保持区分，显式 weight 与字号优先。宿主在旧系统需要自定义字体与 TextKit 一致时，使用 theme.setTextFont(UIFont/NSFont, for:) 配对；所提供的具体字号保持不变，动态缩放由宿主提供。支持 Font.resolve 的系统可解析 SwiftUI 字体，不能宣称所有旧系统能自动反解任意自定义 Font。
+- **字体层级**：默认使用系统字族与 Dynamic Type：页面 title2、章节 title3、对象 headline 使用 semibold，正文 body 使用 regular，辅助说明 subheadline、图注 footnote。省略参数保持稳定角色，深色外观不额外加粗；显式 weight 与字号优先。宿主在旧系统需要自定义字体与原生混排一致时，使用 theme.setTextFont(UIFont/NSFont, for:) 配对；所提供的具体字号保持不变，动态缩放由宿主提供。支持 Font.resolve 的系统可解析 SwiftUI 字体，不能宣称所有旧系统能自动反解任意自定义 Font。
 - **阅读节奏**：开篇眉题紧接标题，标题靠近正文，连续段落保持阅读间距，图注靠近图片，章节之间增加留白。正文到随后图片使用组间距，图片/图表/表格/SVG 后的 Caption 使用较小内间距；显式 gap 仍由调用方决定。
 - **操作层级**：主按钮与业务卡导航共用胶囊动作样式，原生 Button 保留激活、焦点和可访问语义，label 内包含完整触达区域。outline 使用 fieldBorder；低强调控件共用按下、焦点和禁用反馈。Pressable 自己显示选中状态，不依赖父 Row。静态 Badge 不伪装成可点击控件；短选择优先原生 segmented Picker。
 - **平台密度**：iOS 和 macOS 采用不同的控件高度初值；间距与圆角是项目 token，不宣称为 Apple 的统一硬性数值。iOS 的主要操作保留 44 点触达。
@@ -237,7 +239,9 @@ makeState() 使用 `SwiftLang` 中 `OpenUIState` 的默认创建方式，不另�
 
 2026-11-16 的组件呈现审查在既有安静媒体占位基础上，继续修正紧凑 Markdown 段距、透明包装后的重复商品卡外框、Flashcard 自动说明、选项卡边界和实色选项说明的前景，以及日期字段选中前后的外壳切换；地图与公式移除常驻技术状态文案。日期回归覆盖重新编辑已有值、上下界、UTC 日界与本地化显示，并增加特定英文场景下字段尺寸和渲染不写值的检查。差异、源码/所有权、Gallery 完整性与本地化检查通过；`swift test` 因缺少 Swift 无法启动，原生构建、日期面板取消/确认、选项状态、VoiceOver 与实际截图尚未验收；检查日志在忽略的 `outputs/verification/component-presentation-audit/`。
 
-审查同时记录但未擅自改写的设计判断：默认标题与深色正文的层级、内容卡与业务卡圆角角色、短代码工具栏及价格币种的视觉权重，需要同内容的原生画面对照。SegmentedControl 当前按是否已有有效选择切换原生 Picker 与换行选项，首次选择的外观稳定性仍待修正和挂载验收；不能通过默认选中首项或给 nil 强配非法 tag 来掩盖未选择语义。图表完整数据入口、价格异常、分开出票说明、来源引用和真实输入错误具有信息作用，不因减少装饰而删除。
+2026-11-16 的文字调整基于 `3310e3d`，移除容器对默认字号的隐式降级与深色正文加重。Text、混排、Markdown、Title、图注和列表说明采用稳定角色；旧系统 TextKit 的图注同步使用 footnote，现有宿主字体配对继续生效。回归覆盖省略/显式默认值、根与 Card/透明包装/Grid/Carousel、深浅外观、辅助字号、Markdown 比例覆盖，以及挂载混排在主题更新时保留身份与文档 revision。差异、源码/所有权、Gallery 完整性与本地化检查通过；`swift test` 因缺少 Swift 无法启动，原生字体解析、XCTest 与实际界面待验收，日志在忽略的 `outputs/verification/semantic-typography/`。
+
+仍需原生画面对照的设计判断包括内容卡与业务卡圆角角色、短代码工具栏及价格币种的视觉权重。SegmentedControl 当前按是否已有有效选择切换原生 Picker 与换行选项，首次选择的外观稳定性仍待修正和挂载验收；不能通过默认选中首项或给 nil 强配非法 tag 来掩盖未选择语义。图表完整数据入口、价格异常、分开出票说明、来源引用和真实输入错误具有信息作用，不因减少装饰而删除。
 
 `OpenIntelligentUIPerformance.isEnabled` 默认关闭。调试时可 reset()/snapshot() 获取本库局部解析、测量、附件适配、地图、媒体、公式与 WebKit 的计数/耗时，不记录业务内容，也不代表底座运行时或整机性能。完整同内容重复测量、流式变更与取消测试应分别记录真实调用成本。
 

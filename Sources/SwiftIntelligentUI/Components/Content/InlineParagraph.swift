@@ -45,8 +45,7 @@ struct InlineParagraph: View {
     #endif
 
     private var typography: TextTypography {
-        TextTypography(size: context.string("size"), weight: context.string("weight"), editorial: editorial,
-                       theme: theme, colorScheme: colorScheme)
+        TextTypography(size: context.string("size"), weight: context.string("weight"), theme: theme)
     }
     private var nativeFont: PlatformFont {
         let style = typography
@@ -403,14 +402,16 @@ final class InlineNativeView: PlatformTextView {
     }
 }
 
-@MainActor private enum InlineFonts {
+@MainActor enum InlineFonts {
     static func semantic(size: String, typeSize: DynamicTypeSize) -> PlatformFont {
+        let style: PlatformFont.TextStyle = size == "xs" ? .footnote : size == "sm" ? .subheadline : size == "lg" ? .title3 : .body
+        return semantic(style: style, typeSize: typeSize)
+    }
+    static func semantic(style: PlatformFont.TextStyle, typeSize: DynamicTypeSize) -> PlatformFont {
         #if os(iOS)
-        let style: UIFont.TextStyle = size == "xs" ? .caption1 : size == "sm" ? .subheadline : size == "lg" ? .title3 : .body
         let categories: [DynamicTypeSize: UIContentSizeCategory] = [.xSmall: .extraSmall, .small: .small, .medium: .medium, .large: .large, .xLarge: .extraLarge, .xxLarge: .extraExtraLarge, .xxxLarge: .extraExtraExtraLarge, .accessibility1: .accessibilityMedium, .accessibility2: .accessibilityLarge, .accessibility3: .accessibilityExtraLarge, .accessibility4: .accessibilityExtraExtraLarge, .accessibility5: .accessibilityExtraExtraExtraLarge]
         return UIFont.preferredFont(forTextStyle: style, compatibleWith: UITraitCollection(preferredContentSizeCategory: categories[typeSize] ?? .large))
         #else
-        let style: NSFont.TextStyle = size == "xs" ? .caption1 : size == "sm" ? .subheadline : size == "lg" ? .title3 : .body
         return NSFont.preferredFont(forTextStyle: style)
         #endif
     }
@@ -419,7 +420,7 @@ final class InlineNativeView: PlatformTextView {
         let base = semantic(size: size, typeSize: typeSize)
         #else
         let scales: [DynamicTypeSize: CGFloat] = [.xSmall: 0.82, .small: 0.88, .medium: 0.94, .large: 1, .xLarge: 1.12, .xxLarge: 1.24, .xxxLarge: 1.35, .accessibility1: 1.65, .accessibility2: 1.95, .accessibility3: 2.35, .accessibility4: 2.76, .accessibility5: 3.12]
-        let base = NSFont.systemFont(ofSize: (size == "xs" ? 12 : size == "sm" ? 15 : size == "lg" ? 20 : 17) * (scales[typeSize] ?? 1))
+        let base = NSFont.systemFont(ofSize: (size == "xs" ? 13 : size == "sm" ? 15 : size == "lg" ? 20 : 17) * (scales[typeSize] ?? 1))
         #endif
         let nativeWeight: PlatformFont.Weight = weight == "semibold" ? .semibold : weight == "medium" ? .medium : .regular
         return tabular ? PlatformFont.monospacedDigitSystemFont(ofSize: base.pointSize, weight: nativeWeight) : PlatformFont.systemFont(ofSize: base.pointSize, weight: nativeWeight)

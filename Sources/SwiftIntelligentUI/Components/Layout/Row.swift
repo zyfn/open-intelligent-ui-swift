@@ -54,7 +54,6 @@ private struct RowView: View {
 
     private func childContext(_ value: Value, media: Bool, stacked: Bool) -> EditorialContext {
         var result = editorial
-        result.openingCardTitle = false; result.cardSubtitle = false
         if media && EditorialNode.media(value) { result.mediaRatio = stacked ? theme.coverImageAspectRatio : EditorialMetrics.imageAspectRatio }
         return result
     }

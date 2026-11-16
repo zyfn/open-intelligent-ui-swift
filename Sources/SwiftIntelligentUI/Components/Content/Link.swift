@@ -25,11 +25,9 @@ struct SourceLink: View {
     let text: String
     let url: String?
     @Environment(\.openIntelligentUITheme) private var theme
-    @Environment(\.openIntelligentUIEditorial) private var editorial
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
     private var typography: TextTypography {
-        TextTypography(size: nil, weight: nil, editorial: editorial, theme: theme, colorScheme: colorScheme)
+        TextTypography(size: nil, weight: nil, theme: theme)
     }
     var body: some View {
         Group {

@@ -18,11 +18,8 @@ private struct TextView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
-    @Environment(\.openIntelligentUIEditorial) private var editorial
-    @Environment(\.colorScheme) private var colorScheme
     private var typography: TextTypography {
-        TextTypography(size: context.string("size"), weight: context.string("weight"),
-                       editorial: editorial, theme: theme, colorScheme: colorScheme)
+        TextTypography(size: context.string("size"), weight: context.string("weight"), theme: theme)
     }
     @ViewBuilder var body: some View {
         if let text = context.string("text") { styled(text) }

@@ -95,7 +95,7 @@ struct NativePendingContent: View {
   var message: LocalizedStringKey = "Loading"
   var terminalMessage: LocalizedStringKey = "Content is incomplete"
   @Environment(\.openUITheme) private var theme
-  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+  @ScaledMetric(relativeTo: NativeTextRole.detail.textStyle) private var scale: CGFloat = 1
   var body: some View {
     HStack(spacing: theme.spaceS) {
       if loading {

@@ -82,7 +82,7 @@ struct NativeMetricValue: View {
     let text: String
     let font: OpenUIFont
     let theme: OpenUIThemeValues
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+    @ScaledMetric(relativeTo: NativeTextRole.metric.textStyle) private var scale: CGFloat = 1
     private var label: some View { Text(text).openUIFont(font, role: .metric).monospacedDigit().fixedSize() }
     var body: some View {
         // These are text-only measurement candidates, without state, resources

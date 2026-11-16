@@ -23,15 +23,14 @@ private struct GridView: View {
                         rightToLeft: direction == .rightToLeft) {
             ForEach(context.children()) { child in
                 context.render(child.value).frame(maxWidth: .infinity, alignment: .leading)
-                    .environment(\.openIntelligentUIEditorial, childContext(child.value))
+                    .environment(\.openIntelligentUIEditorial, childContext)
             }
         }
         .environment(\.openIntelligentUIImageAlbum, ImageAlbumItem.collect(context.children().map(\.value)))
     }
-    private func childContext(_ value: SwiftLang.Value) -> EditorialContext {
+    private var childContext: EditorialContext {
         var result = editorial
-        result.compactContent = result.compactContent || EditorialNode.kind(value) == "Col"
-        result.openingCardTitle = false; result.cardSubtitle = false; result.mediaRatio = 1
+        result.mediaRatio = 1
         return result
     }
 }

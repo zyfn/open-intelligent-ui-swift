@@ -20,6 +20,8 @@ private struct ImageTextView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.layoutDirection) private var direction
     @State private var availableWidth: CGFloat = 0
+    private var detailTypography: TextTypography { TextTypography(size: "sm", weight: nil, theme: theme) }
+    private var captionTypography: TextTypography { TextTypography(size: "xs", weight: nil, theme: theme) }
     private func text(_ key: String) -> String { ValueReading.string(ValueReading.field(context.value("content"), key)) }
     private var image: Value? { ValueReading.field(context.value("content"), "image") }
     private var hasImage: Bool { !ValueReading.string(ValueReading.field(image, "url")).isEmpty }
@@ -55,9 +57,15 @@ private struct ImageTextView: View {
                 Text(text("badge")).font(theme.captionFont.weight(.medium)).padding(.horizontal, theme.innerSpacing).padding(.vertical, theme.spacingUnit)
                     .background(theme.surface, in: Capsule())
             }
-            if !text("subtitle").isEmpty { Text(text("subtitle")).font(theme.secondaryFont).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true) }
+            if !text("subtitle").isEmpty {
+                Text(text("subtitle")).font(detailTypography.font)
+                    .lineSpacing(detailTypography.lineSpacing).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+            }
             if !text("body").isEmpty { RichMarkdown(context: context, text: text("body"), compact: true) }
-            if !text("caption").isEmpty { Text(text("caption")).font(theme.captionFont).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true).lineSpacing(theme.bodyLineSpacing / 2) }
+            if !text("caption").isEmpty {
+                Text(text("caption")).font(captionTypography.font)
+                    .lineSpacing(captionTypography.lineSpacing).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+            }
             context.slot("footer")
         }
     }

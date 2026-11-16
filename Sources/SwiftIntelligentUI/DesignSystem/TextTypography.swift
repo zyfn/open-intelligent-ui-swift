@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A single role decision shared by SwiftUI Text and the TextKit bridge.
-/// Container context supplies defaults only; a supplied size always wins.
+/// Content roles are independent of layout containers and color scheme.
 struct TextTypography {
     let role: OpenIntelligentUITextFontRole
     let font: Font
@@ -10,14 +10,12 @@ struct TextTypography {
     let lineSpacing: CGFloat
     let nativeFont: OpenIntelligentUINativeFont?
 
-    init(size: String?, weight: String?, editorial: EditorialContext,
-         theme: OpenIntelligentUITheme, colorScheme: ColorScheme) {
+    init(size: String?, weight: String?, theme: OpenIntelligentUITheme) {
         switch size {
         case "xs": role = .caption
         case "sm": role = .secondary
         case "lg": role = .bodyLarge
-        case "md": role = .body
-        default: role = editorial.compactContent ? .secondary : .body
+        default: role = .body
         }
         switch role {
         case .caption: font = theme.captionFont
@@ -27,10 +25,7 @@ struct TextTypography {
         }
         if weight == "semibold" { self.weight = .semibold; weightName = "semibold" }
         else if weight == "medium" { self.weight = .medium; weightName = "medium" }
-        else if weight == nil && role == .body {
-            self.weight = theme.defaultBodyWeight(for: colorScheme)
-            weightName = self.weight == .medium ? "medium" : "normal"
-        } else { self.weight = .regular; weightName = "normal" }
+        else { self.weight = .regular; weightName = "normal" }
         lineSpacing = (role == .caption || role == .secondary) ? theme.bodyLineSpacing / 2 : theme.bodyLineSpacing
         nativeFont = theme.nativeTextFonts[role]
     }
@@ -46,8 +41,7 @@ struct TextTypography {
 }
 
 enum TitleTypography {
-    static func font(size: String?, editorial: EditorialContext, theme: OpenIntelligentUITheme) -> Font {
-        if editorial.openingCardTitle && size == nil { return theme.secondaryFont.weight(theme.headingWeight) }
+    static func font(size: String?, theme: OpenIntelligentUITheme) -> Font {
         switch size {
         case "sm": return theme.secondaryFont.weight(theme.headingWeight)
         case "lg": return theme.sectionTitleFont
@@ -55,6 +49,15 @@ enum TitleTypography {
         case "2xl": return theme.largeTitleFont
         case "3xl": return theme.displayFont
         default: return theme.titleFont
+        }
+    }
+
+    static func size(forMarkdownLevel level: Int) -> String {
+        switch level {
+        case 1: return "xl"
+        case 2: return "lg"
+        case 3, 4: return "md"
+        default: return "sm"
         }
     }
 }

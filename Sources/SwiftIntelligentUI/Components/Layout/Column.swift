@@ -43,7 +43,6 @@ private struct ColumnView: View {
     private var childContext: EditorialContext {
         var value = editorial
         value.flowDepth += 1
-        value.openingCardTitle = false; value.cardSubtitle = false
         return value
     }
 }

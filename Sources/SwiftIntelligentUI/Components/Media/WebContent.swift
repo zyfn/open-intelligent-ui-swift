@@ -118,7 +118,7 @@ struct WebContent: View {
                     styles: [
                         "--iui-ink": BridgeColor.css(theme.primaryText, dark: colorScheme == .dark),
                         "--iui-body-size": "\(bodySize)px",
-                        "--iui-body-weight": theme.defaultBodyWeight(for: colorScheme) == .medium ? "500" : "400",
+                        "--iui-body-weight": "400",
                         "background-color": BridgeColor.css(contentBackground ?? theme.canvas, dark: colorScheme == .dark)
                     ], reload: retry, open: open, onMeasure: onMeasure, onPhase: { phase = $0 })
                     .accessibilityHidden(phase != .ready)

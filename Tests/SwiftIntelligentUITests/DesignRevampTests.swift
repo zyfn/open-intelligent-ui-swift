@@ -13,38 +13,41 @@ final class DesignRevampTests: XCTestCase {
         .element(EvaluatedElement(typeName: name, props: props))
     }
 
-    func testExplicitTextSizesKeepTheirRoleInCompactContainers() {
+    func testTextDefaultsMatchExplicitBodyAndKeepHostTypography() {
         var theme = OpenIntelligentUITheme()
         theme.bodyFont = .system(size: 23)
         theme.bodyLargeFont = .system(size: 31)
         theme.bodyLineSpacing = 6
-        let compact = EditorialContext(compactContent: true, cardSubtitle: true)
-        let body = TextTypography(size: "md", weight: nil, editorial: compact, theme: theme, colorScheme: .light)
-        let amount = TextTypography(size: "lg", weight: "semibold", editorial: compact, theme: theme, colorScheme: .light)
-        let omitted = TextTypography(size: nil, weight: nil, editorial: compact, theme: theme, colorScheme: .light)
+        let body = TextTypography(size: "md", weight: "normal", theme: theme)
+        let amount = TextTypography(size: "lg", weight: "semibold", theme: theme)
+        let omitted = TextTypography(size: nil, weight: nil, theme: theme)
         XCTAssertEqual(body.role, .body)
         XCTAssertEqual(body.font, theme.bodyFont)
         XCTAssertEqual(body.sizeName, "md")
         XCTAssertEqual(body.lineSpacing, 6)
         XCTAssertEqual(amount.font, theme.bodyLargeFont)
         XCTAssertEqual(amount.weight, .semibold)
-        XCTAssertEqual(omitted.role, .secondary)
-        XCTAssertEqual(omitted.lineSpacing, 3)
+        XCTAssertEqual(omitted.role, body.role)
+        XCTAssertEqual(omitted.font, body.font)
+        XCTAssertEqual(omitted.weight, body.weight)
+        XCTAssertEqual(omitted.lineSpacing, body.lineSpacing)
     }
 
-    func testExplicitTitleLevelsSurviveCompactAndOpeningContext() {
+    func testTitleDefaultsAndMarkdownLevelsUseTheSameSemanticRoles() {
         let theme = OpenIntelligentUITheme()
-        let compact = EditorialContext(compactContent: true, openingCardTitle: true)
-        XCTAssertEqual(TitleTypography.font(size: "md", editorial: compact, theme: theme), theme.titleFont)
-        XCTAssertEqual(TitleTypography.font(size: "xl", editorial: compact, theme: theme), theme.pageTitleFont)
-        XCTAssertEqual(TitleTypography.font(size: "3xl", editorial: compact, theme: theme), theme.displayFont)
-        XCTAssertEqual(TitleTypography.font(size: nil, editorial: compact, theme: theme), theme.secondaryFont.weight(theme.headingWeight))
+        XCTAssertEqual(TitleTypography.font(size: "md", theme: theme), theme.titleFont)
+        XCTAssertEqual(TitleTypography.font(size: "xl", theme: theme), theme.pageTitleFont)
+        XCTAssertEqual(TitleTypography.font(size: "3xl", theme: theme), theme.displayFont)
+        XCTAssertEqual(TitleTypography.font(size: nil, theme: theme), theme.titleFont)
+        for (level, expected) in [(1, theme.pageTitleFont), (2, theme.sectionTitleFont), (3, theme.titleFont)] {
+            XCTAssertEqual(TitleTypography.font(size: TitleTypography.size(forMarkdownLevel: level), theme: theme), expected)
+        }
     }
 
-    func testDefaultDarkBodyAndStrongEmphasisRemainDistinct() {
+    func testDefaultNormalBodyAndStrongEmphasisRemainDistinct() {
         let theme = OpenIntelligentUITheme()
-        let body = TextTypography(size: "md", weight: nil, editorial: EditorialContext(), theme: theme, colorScheme: .dark)
-        XCTAssertEqual(body.weight, .medium)
+        let body = TextTypography(size: "md", weight: nil, theme: theme)
+        XCTAssertEqual(body.weight, .regular)
         XCTAssertEqual(theme.emphasisWeight, .semibold)
         XCTAssertNotEqual(body.weight, theme.emphasisWeight)
     }
@@ -53,7 +56,7 @@ final class DesignRevampTests: XCTestCase {
         var theme = OpenIntelligentUITheme()
         let native = PlatformFont.monospacedSystemFont(ofSize: 25, weight: .regular)
         theme.setTextFont(native, for: .body)
-        let style = TextTypography(size: "md", weight: "normal", editorial: EditorialContext(), theme: theme, colorScheme: .light)
+        let style = TextTypography(size: "md", weight: "normal", theme: theme)
         XCTAssertEqual(style.font, Font(native))
         XCTAssertEqual(style.nativeFont, native)
         let view = makeNativeView()

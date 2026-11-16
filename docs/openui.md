@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.6 · 更新日期：2026-11-16
+文档版本：1.7 · 更新日期：2026-11-16
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -79,7 +79,7 @@ OpenUIView(state: state, library: library)
 
 默认界面保持内容优先。资源失败、辅助阅读模式与控件能力不自动生成一段说明、徽标或额外工具栏；采用安静占位、原生滚动和无障碍语义。作者明确提供的标签、说明及用户可以处理的校验错误继续保留。
 
-- CardHeader 使用章节角色；InlineHeader 与图文对象保留对象标题角色。首轮实现以现有 20 / 18 pt token 形成层级，具体视觉比例仍需原生对照。
+- CardHeader 使用章节角色；InlineHeader 与图文对象保留对象标题角色。默认 iOS 使用 20 / 17 pt，macOS 保留 20 / 18 pt；宿主可以完整覆盖字体，具体视觉比例仍需原生对照。
 - Steps 的解释属于正文。ListItem 的 subtitle 继续表示辅助信息；需要多段核心解释时，组合 TextContent/Markdown，而不是把正文都放进小号副标题。
 - 主 Metric 与行内数字按角色区分；数值和单位保持完整，超长金额不缩字号或截断小数。
 - 图片加说明的 OptionCards 优先保证阅读宽度。最小阅读宽度初始采用 200 pt，并按字体尺度增长；宿主仍能覆盖该参数，辅助阅读字号继续单列。列数由当前位置可用宽度决定，不随流式文案字数反复变化。
@@ -88,6 +88,34 @@ OpenUIView(state: state, library: library)
 - InlineText 主值与辅助说明使用既有 titleDetailGap，空说明不产生额外间距。Chips、Tabs 与 FollowUp 的多行标签限制圆角，避免文字落入高胶囊的弧线区域；不缩字、不隐藏选择状态。
 
 默认值是可覆盖的呈现策略。显式尺寸、布局方向与输入内容继续按契约处理；Form 唯一提交的局部满宽规则见下节。
+
+### 文字角色与 Callout
+
+文字的用途决定字体、字重、行距和前景；容器负责排列、分组与内边距。普通阅读内容不因进入 Card、列布局或深色外观改变含义，不自动获得底色、边框或提示标签。字号小不等于信息次要，字号大或加粗也不自动获得无障碍标题语义；标题由实际标题入口表达。
+
+默认 iOS 阅读层级采用以下关系；点值对应默认字号，实际文字按角色参与 Dynamic Type。macOS 继续沿用桌面密度，不能把手机的点值当作所有平台的硬性规格。
+
+| 用途 | 现有字体 token | iOS 默认 | 缩放参考 |
+| --- | --- | --- | --- |
+| 文档标题 / Markdown H1 | textHeadingMd | 22 pt semibold | title2 |
+| 章节 / CardHeader / Markdown H2 | textHeadingSm | 20 pt semibold | title3 |
+| 对象 / InlineHeader / Markdown H3 | textHeadingXs | 17 pt semibold | headline |
+| 核心解释与 Callout 正文 | textBodyDefault | 17 pt regular | body |
+| 显式 large / lg 正文 | textBodyLg | 20 pt regular | title3 |
+| 小号正文、紧凑解释与辅助说明 | textBodySm | 15 pt regular | subheadline |
+| 图注与元信息 | textBodyXs | 13 pt regular | footnote |
+
+小号正文与辅助说明复用同一字体，信息优先级由各自的语义前景表达，不额外增加仅相差一号的字体 token。大号正文使用与其默认大小相符的 title3 缩放曲线，仍保持正文语义，不增加标题边距或无障碍标题标记。加重字体仍是独立的完整配置：宿主对 heavy token 的字族、字号、字重、行高与字距覆盖继续生效，不从普通字体偷偷重建。既有 Text 的 sm / md 别名、TextContent 的 small / large 变体以及解析模式保持原契约。
+
+NativeTextStyle 与 NativeTextRole 统一原生文字和 Markdown 的字体配方；Markdown 内部字体需要显式接入配方，不能只依赖外层 SwiftUI font。段内行距由文本 renderer 管理，兄弟内容的 gap 由父布局管理，组件内边距由其表面管理，页面左右边距由宿主管理。避免用多层 padding 弥补不一致的文字度量。
+
+Callout 表达与当前内容相关的独立提示或反馈。普通解释继续使用 TextContent/Markdown；Callout 不自动补写“提示”“注意”或“信息”标题，也不根据文案关键词推测状态。可见标题和正文只来自输入，完整换行，不按固定行数裁切。
+
+- 默认采用中性的 sunk 表面、radiusXl 连续圆角与 objectInset 内边距，标题到正文使用 titleDetailGap；当前默认分别为 12、12、4 pt。标题与正文使用主文字色，没有默认左竖线、整段状态色或额外阴影。
+- neutral 不显示状态图标；显式 info、success、warning、error / danger 使用小图标和局部语义颜色。辅助功能保留状态含义，颜色不是唯一辨识方式。
+- TextCallout 保持持久展示。Callout 保持原有 reactive 契约：只有可写 visible 绑定参与自动隐藏，在可交互且可见时等待 3 秒写入 false；没有绑定时不凭空隐藏。换源、不可交互和取消仍遵循原有生命周期。
+
+这里的组件 Callout 与 SwiftUI 的 Font.callout 是不同概念；不会仅因为内容是提示就套用一个固定字体或改变其业务生命周期。
 
 ## 状态、字段与动作
 
@@ -210,6 +238,10 @@ python3 Tools/check_gallery_catalog.py
 
 2026-11-16 发布前复核同时检查了远端基线 `a88dd28` 的 [GitHub Actions](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43788659666)：账户计费或支出限额阻止前置任务启动，任务没有执行任何步骤，`native-sdk` 随之跳过。这是验收环境阻塞，不是代码测试通过或失败的证据；恢复可用的 macOS 执行环境后，仍须运行上述原生验收。
 
-标题 20/18 pt、OptionCards 最小阅读宽度 200 pt 是当前首版的可覆盖默认值，仍需整页原生对照。标题与说明的整体视觉比例、Tabs 两侧溢出操作的视觉密度、按图表类型进一步调整密度、照片卡遮罩和轮播留白仍待真实样张确认；保留相应操作能力，不提前把候选值写成已验收结论。
+2026-11-16 的文字与 Callout 调整基于最新 `3310e3d`，统一 iOS 22/20/17 pt 标题与 17/15/13 pt 阅读层级，保留 macOS 的桌面基准；NativeTextRole 同时控制默认行距与 Dynamic Type。MarkdownUI 的内部 body 缩放经过补偿，与原生文字、标题和公式附件使用一致的最终字号。Callout 改为中性表面和局部状态图标，作者文本、可写绑定、三秒隐藏与换源取消规则保持。图表标签、数字指标、文字占位和地图地点卡的预留尺寸同步采用实际字体角色；没有增加场景或文案特判。
+
+新增回归覆盖完整字体覆盖、正文与 Markdown 的字号对应、辅助字号层级、标题独立性及 Callout 的持久/自动隐藏和旧任务退休。差异、源码/所有权、Gallery 完整性与本地化检查通过；`swift test` 已实际尝试，因环境没有 Swift 返回 127。原生构建、XCTest、字号舍入与实际界面尚未验收，检查日志在忽略的 `outputs/verification/semantic-typography/`。
+
+这些字号与 OptionCards 最小阅读宽度 200 pt 是可覆盖的默认值，仍需整页原生对照。标题与说明的整体视觉比例、Tabs 两侧溢出操作的视觉密度、按图表类型进一步调整密度、照片卡遮罩和轮播留白仍待真实样张确认；保留相应操作能力，不提前把候选值写成已验收结论。
 
 验收使用同一来源内容和有限的代表场景：阅读解释、图片选项、联系表单、旅行地图、数据分析，另补商品卡和宽表。记录实际内容区宽度、字号、外观、RTL、输入与结果；覆盖流式列表闭合、长中文、动作状态、媒体加载/失败/恢复。候选参数的最终收口需要原生对照，静态检查或图片生成成功不等于视觉验收。

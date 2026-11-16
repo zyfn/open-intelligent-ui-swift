@@ -49,7 +49,6 @@ private struct CarouselView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.layoutDirection) private var direction
-    @Environment(\.openIntelligentUIEditorial) private var editorial
     @State private var available: CGFloat = 0
     @State private var current = 0
     @State private var previousIDs: [String] = []
@@ -106,7 +105,6 @@ private struct CarouselView: View {
             equalizesHeights: CarouselMetrics.comparable(children.map(\.value)), rightToLeft: direction == .rightToLeft) {
             ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
                 context.render(child.value)
-                    .environment(\.openIntelligentUIEditorial, childContext(child.value))
                     .frame(width: itemWidth)
                     .id(child.id)
             }
@@ -123,13 +121,6 @@ private struct CarouselView: View {
                 if current != index { current = index }
             }
             .environment(\.openIntelligentUIImageAlbum, ImageAlbumItem.collect(children.map(\.value)))
-    }
-
-    private func childContext(_ value: Value) -> EditorialContext {
-        var result = editorial
-        result.compactContent = result.compactContent || EditorialNode.kind(value) == "Col"
-        result.openingCardTitle = false; result.cardSubtitle = false
-        return result
     }
 
     private func reconcile(ids: [String], proxy: ScrollViewProxy) {

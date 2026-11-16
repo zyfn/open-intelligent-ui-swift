@@ -15,9 +15,8 @@ private struct TitleView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
-    @Environment(\.openIntelligentUIEditorial) private var editorial
     private var font: Font {
-        TitleTypography.font(size: context.string("size"), editorial: editorial, theme: theme)
+        TitleTypography.font(size: context.string("size"), theme: theme)
     }
     var body: some View {
         Text(InlineTypography.attributed(context.string("text") ?? "", font: font, emphasis: theme.headingWeight))

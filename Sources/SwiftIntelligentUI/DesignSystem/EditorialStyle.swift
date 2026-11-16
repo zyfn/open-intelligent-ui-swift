@@ -4,9 +4,6 @@ import SwiftLang
 struct EditorialContext: Equatable {
     var flowDepth = 0
     var cardDepth = 0
-    var compactContent = false
-    var openingCardTitle = false
-    var cardSubtitle = false
     var mediaRatio: CGFloat? = nil
 }
 
@@ -31,9 +28,6 @@ enum EditorialNode {
     static func kind(_ value: Value) -> String {
         if case .element(let element) = value { return element.typeName }
         return "Text"
-    }
-    static func smallTitle(_ value: Value) -> Bool {
-        kind(value) == "Title" && ["", "sm", "md"].contains(ValueReading.string(ValueReading.field(value, "size")))
     }
     static func media(_ value: Value) -> Bool {
         if kind(value) == "Image" || kind(value) == "SearchImage" { return true }

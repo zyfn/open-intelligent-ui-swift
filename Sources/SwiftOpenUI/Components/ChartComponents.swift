@@ -194,7 +194,8 @@ struct NativeChart: View {
   @State private var presentationCache = NativeChartPresentationCache()
   @State private var axisMeasurements = NativeChartAxisMeasurements()
   @State private var showsDataDetails = false
-  @ScaledMetric(relativeTo: .body) private var axisScale: CGFloat = 1
+  @ScaledMetric(relativeTo: NativeTextRole.caption.textStyle) private var axisScale: CGFloat = 1
+  @ScaledMetric(relativeTo: NativeTextRole.control.textStyle) private var controlScale: CGFloat = 1
   @ScaledMetric(relativeTo: .body) private var legendMarkerSize: CGFloat = 8
   @Namespace private var measurementScope
   private var name: String { context.element.typeName }
@@ -376,7 +377,7 @@ struct NativeChart: View {
         // legend entries. Longer real legends can still wrap naturally.
         .frame(minHeight: ["PieChart", "RadialChart"].contains(name)
           ? max(context.presentation.minimumControlTargetSize,
-            context.theme.textLabelSm.resolved(for: .control).measuredLineHeight(scale: axisScale) + 12) : nil)
+            context.theme.textLabelSm.resolved(for: .control).measuredLineHeight(scale: controlScale) + 12) : nil)
       }
       if allData.hasContent(for: name), incomplete || context.hasDataFailure {
         Text(context.hasDataFailure ? (stableData == nil ? "Unable to load chart" : "Unable to refresh chart")
@@ -476,6 +477,7 @@ private struct NativeRadarLabels: View {
   let labels: [String]
   let theme: OpenUIThemeValues
   let scale: CGFloat
+  @ScaledMetric(relativeTo: NativeTextRole.detail.textStyle) private var textScale: CGFloat = 1
   @State private var sizes: [Int: CGSize] = [:]
   var body: some View {
     GeometryReader { geometry in
@@ -483,7 +485,7 @@ private struct NativeRadarLabels: View {
       let projection = NativeRadarGeometry(size: geometry.size, scale: scale)
       let frames = NativeRadarLabelPlacement.frames(size: geometry.size, count: labels.count,
         sizes: sizes, scale: scale,
-        lineHeight: style.font.measuredLineHeight(scale: scale))
+        lineHeight: style.font.measuredLineHeight(scale: textScale))
       ZStack(alignment: .topLeading) {
         ForEach(projection.labelIndices(count: labels.count), id: \.self) { index in
           let frame = frames[index]

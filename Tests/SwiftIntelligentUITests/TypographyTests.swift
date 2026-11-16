@@ -26,10 +26,15 @@ final class TypographyTests: XCTestCase {
         XCTAssertEqual(theme.radius(named: "xl"), theme.radiusXL)
     }
 
-    func testDarkModeOnlyStrengthensTheDefaultBodyWeight() {
+    func testDefaultFontsUseSemanticContentRoles() {
         let theme = OpenIntelligentUITheme()
-        XCTAssertEqual(theme.defaultBodyWeight(for: .light), .regular)
-        XCTAssertEqual(theme.defaultBodyWeight(for: .dark), .medium)
+        XCTAssertEqual(theme.bodyFont, .body)
+        XCTAssertEqual(theme.secondaryFont, .subheadline)
+        XCTAssertEqual(theme.captionFont, .footnote)
+        XCTAssertEqual(theme.titleFont, Font.headline.weight(.semibold))
+        XCTAssertEqual(theme.sectionTitleFont, Font.title3.weight(.semibold))
+        XCTAssertEqual(theme.pageTitleFont, Font.title2.weight(.semibold))
+        XCTAssertEqual(TextTypography(size: nil, weight: nil, theme: theme).weight, .regular)
     }
 
     func testChartColorsAreIndependentFromStatusColors() {

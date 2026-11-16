@@ -3,7 +3,7 @@ import SwiftLang
 
 enum CardComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Card", description: "A restrained content group. Single ProductCard/TransportCard children reuse their own surface; in Map the SDK summary card owns presentation instead of nested borders. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow and contextual card typography. Explicit padding and gap use 4-point theme units, from 0 to 24.", params: [
+        OpenUIComponent(name: "Card", description: "A restrained content group. Single ProductCard/TransportCard children reuse their own surface; in Map the SDK summary card owns presentation instead of nested borders. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units, from 0 to 24.", params: [
             OpenUIParameter.slot("children", required: true),
             OpenUIParameter.string("variant", required: false, values: ["outline", "soft"]),
             Parameter.number("padding", minimum: 0, maximum: 24),
@@ -47,7 +47,7 @@ private struct CardView: View {
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                 context.render(child.value)
-                    .environment(\.openIntelligentUIEditorial, childContext(child.value, index: index, previous: index > 0 ? children[index - 1].value : nil))
+                    .environment(\.openIntelligentUIEditorial, childContext)
                     .padding(.top, index == 0 ? 0 : context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
                         ?? EditorialSpacing.between(children[index - 1].value, child.value, theme: theme, nested: true))
             }
@@ -60,11 +60,9 @@ private struct CardView: View {
             .strokeBorder(context.string("variant") == "soft" ? .clear : theme.fieldBorder))
         .environment(\.openIntelligentUIContentBackground, context.string("variant") == "soft" ? theme.surface : contentBackground ?? theme.canvas)
     }
-    private func childContext(_ value: SwiftLang.Value, index: Int, previous: SwiftLang.Value?) -> EditorialContext {
+    private var childContext: EditorialContext {
         var result = editorial
-        result.cardDepth += 1; result.compactContent = true
-        result.openingCardTitle = index == 0 && EditorialNode.smallTitle(value)
-        result.cardSubtitle = false
+        result.cardDepth += 1
         return result
     }
 }

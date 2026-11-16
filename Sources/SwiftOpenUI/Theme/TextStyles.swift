@@ -4,7 +4,7 @@ import SwiftUI
 /// Complete, internal text recipes for slots whose purpose is already explicit.
 /// The same resolved font feeds native text, rich text and geometry measurement.
 struct NativeTextStyle {
-  enum Purpose: Equatable { case body, compactBody, supporting, caption, fieldLabel, action, compactAction, fieldError }
+  enum Purpose: Equatable { case body, largeBody, compactBody, supporting, caption, fieldLabel, action, compactAction, fieldError }
 
   let font: OpenUIFont
   let color: Color
@@ -17,6 +17,9 @@ struct NativeTextStyle {
     case .body:
       font = theme.textBodyDefault; role = .body
       color = theme.textNeutralPrimary; emphasisWeight = theme.textBodyDefaultHeavy.weight
+    case .largeBody:
+      font = theme.textBodyLg; role = .largeBody
+      color = theme.textNeutralPrimary; emphasisWeight = theme.textBodyLgHeavy.weight
     case .compactBody:
       font = theme.textBodySm; role = .detail
       color = theme.textNeutralPrimary; emphasisWeight = theme.textBodySmHeavy.weight
@@ -48,6 +51,11 @@ struct NativeTextStyle {
 }
 
 extension OpenUIThemeValues {
+  func pageTitleStyle() -> NativeTextStyle {
+    .init(font: textHeadingMd, color: textNeutralPrimary,
+      role: .display, emphasisWeight: textHeadingMd.weight)
+  }
+
   func sectionTitleStyle() -> NativeTextStyle {
     .init(font: textHeadingSm, color: textNeutralPrimary,
       role: .section, emphasisWeight: textHeadingSm.weight)
@@ -58,8 +66,25 @@ extension OpenUIThemeValues {
       color: textNeutralPrimary, role: .title, emphasisWeight: textHeadingXs.weight)
   }
 
+  func markdownHeadingStyle(_ level: Int) -> NativeTextStyle {
+    switch level {
+    case 1: return pageTitleStyle()
+    case 2: return sectionTitleStyle()
+    case 3: return objectTitleStyle()
+    case 4:
+      return .init(font: textBodyDefaultHeavy, color: textNeutralPrimary,
+        role: .title, emphasisWeight: textBodyDefaultHeavy.weight)
+    case 5:
+      return .init(font: textBodySmHeavy, color: textNeutralPrimary,
+        role: .detail, emphasisWeight: textBodySmHeavy.weight)
+    default:
+      return .init(font: textBodyXs.weight(textBodySmHeavy.weight), color: textNeutralPrimary,
+        role: .caption, emphasisWeight: textBodySmHeavy.weight)
+    }
+  }
+
   func inlineTextStyle(_ size: String?, emphasized: Bool = false, numeric: Bool = false) -> NativeRichTextStyle {
-    let base = textStyle(size == "xs" ? .compactBody : .body)
+    let base = textStyle(size == "lg" ? .largeBody : size == "xs" ? .compactBody : .body)
     return .init(font: inlineFont(size, emphasized: emphasized, numeric: numeric),
       numeric: numeric, color: base.color, role: base.role,
       emphasisWeight: inlineFont(size, emphasized: true, numeric: numeric).weight)
@@ -111,6 +136,9 @@ struct NativeRichTextStyle {
   var color: Color?
   var role: NativeTextRole = .body
   var emphasisWeight: Font.Weight?
+  func resolvedFont(theme: OpenUIThemeValues, inherited: OpenUIFont?) -> OpenUIFont {
+    (font ?? inherited ?? theme.textBodyDefault).resolved(for: role)
+  }
   static func textContent(_ size: String?, theme: OpenUIThemeValues) -> Self {
     let font: OpenUIFont?
     switch size {
@@ -124,7 +152,7 @@ struct NativeRichTextStyle {
     // Size variants select a reading scale, not an information-priority color.
     let small = size == "small" || size == "small-heavy"
     let large = size == "large" || size == "large-heavy"
-    let base = theme.textStyle(small ? .compactBody : .body)
+    let base = theme.textStyle(large ? .largeBody : small ? .compactBody : .body)
     return .init(font: font, color: base.color, role: base.role,
       emphasisWeight: small ? theme.textBodySmHeavy.weight : large ? theme.textBodyLgHeavy.weight : theme.textBodyDefaultHeavy.weight)
   }

@@ -73,6 +73,40 @@ import SwiftLang
         "Mounted Callout must dismiss through its binding")
     }
 
+    @MainActor func testCalloutReplacementRetiresItsTimerAndPersistentNoticesRemain() async throws {
+      _ = NSApplication.shared
+      let library = try OpenUIComponents.library()
+      let state = OpenUIState(schema: library.library.toSchema())
+      state.setSource("$visible=true\nroot=Callout(\"success\",\"Saved\",\"Done\",$visible)")
+      let hosting = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+        .frame(width: 320).fixedSize(horizontal: false, vertical: true))
+      let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 400),
+        styleMask: [.borderless], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      window.contentView = hosting
+      window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+      window.orderFront(nil)
+      defer { window.close() }
+      hosting.layoutSubtreeIfNeeded()
+      try await Task.sleep(nanoseconds: 150_000_000)
+      XCTAssertEqual(state.stateValue("$visible"), .boolean(true))
+
+      state.setSource("""
+        $visible=true
+        root=Stack([TextCallout("info",null,"Persistent explanation"),Callout("neutral","","No writable visibility binding",true)])
+        """)
+      XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      hosting.layoutSubtreeIfNeeded()
+      try await Task.sleep(nanoseconds: 150_000_000)
+      let height = hosting.fittingSize.height
+      XCTAssertGreaterThan(height, 0)
+      try await Task.sleep(nanoseconds: 3_200_000_000)
+      hosting.layoutSubtreeIfNeeded()
+      XCTAssertEqual(state.stateValue("$visible"), .boolean(true), "The old auto-dismiss task cannot write into the replacement source")
+      XCTAssertEqual(hosting.fittingSize.height, height, accuracy: 1,
+        "TextCallout and a Callout without a writable visible binding remain mounted")
+    }
+
     @MainActor private func render(
       _ source: String, name: String, width: CGFloat = 620, height: CGFloat = 620
     ) throws -> Data {

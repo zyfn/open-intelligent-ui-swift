@@ -13,11 +13,13 @@ private struct ListItemView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
     @Environment(\.openIntelligentUITheme) private var theme
+    private var detailTypography: TextTypography { TextTypography(size: "sm", weight: nil, theme: theme) }
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if let title = context.string("title"), !title.isEmpty { Text(inline(title, font: theme.bodyFont.weight(.medium))).font(theme.bodyFont.weight(.medium)).fixedSize(horizontal: false, vertical: true) }
+            if let title = context.string("title"), !title.isEmpty { Text(inline(title, font: theme.titleFont)).font(theme.titleFont).fixedSize(horizontal: false, vertical: true) }
             if let description = context.string("description"), !description.isEmpty {
-                Text(inline(description, font: theme.secondaryFont)).font(theme.secondaryFont).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+                Text(inline(description, font: detailTypography.font)).font(detailTypography.font)
+                    .lineSpacing(detailTypography.lineSpacing).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true)
             }
             if !context.children().isEmpty { context.slot().padding(.top, theme.innerSpacing - 2) }
         }

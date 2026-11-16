@@ -10,7 +10,12 @@ extension EnvironmentValues {
 }
 private struct OpenUIFontModifier: ViewModifier {
     let font: OpenUIFont
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+    @ScaledMetric private var scale: CGFloat
+
+    init(font: OpenUIFont, role: NativeTextRole) {
+        self.font = font.resolved(for: role)
+        _scale = ScaledMetric(wrappedValue: 1, relativeTo: role.textStyle)
+    }
     func body(content: Content) -> some View {
         content.font(font.nativeFont(scale: scale))
             .lineSpacing(font.additionalLineSpacing(scale: scale))
@@ -29,10 +34,10 @@ private struct OpenUIControlTarget: ViewModifier {
 }
 extension View {
     public func openUIFont(_ font: OpenUIFont) -> some View {
-        modifier(OpenUIFontModifier(font: font.resolved(for: .body)))
+        modifier(OpenUIFontModifier(font: font, role: .body))
     }
     func openUIFont(_ font: OpenUIFont, role: NativeTextRole) -> some View {
-        modifier(OpenUIFontModifier(font: font.resolved(for: role)))
+        modifier(OpenUIFontModifier(font: font, role: role))
     }
     public func openUIControlTarget(alignment: Alignment = .center) -> some View {
         modifier(OpenUIControlTarget(alignment: alignment))

@@ -13,8 +13,11 @@ private struct CaptionView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
+    private var typography: TextTypography { TextTypography(size: "xs", weight: nil, theme: theme) }
     var body: some View {
-        Text(InlineTypography.attributed(context.string("text") ?? "", font: theme.captionFont, emphasis: theme.emphasisWeight)).font(theme.captionFont)
+        Text(InlineTypography.attributed(context.string("text") ?? "", font: typography.font, emphasis: theme.emphasisWeight))
+            .font(typography.font)
+            .lineSpacing(typography.lineSpacing)
             .foregroundStyle(theme.textColor(context.string("color") ?? "muted"))
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
