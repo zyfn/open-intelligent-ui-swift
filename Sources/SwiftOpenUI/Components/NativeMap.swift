@@ -10,8 +10,12 @@ enum OpenUIGeographicComponents {
         ]) { context in
             NativeComponentHost(context: context) { context in
                 if #available(iOS 17, macOS 14, *) { MainActor.assumeIsolated { NativeMap(context: context) } }
-                else { Text("Map requires iOS 17 or macOS 14", bundle: NativeControlResources.bundle)
-                    .nativeTextStyle(context.theme.textStyle(.supporting)) }
+                else {
+                    NativeMapPlaceholder(theme: context.theme, status: "Map requires iOS 17 or macOS 14")
+                        .aspectRatio(1.1, contentMode: .fit)
+                        .frame(minHeight: 320, maxHeight: 360)
+                        .clipShape(RoundedRectangle(cornerRadius: context.theme.radius5xl))
+                }
             }
         }
     }
@@ -21,6 +25,22 @@ enum OpenUIGeographicComponents {
             OpenUIParameter.string("imageSrc", required: false), OpenUIParameter.string("url", required: false),
             OpenUIParameter.string("description", required: false)
         ]) { _ in EmptyView() }
+    }
+}
+
+private struct NativeMapPlaceholder: View {
+    let theme: OpenUIThemeValues
+    let status: LocalizedStringKey
+
+    var body: some View {
+        theme.sunk.overlay {
+            Image(systemName: "map")
+                .openUIFont(theme.textBodyDefault)
+                .foregroundStyle(theme.textNeutralSecondary.opacity(0.35))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Map", bundle: NativeControlResources.bundle))
+        .accessibilityValue(Text(status, bundle: NativeControlResources.bundle))
     }
 }
 
@@ -125,8 +145,7 @@ private struct NativeMap: View {
                     if !places.isEmpty {
                         surface(fullscreen: false)
                     } else {
-                        Color.secondary.opacity(0.06)
-                            .overlay { NativePendingContent(loading: context.isStreaming, message: "Loading") }
+                        NativeMapPlaceholder(theme: context.theme, status: "Loading")
                             .accessibilityIdentifier("openui.map.pending")
                     }
                 }
@@ -154,9 +173,10 @@ private struct NativeMap: View {
             }
 
         } else {
-            Text("No valid locations", bundle: NativeControlResources.bundle)
-                .nativeTextStyle(context.theme.textStyle(.supporting))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            NativeMapPlaceholder(theme: context.theme, status: "No valid locations")
+                .aspectRatio(1.1, contentMode: .fit)
+                .frame(minHeight: 320, maxHeight: 360)
+                .clipShape(RoundedRectangle(cornerRadius: context.theme.radius5xl))
                 .accessibilityIdentifier("openui.map.empty")
         }
     }

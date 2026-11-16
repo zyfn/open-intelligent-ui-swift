@@ -10,8 +10,8 @@ struct OpenUINativeForm: View {
         return ObjectIdentifier(group)
     }
     var body: some View {
-        // Keep one field/action subtree. The native task-panel appearance reuses
-        // Card's surface; it does not add a second form or change its submission.
+        // Keep one field/action subtree. An optional enclosing surface reuses
+        // Card's recipe; it does not add a second form or change submission.
         VStack(alignment: .leading, spacing: context.theme.spacing("ml")) {
             ForEach(context.children("fields")) { context.render($0.value) }
             context.slot("buttons").environment(\.openUIFormActions, true)

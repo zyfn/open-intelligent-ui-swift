@@ -73,6 +73,13 @@ struct NativeTabsView: View {
     private var showsOverflowHint: Bool {
         NativeTabsOverflow.shouldShowHint(contentWidth: contentWidth, viewportWidth: width)
     }
+    private var labelCornerRadius: CGFloat {
+        min(max(0, context.theme.radiusFull), NativeButtonShape.readableRadius(
+            horizontal: context.theme.spaceM, vertical: context.theme.spaceS))
+    }
+    private var labelShape: NativeButtonShape {
+        .init(radius: nil, maximumRadius: labelCornerRadius)
+    }
     private var nativeSelection: Binding<OpenUIString> {
         Binding(
             get: { active?.id ?? "" },
@@ -118,20 +125,20 @@ struct NativeTabsView: View {
                               Text(panel.label)
                                 .openUIFont(context.theme.textLabelDefaultHeavy, role: .control)
                                 .foregroundStyle(active?.id == panel.id ? context.theme.textNeutralPrimary : context.theme.textNeutralSecondary)
-                                .lineLimit(textSize.isAccessibilitySize ? nil : 2)
-                                .truncationMode(.tail).fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                             }
                                 .padding(.horizontal, context.theme.spaceM)
                                 .padding(.vertical, context.theme.spaceS)
                                 .background(active?.id == panel.id ? context.theme.componentStyle.selectedSurface : .clear,
-                                  in: Capsule(style: .continuous))
+                                  in: labelShape)
                                 .overlay(
-                                  Capsule(style: .continuous).strokeBorder(
+                                  labelShape.strokeBorder(
                                     active?.id == panel.id ? context.theme.componentStyle.selectedBorder : .clear,
                                     lineWidth: context.presentation.borderWidth))
                                 .openUIControlTarget()
                         }
-                        .buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusFull))
+                        .buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: labelCornerRadius))
                         .accessibilityAddTraits(active?.id == panel.id ? .isSelected : [])
                         .accessibilityIdentifier("openui.tab." + panel.id.displayString)
                         .background(GeometryReader { geometry in

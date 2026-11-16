@@ -29,7 +29,7 @@ struct RichMarkdown: View {
                 .paragraph { configuration in
                     configuration.label.fixedSize(horizontal: false, vertical: true)
                         .lineSpacing(typography.lineSpacing)
-                        .markdownMargin(top: 0, bottom: compact ? 0 : theme.paragraphSpacing)
+                        .markdownMargin(top: 0, bottom: compact ? theme.innerSpacing : theme.paragraphSpacing)
                 }
                 .heading1 { configuration in
                     configuration.label.markdownTextStyle { FontSize(.em(theme.headingScale(0))); FontWeight(theme.headingWeight) }

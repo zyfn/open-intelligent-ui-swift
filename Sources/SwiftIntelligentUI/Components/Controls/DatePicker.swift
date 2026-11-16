@@ -9,6 +9,15 @@ enum CalendarDate {
         return date
     }
     static func string(_ date: Date) -> String { formatter().string(from: date) }
+    static func display(_ date: Date, locale: Locale) -> String {
+        let value = DateFormatter()
+        value.locale = locale
+        value.calendar = Calendar(identifier: .gregorian)
+        value.timeZone = TimeZone(secondsFromGMT: 0)
+        value.dateStyle = .medium
+        value.timeStyle = .none
+        return value.string(from: date)
+    }
     private static func formatter() -> DateFormatter {
         let value = DateFormatter(); value.calendar = Calendar(identifier: .gregorian)
         value.locale = Locale(identifier: "en_US_POSIX"); value.timeZone = TimeZone(secondsFromGMT: 0)
@@ -65,37 +74,30 @@ private struct DateFieldView: View {
     private var canEdit: Bool { context.canInteract && context.binding("value") != nil }
     var body: some View {
         let selection = selection
+        let dateLabel = selection.validSelection ? selection.date.map { CalendarDate.display($0, locale: locale) } : nil
         VStack(alignment: .leading, spacing: theme.innerSpacing) {
-            if selection.validRange {
-                if selection.validSelection, let date = selection.date {
-                    DatePicker(context.string("label") ?? SDKStrings.text("controls.date.label", locale: locale), selection: Binding(
-                        get: { date }, set: { write($0) }
-                    ), in: selection.lower...selection.upper, displayedComponents: .date)
-                    .datePickerStyle(.compact).font(theme.bodyFont)
-                    .accessibilityValue(raw)
-                    .disabled(!canEdit)
-                } else {
-                    if let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont) }
-                    Button {
-                        proposedDate = selection.proposal()
-                        choosing = true
-                    } label: {
-                        HStack {
-                            Text(raw.isEmpty ? SDKStrings.text("controls.date.choose", locale: locale) : raw).fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: theme.innerSpacing)
-                            Image(systemName: "calendar").accessibilityHidden(true)
-                        }.font(theme.bodyFont)
-                            .foregroundStyle(raw.isEmpty ? theme.secondaryText : theme.primaryText)
-                            .modifier(FieldSurface(invalid: selection.message != nil))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(QuietControlStyle()).disabled(!canEdit)
-                    .accessibilityLabel(context.string("label") ?? SDKStrings.text("controls.date.label", locale: locale))
-                    .accessibilityValue(raw.isEmpty ? SDKStrings.text("controls.date.unset", locale: locale) : raw)
-                    .accessibilityHint(selection.message.map { SDKStrings.text($0, locale: locale) } ?? SDKStrings.text("controls.date.confirm_hint", locale: locale))
-                    .popover(isPresented: $choosing) { proposalPanel }
-                }
+            if let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont) }
+            Button {
+                guard canEdit, selection.validRange else { return }
+                proposedDate = selection.proposal()
+                choosing = true
+            } label: {
+                HStack {
+                    Text(dateLabel ?? (raw.isEmpty ? SDKStrings.text("controls.date.choose", locale: locale) : raw))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: theme.innerSpacing)
+                    Image(systemName: "calendar").accessibilityHidden(true)
+                }.font(theme.bodyFont)
+                    .foregroundStyle(raw.isEmpty ? theme.secondaryText : theme.primaryText)
+                    .modifier(FieldSurface(invalid: selection.message != nil))
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(QuietControlStyle(cornerRadius: 10_000))
+            .disabled(!canEdit || !selection.validRange)
+            .accessibilityLabel(context.string("label") ?? SDKStrings.text("controls.date.label", locale: locale))
+            .accessibilityValue(dateLabel ?? (raw.isEmpty ? SDKStrings.text("controls.date.unset", locale: locale) : raw))
+            .accessibilityHint(selection.message.map { SDKStrings.text($0, locale: locale) } ?? SDKStrings.text("controls.date.confirm_hint", locale: locale))
+            .popover(isPresented: $choosing) { proposalPanel }
             if let message = selection.message {
                 Label(SDKStrings.text(message, locale: locale), systemImage: "exclamationmark.circle")
                     .font(theme.captionFont).foregroundStyle(theme.danger)

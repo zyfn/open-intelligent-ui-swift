@@ -67,9 +67,83 @@ final class ControlsDataRevampTests: XCTestCase {
         let outside = CalendarDateSelection(raw: "2026-11-10", minimum: "2026-11-13", maximum: nil)
         XCTAssertFalse(outside.validSelection)
         XCTAssertNotNil(outside.message)
+        XCTAssertEqual(outside.proposal(now: now), minimum)
         XCTAssertEqual(outside.raw, "2026-11-10")
         XCTAssertEqual(outside.date.map(CalendarDate.string), "2026-11-10")
         XCTAssertFalse(CalendarDateSelection(raw: "2026-11-13", minimum: "2026-11-20", maximum: "2026-11-10").validRange)
+    }
+
+    func testCalendarProposalPreservesAnExistingDayAndInclusiveBounds() throws {
+        let now = try XCTUnwrap(CalendarDate.parse("2026-12-01"))
+        for day in ["2026-11-13", "2026-11-15", "2026-11-20"] {
+            let selection = CalendarDateSelection(raw: day, minimum: "2026-11-13", maximum: "2026-11-20")
+            XCTAssertTrue(selection.validSelection)
+            XCTAssertNil(selection.message)
+            XCTAssertEqual(CalendarDate.string(selection.proposal(now: now)), day,
+                           "Reopening the field starts at its current day, including either bound")
+            XCTAssertEqual(selection.raw, day, "A proposal must not commit a replacement value")
+        }
+        let empty = CalendarDateSelection(raw: "", minimum: "2026-11-13", maximum: "2026-11-20")
+        XCTAssertEqual(CalendarDate.string(empty.proposal(now: now)), "2026-11-20")
+        XCTAssertEqual(empty.raw, "")
+        let invalid = CalendarDateSelection(raw: "2026-02-30", minimum: "2026-11-13", maximum: "2026-11-20")
+        XCTAssertEqual(CalendarDate.string(invalid.proposal(now: now)), "2026-11-20")
+        XCTAssertEqual(invalid.raw, "2026-02-30")
+        XCTAssertEqual(invalid.message, "controls.date.invalid_format")
+    }
+
+    func testCalendarProposalKeepsTheUTCDayAcrossLocalMidnight() throws {
+        let utcDay = try XCTUnwrap(CalendarDate.parse("2026-11-15"))
+        let nearUTCMidnight = utcDay.addingTimeInterval(30 * 60)
+        let local = DateFormatter()
+        local.calendar = Calendar(identifier: .gregorian)
+        local.locale = Locale(identifier: "en_US_POSIX")
+        local.timeZone = TimeZone(secondsFromGMT: -8 * 60 * 60)
+        local.dateFormat = "yyyy-MM-dd"
+        XCTAssertEqual(local.string(from: nearUTCMidnight), "2026-11-14")
+        let selection = CalendarDateSelection(raw: "", minimum: nil, maximum: nil)
+        XCTAssertEqual(selection.proposal(now: nearUTCMidnight), utcDay)
+        XCTAssertEqual(CalendarDate.string(nearUTCMidnight), "2026-11-15")
+        XCTAssertEqual(selection.raw, "")
+    }
+
+    func testCalendarDisplayLocalizesWithoutChangingTheUTCDay() throws {
+        let day = try XCTUnwrap(CalendarDate.parse("2026-11-15"))
+        for instant in [day, day.addingTimeInterval(23.5 * 60 * 60)] {
+            XCTAssertEqual(CalendarDate.display(instant, locale: Locale(identifier: "en_US")), "Nov 15, 2026")
+            XCTAssertEqual(CalendarDate.display(instant, locale: Locale(identifier: "zh_CN")), "2026年11月15日")
+            XCTAssertEqual(CalendarDate.string(instant), "2026-11-15", "Localized labels do not change the stored format")
+        }
+    }
+
+    @MainActor func testEnglishDateFieldKeepsItsSurfaceHeightAndValueAfterSelection() throws {
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        state.setSource("""
+        root = DatePicker($date,"Departure","2026-11-13","2026-11-20")
+        $date = ""
+        """)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        let binding = try XCTUnwrap(state.binding(for: try XCTUnwrap(state.root), prop: "value"))
+        func height(at textSize: DynamicTypeSize) throws -> Double {
+            let original = state.stateValue("$date")
+            let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
+                .environment(\.locale, Locale(identifier: "en_US"))
+                .environment(\.dynamicTypeSize, textSize).frame(width: 320))
+            let image = try XCTUnwrap(renderer.cgImage)
+            XCTAssertEqual(state.stateValue("$date"), original, "Displaying a date must never commit its proposal")
+            return Double(image.height)
+        }
+        for textSize in [DynamicTypeSize.large, .accessibility2] {
+            // This short English fixture fits on one line at 320 points.
+            // Other locales and longer labels may grow naturally with Dynamic Type.
+            binding.wrappedValue = .string("")
+            let emptyHeight = try height(at: textSize)
+            binding.wrappedValue = .string("2026-11-15")
+            XCTAssertEqual(try height(at: textSize), emptyHeight, accuracy: 1,
+                           "Selecting a date must keep the label, field surface and control height")
+            XCTAssertEqual(state.stateValue("$date"), .string("2026-11-15"))
+        }
     }
 
     func testDenseSliderMarksUseNonOverlappingLanes() {

@@ -91,10 +91,8 @@ private struct MathView: View {
                         })
                 }.accessibilityLabel(tex)
             } else if failed {
-                VStack(alignment: .leading, spacing: theme.spacingUnit) {
-                    Text(SDKStrings.text("math.failed", locale: locale)).font(theme.captionFont).foregroundStyle(theme.secondaryText)
-                    Text(tex).font(theme.codeFont).textSelection(.enabled)
-                }
+                Text(tex).font(theme.codeFont).textSelection(.enabled)
+                    .accessibilityValue(SDKStrings.text("math.failed", locale: locale))
             } else { placeholder }
         }
         .task(id: "\(key):\(context.element.isSourceComplete)") {
@@ -109,7 +107,12 @@ private struct MathView: View {
         }
     }
     private var placeholder: some View {
-        MathSizingLayout(inline: inline, measured: measured) { ProgressView(SDKStrings.text("math.preparing", locale: locale)) }
+        MathSizingLayout(inline: inline, measured: measured) {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityLabel(SDKStrings.text("math.preparing", locale: locale))
+                .accessibilityValue(tex)
+        }
     }
 }
 

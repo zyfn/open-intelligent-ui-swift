@@ -36,7 +36,9 @@ private struct FlashcardView: View {
         VStack(spacing: theme.innerSpacing) {
             if let text = context.string(key) { RichMarkdown(context: context, text: text, compact: true, isTitle: key == "front") }
             else { context.slot(key) }
-            if key == "front" { Text(context.string("hint") ?? SDKStrings.text("flashcard.flip", locale: locale)).font(theme.captionFont).foregroundStyle(theme.secondaryText) }
+            if key == "front", let hint = context.string("hint"), !hint.isEmpty {
+                Text(hint).font(theme.captionFont).foregroundStyle(theme.secondaryText)
+            }
         }.multilineTextAlignment(.center).padding(20).environment(\.openIntelligentUIInteractiveContent, true)
     }
 }

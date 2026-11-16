@@ -99,7 +99,10 @@ struct NativeChoiceField: View {
           : selected ? context.theme.componentStyle.selectedBorder : context.theme.componentStyle.surfaceBorder,
         lineWidth: context.presentation.borderWidth))
   }
-  private var choiceRadius: CGFloat { cards ? context.theme.componentStyle.optionRadius : context.theme.radiusFull }
+  private var choiceRadius: CGFloat {
+    cards ? context.theme.componentStyle.optionRadius : min(max(0, context.theme.radiusFull),
+      NativeButtonShape.readableRadius(horizontal: context.theme.spaceS, vertical: context.theme.spaceXs))
+  }
   private func cardCopy(_ item: EvaluatedElement, selected: Bool) -> some View {
     VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
       HStack(spacing: context.theme.spacing("xs")) {

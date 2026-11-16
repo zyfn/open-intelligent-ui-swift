@@ -37,17 +37,15 @@ struct NativeSVG: View {
                     .aspectRatio(document.viewportRatio, contentMode: .fit)
                     .frame(maxHeight: 1024)
                 Button { guard context.canInteract else { return }; preview = true } label: {
-                    Label {
-                        Text("View full graphic", bundle: NativeControlResources.bundle)
-                    } icon: {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right").accessibilityHidden(true)
-                    }
-                    .openUIFont(context.theme.textLabelSm, role: .control)
-                    .openUIControlTarget(alignment: .leading)
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .openUIFont(context.theme.textLabelSm, role: .control)
+                        .openUIControlTarget()
                 }
                 .buttonStyle(.plain).foregroundStyle(context.theme.interactiveAccentDefault)
                 .disabled(!context.canInteract)
+                .accessibilityLabel(Text("View full graphic", bundle: NativeControlResources.bundle))
                 .accessibilityIdentifier("openui.svg.expand")
+                .frame(maxWidth: .infinity, alignment: .trailing)
             } else {
                 if failed, retryableTarget == remoteTarget {
                     Button {
@@ -203,6 +201,7 @@ struct NativeSVGPreview: View {
             }
             NativeSVGCanvas(document: document, alt: alt)
                 .modifier(NativeImageZoom(resetID: document.markup))
+                .accessibilityHint(Text("Zoom and pan to inspect the graphic", bundle: NativeControlResources.bundle))
                 .accessibilityIdentifier("openui.svg.preview.zoom")
             if !alt.isEmpty {
                 ScrollView(.vertical) {
@@ -211,8 +210,6 @@ struct NativeSVGPreview: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(maxHeight: descriptionHeight)
             }
-            Text("Zoom and pan to inspect the graphic", bundle: NativeControlResources.bundle)
-                .nativeTextStyle(theme.textStyle(.caption))
         }
         .padding(theme.spaceML)
         .frame(idealWidth: 840, idealHeight: 700)

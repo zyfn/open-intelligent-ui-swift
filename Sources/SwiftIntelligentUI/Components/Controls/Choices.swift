@@ -157,12 +157,13 @@ private struct ChoiceGroupView: View {
     private var options: [ChoiceOption] { ChoiceOption.decode(context.value("options")) }
     private var selected: String { InputEditing.text(context.binding("value")?.wrappedValue ?? context.value("value") ?? .null) }
     private var pills: Bool { segmented || context.string("variant") == "pills" }
+    private var cards: Bool { !segmented && context.string("variant") == "cards" }
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacingUnit * 2) {
             if !segmented, let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont).accessibilityHidden(true) }
             let layout = pills
                 ? AnyLayout(WrappingRowLayout(gap: theme.spacingUnit * 2, alignment: "center", justification: "start", wraps: true, rightToLeft: direction == .rightToLeft, fillsWidth: !segmented || context.flag("block") == true))
-                : context.string("variant") == "cards"
+                : cards
                     ? AnyLayout(EqualGridLayout(columns: typeSize.isAccessibilitySize ? 1 : 12, minimumWidth: 200, gap: theme.innerSpacing, rightToLeft: direction == .rightToLeft))
                     : AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
             layout {
@@ -182,15 +183,34 @@ private struct ChoiceGroupView: View {
                             }
                             VStack(alignment: .leading, spacing: theme.spacingUnit) {
                                 Text(option.label).fontWeight(selected == option.id ? .medium : .regular).fixedSize(horizontal: false, vertical: true)
-                                if let detail = option.detail { Text(detail).font(theme.captionFont).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true) }
+                                if let detail = option.detail {
+                                    Text(detail).font(theme.captionFont)
+                                        .foregroundStyle(pills && !segmented && selected == option.id
+                                            ? theme.actionForeground.opacity(0.8) : theme.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
                         }
                         .font(theme.bodyFont).padding(theme.spacingUnit * 2)
                         .frame(maxWidth: pills ? nil : .infinity, minHeight: theme.minimumControlHeight, alignment: .leading)
                         .contentShape(Rectangle())
                         .foregroundStyle(pills && !segmented && selected == option.id ? theme.actionForeground : theme.primaryText)
-                        .background(pills && selected == option.id ? (!segmented ? theme.actionAccent : theme.surface) : .clear, in: Capsule())
-                        .overlay(Capsule().strokeBorder(pills && !segmented ? (selected == option.id ? theme.actionAccent : theme.fieldBorder) : .clear))
+                        .background {
+                            if pills {
+                                Capsule().fill(selected == option.id ? (!segmented ? theme.actionAccent : theme.surface) : .clear)
+                            } else if cards {
+                                RoundedRectangle(cornerRadius: theme.controlRadius)
+                                    .fill(selected == option.id ? theme.surface : theme.canvas)
+                            }
+                        }
+                        .overlay {
+                            if pills && !segmented {
+                                Capsule().strokeBorder(selected == option.id ? theme.actionAccent : theme.fieldBorder)
+                            } else if cards {
+                                RoundedRectangle(cornerRadius: theme.controlRadius)
+                                    .strokeBorder(selected == option.id ? theme.actionAccent : theme.fieldBorder)
+                            }
+                        }
                     }
                     .buttonStyle(QuietControlStyle(cornerRadius: pills ? 10_000 : theme.controlRadius))
                     .accessibilityAddTraits(selected == option.id ? [.isSelected] : [])

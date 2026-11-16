@@ -29,8 +29,9 @@ private struct CardView: View {
     }
     private var ownsSurface: Bool {
         let children = context.children()
-        guard children.count == 1, case .element(let child) = children[0].value else { return false }
-        return ["ProductCard", "TransportCard"].contains(child.typeName)
+        guard children.count == 1 else { return false }
+        let content = EditorialNode.readingEdge(children[0].value)
+        return ["ProductCard", "TransportCard"].contains(EditorialNode.kind(content))
     }
     @ViewBuilder var body: some View {
         Group {

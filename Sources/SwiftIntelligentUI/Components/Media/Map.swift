@@ -91,12 +91,10 @@ private struct NativeMapView: View {
     }
 
     private var mapEmpty: some View {
-        VStack(spacing: theme.innerSpacing) {
-            Image(systemName: "map").font(.title2).foregroundStyle(theme.secondaryText)
-            Text(SDKStrings.text(context.element.isSourceComplete ? "map.no_coordinates" : "map.preparing", locale: locale))
-                .font(theme.secondaryFont).foregroundStyle(theme.secondaryText)
-        }
-        .frame(maxWidth: .infinity).frame(height: height).background(theme.surface)
+        Image(systemName: "map").font(.title2).foregroundStyle(theme.secondaryText.opacity(0.35))
+            .frame(maxWidth: .infinity).frame(height: height).background(theme.surface)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(SDKStrings.text(context.element.isSourceComplete ? "map.no_coordinates" : "map.preparing", locale: locale))
     }
 
     private func scene(expanded isExpanded: Bool) -> some View {

@@ -175,9 +175,9 @@ struct NativeInlineText: View {
       emphasized: bold, numeric: context.string("variant") == "number")
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
       NativeMarkdownText(text: context.string("value") ?? "", mode: .inline, style: style)
-      if let sub = context.string("subtext") {
+      if let sub = context.string("subtext"), !sub.isEmpty {
         NativeMarkdownText(text: sub, mode: .inline,
           style: context.theme.textStyle(.supporting).richText(
             numeric: context.string("subtextVariant") == "number", color: subtextColor(sub)))

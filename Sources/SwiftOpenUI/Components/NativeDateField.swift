@@ -103,23 +103,19 @@ struct NativeDateField: View {
             content.sheet(item: $request) { value in editor(value).modifier(NativeCalendarPresentation()) }
         #endif
     }
-    private var content: some View {
-        VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
-            if range {
+    @ViewBuilder private var content: some View {
+        if range {
+            VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
                 dateControl(NativeControlText.localized("Start date", locale: locale), part: .from)
                 dateControl(NativeControlText.localized("End date", locale: locale), part: .to)
-                if let summary = NativeCalendarDate.rangeSummary(field.value, locale: locale, calendar: calendar, timeZone: timeZone) {
-                    Text(summary).nativeTextStyle(context.theme.textStyle(.supporting),
-                        color: canEdit ? nil : context.theme.textNeutralTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(Text("Selected range", bundle: NativeControlResources.bundle))
-                        .accessibilityValue(summary)
-                        .accessibilityIdentifier("openui.date.range.\(field.name.displayString)")
-                }
-            } else {
-                dateControl(label, part: .single)
             }
-
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text("Selected range", bundle: NativeControlResources.bundle))
+            .accessibilityValue(NativeCalendarDate.rangeSummary(
+                field.value, locale: locale, calendar: calendar, timeZone: timeZone) ?? "")
+            .accessibilityIdentifier("openui.date.range.\(field.name.displayString)")
+        } else {
+            dateControl(label, part: .single)
         }
     }
     private func dateControl(_ title: String, part: NativeDatePart) -> some View {
