@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.11 · 更新日期：2026-11-16
+文档版本：1.12 · 更新日期：2026-11-16
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -305,7 +305,7 @@ python3 Tools/check_gallery_catalog.py
 | 图表与表格 | 横柱所有分类完整换行并参与自然高度，数据/标签/命中共用几何；表格和数据菜单沿用已有安静呈现 | 七项/多项/长名/大字体/RTL 的实际文字像素，点按与菜单、表格编辑和辅助阅读 |
 | 选择与地图 | 单选圆形、多选方形；地图初始概览、主动选点详情；失效选择不改写绑定，换文档清理展示状态 | 选择、草稿、焦点、全屏返回、点位变化、相机与旧关闭回调 |
 | 生成建议 | 唯一通用预设覆盖正文、提示、卡片、媒体、数据和动作；修正 Form 参数说明，FollowUp 可直接放在末尾 Stack；六个示例在生成时校验 | 真实 Agent 输出及完整场景的视觉对照 |
-| 清理 | 删除横柱漏标签路径、地图自动首点路径、撑满照片的 Spacer、仅供测试的图表 data helper、三个测试编译开关和 11 个无消费者本地化键；清理自比较、重复断言和纯常量测试 | 相关原生回归须实际运行 |
+| 清理 | 删除横柱漏标签路径、地图自动首点路径、撑满照片的 Spacer、仅供测试的图表 data helper、三个测试编译开关和 13 个无消费者本地化键；清理自比较、重复断言和纯常量测试 | 相关原生回归须实际运行 |
 
 回归优先验证真实渲染与状态：分类名称旁的文字像素、图片完整内容与稳定尺寸、图库及图文重排、选点与资源挂载、图表部分输入的画面保留和缓存换源。已有合适测试原位维护；不为删除功能保留假生产入口，也不通过修改历史输入、跳过测试或放宽断言掩盖差异。
 
@@ -314,8 +314,9 @@ python3 Tools/check_gallery_catalog.py
 - `git diff --check`、源码/所有权和 Gallery 目录/资源完整性检查通过。
 - 生成器完整运行及 `catalog.mjs --check` 通过；六个预设示例均由固定解析器校验。84 个组件定义与 schema 和基线逐项一致；通用组合说明与分组 notes 由同一个生成输入维护。
 - `catalog-compatibility.test.mjs` 七项全部通过，覆盖真实 native authoring 的参数顺序、完整签名、union/record 语义及绑定。
-- OpenUI 中英文 91 个本地化键的集合、重复键和格式参数检查通过；删除的 11 个键没有 Swift 生产或测试消费者，资源包测试继续用实际消费的图形状态键验证打包。
+- OpenUI 中英文 89 个本地化键的集合、重复键和格式参数检查通过；删除的 13 个键没有 Swift 生产或测试消费者，资源包测试继续用实际消费的图形状态键验证打包。
 - token、呈现配置、共享内核、Intelligent UI、历史 fixture 与案例的受保护路径无差异。
 - `swift test --filter SwiftOpenUITests` 实际启动返回 127：`swift: command not found`。当前环境没有 Swift/Xcode，原生构建、XCTest、iOS 手势、VoiceOver 和整页截图尚未验收。
+- [PR #5 的 CI 运行](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/43861758667)在启动任务前被 GitHub 账户付款或 Actions 消费额度问题阻塞；两个前置任务没有执行步骤，`native-sdk` 被跳过。该结果不能记为原生编译或测试通过。
 
 检查日志保存在忽略的 `outputs/verification/openui-composition/`。原生文本流、签名媒体、SVG 缩放等既有行为的验收边界继续见[验证说明](validation-and-security.md)，本批静态检查不替代这些验证。截图中尚未定位到 SDK 的宿主悬浮入口和顶部状态也不记为已修复。

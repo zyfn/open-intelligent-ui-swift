@@ -20,7 +20,6 @@
 "Save Changes" = "保存修改";
 "Map" = "地图";
 "Open place" = "打开地点";
-"Swipe to change place" = "左右滑动切换地点";
 "Loading image" = "图片加载中";
 "Image unavailable" = "图片暂不可用";
 "Show all photos" = "查看全部图片";
@@ -43,7 +42,6 @@
 
 
 
-"Places" = "地点列表";
 
 // Embedded SVG and WebView presentation.
 "More tabs" = "更多标签";

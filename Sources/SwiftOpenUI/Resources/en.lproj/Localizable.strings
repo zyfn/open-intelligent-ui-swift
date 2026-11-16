@@ -20,7 +20,6 @@
 "Save Changes" = "Save Changes";
 "Map" = "Map";
 "Open place" = "Open place";
-"Swipe to change place" = "Swipe left or right to change place";
 "Loading image" = "Loading image";
 "Image unavailable" = "Image unavailable";
 "Show all photos" = "Show all photos";
@@ -43,7 +42,6 @@
 
 
 
-"Places" = "Places";
 
 // Embedded SVG and WebView presentation.
 "More tabs" = "More tabs";
