@@ -60,15 +60,17 @@ private struct NativeFieldContent: View {
             }
             .onAppear {
                 field.initialize()
-                register()
+                register(enabled: enabled, interactive: context.canInteract)
             }
             .onChange(of: context.canInteract) { complete in
                 if complete { field.initialize() }
-                register()
+                register(enabled: enabled, interactive: complete)
             }
-            .onChange(of: enabled) { _ in register() }
+            .onChange(of: enabled) { current in
+                register(enabled: current, interactive: context.canInteract)
+            }
             .onChange(of: context.element) { _ in
-                register()
+                register(enabled: enabled, interactive: context.canInteract)
                 field.mirror()
             }
             .onChange(of: field.value) { _ in
@@ -104,14 +106,17 @@ private struct NativeFieldContent: View {
             }
         }.environment(\.openUIFieldError, error)
     }
-    private func register() {
+    private func register(enabled: Bool, interactive: Bool) {
+        // onChange delivers the current value even when its closure retains the
+        // prior view's environment snapshot. Register that value, not the capture.
+        let canEdit = enabled && interactive
         if let registeredName, registeredName != field.name {
             validation?.unregister(registeredName, owner: registration)
         }
         if !canEdit || (kind != .input && kind != .textArea) {
             validation?.unregisterFocusableField(field.name, owner: registration)
         }
-        guard context.canInteract else { return }
+        guard interactive else { return }
         validation?.register(
             field.name, owner: registration, rules: field.rules, value: { field.validationValue })
         if canEdit && (kind == .input || kind == .textArea) {

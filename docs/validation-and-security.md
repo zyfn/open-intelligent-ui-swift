@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.18 · 更新日期：2026-11-17
+文档版本：1.20 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -100,7 +100,28 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-当前候选的全面清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。下文各历史轮次的通过数量、客户端样本和 CI 状态仅属于其标明的版本。
+当前候选从已核对的 main `1f070fe5428467ed60c6be2870a2f5f6e1386494` 集成此前独立的文档资源生命周期优化，保留主线的图片尺寸、自动重试、请求策略和 readiness 修复，见下一节；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。下文各历史轮次的通过数量、客户端样本和 CI 状态仅属于其标明的版本。
+
+### 文档资源生命周期
+
+此前独立提交 `dad6d4f` 沿用现有 State、Store、Query 和同步输入 API，收敛已完成资源缓存与桥接身份记录的所有权；本轮将其集成到 `1f070fe`。两类缓存共用一个内部实现，保留单文档额度并加入跨文档合计额度；数据不跨文档共享。iOS 内存警告和 macOS 内存压力只清理可重建的已完成缓存，保留 pending 请求、鉴权 scope、generation 和视图已持有图片。预算与宿主责任只在[架构](architecture.md#文档与资源的生命周期)维护，客户端不需要新增 `snapshotState()` 调用。
+
+桥接的五类原生引用值各自持有 JS 身份，SharedCore 只留弱反查。销毁旧快照按记录身份精确撤销，移除原来每 32 次调用的全表扫描；JS 堆的垃圾回收时机仍由 JavaScriptCore 决定。析构不获取执行域锁，弱表短锁内不调用 JS 或释放强原生/JS 引用，防止 VM 回收回调与执行域锁形成反向等待。该锁序依据 [Apple 的 JavaScriptCore 线程说明](https://developer.apple.com/documentation/javascriptcore/jsvirtualmachine) 和 [WebKit 的 JSValue 析构实现](https://github.com/WebKit/WebKit/blob/main/Source/JavaScriptCore/API/JSValue.mm)核对；源码推导仍须通过原生并发与生命周期回归。原生对象编码为 JS 数据，不能改为直接导出拥有 JSValue 的原生包装对象。
+
+新增 15 项 XCTest：`ResourceCacheBudgetTests` 6 项、`ResourceStoreTests` 4 项、`SharedCoreBridgeTests` 5 项。覆盖跨文档 LRU、单文档/合计额度、超大候选保留旧值、替换成本、零成本条数限制、弱 owner 释放、压力下 pending 成功、请求 scope 与图片快照保留，以及桥接包装立即释放、旧/新 readiness 身份和跨线程析构。图片测试使用小图和显式成本，不作为实际内存或画面测量；桥接释放断言针对原生对象及 JSValue 包装，不把 JS GC 或 RSS 回落当作同步承诺。Release 定向集合加入这两个测试类，保留原有全部集合与断言。
+
+此次集成保留这 15 项，另增加一项共享图片预算与当前请求策略的组合回归：修改限额后允许较小的有效图片替换旧高清缓存，拒绝旧限额结果、退休 scope 和不匹配的 owner 入池。冲突解决同时保留主线的显示尺寸、HTTP 自动重试、签名请求及全部限额检查；Release 筛选取两条分支的完整并集。原独立分支的检查结果列在下表，不作为此次集成的原生通过证据。
+
+| 本轮检查 | 实际结果与边界 |
+| --- | --- |
+| 实际打包核心的 JS 回归 | 167/167 通过，0 failed、0 skipped；本轮 JS 资源未修改，这只保留语言行为基线，不覆盖新的 Swift 实现 |
+| Validation / catalog compatibility | 6/6 与 7/7 通过，0 failed、0 skipped |
+| 资源完整性与源码归属 | `check_openui_integration.py` 通过；lang-core.js、manifest 和许可 SHA-256 与基线一致；没有修改历史 fixture |
+| 原生测试与完整 SwiftPM 图 | 本地 `swift test` 与模块图检查实际受缺少 Swift 工具链阻塞；新增 XCTest 未编译、未执行，Release fitting 与设备 UI 复测未运行 |
+
+本地日志在忽略的 `outputs/document-resource-lifetime/`。缓存上限不包含宿主强持有的所有历史 State、挂载图片、工具结果和系统资源；本轮没有自动卸载文档、暂停 Query、删除未提交草稿或实现完整 checkpoint。缓存淘汰后再次访问旧资源可能重新加载。每个未桥接原生引用现在也持有一枚空身份记录，净分配成本和移除全表扫描的实际收益需同条件 Release 测量。尚无本候选的 App CPU、真机内存、帧率或持续滚动证据，不据此宣布客户端卡顿或长会话问题已全部解决。
+
+### 历史修复记录
 
 本节保留各轮修复的执行证据。早期以 `9e05d888ef31cfff6eb8c75f3ca01ed089ec3e78` 为基线完成下表修复，经 `bdac1bfd03bf19df527681517b2f3c3aee19a368` 合入 main，随后继续处理原生执行及文本同步；`c7310054e5a58ecb7e42e9f37e4c77e7fed30ce7` 是后续客户端审查的历史基线，不是本节所记录的最新修复。
 
@@ -382,7 +403,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ### OpenUI 图片与首次正文准备
 
-本轮从 `ceb90cdf` 创建独立候选，最初处理 OpenUI 图片与原生 Markdown 的重复工作和恢复路径，必要的资源/诊断基础设施仍归 SwiftLang。随后根据客户端反馈，把基线的 13 项原生失败及深层数据崩溃纳入同一候选；以下分别记录实现修复、测试合同校正和待验证项。SwiftIntelligentUI、公开语言输入契约与原始 Lang fixture 保持；没有把此前未合入的文档资源生命周期分支整体带入。
+该轮从 `ceb90cdf` 创建独立候选，最初处理 OpenUI 图片与原生 Markdown 的重复工作和恢复路径，必要的资源/诊断基础设施仍归 SwiftLang。随后根据客户端反馈，把基线的 13 项原生失败及深层数据崩溃纳入同一候选；以下分别记录实现修复、测试合同校正和待验证项。SwiftIntelligentUI、公开语言输入契约与原始 Lang fixture 保持。该轮尚未带入独立的文档资源生命周期分支；当前候选已将其基于 `1f070fe` 集成，验收单独记录在前文，不沿用图片候选的通过结果。
 
 | 路径 | 本轮实现 | 验证目标 |
 | --- | --- | --- |
@@ -403,7 +424,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 检查命令、完整日志、基线对照与探针原图保存在忽略的 `outputs/verification/openui-media-responsiveness/`。默认仍下载原 src，不能把卡片像素缓冲的减少写成网络流量或 App CPU 的实测下降；测试造图器的透明像素也不能解释真实客户端的首次图片失败，该根因仍须由具体 HTTP/错误与实际限制判定。当前整体原生门禁仍未关闭，源码审查、局部通过及构建成功均不等于客户端流畅度验收。
 
-最小客户端对照使用同一 Release App、设备、源码、节点数与图片，分别回放一次性静态和既有 24 units / 80ms 流式输入；图片再分同几何静态占位、已完成的缓存图片、冷加载三组。该控制实验保持原始 Lang，不改历史 fixture 以压低负载。各组记录被动展示和相同滚动过程的主线程占用、帧停顿、峰值内存及图片请求/解码次数。Instruments `org.openui.swiftlang` / `Runtime` 的 `Image decode`、`Markdown preparation`、`Markdown fallback` 与既有 Parse/Root evaluation/Native projection/Live index/Bridge cleanup 对照，可区分图片、正文准备和同步内核成本。没有设备 trace 时不把剩余整 root 工作、周期桥接清理或屏外 shimmer 指定为当前 App 唯一根因。
+最小客户端对照使用同一 Release App、设备、源码、节点数与图片，分别回放一次性静态和既有 24 units / 80ms 流式输入；图片再分同几何静态占位、已完成的缓存图片、冷加载三组。该控制实验保持原始 Lang，不改历史 fixture 以压低负载。各组记录被动展示和相同滚动过程的主线程占用、帧停顿、峰值内存及图片请求/解码次数。Instruments `org.openui.swiftlang` / `Runtime` 的 `Image decode`、`Markdown preparation`、`Markdown fallback` 与既有 Parse/Root evaluation/Native projection/Live index/Bridge operation 对照，可区分图片、正文准备和同步内核成本；生命周期集成已移除旧的周期 `Bridge cleanup` 区间。没有设备 trace 时不把剩余整 root 工作或屏外 shimmer 指定为当前 App 唯一根因。
 
 ### 基线原生失败的逐项核实
 
@@ -498,6 +519,23 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 现有 [LanguageRuntime 基准](../Benchmarks/LanguageRuntime/README.md) 使用公开 MainActor State 的真实流式路径及宽对象构造，报告逐次 push、complete、整流、发布次数与耗时分位数；CI 分片调整为客户端对照的 24/128 units 并保存 JSON，README 给出同样 201 节点参数。配置完成不等于测量已执行。原生验收还必须同时检查 terminal flush、停止/换源后旧结果失效、超限前无工具派发、完整控件可用、未完整控件不可执行，以及 Release UI 的 body/布局/挂载和滚动交互。
 
 前轮纠正了旧基准调用与公共 API 的漂移：`Evaluator(context:store:schema:)` 的 `store` 实参已没有对应初始化器，基准改为当前 `Evaluator(context:schema:)`，状态仍由传入的 EvaluationContext 回调读取。YAML 及 workflow 内 shell 语法曾单独检查；这些检查不构成 Swift 编译通过的证明。
+
+### 客户端复测收尾候选
+
+本次从远端 `main=1f070fe` 创建独立分支，整合 `dad6d4f` 的跨文档完成缓存预算、内存压力清理和原生对象拥有桥接身份。整合保留现行图片显示尺寸、自动恢复、冻结签名、owner/scope/limits 检查与完整旧测试集合；原 15 项生命周期回归均保留，另加共享预算下旧策略拒绝和新策略较小图片替换的组合回归。`snapshotState()` 仍只导出业务值，客户端不需要新增调用或改变 `push / complete / interrupt`。
+
+| 残留问题 | 独立依据与本次处理 |
+| --- | --- |
+| 字段启用状态变更后的焦点顺序慢一轮 | 原生用例连续禁用/启用时顺序反向滞后；`onChange` 回调把收到的新值传给登记函数，避免再次读取闭包捕获的旧 Environment 值。保留原焦点顺序断言 |
+| Overview 指标行起点不齐 | 布局角色由 `NativeCardBlock` 的直接子项边界交给 pager，避免动态 renderer 内层的 layout value 未传达；不增加虚假文本或更改原对齐误差 |
+| 回退快照与文字/SVG 采集 | 独立纯 SwiftUI 对照也读不到文字，surface/boundary 已收到最新 readiness 而测试 marker 未更新。marker 携带不可变快照身份；测试初始化当前进程 AX 树并遍历真实原生/虚拟节点，不把预期文本写入 label；原等待时限和断言保留 |
+| Card 图片宽度 | [独立 macOS 日志](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44046887577/job/133914682735) 显示新 Card 正确应用 16 pt inset、内容宽 268 pt，退出的旧 Stack 随后用 300 pt 覆盖单个测试记录。探针改按挂载实例记录并在退出时删除；保留原输入、宽度、epoch 并检查唯一挂载实例，生产 Card 视觉不变 |
+| 六个就绪回归把完整源码当作未完成输入 | 用锁定上游未修改源码独立构建，对原六段完整 Lang 及各自最后一个右括号之前的前缀逐阶段核对：前缀 `meta.incomplete=true`，右括号到达后为 false；正式 bundle 的 complete/closed 均一致。测试保留原完整源码，先喂真实前缀验证拒绝，再补同一末尾验证闭合即启用，不把全流结束重新设为交互门槛 |
+| Store 读者的偶发额外重算 | 保留 builder/body 完全不增加的断言，增加实际挂载订阅信号和呈现输入对照；需原生日志区分误通知与环境输入变化，不能按随机失败忽略 |
+
+本地已完成 Core JS **170/170**、Validation **6/6**、目录兼容 **7/7**、固定上游独立对照 **0 unexplained differences**、来源/所有权、本地化、Gallery 目录、workflow YAML/Bash 及 `git diff --check`。当前 Linux 无 Swift/AppKit，原生结果以本候选在 macOS 的 Debug/Release、全量、ASan、独立消费者、iOS 和 Gallery 门禁为准；前置阶段新增生命周期组和六个就绪回归所属类别，没有删除旧门禁。
+
+原 `1f070fe` 的全量日志还包含 SwiftIntelligentUI 标题排版用例 60/65 pt 差异，它来自未修改的该库路径。本次遵循只处理 OpenUI 及通用基础层的范围，不改该库视觉、不放宽其 2 pt 断言；该项仍须独立验收。所有本地确证与候选日志放 `outputs/repair-baseline/`，不将基线成功、新候选源码完成或部分原生通过写成完整客户端流畅度验收。
 
 ### 内核目标验收
 

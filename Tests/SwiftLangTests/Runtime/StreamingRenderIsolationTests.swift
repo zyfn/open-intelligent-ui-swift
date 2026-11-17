@@ -272,6 +272,8 @@ final class StreamingRenderIsolationTests: XCTestCase {
         let log = SelectiveFieldLog()
         let library = try OpenUIComponentLibrary(components: [
             OpenUIComponent(name: "Group", description: "Children", params: [ParamDef(name: "children", required: true)]) { context in
+                let _ = log.observe(context, id: "group")
+                let _ = log.record("group builder")
                 VStack { ForEach(context.children()) { context.render($0.value) } }
             },
             OpenUIComponent(name: "Reader", description: "One field reader", params: [
@@ -287,23 +289,39 @@ final class StreamingRenderIsolationTests: XCTestCase {
         defer { harness.close() }
         harness.settle()
         let builders = log.builders, bodies = log.bodies
+        let nodes = PropValue.children(try XCTUnwrap(state.root))
+        let presentations = nodes.map { NativeComponentPresentation.capture($0, state: state) }
+        for id in ["group", "left", "right", "plain"] {
+            XCTAssertNotNil(log.subscriptionIdentities[id], "Diagnostic must observe the actual mounted \(id) subscription")
+        }
+        log.record("baseline builders=\(builders), bodies=\(bodies)")
         XCTAssertEqual(log.values["left"], "left before")
         XCTAssertEqual(log.values["right"], "right before")
         XCTAssertGreaterThan(builders["plain", default: 0], 0)
+        log.phase = "left field write"
         state.setFieldValue(form: nil, name: "left field", value: .string("left after"))
+        for (node, previous) in zip(nodes, presentations) {
+            let current = NativeComponentPresentation.capture(node, state: state)
+            log.record("\(PropValue.string(node, "id") ?? "unknown") presentationEqual=\(previous.hasSameInputs(as: current))")
+        }
+        log.phase = "left field settle"
         harness.settle()
         XCTAssertEqual(log.values["left"], "left after")
         XCTAssertGreaterThan(log.builders["left", default: 0], builders["left", default: 0])
         XCTAssertGreaterThan(log.bodies["left", default: 0], bodies["left", default: 0])
         for id in ["right", "plain"] {
-            XCTAssertEqual(log.builders[id], builders[id])
-            XCTAssertEqual(log.bodies[id], bodies[id])
+            XCTAssertEqual(log.builders[id], builders[id], log.diagnostic)
+            XCTAssertEqual(log.bodies[id], bodies[id], log.diagnostic)
         }
         let afterBuilders = log.builders, afterBodies = log.bodies
+        log.phase = "unobserved field write"
         state.setFieldValue(form: nil, name: "unobserved", value: .string("no component reads this"))
+        log.phase = "unobserved field settle"
         harness.settle()
-        XCTAssertEqual(log.builders, afterBuilders)
-        XCTAssertEqual(log.bodies, afterBodies)
+        XCTAssertEqual(log.builders, afterBuilders, log.diagnostic)
+        XCTAssertEqual(log.bodies, afterBodies, log.diagnostic)
+        print(log.diagnostic)
+        log.cancelObservers()
     }
 
     @MainActor func testReplacingNearestEnvironmentObjectRebindsTheMountedSubscription() throws {
@@ -336,6 +354,41 @@ final class StreamingRenderIsolationTests: XCTestCase {
     var builders: [String: Int] = [:]
     var bodies: [String: Int] = [:]
     var values: [String: String] = [:]
+    var phase = "mount"
+    var subscriptionIdentities: [String: ObjectIdentifier] = [:]
+    private var signals: [String: Int] = [:]
+    private var observations: [ObjectIdentifier: AnyCancellable] = [:]
+    private var events: [String] = []
+
+    func record(_ event: String) { events.append("\(phase): \(event)") }
+    var diagnostic: String {
+        "Mounted field isolation: signals=\(signals), builders=\(builders), bodies=\(bodies)\n" + events.joined(separator: "\n")
+    }
+    func cancelObservers() { observations.values.forEach { $0.cancel() }; observations.removeAll() }
+
+    func observe(_ context: OpenUIComponentContext, id: String) {
+        // Inspect only this test's mounted read scope. A second, manually begun
+        // subscription would not prove what notified the actual SwiftUI host.
+        // No private field is modified and the scope's reads stay untouched.
+        func property(_ name: String, of value: Any) -> Any? {
+            guard let child = Mirror(reflecting: value).children.first(where: { $0.label == name })?.value else { return nil }
+            let mirror = Mirror(reflecting: child)
+            return mirror.displayStyle == .optional ? mirror.children.first?.value : child
+        }
+        guard let scope = property("readScope", of: context),
+              let subscription = property("subscription", of: scope) as? NativeComponentSubscription else {
+            record("\(id) missing mounted subscription")
+            return
+        }
+        let identity = ObjectIdentifier(subscription)
+        subscriptionIdentities[id] = identity
+        record("\(id) subscription=\(identity), element=\(ObjectIdentifier(context.element)), registry=\(context.registry.renderRevision)")
+        guard observations[identity] == nil else { return }
+        observations[identity] = subscription.objectWillChange.sink { [weak self] in
+            self?.signals[id, default: 0] += 1
+            self?.record("\(id) subscription signal")
+        }
+    }
 }
 
 @MainActor private struct SelectiveFieldComponent: View {
@@ -344,7 +397,10 @@ final class StreamingRenderIsolationTests: XCTestCase {
 
     init(context: OpenUIComponentContext, log: SelectiveFieldLog) {
         self.context = context; self.log = log
-        log.builders[context.string("id") ?? "unknown", default: 0] += 1
+        let id = context.string("id") ?? "unknown"
+        log.builders[id, default: 0] += 1
+        log.observe(context, id: id)
+        log.record("\(id) builder")
     }
 
     var body: some View {
@@ -363,6 +419,7 @@ final class StreamingRenderIsolationTests: XCTestCase {
     private func record(id: String, text: String) {
         log.bodies[id, default: 0] += 1
         log.values[id] = text
+        log.record("\(id) body text=\(text)")
     }
 }
 

@@ -78,7 +78,7 @@ final class FullLibraryParityTests: XCTestCase {
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
     let source = "$open=true\nroot=Modal(\"Details\",$open,[TextContent(\"Body\")])"
-    state.setSource(source, streaming: true)
+    state.setSource(String(source.dropLast()), streaming: true)
     let context = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: library.registry, state: state)
     XCTAssertFalse(context.canInteract)
     let binding = try XCTUnwrap(context.presentationBinding("open"))

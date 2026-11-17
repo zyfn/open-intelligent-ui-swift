@@ -1,8 +1,148 @@
+import Dispatch
+import JavaScriptCore
 import XCTest
 @testable import SwiftLang
 
 final class SharedCoreBridgeTests: XCTestCase {
     private final class WeakManager { weak var value: QueryManager?; init(_ value: QueryManager?) { self.value = value } }
+
+    private func referenceFactories() -> [(String, () -> Value)] {
+        [
+            ("array", { .array([.number(1)]) }),
+            ("object", { .object([.init(key: "value", value: .string("held"))]) }),
+            ("element", { .element(EvaluatedElement(typeName: "Text", props: [("value", .string("held"))])) }),
+            ("plan", { .actionPlan(ActionPlan(steps: [.reset(targets: ["$field"])])) }),
+            ("binding", { .binding("$field") }),
+            ("reactive binding", { .reactiveBinding(target: "$field", expression: .binOp("+", .stateRef("$value"), .num(1))) })
+        ]
+    }
+
+    func testUnbridgedReferenceValuesReleaseNormally() {
+        // This path does not ask for SharedCore. An empty identity slot must
+        // not turn ordinary native value destruction into a JSC operation.
+        for (name, make) in referenceFactories() {
+            var value: Value? = make()
+            weak var native = value?.referenceObject
+            XCTAssertNotNil(native, name)
+            value = nil
+            XCTAssertNil(native, name)
+        }
+    }
+
+    func testNativeReferencesReleaseJSWrappersWithoutAnotherBridgeOperation() {
+        let core = SharedCore.shared
+        for (name, make) in referenceFactories() {
+            var value: Value?
+            weak var native: AnyObject?
+            weak var wrapper: JSValue?
+            autoreleasepool {
+                value = make()
+                native = value?.referenceObject
+                core.sync { wrapper = core.encode(value!) }
+            }
+            XCTAssertNotNil(native, name)
+            XCTAssertNotNil(wrapper, "The live \(name) must own its bridge identity")
+            value = nil
+            // No new sync, parser push, timer, or explicit GC follows release.
+            // These are native/JSValue wrapper lifetime checks, not a claim
+            // about when JavaScriptCore collects the JS heap or returns RSS.
+            XCTAssertNil(native, name)
+            XCTAssertNil(wrapper, "A dead \(name) must not leave a global strong JSValue record")
+        }
+    }
+
+    func testReadinessSnapshotsKeepIdentityWhenEitherProjectionIsReleased() {
+        let core = SharedCore.shared
+        core.sync {
+            for releaseOlder in [true, false] {
+                let js = core.object([("type", core.string("element")),
+                    ("typeName", core.string("Text")),
+                    ("props", core.object([("value", core.string("same"))]))])
+                _ = core.call("tagNativeSource", [js, false])
+                var snapshots = [core.decode(js)]
+                _ = core.call("tagNativeSource", [js, true])
+                snapshots.append(core.decode(js))
+                XCTAssertFalse(snapshots[0].isSameSnapshot(as: snapshots[1]))
+                XCTAssertTrue(snapshots[0].isSameValue(as: snapshots[1]))
+                XCTAssertEqual((snapshots[0].referenceObject as? EvaluatedElement)?.isSourceComplete, false)
+                XCTAssertEqual((snapshots[1].referenceObject as? EvaluatedElement)?.isSourceComplete, true)
+
+                weak var retired = snapshots[releaseOlder ? 0 : 1].referenceObject
+                snapshots.remove(at: releaseOlder ? 0 : 1)
+                XCTAssertNil(retired)
+                let survivor = snapshots[0]
+                XCTAssertTrue(JSValueIsStrictEqual(core.context.jsGlobalContextRef,
+                    core.encode(survivor).jsValueRef, js.jsValueRef),
+                    "A retained older projection must still encode the original JS object")
+                let current = core.decode(js)
+                XCTAssertTrue(current.isSameValue(as: survivor))
+                if releaseOlder {
+                    XCTAssertTrue(current.isSameSnapshot(as: survivor),
+                        "Retiring an older slot must not erase the current reverse lookup")
+                } else {
+                    XCTAssertFalse(current.isSameSnapshot(as: survivor))
+                    XCTAssertEqual((survivor.referenceObject as? EvaluatedElement)?.isSourceComplete, false,
+                        "Recreating current readiness must not mutate the retained old snapshot")
+                }
+                XCTAssertEqual((current.referenceObject as? EvaluatedElement)?.isSourceComplete, true)
+            }
+        }
+    }
+
+    func testCapturedPlanReleasesItsNativeGraphAndJSWrappers() {
+        let core = SharedCore.shared
+        var value: Value?
+        weak var plan: AnyObject?
+        weak var payload: AnyObject?
+        weak var planWrapper: JSValue?
+        weak var payloadWrapper: JSValue?
+        autoreleasepool {
+            let captured = Value.object([.init(key: "answer", value: .number(42))])
+            value = .actionPlan(ActionPlan(steps: [.continueConversation(
+                messageAST: .runtimeValue(.string("send")), contextAST: .runtimeValue(captured))]))
+            plan = value?.referenceObject
+            payload = captured.referenceObject
+            core.sync {
+                planWrapper = core.encode(value!)
+                payloadWrapper = core.encode(captured)
+            }
+        }
+        XCTAssertNotNil(planWrapper)
+        XCTAssertNotNil(payloadWrapper)
+        value = nil
+        XCTAssertNil(plan)
+        XCTAssertNil(payload)
+        XCTAssertNil(planWrapper)
+        XCTAssertNil(payloadWrapper)
+    }
+
+    func testFinalNativeReleaseDoesNotWaitForTheRealmLock() {
+        // The holder is handed to one worker; the test does not read its value
+        // again. The semaphore makes final weak-reference checks sequential.
+        final class Owner: @unchecked Sendable {
+            var value: Value? = .object([.init(key: "held", value: .boolean(true))])
+        }
+        let core = SharedCore.shared
+        core.sync {
+            let owner = Owner()
+            weak var native = owner.value?.referenceObject
+            weak var wrapper: JSValue?
+            autoreleasepool { wrapper = core.encode(owner.value!) }
+            let released = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                owner.value = nil
+                released.signal()
+            }
+            let result = released.wait(timeout: .now() + 2)
+            XCTAssertEqual(result, .success,
+                "Final ARC release must not wait for a Core lock held by another thread")
+            if result == .success {
+                XCTAssertNil(native)
+                XCTAssertNil(wrapper)
+            }
+        }
+    }
+
     func testParsedRootSnapshotMatchesTypedFallbackAfterNativeEdits() throws {
         let schema = LibrarySchema(components: ["Text": [ParamDef(name: "text", required: true)]],
                                    callDefs: builtinCallDefs, rootComponent: "Text")

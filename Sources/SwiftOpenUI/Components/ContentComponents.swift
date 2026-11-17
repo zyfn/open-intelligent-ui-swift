@@ -785,8 +785,6 @@ struct NativeCardItem: View {
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("openui.card-item." + kind.lowercased())
     .layoutValue(key: OpenUIFlexGrowKey.self, value: true)
-    .layoutValue(key: NativeOverviewMetricKey.self,
-      value: kind == "Overview" && context.value("bottom") != nil && context.value("bottom") != .null)
   }
   @ViewBuilder private var content: some View {
       if let source = artworkSource, let target = artworkTarget {
@@ -1004,7 +1002,16 @@ struct NativeCardBlock: View {
       }
     }
   }
-  @ViewBuilder private func item(_ item: OpenUIRenderChild, index: Int) -> some View {
+  private func item(_ item: OpenUIRenderChild, index: Int) -> some View {
+    renderedItem(item, index: index)
+      // Layout values belong on the pager's direct child. A value attached to
+      // the card inside the dynamic renderer can be consumed by an intervening
+      // layout before NativePagerLayout gets to read it.
+      .layoutValue(key: NativeOverviewMetricKey.self,
+        value: kind == "Overview" && NativeValue.prop(item.value, "bottom") != nil
+          && NativeValue.prop(item.value, "bottom") != .null)
+  }
+  @ViewBuilder private func renderedItem(_ item: OpenUIRenderChild, index: Int) -> some View {
     if let value = context.value("action"), value != .null {
       let message = NativeCardAction.label(item.value, kind: kind, index: index)
       let action = NativeCardAction.action(value, item: item.value, kind: kind, index: index)

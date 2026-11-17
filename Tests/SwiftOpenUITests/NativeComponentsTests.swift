@@ -160,7 +160,8 @@ final class NativeComponentsTests: XCTestCase {
     @MainActor func testFieldDefaultsDoNotCommitIncompleteStreamingProps() throws {
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())
-        state.setSource("root=Input(\"name\",null,null,null,\"part\")", streaming: true)
+        let source = "root=Input(\"name\",null,null,null,\"part\")"
+        state.setSource(String(source.dropLast()), streaming: true)
         let partial = NativeFieldState(
             context: OpenUIComponentContext(element: state.root!, registry: library.registry, state: state))
         partial.initialize()
@@ -171,6 +172,13 @@ final class NativeComponentsTests: XCTestCase {
             context: OpenUIComponentContext(element: state.root!, registry: library.registry, state: state))
         final.initialize()
         XCTAssertEqual(final.value, .string("complete"))
+        state.reset()
+        state.setSource(source, streaming: true)
+        let closed = NativeFieldState(
+            context: OpenUIComponentContext(element: state.root!, registry: library.registry, state: state))
+        closed.initialize()
+        XCTAssertFalse(state.isComplete)
+        XCTAssertEqual(closed.value, .string("part"), "A closed field does not wait for unrelated stream completion")
     }
 
     @MainActor func testToggleObjectAndSliderValuesPreserveTheirWireShapes() throws {

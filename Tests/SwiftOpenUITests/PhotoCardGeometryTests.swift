@@ -30,7 +30,8 @@ final class PhotoCardGeometryTests: XCTestCase {
     let image = try XCTUnwrap(standard.library.components.first { $0.name == "Image" })
     let library = try standard.extending(overriding: [OpenUIComponent(image) { context in
       NativeComponentHost(context: context) { context in
-        NativeContentImage(context: context).background(PhotoCardImageGeometryProbe(measured: measured))
+        NativeContentImage(context: context).background(PhotoCardImageGeometryProbe(
+          measured: measured, sourceRevision: context.presentationSourceRevision))
       }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
@@ -60,9 +61,13 @@ final class PhotoCardGeometryTests: XCTestCase {
         settle()
         XCTAssertTrue(state.errors.isEmpty)
         XCTAssertFalse(state.isComplete)
+        XCTAssertEqual(measured.mountedCount, 1,
+          "Replacing a root container must retire its previous image probe")
+        XCTAssertEqual(measured.sourceRevision, state.sourceRevision,
+          "The geometry must come from this document, not a replaced container")
         XCTAssertTrue(measured.layoutReady, "A closed container must own its layout while its text streams")
         XCTAssertEqual(measured.width, expected, accuracy: 1,
-          "A column's width must not wait for its unrelated trailing text; media inset=\(measured.mediaInset)")
+          "A column's width must not wait for its unrelated trailing text; root=\(state.root?.typeName ?? "nil"), media inset=\(measured.mediaInset), sampled revision=\(measured.sourceRevision), current=\(state.sourceRevision)")
         state.push(" arriving\")")
         settle()
         XCTAssertFalse(state.isComplete)
@@ -212,29 +217,59 @@ final class PhotoCardGeometryTests: XCTestCase {
   }
 }
 @MainActor private final class PhotoCardWidth {
-  var width: CGFloat = 0
-  var mediaInset: CGFloat = 0
-  var layoutReady = false
-}
-private struct PhotoCardImageGeometryProbe: View {
-  let measured: PhotoCardWidth
-  @Environment(\.openUICardMediaInset) private var inset
-  @Environment(\.openUIAncestorLayoutReady) private var layoutReady
-  private struct Sample: Equatable {
+  struct Sample: Equatable {
     let width: CGFloat
     let inset: CGFloat
     let layoutReady: Bool
+    let sourceRevision: Int
   }
+  private var mounted: [ObjectIdentifier: Sample] = [:]
+  var width: CGFloat = 0
+  var mediaInset: CGFloat = 0
+  var layoutReady = false
+  var sourceRevision = -1
+  var mountedCount: Int { mounted.count }
+
+  func record(_ sample: Sample, for observer: PhotoCardGeometryObserver) {
+    mounted[ObjectIdentifier(observer)] = sample
+    apply(sample)
+  }
+  func remove(_ observer: PhotoCardGeometryObserver) {
+    mounted.removeValue(forKey: ObjectIdentifier(observer))
+    // During replacement SwiftUI can deliver an outgoing view's final geometry
+    // after the new view appears. Keep only mounted samples, not the last callback.
+    apply(mounted.values.first ?? Sample(width: 0, inset: 0, layoutReady: false, sourceRevision: -1))
+  }
+  private func apply(_ sample: Sample) {
+    width = sample.width
+    mediaInset = sample.inset
+    layoutReady = sample.layoutReady
+    sourceRevision = sample.sourceRevision
+  }
+}
+@MainActor private final class PhotoCardGeometryObserver: ObservableObject {
+  var isMounted = false
+}
+private struct PhotoCardImageGeometryProbe: View {
+  let measured: PhotoCardWidth
+  let sourceRevision: Int
+  @StateObject private var observer = PhotoCardGeometryObserver()
+  @Environment(\.openUICardMediaInset) private var inset
+  @Environment(\.openUIAncestorLayoutReady) private var layoutReady
   var body: some View {
     GeometryReader { geometry in
-      let sample = Sample(width: geometry.size.width, inset: inset, layoutReady: layoutReady)
-      Color.clear.onAppear { record(sample) }.onChange(of: sample) { record($0) }
+      let sample = PhotoCardWidth.Sample(width: geometry.size.width, inset: inset,
+        layoutReady: layoutReady, sourceRevision: sourceRevision)
+      Color.clear.onAppear {
+        observer.isMounted = true
+        measured.record(sample, for: observer)
+      }.onChange(of: sample) {
+        if observer.isMounted { measured.record($0, for: observer) }
+      }.onDisappear {
+        observer.isMounted = false
+        measured.remove(observer)
+      }
     }
-  }
-  private func record(_ sample: Sample) {
-    measured.width = sample.width
-    measured.mediaInset = sample.inset
-    measured.layoutReady = sample.layoutReady
   }
 }
 #endif

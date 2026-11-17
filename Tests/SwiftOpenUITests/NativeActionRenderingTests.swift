@@ -7,16 +7,17 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class NativeActionRenderingTests: XCTestCase {
-    @MainActor func testComponentContextRefreshesAtEndOfUnchangedStream() throws {
+    @MainActor func testComponentContextRefreshesWhenUnchangedSourceBecomesReady() throws {
         _ = NSApplication.shared
         let probe = OpenUIComponent(name: "EligibilityProbe", description: "Test render boundary", params: []) {
             EligibilityProbe(context: $0)
         }
         let library = try OpenUIComponentLibrary(components: [probe])
         let state = OpenUIState(schema: library.library.toSchema())
-        state.push("root=EligibilityProbe()")
-        // Hold the element fixed, as a streaming completion need not change
-        // component props. The registered host must propagate render state.
+        let source = "root=EligibilityProbe()"
+        state.push(String(source.dropLast()))
+        // Hold the element fixed: receiving the real closing delimiter does not
+        // change its props. The registered host must propagate readiness.
         let element = try XCTUnwrap(state.root)
         let hosting = NSHostingView(rootView: RenderNode(element: element, registry: library.registry)
             .environmentObject(state))
@@ -39,6 +40,10 @@ final class NativeActionRenderingTests: XCTestCase {
         settle()
         let button = try XCTUnwrap(marker(in: hosting))
         XCTAssertFalse(button.isEnabled)
+        state.push(String(source.suffix(1)))
+        settle()
+        XCTAssertFalse(state.isComplete)
+        XCTAssertTrue(button.isEnabled, "A closed component becomes ready before stream termination")
         state.complete()
         settle()
         XCTAssertTrue(button.isEnabled, "An indirect registered view must refresh without prop changes")
@@ -48,14 +53,15 @@ final class NativeActionRenderingTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(marker(in: hosting)).isEnabled)
     }
 
-    @MainActor func testMountedActionEnablesAfterStreamingCompletes() throws {
+    @MainActor func testMountedActionEnablesWhenItsSourceCloses() throws {
         _ = NSApplication.shared
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())
-        state.push("root=Button(\"Save\")")
+        let source = "root=Button(\"Save\")"
+        state.push(String(source.dropLast()))
         let context = OpenUIComponentContext(
             element: try XCTUnwrap(state.root), registry: library.registry, state: state)
-        // Keep the action and context constant: completion must invalidate the
+        // Keep the action and context constant: source closure must invalidate the
         // action surface itself, not rely on a parent rebuilding its props.
         let hosting = NSHostingView(rootView: OpenUIActionSurface(
             context: context, action: OpenUIActions.continueConversation("Save"), useNativeStyle: true
@@ -81,7 +87,11 @@ final class NativeActionRenderingTests: XCTestCase {
 
         settle()
         let button = try XCTUnwrap(marker(in: hosting))
-        XCTAssertFalse(button.isEnabled, "Actions stay disabled during streaming")
+        XCTAssertFalse(button.isEnabled, "An unfinished component cannot dispatch actions")
+        state.push(String(source.suffix(1)))
+        settle()
+        XCTAssertFalse(state.isComplete)
+        XCTAssertTrue(button.isEnabled, "The mounted action enables as soon as its component closes")
         state.complete()
         XCTAssertTrue(context.canInteract)
         settle()

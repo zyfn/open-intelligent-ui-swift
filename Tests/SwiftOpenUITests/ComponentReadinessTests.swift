@@ -50,10 +50,11 @@ final class ComponentReadinessTests: XCTestCase {
   @MainActor func testHeldContextRefreshesAfterItsDeclarationCommitsWhileOtherTextStreams() throws {
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
-    state.push("root=Button(\"Open\",@OpenUrl(\"https://example.com/ready\"))")
+    let source = "root=Button(\"Open\",@OpenUrl(\"https://example.com/ready\"))"
+    state.push(String(source.dropLast()))
     let context = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: library.registry, state: state)
     XCTAssertFalse(context.canInteract)
-    state.push("\nunrelated=TextContent(\"still arriving")
+    state.push(String(source.suffix(1)) + "\nunrelated=TextContent(\"still arriving")
     XCTAssertFalse(state.isComplete)
     XCTAssertTrue(context.canInteract, "Readiness refreshes without requiring callers to replace an unchanged element")
   }

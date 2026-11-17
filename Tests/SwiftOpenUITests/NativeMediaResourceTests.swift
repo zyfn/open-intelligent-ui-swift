@@ -142,8 +142,8 @@ final class NativeMediaResourceTests: XCTestCase {
   }
 
   #if os(macOS)
-  @MainActor func testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback() throws {
-    _ = NSApplication.shared
+  @MainActor func testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback() async throws {
+    _ = NativeAccessibilityTestSupport.application
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
     let loader = NonceMediaResourceLoader()
@@ -158,23 +158,19 @@ final class NativeMediaResourceTests: XCTestCase {
     window.isReleasedWhenClosed = false; window.contentView = host
     window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
     defer { window.close() }
+    try await NativeAccessibilityTestSupport.activate(in: host)
     func graphicAccessibility() -> (label: String, value: String)? {
-      var pending: [Any] = [host]
-      var visited = Set<ObjectIdentifier>()
-      while let next = pending.popLast() {
-        guard let element = next as? NSAccessibilityProtocol,
-          visited.insert(ObjectIdentifier(element)).inserted else { continue }
-        if element.accessibilityLabel() == alternative {
-          return (alternative, element.accessibilityValue() as? String ?? "")
+      for element in NativeAccessibilityTestSupport.elements(in: host) {
+        if NativeAccessibilityTestSupport.stringAttribute("accessibilityLabel", of: element) == alternative {
+          return (alternative, NativeAccessibilityTestSupport.stringAttribute("accessibilityValue", of: element) ?? "")
         }
-        pending.append(contentsOf: element.accessibilityChildren() ?? [])
       }
       return nil
     }
     let loading = NSLocalizedString("Loading", bundle: NativeControlResources.bundle, comment: "")
     let unavailable = NSLocalizedString("Unable to load graphic", bundle: NativeControlResources.bundle, comment: "")
     host.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    try await Task.sleep(nanoseconds: 50_000_000)
     let loadingHeight = host.fittingSize.height
     XCTAssertEqual(graphicAccessibility()?.label, alternative)
     XCTAssertEqual(graphicAccessibility()?.value, loading)
@@ -184,7 +180,7 @@ final class NativeMediaResourceTests: XCTestCase {
     let deadline = Date().addingTimeInterval(2)
     repeat {
       host.layoutSubtreeIfNeeded()
-      RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+      try await Task.sleep(nanoseconds: 20_000_000)
     } while graphicAccessibility()?.value != unavailable && Date() < deadline
     XCTAssertTrue(state.isInterrupted)
     // The quiet-placeholder contract restored by 433c2ed keeps the

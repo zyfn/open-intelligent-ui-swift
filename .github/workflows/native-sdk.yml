@@ -148,11 +148,11 @@ jobs:
           mkdir -p outputs/verification
           { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
             2>&1 | tee outputs/verification/provenance.log
-      - name: Native deep-data and state regressions
+      - name: Native lifecycle, deep-data and state regressions
         shell: bash
         run: |
           set -euo pipefail
-          swift test --filter 'QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests' \
+          swift test --filter 'QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests|ResourceCacheBudgetTests|ResourceStoreTests|SharedCoreBridgeTests' \
             2>&1 | tee outputs/verification/native-deep-data.log
       - name: Retain deep-data diagnostics immediately
         if: ${{ !cancelled() }}
@@ -169,7 +169,7 @@ jobs:
           set -euo pipefail
           failed=0
           for configuration in debug release; do
-            if swift test --configuration "$configuration" --filter 'NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests|AdaptivePresentationTests|PhotoCardGeometryTests|ReadingControlPresentationTests|ObjectCardCompositionTests|StreamingLayoutContractTests|ButtonLayoutContractTests|ChartInspectionTests|NativeComponentsTests|BoundaryIdentityTests|NativeComponentSubscriptionTests|StreamingRenderIsolationTests|TableAppearanceTests|ReadingRhythmTests|StreamingVisualStateTests|TableMountedViewTests' \
+            if swift test --configuration "$configuration" --filter 'NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests|AdaptivePresentationTests|PhotoCardGeometryTests|ReadingControlPresentationTests|ObjectCardCompositionTests|StreamingLayoutContractTests|ButtonLayoutContractTests|ChartInspectionTests|NativeComponentsTests|BoundaryIdentityTests|NativeComponentSubscriptionTests|StreamingRenderIsolationTests|TableAppearanceTests|ReadingRhythmTests|StreamingVisualStateTests|TableMountedViewTests|ComponentLibraryTests|ComponentReadinessTests|FullLibraryParityTests|NativeActionRenderingTests' \
                 2>&1 | tee "outputs/verification/openui-media-text-$configuration.log"; then
               :
             else
@@ -245,7 +245,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test -c release --filter 'StreamingRenderIsolationTests|MountedStreamingTextProgressTests|ComponentRenderInputTests|NativeComponentSubscriptionTests|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests|ActionWorkBudgetTests|RuntimeReentrancyTests|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceStoreTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|BoundaryIdentityTests|NativeActionRenderingTests|FieldSelectionRenderingTests|TableMountedViewTests|NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|StreamingTextPresentationTests' \
+          swift test -c release --filter 'StreamingRenderIsolationTests|MountedStreamingTextProgressTests|ComponentRenderInputTests|NativeComponentSubscriptionTests|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests|ActionWorkBudgetTests|RuntimeReentrancyTests|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceStoreTests|ResourceCacheBudgetTests|SharedCoreBridgeTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|BoundaryIdentityTests|NativeActionRenderingTests|FieldSelectionRenderingTests|TableMountedViewTests|NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|StreamingTextPresentationTests' \
             2>&1 | tee outputs/verification/release-streaming.log
       - name: Standalone Gallery tests
         if: ${{ !cancelled() }}

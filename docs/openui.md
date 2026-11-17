@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.20 · 更新日期：2026-11-17
+文档版本：1.21 · 更新日期：2026-11-17
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -324,7 +324,7 @@ python3 Tools/check_gallery_catalog.py
 
 ### 实施与验收状态
 
-当前实现保留此前图片、图库、Tabs、地图与表单/选项呈现调整及通用生成规则。此前基于 `22229873` 的图片修复使加载与失败占位互斥，并让单图和图库共用的预览说明按实际内容分配高度。本轮从 `ceb90cdf` 开始，只处理 OpenUI 的图片解码、失败恢复和首次 Markdown 准备窗口内的重复解析，通用资源支持仍归 SwiftLang。字体、颜色和间距 token、完整预览的明暗外观与宿主接入 API 保持；SwiftIntelligentUI、Lang 参数与 schema、固定 JS 资源和历史案例未修改。
+当前实现保留此前图片、图库、Tabs、地图与表单/选项呈现调整及通用生成规则。此前基于 `22229873` 的图片修复使加载与失败占位互斥，并让单图和图库共用的预览说明按实际内容分配高度；随后加入按显示尺寸解码、失败恢复和首次 Markdown 准备优化。客户端复测收尾从 `1f070fe` 开始，整合遗漏的文档资源生命周期优化，修正字段启用状态的焦点登记，以及 Overview 网格的直接子项布局角色。通用资源支持仍归 SwiftLang，边界见[架构](architecture.md)。字体、颜色和间距 token、完整预览的明暗外观与宿主接入 API 保持；本次收尾没有修改 SwiftIntelligentUI、Lang 参数与 schema、固定 JS 资源和历史案例。
 
 | 范围 | 当前实现 | 原生待验收 |
 | --- | --- | --- |
@@ -345,4 +345,6 @@ python3 Tools/check_gallery_catalog.py
 
 此前组合调整的检查记录在忽略的 `outputs/verification/rc20-selected-presentation/`：生成目录重新构建并通过 `--check`，全部六个示例可解析，固定 84 个组件定义与 schema 保持一致，目录兼容测试 7/7 通过。占位/预览修复记录在 `outputs/verification/image-state-preview/`；本轮图片与正文工作记录在 `outputs/verification/openui-media-responsiveness/`，不把此前结果计作本轮原生验收。
 
-本轮原生验收在 Linux 环境受缺少 Swift/Xcode 阻塞。新增及既有原生断言尚未完成编译与运行；ImageIO、真实窗口、滚动及客户端 CPU/FPS 仍需 Apple 平台对照，不能用代码中的像素预算、测试预期或静态检查替代实测。具体已执行检查与退出码见验证记录。交通/酒店底栏和提示块外层背景仍缺对应实际 Lang，不记为本轮已修复。
+原生编译与运行已经由 macOS CI 执行，不能继续把整轮工作描述为“尚未编译”。`1f070fe` 已通过深层数据前置回归、Release 尺寸拟合、iOS SDK 与 Gallery App 构建，但 OpenUI 和全库回归仍有失败，故不能视为整体通过。收尾候选保留全部原有几何、文本、身份和交互断言：文字/SVG 测试读取实际 SwiftUI 无障碍树，回退快照 marker 观察快照身份，图片尺寸探针按挂载实例管理并撤销退出视图的记录。独立原生日志证明原 Card 的 268 pt 内容宽度正确，旧失败由退出 Stack 的 300 pt 测量覆盖测试记录导致，因此不为它修改生产 Card 视觉。
+
+候选的最终结果按提交绑定到 [Native SDK 流水线](https://github.com/zyfn/open-intelligent-ui-swift/actions/workflows/native-sdk.yml)，源码修正不等于原生验收完成。实际客户端 CPU/FPS、持续滚动和首次网络失败归因仍需同设备、同输入的 App 对照；不能以代码中的像素预算或静态检查代替实测。交通/酒店底栏和提示块外层背景仍缺对应实际 Lang，不记为已修复。

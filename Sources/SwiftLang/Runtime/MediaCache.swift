@@ -42,7 +42,10 @@ package struct NativeImageDisplaySize: Hashable, Sendable {
 /// Completed media belongs to the presentation, rather than a transient layout
 /// branch. A late grid/carousel argument may relocate an already loaded image.
 @MainActor package final class NativeMediaCache {
-  package init() {}
+  package convenience init() { self.init(budget: NativeResourceCacheBudgets.decodedImages) }
+  init(budget: NativeResourceCacheBudget) {
+    entries = NativeResourceCache(maximumCost: 32 * 1024 * 1024, maximumCount: 8, budget: budget)
+  }
   @MainActor package struct Entry {
     package let image: Image
     package let size: CGSize
@@ -65,8 +68,7 @@ package struct NativeImageDisplaySize: Hashable, Sendable {
       return decodedPixelSize >= required || max(size.width, size.height) <= CGFloat(decodedPixelSize)
     }
   }
-  private var entries: [NativeResourceRequestID: Entry] = [:]
-  private var order: [NativeResourceRequestID] = []
+  private let entries: NativeResourceCache<NativeResourceRequestID, Entry>
   private struct RequestSnapshot {
     let request: NativeResourceRequestID
     let owner: any OpenUIResourceLoading
@@ -101,7 +103,6 @@ package struct NativeImageDisplaySize: Hashable, Sendable {
   private var pending: [DecodeKey: Pending] = [:]
   package var pendingRequestCount: Int { pending.count }
   package var pendingSubscriberCount: Int { pending.values.reduce(0) { $0 + $1.waiters.count } }
-  private let maximumCost = 32 * 1024 * 1024
   package private(set) var generation = 0
   package subscript(_ key: NativeResourceRequestID) -> Entry? {
     guard let entry = entries[key], ObjectIdentifier(entry.resourceOwner) == key.loader,
@@ -125,17 +126,13 @@ package struct NativeImageDisplaySize: Hashable, Sendable {
       requestSnapshots.removeValue(forKey: requestSnapshotOrder.removeFirst())
     }
   }
-  package func markPresented(_ key: NativeResourceRequestID) { entries[key]?.wasPresented = true }
+  package func markPresented(_ key: NativeResourceRequestID) { entries.update(key) { $0.wasPresented = true } }
   package func insert(_ entry: Entry, for key: NativeResourceRequestID) {
-    guard entry.cost <= maximumCost, ObjectIdentifier(entry.resourceOwner) == key.loader,
+    guard entries.accepts(cost: entry.cost), ObjectIdentifier(entry.resourceOwner) == key.loader,
       entry.resourceOwner.resourceLimits == entry.resourceLimits,
       openUIResourceScopeIsCurrent(entry.resourceOwner, authorizationScope: key.authorizationScope) else { return }
     if let current = self[key], current.decodedPixelSize > entry.decodedPixelSize { return }
-    entries[key] = entry
-    order.removeAll { $0 == key }; order.append(key)
-    while order.count > 8 || entries.values.reduce(0, { $0 + $1.cost }) > maximumCost {
-      entries.removeValue(forKey: order.removeFirst())
-    }
+    entries.insert(entry, for: key, cost: entry.cost)
   }
   nonisolated package static func effectivePixelSize(_ requested: Int?, limits: OpenUIResourceLimits) -> Int {
     max(1, min(requested ?? limits.maximumImagePixelSize, limits.maximumImagePixelSize, 2816))
@@ -281,7 +278,7 @@ package struct NativeImageDisplaySize: Hashable, Sendable {
       for waiter in group.waiters.values { waiter.resume(throwing: CancellationError()) }
       group.waiters.removeAll()
     }
-    entries.removeAll(); order.removeAll()
+    entries.removeAll()
     requestSnapshots.removeAll(); requestSnapshotOrder.removeAll()
   }
 }

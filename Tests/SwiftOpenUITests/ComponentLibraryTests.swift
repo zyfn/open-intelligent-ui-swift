@@ -193,19 +193,22 @@ final class ComponentLibraryTests: XCTestCase {
         wait(for: [finished], timeout: 3)
     }
 
-    @MainActor func testStreamingCannotDispatchHostActions() throws {
+    @MainActor func testIncompleteStreamingCannotDispatchHostActions() async throws {
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())
-        state.setSource("root = TextContent('Loading')", streaming: true)
+        let source = "root = TextContent('Loading')"
+        // The pinned parser marks the full source syntactically complete even
+        // while the stream is open. Exercise its actually unfinished prefix.
+        state.setSource(String(source.dropLast()), streaming: true)
         let context = OpenUIComponentContext(element: state.root!, registry: library.registry, state: state)
         XCTAssertFalse(context.canInteract)
-        let finished = expectation(description: "Streaming action stays inactive")
-        Task { @MainActor in
-            let events = await context.perform(OpenUIActions.openURL("https://example.com"))
-            XCTAssertTrue(events.isEmpty)
-            finished.fulfill()
-        }
-        wait(for: [finished], timeout: 3)
+        let rejected = await context.perform(OpenUIActions.openURL("https://example.com"))
+        XCTAssertTrue(rejected.isEmpty)
+        state.push(String(source.suffix(1)))
+        XCTAssertFalse(state.isComplete)
+        XCTAssertTrue(context.canInteract)
+        let accepted = await context.perform(OpenUIActions.openURL("https://example.com"))
+        XCTAssertEqual(accepted.map(\.type), ["open_url"])
     }
 
     @MainActor func testContextPreservesFormScopeAndLegacyActionDispatch() throws {

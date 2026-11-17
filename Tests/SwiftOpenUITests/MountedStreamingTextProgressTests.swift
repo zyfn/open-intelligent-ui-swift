@@ -11,7 +11,7 @@ import XCTest
 /// These regressions are not client replay or frame-time measurements.
 final class MountedStreamingTextProgressTests: XCTestCase {
     @MainActor func testRenderedTextReaderIncludesPlainSwiftUITextAndScrollContent() async throws {
-        let (host, window) = mount(VStack {
+        let (host, window) = try await mount(VStack {
             Text("Plain SwiftUI text")
             ScrollView { Text("Native scroll content") }
         })
@@ -44,7 +44,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         let state = OpenUIState(schema: library.library.toSchema())
         defer { state.reset() }
         state.push("root=Stack([fixed,tail])\nfixed=TextContent(\"稳定的正文段落\")\ntail=TextContent(\"")
-        let (host, window) = mount(OpenUIContentView(state: state, registry: registry))
+        let (host, window) = try await mount(OpenUIContentView(state: state, registry: registry))
         defer { window.close() }
         try await waitForRenderedText("稳定的正文段落", in: host)
         XCTAssertGreaterThan(fixedBuilds, 0)
@@ -74,7 +74,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())
         state.push("root=Stack([CardHeader(\"SHANGHAI → SUZH")
-        let (host, window) = mount(ScrollView {
+        let (host, window) = try await mount(ScrollView {
             OpenUIContentView(state: state, registry: library.registry)
                 .frame(maxWidth: .infinity, alignment: .leading)
         })
@@ -134,7 +134,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
             let scheduler = MountedTextScheduler()
             let buffer = NativeStreamingTextBuffer(schedule: scheduler.schedule)
             let document = NativeMarkdownDocument()
-            let (host, window) = mount(MountedTextHarness(model: model, buffer: buffer, document: document))
+            let (host, window) = try await mount(MountedTextHarness(model: model, buffer: buffer, document: document))
             defer { window.close(); document.cancel(); buffer.cancel() }
 
             try await waitFor("initial text preparation", in: host) {
@@ -193,7 +193,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         let prefix = "家庭 👨‍👩‍👧，2 位成"
         let complete = prefix + "人，行程已确认。"
         state.push("root=TextContent(\"\(prefix)")
-        let (host, window) = mount(OpenUIContentView(state: state, registry: library.registry))
+        let (host, window) = try await mount(OpenUIContentView(state: state, registry: library.registry))
         defer { window.close() }
         try await waitForRenderedText(prefix, in: host)
 
@@ -208,14 +208,16 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         XCTAssertTrue(state.errors.isEmpty)
     }
 
-    @MainActor private func mount<Content: View>(_ content: Content) -> (NSHostingView<AnyView>, NSWindow) {
-        _ = NSApplication.shared
+    @MainActor private func mount<Content: View>(_ content: Content) async throws -> (NSHostingView<AnyView>, NSWindow) {
+        _ = NativeAccessibilityTestSupport.application
         let host = NSHostingView(rootView: AnyView(content.frame(width: 390, height: 600, alignment: .topLeading)))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 390, height: 600),
             styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
         window.orderFront(nil)
+        do { try await NativeAccessibilityTestSupport.activate(in: host) }
+        catch { window.close(); throw error }
         return (host, window)
     }
 
@@ -281,32 +283,8 @@ final class MountedStreamingTextProgressTests: XCTestCase {
     }
 
     @MainActor private func renderedText(in host: NSView) -> String {
-        var visited = Set<ObjectIdentifier>(), text: [String] = []
-        // Public AppKit accessibility getters also cover SwiftUI elements;
-        // no source value is injected into their labels for this test.
-        let label = NSSelectorFromString("accessibilityLabel")
-        let value = NSSelectorFromString("accessibilityValue")
-        let children = NSSelectorFromString("accessibilityChildren")
-        func read(_ object: NSObject, _ selector: Selector) -> AnyObject? {
-            object.responds(to: selector) ? object.perform(selector)?.takeUnretainedValue() : nil
-        }
-        func visit(_ object: NSObject, depth: Int) {
-            guard depth < 128, visited.count < 8_192,
-                  visited.insert(ObjectIdentifier(object)).inserted else { return }
-            for content in [read(object, label), read(object, value)].compactMap({ $0 }) {
-                if let string = content as? String { text.append(string) }
-                else if let attributed = content as? NSAttributedString { text.append(attributed.string) }
-            }
-            let accessible = read(object, children) as? [Any] ?? []
-            for child in accessible {
-                if let child = child as? NSObject { visit(child, depth: depth + 1) }
-            }
-            if accessible.isEmpty, let view = object as? NSView {
-                for child in view.subviews { visit(child, depth: depth + 1) }
-            }
-        }
-        visit(host, depth: 0)
-        return text.joined(separator: "\n")
+        // Read actual native/virtual accessibility values, never expected source.
+        NativeAccessibilityTestSupport.renderedText(in: host)
     }
 }
 
