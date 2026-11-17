@@ -270,7 +270,7 @@ final class LayoutMeasurementReductionTests: XCTestCase {
 
 #if os(macOS)
 extension LayoutMeasurementReductionTests {
-    @MainActor func testMountedFlexInvalidatesForSameCountContentWidthAndDynamicType() {
+    @MainActor func testMountedFlexInvalidatesForSameCountContentWidthAndFontEnvironment() {
         let inputs = FlexCacheInputs()
         withFlexHost(inputs, row: false) { height in
             let initial = height()
@@ -285,11 +285,13 @@ extension LayoutMeasurementReductionTests {
             inputs.width = 160
             let narrower = height()
             XCTAssertGreaterThan(narrower, longer)
-            inputs.typeSize = .accessibility3
+            // dynamicTypeSize does not scale macOS text. Change the inherited
+            // font itself to exercise a real environment-driven size update.
+            inputs.fontSize = 32
             XCTAssertGreaterThan(height(), narrower, "Environment-driven text sizing must invalidate the cache")
 
             inputs.text = "Short text"
-            inputs.width = 320; inputs.typeSize = .large
+            inputs.width = 320; inputs.fontSize = 16
             _ = height() // Settle parent changes before the child shrinks independently.
             inputs.childSize.height = 40
             XCTAssertEqual(height(), initial, accuracy: 1, "Returning to prior inputs must not retain a tall frame")
@@ -334,7 +336,7 @@ extension LayoutMeasurementReductionTests {
     @Published var width: CGFloat = 320
     let childSize = FlexCacheChildSize()
     @Published var text = "Short text"
-    @Published var typeSize: DynamicTypeSize = .large
+    @Published var fontSize: CGFloat = 16
     @Published var minimumWidth: CGFloat = 100
     @Published var gap: CGFloat = 12
     @Published var wrap = true
@@ -360,11 +362,11 @@ private struct FlexCacheFixture: View {
                 }
             } else {
                 FlexCacheSizedChild(size: inputs.childSize)
-                FlexCacheText(text: inputs.text)
+                Text(inputs.text).fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(width: inputs.width)
-        .environment(\.dynamicTypeSize, inputs.typeSize)
+        .font(.system(size: inputs.fontSize))
     }
 }
 
@@ -373,9 +375,4 @@ private struct FlexCacheSizedChild: View {
     var body: some View { Color.clear.frame(height: size.height) }
 }
 
-private struct FlexCacheText: View {
-    let text: String
-    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 16
-    var body: some View { Text(text).font(.system(size: fontSize)).fixedSize(horizontal: false, vertical: true) }
-}
 #endif

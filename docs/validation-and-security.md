@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.28 · 更新日期：2026-11-17
+文档版本：1.29 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -145,6 +145,8 @@ swift run --package-path Examples/Gallery -c release OpenUIGallery \
 ~~~
 
 验收分开检查计算复用与正确失效：同一有效 proposal 的 frame 计算可复用；宽度、同数量内容、字体、布局值、子项增删仍更新几何；完成后表格状态修改及行数收缩仍更新可见内容。长文档重复拟合须保持无额外解析、语义发布或重挂，宽度往返仍恢复正确几何。计数和几何测试不代表滚动帧率，最终仍需同一输入、设备、构建和手势下的 App 对照，包括滚动位置、流式尾部、动态高度、表单草稿、链接和会话切换。
+
+字体失效回归在 macOS 上显式切换继承的 font 环境，保留高度必须增长及恢复的断言。Apple 明确说明 [dynamicTypeSize 在 macOS 不改变文字大小](https://developer.apple.com/documentation/swiftui/environmentvalues/dynamictypesize)，因此不能用该环境值下文字等高来判定缓存失效，也不能把 macOS 字体回归写成 iOS 系统 Dynamic Type 的运行结果；后者仍需目标平台验收。
 
 当前本地没有 Apple/Swift 执行环境；本轮新增原生用例的编译与执行状态以候选 CI 为准。现有 Debug/Release 组件回归入口加入 `LayoutMeasurementReductionTests`，长文档接入现有 HostSizingIsolationTests 与 Release fitting 验收；没有另建性能测试流程。LanguageRuntime 基准不挂载 SwiftUI，不能替代此项验收。本地执行记录在忽略的 `outputs/long-document-layout-cost/`。后续若需要区段呈现，宿主继续拥有滚动可见范围、消息回收和阅读位置，SDK 继续拥有同一文档的节点身份、引用、Store 和交互；本轮没有引入分段 State 或视口管理器。
 
