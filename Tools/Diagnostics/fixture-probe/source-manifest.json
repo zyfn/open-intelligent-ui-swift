@@ -1,0 +1,12 @@
+{
+  "repository": "zyfn/open-intelligent-ui-swift",
+  "main": "ceb90cdf4925e0567a722d8adb596daa3c385d10",
+  "candidate": "4679be971add433b03f49499895ab96f34701613",
+  "sourceFile": "Tests/SwiftOpenUITests/SignedMediaResourceTests.swift",
+  "legacyHelperSHA256": "82ae11797117be394556bd99ad9c100702bd879e4bf465ae89ef39a16ba4e099",
+  "referenceHelperSHA256": "fad5047ec6c32c8351e1f49f00f581afe25c14a1461a2735ac0d0deb5f4d5bfc",
+  "legacyMatchesPinnedMain": true,
+  "referenceMatchesPinnedMain": true,
+  "probeReusesHelperSourceVerbatim": true,
+  "notes": "The probe defines local XCTUnwrap/XCTAssertTrue helpers and imports no XCTest; both image-generator function bodies are unchanged."
+}

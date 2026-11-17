@@ -1,0 +1,11 @@
+  @MainActor private func largePNG(side: Int, color: NSColor = .red) throws -> Data {
+    let canvas = try XCTUnwrap(CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
+      bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    canvas.setFillColor(color.cgColor)
+    canvas.fill(CGRect(x: 0, y: 0, width: CGFloat(side), height: CGFloat(side)))
+    let data = NSMutableData()
+    let destination = try XCTUnwrap(CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil))
+    CGImageDestinationAddImage(destination, try XCTUnwrap(canvas.makeImage()), nil)
+    XCTAssertTrue(CGImageDestinationFinalize(destination))
+    return data as Data
+  }
