@@ -94,8 +94,11 @@ struct RichMarkdown: View {
         let systemFamily = semantic
             ? TitleTypography.font(size: role, theme: theme) == TitleTypography.font(size: role, theme: OpenIntelligentUITheme())
             : usesSystemBodyFamily
+        let style = MarkdownFontStyle(font, usesSystemFamily: systemFamily, size: size, weight: semantic ? nil : theme.headingWeight)
+        let leading = semantic && systemFamily ? MarkdownTypography.semanticHeadingLineSpacing(font, style: style) : 0
         return configuration.label
-            .markdownTextStyle { MarkdownFontStyle(font, usesSystemFamily: systemFamily, size: size, weight: semantic ? nil : theme.headingWeight) }
+            .markdownTextStyle { style }
+            .transformEnvironment(\.lineSpacing) { $0 += leading }
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)

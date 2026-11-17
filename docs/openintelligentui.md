@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.3 · 更新日期：2026-11-16
+文档版本：1.4 · 更新日期：2026-11-17
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -48,7 +48,7 @@
 - Markdown 提供完整文档块排版，默认正文与 Text 共用阅读角色，H1/H2/H3 对应页面、章节、对象标题；宿主显式 markdownHeadingScales 仍优先。ImageText、列表、Quote、Flashcard 等紧凑上下文只缩短段距至 innerSpacing，保留多个段落的区分，不把段距归零或自动缩小正文。Quote 仍表示引文，浅底、圆角、侧线和内边距使用同一表面。Code 与 Markdown 代码块共用原文、着色和复制操作；长代码先显示有界预览，可展开，复制始终派发完整原文。
 - Citation 在混排段落中使用紧凑内联尺寸，不把完整按钮触达高度带入正文行；独立来源块和多来源 Popover 保留完整触达与导航能力。图片署名和来源可在同一小段 Text 中组合，不额外添加重复的图片链接。
 
-普通 Text/Title 直接应用宿主 Font；Markdown 通过固定 MarkdownUI 的字体属性入口应用已解析字体，并抵消其内部 body 缩放，避免把原生字号再次放大。宿主任何显式 `markdownHeadingScales` 赋值都继续表示原来的前三层相对比例，包括数值与默认数组相同时；未覆盖时才采用语义标题角色。旧系统仍需使用既有 nativeFont 配对，不能自动反解任意 SwiftUI Font；无法按名称回读的私有字体设计回退到系统字体，不猜测私有字族名称。本库没有 Callout 组件：Quote 保持引文语义，Badge 表示短状态，Box 只提供作者明确选择的表面。
+普通 Text/Title 直接应用宿主 Font；Markdown 通过固定 MarkdownUI 的字体属性入口应用已解析字体，并抵消其内部 body 缩放，避免把原生字号再次放大。macOS 的默认语义系统标题另按原生字体与重建固定字体的 leading 差恢复额外行距，保留宿主已有行距；不靠固定高度或 padding 对齐测量值。宿主任何显式 `markdownHeadingScales` 赋值都继续表示原来的前三层相对比例，包括数值与默认数组相同时；未覆盖时才采用语义标题角色。旧系统仍需使用既有 nativeFont 配对，不能自动反解任意 SwiftUI Font；无法按名称回读的私有字体设计回退到系统字体，不猜测私有字族名称。本库没有 Callout 组件：Quote 保持引文语义，Badge 表示短状态，Box 只提供作者明确选择的表面。
 
 ### 2.3 控件、输入与选择
 
@@ -240,6 +240,8 @@ makeState() 使用 `SwiftLang` 中 `OpenUIState` 的默认创建方式，不另�
 2026-11-16 的组件呈现审查在既有安静媒体占位基础上，继续修正紧凑 Markdown 段距、透明包装后的重复商品卡外框、Flashcard 自动说明、选项卡边界和实色选项说明的前景，以及日期字段选中前后的外壳切换；地图与公式移除常驻技术状态文案。日期回归覆盖重新编辑已有值、上下界、UTC 日界与本地化显示，并增加特定英文场景下字段尺寸和渲染不写值的检查。差异、源码/所有权、Gallery 完整性与本地化检查通过；`swift test` 因缺少 Swift 无法启动，原生构建、日期面板取消/确认、选项状态、VoiceOver 与实际截图尚未验收；检查日志在忽略的 `outputs/verification/component-presentation-audit/`。
 
 2026-11-16 的文字调整基于 `3310e3d`，移除容器对默认字号的隐式降级与深色正文加重。Text、混排、Markdown、Title、图注和列表说明采用稳定角色；旧系统 TextKit 的图注同步使用 footnote，现有宿主字体配对继续生效。回归覆盖省略/显式默认值、根与 Card/透明包装/Grid/Carousel、深浅外观、辅助字号、Markdown 比例覆盖，以及挂载混排在主题更新时保留身份与文档 revision。差异、源码/所有权、Gallery 完整性与本地化检查通过；`swift test` 因缺少 Swift 无法启动，原生字体解析、XCTest 与实际界面待验收，日志在忽略的 `outputs/verification/semantic-typography/`。
+
+2026-11-17 的客户端复测进一步定位默认 H1 的 macOS 行距差异，并将原字体组纳入收尾候选的 Debug/Release 门禁；不沿用此前“未运行”的阶段记录作为当前状态。具体输入、独立字体对照、修正范围与逐提交结果见[客户端复测收尾候选](validation-and-security.md#客户端复测收尾候选)。
 
 仍需原生画面对照的设计判断包括内容卡与业务卡圆角角色、短代码工具栏及价格币种的视觉权重。SegmentedControl 当前按是否已有有效选择切换原生 Picker 与换行选项，首次选择的外观稳定性仍待修正和挂载验收；不能通过默认选中首项或给 nil 强配非法 tag 来掩盖未选择语义。图表完整数据入口、价格异常、分开出票说明、来源引用和真实输入错误具有信息作用，不因减少装饰而删除。
 

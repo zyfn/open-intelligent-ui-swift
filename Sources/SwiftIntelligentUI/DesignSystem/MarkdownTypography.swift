@@ -55,6 +55,17 @@ enum MarkdownTypography {
         (1...3).contains(level) && !theme.hasCustomMarkdownHeadingScales
     }
 
+    /// MarkdownUI rebuilds system fonts from rounded size and weight, losing
+    /// the additional leading carried by AppKit's semantic heading fonts.
+    @MainActor static func semanticHeadingLineSpacing(_ font: PlatformFont, style: MarkdownFontStyle) -> CGFloat {
+        #if os(macOS)
+        let fixed = PlatformFont.systemFont(ofSize: style.size.rounded(), weight: InlineFonts.weight(style.weight))
+        return max(0, font.leading - fixed.leading)
+        #else
+        return 0
+        #endif
+    }
+
     static func headingScale(level: Int, theme: OpenIntelligentUITheme) -> Double {
         switch level {
         case 1...3: return theme.headingScale(level - 1)

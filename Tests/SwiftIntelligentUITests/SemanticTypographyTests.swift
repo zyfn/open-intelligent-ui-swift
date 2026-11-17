@@ -58,10 +58,10 @@ final class SemanticTypographyTests: XCTestCase {
         let library = try OpenIntelligentUIComponents()
         for size in [DynamicTypeSize.large, .accessibility2] {
             XCTAssertEqual(try height("Markdown($copy)", library: library, size: size),
-                           try height("Text($copy)", library: library, size: size), accuracy: 2)
+                           try height("Text($copy)", library: library, size: size), accuracy: 2, "body at \(size)")
             for (prefix, titleSize) in [("# ", "xl"), ("## ", "lg"), ("### ", "md")] {
                 XCTAssertEqual(try height("Markdown(\"\(prefix)\" + $copy)", library: library, size: size),
-                               try height("Title($copy,\"\(titleSize)\")", library: library, size: size), accuracy: 2)
+                               try height("Title($copy,\"\(titleSize)\")", library: library, size: size), accuracy: 2, "heading \(prefix) at \(size)")
             }
         }
     }
