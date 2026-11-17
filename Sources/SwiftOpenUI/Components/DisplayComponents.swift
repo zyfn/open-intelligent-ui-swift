@@ -325,8 +325,9 @@ struct NativeDataTable: View {
         let firstColumnID = columns.first?.id
         let lastColumnID = columns.last?.id
         let cellTheme = tableCellTheme
+        let layout = tableLayout(columns: columns)
         // Layout changes preserve the cell subtree, including custom controls.
-        tableLayout(columns: columns) {
+        layout {
             ForEach(columns) { column in
                 Text(column.title).openUIFont(tableAppearance?.headerFont ?? context.theme.textBodySmHeavy, role: .control)
                     .foregroundStyle(context.theme.textNeutralPrimary)
