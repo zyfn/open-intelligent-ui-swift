@@ -1,10 +1,10 @@
 # 验证与依赖安全
 
-文档版本：1.25 · 更新日期：2026-11-17
+文档版本：1.26 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
-中文强调与正文尾部反馈的定向修复基于 `c20081d`：原始中文标点案例和终态未闭合 Stack 的新增检查先复现失败，修复后 Markdown、流式文本准备、布局与 readiness 相关 55 项 Debug 检查通过。Release 使用忽略目录中的精简测试包，只复制原有目标 XCTest 文件并直接链接当前 Sources/资源，11 项中文强调、正文前缀、诊断隐藏及 Host 拟合检查通过；标准整包 Release 测试构建仍被 Xcode 26.6 的 SwiftLangTests `NativeValueBudgetTests.testSyntheticMetadataAndActionLeavesShareTheInspectionAllowance` 优化器崩溃阻断，不能记为通过。另一次较宽的定向运行发现 `FullLibraryParityTests.testModalPresentationWritesDuringStreamingButRejectsReplacedSources` 失败，未修改的 `c20081d` 独立 checkout 也复现同一断言，原断言保留。本轮未执行全量测试，日志保存在 `outputs/targeted-chinese-markdown/`。
+历史定向记录：中文强调与正文尾部反馈的修复基于 `c20081d`，原始中文标点案例和终态未闭合 Stack 的新增检查先复现失败，修复后 Markdown、流式文本准备、布局与 readiness 相关 55 项 Debug 检查通过。该次 Release 使用忽略目录中的精简测试包，只复制原有目标 XCTest 文件并直接链接当前 Sources/资源，11 项中文强调、正文前缀、诊断隐藏及 Host 拟合检查通过；该次标准整包 Release 测试构建被 Xcode 26.6 的 SwiftLangTests `NativeValueBudgetTests.testSyntheticMetadataAndActionLeavesShareTheInspectionAllowance` 优化器崩溃阻断，不能记为通过。另一次较宽的定向运行发现 `FullLibraryParityTests.testModalPresentationWritesDuringStreamingButRejectsReplacedSources` 失败，未修改的 `c20081d` 独立 checkout 也复现同一断言，原断言保留。该次未执行全量测试，日志保存在 `outputs/targeted-chinese-markdown/`。下文 Xcode 26.3 的完整验收不代表该 Xcode 26.6 优化器问题已修复。
 
 ## 1. 实际打包依赖与可复现生成
 
@@ -102,7 +102,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-当前候选从已核对的 main `1f070fe5428467ed60c6be2870a2f5f6e1386494` 集成此前独立的文档资源生命周期优化，保留主线的图片尺寸、自动重试、请求策略和 readiness 修复，见下一节；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。当前逐项执行状态见[客户端复测收尾候选](#客户端复测收尾候选)。下文历史章节中的“本轮”“当前”“尚未执行”描述该轮交付时的状态，通过数量、客户端样本和 CI 结果仅属于其标明的版本，不覆盖后续执行记录。
+本次从已核对的 main `1f070fe5428467ed60c6be2870a2f5f6e1386494` 集成此前独立的文档资源生命周期优化，保留主线的图片尺寸、自动重试、请求策略和 readiness 修复，见下一节；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。整合后的验收源码为 `315cd4edc9de744b8996a1b9c3bb271c6b34acbc`，执行记录为 [CI 44073952191](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44073952191)，逐项状态见[客户端复测收尾候选](#客户端复测收尾候选)。下文历史章节中的“本轮”“当前”“尚未执行”描述该轮交付时的状态，通过数量、客户端样本和 CI 结果仅属于其标明的版本，不覆盖后续执行记录。
 
 ### 文档资源生命周期
 
@@ -553,16 +553,42 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 诊断提交 `2fc398a` 的 [原生执行](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44069771066) 保留原文字、宽度、字号和断言，另加入三倍长标题。公开 Canvas 文本解析与 NSHostingView 的 ViewDimensions 在 displayScale 1/2 上得到相同的实际行间基线：H1 为语义 22 / 固定 20 pt，H2 为 20/19，H3 为 16/16。18 次直接测量和 3 次外层 body 冷调用均同步完成；未观察到布局循环或更新中改写状态的诊断。采用该基线差的 SDK 探针中，原文的 Markdown/Title 高度为 64/65、59/59、48/48，长文为 196/197、159/159、112/112；ImageRenderer 与 NSHostingView 两条路径都在原 2 pt 容差内，H1 的 1 pt 首尾行框差没有逐行累积。这些通过结果属于诊断提交，不直接代替正式缓存实现的验收。
 
-正式修正只在 macOS 默认语义系统标题路径，通过同一 Canvas context 解析实际语义字体和 MarkdownUI 重建的固定字体，读取首末行 baseline 差。缓存以完整字体对、动态字号、displayScale、locale、legibilityWeight 和布局方向为键，最多 32 项，只保留标量，不保留 renderer、图像、宿主或文档。未获得合法同步度量时不缓存；合法的零差正常复用。真实标题累加宿主已有行距；显式相对比例、自定义字体和 iOS 路径保持原规则。新增两项真实 SDK 回归覆盖短/长标题的首次及缓存渲染、两种字号与 scale 下的冷/重复原生拟合，以及拟合不发布 SDK 状态。完整字体组继续在早期 Debug/Release 执行，正式结果须绑定后续候选；诊断专用源码、打印及 workflow 不进入交付。
+正式修正只在 macOS 默认语义系统标题路径，通过同一 Canvas context 解析实际语义字体和 MarkdownUI 重建的固定字体，读取首末行 baseline 差。缓存以完整字体对、动态字号、displayScale、locale、legibilityWeight 和布局方向为键，最多 32 项，只保留标量，不保留 renderer、图像、宿主或文档。未获得合法同步度量时不缓存；合法的零差正常复用。真实标题累加宿主已有行距；显式相对比例、自定义字体和 iOS 路径保持原规则。新增两项真实 SDK 回归覆盖短/长标题的首次及缓存渲染、两种字号与 scale 下的冷/重复原生拟合，以及拟合不发布 SDK 状态。正式候选 `315cd4e` 的早期收尾 Debug/Release 各 **17/17** 通过，其中 Intelligent UI 字体 **9/9**、OpenUI 字体 **4/4**，其余四项为 SVG、ResourceStore、Store 读者和 Query。原字体、长标题与重复拟合的 2 pt 断言均保留；两份日志未观察到 AttributeGraph、布局期间状态修改或 layout cycle 诊断。这是正式 Canvas 与缓存实现的原生证据，独立于前述探针；诊断专用源码、打印及 workflow 不进入交付。
 
 `3152ca7` 的 [完整流水线记录](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44064403011) 中，包内 **1215** 个 testcase 执行完毕：SwiftLang **444/444**、SwiftOpenUI **570/570**，SwiftIntelligentUI **200 通过 / 1 失败**，唯一失败 testcase 为上述 H2 字体的两条断言。媒体/文本两配置各 **278/278**、Release 边界 **339/339**、Release fitting **4/4**、三个独立产品消费者、iOS 产品与 Gallery 构建、Gallery fixtures **184 batch + 184 streamed**、历史 IUI **61 个组件契约**、工具构建及两轮 Release benchmark 均成功。后续还出现以下两项独立失败，整条执行因此不能记作通过：
 
 | 后续失败 | 独立依据与修正 |
 | --- | --- |
-| Gallery 目录数量仍写 87 | 主线 `c20081d` 已加入 JourneyLine，实际注册集合、ReferenceCatalogTests 和设计文档均为 88；`7d9b36a` 与 `3152ca7` 的独立 Gallery 均只有旧数量断言失败。数量同步为 88 并明确检查 JourneyLine 存在，保留全部集合相等、15 个 supporting 子项及逐例求值检查；原 Lang 示例不改 |
-| ASan 中 Query 停表后的调用计数 5/4 | ASan 构建与 444 个 testcase 均执行完成，443 通过 / 1 计时断言失败，没有 AddressSanitizer 内存错误报告。固定官方 queryManager 与实际 bundle 的受控时序均复现：40 ms tick 先接受第 5 个请求，停表时 provider 计数仍为 4，该已接受任务随后进入 provider；停表后 65 ms 没有新 tick 或新请求。测试改为等待已接受查询 success 后记录计数，保留原 65 ms、精确不增长及 in-flight 排队断言；不改生产调度，也不取消合法在途请求。该 case 加入早期 Debug/Release，仍由完整 ASan 再验收 |
+| Gallery 目录数量仍写 87 | 主线 `c20081d` 已加入 JourneyLine，实际注册集合、ReferenceCatalogTests 和设计文档均为 88；`7d9b36a` 与 `3152ca7` 的独立 Gallery 均只有旧数量断言失败。数量同步为 88 并明确检查 JourneyLine 存在，保留全部集合相等、15 个 supporting 子项及逐例求值检查；原 Lang 示例不改。`315cd4e` 的独立 Gallery **16/16** 通过 |
+| ASan 中 Query 停表后的调用计数 5/4 | ASan 构建与 444 个 testcase 均执行完成，443 通过 / 1 计时断言失败，没有 AddressSanitizer 内存错误报告。固定官方 queryManager 与实际 bundle 的受控时序均复现：40 ms tick 先接受第 5 个请求，停表时 provider 计数仍为 4，该已接受任务随后进入 provider；停表后 65 ms 没有新 tick 或新请求。测试改为等待已接受查询 success 后记录计数，保留原 65 ms、精确不增长及 in-flight 排队断言；不改生产调度，也不取消合法在途请求。该 case 在 `315cd4e` 的早期 Debug/Release 及完整 ASan 中均通过 |
 
-基线、readiness 与 Query 定时器独立 oracle 放 `outputs/repair-baseline/`，生命周期前置证据放 `outputs/repair-lifecycle/run-44053853788/`，历次候选分别放 `outputs/repair-candidate-21cbb3e/`、`outputs/repair-candidate-3165598/`、`outputs/repair-candidate-4a5108f/` 和 `outputs/repair-candidate-3152ca7/`，字体独立基线证据放 `outputs/typography-metrics-2fc398a/`；不将基线成功、新候选源码完成或部分原生通过写成完整客户端流畅度验收。
+#### 正式候选的执行结果
+
+以下结果来自 `315cd4edc9de744b8996a1b9c3bb271c6b34acbc` 的同一轮 [CI 44073952191](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44073952191)，按本轮原始日志计数；不由历史候选的通过数量推算。`dependency-security`、`reproducible-inputs`、`native-sdk` 和最终 `Native SDK acceptance` 四个任务均为 **success**，整条流水线已完成并通过。最终产物的提交标识、ZIP SHA-256 和 provenance 已相互核对；执行环境为 **Xcode 26.3（17C529）、Swift 6.2.4、macOS 15.8.2 arm64**。
+
+| 验证范围 | 本候选实际结果 |
+| --- | --- |
+| 生命周期、深层数据与状态前置 | **103/103**，零失败 |
+| 字体、SVG、资源、Store 读者与 Query 定向收尾 | Debug **17/17**、Release **17/17**，零失败 |
+| OpenUI 媒体、文字、交互与布局 | Debug **278/278**、Release **278/278**，零失败 |
+| 图片尺寸转换重复检查 | 三次独立执行，各 **2/2**，零失败 |
+| 全量原生包测试 | **1217/1217**，零失败、零 unexpected；SwiftLang **444**、SwiftOpenUI **570**、SwiftIntelligentUI **203** |
+| 流式挂载隔离 | 全量中的 **13/13**，包括 Store 读者、兄弟节点、Environment、注册表与闭包捕获 |
+| Release 流式、失败与资源边界 | **339/339**，零失败 |
+| Release 原生拟合 | **4/4**，零失败 |
+| 独立 Gallery | **16/16**，零失败 |
+| SwiftLang AddressSanitizer | **444/444**，零失败、零 unexpected；未出现 AddressSanitizer ERROR/SUMMARY 内存错误报告，未收集到 crash report |
+| Gallery 示例程序 | **184 batch + 184 streamed**，零失败 |
+| 历史 Intelligent UI 契约 | **61 个组件**的位置参数及完整 schema 保持不变 |
+| 独立产品消费者 | `swift-lang`、`swift-ui`、`swift-intelligent-ui` 三个公共 API 消费者均完成实际构建和运行 |
+| iOS 16 Simulator | SwiftOpenUI、SwiftIntelligentUI 产品及 Gallery 构建通过；不作为真机 UI 或性能执行结果 |
+| 独立工具与测量 | ContractExport 与 Release 性能工具构建通过；24/128 分块的两轮 Release 测量均成功生成完整结果 |
+
+截图六组所对应的原生用例均在本轮全量日志找到并通过：流式状态与交互 **7/7**、流式文字 **3/3**、图表 **1/1**、SVG **1/1**、布局与焦点 **4/4**、Markdown 字体 **1/1**，合计 **17/17**。额外的宽 Markdown 表格滚动至最后一列用例也通过。这里的 17 项截图回归与早期 17 项定向检查是不同集合；两者分别核对，没有用相同数量代替覆盖关系。
+
+原生验收绑定上述源码提交；交付尾提交仅补充本文档。发布前逐路径比较确认源码、测试、依赖、资源、示例、工具和 workflow 与 `315cd4e` 完全相同，不把纯文档尾提交描述为另一次已执行的原生 CI。以上结果证明本轮 SDK 原生回归通过，不替代目标设备上 App CPU、帧耗时、持续滚动或长会话的同条件复测。
+
+基线、readiness 与 Query 定时器独立 oracle 放 `outputs/repair-baseline/`，生命周期前置证据放 `outputs/repair-lifecycle/run-44053853788/`，历次候选分别放 `outputs/repair-candidate-21cbb3e/`、`outputs/repair-candidate-3165598/`、`outputs/repair-candidate-4a5108f/`、`outputs/repair-candidate-3152ca7/` 和 `outputs/repair-candidate-315cd4e/`，字体独立基线证据放 `outputs/typography-metrics-2fc398a/`；不将基线成功、新候选源码完成或部分原生通过写成完整客户端流畅度验收。
 
 ### 内核目标验收
 
