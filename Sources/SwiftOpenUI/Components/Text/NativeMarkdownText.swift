@@ -7,6 +7,122 @@ import UIKit
 import AppKit
 #endif
 
+enum NativeMarkdownTableAlignment: Equatable {
+  case leading, center, trailing
+
+  var frameAlignment: Alignment {
+    switch self {
+    case .leading: return .leading
+    case .center: return .center
+    case .trailing: return .trailing
+    }
+  }
+
+  /// MarkdownUI exposes a canonical Markdown representation of the parsed
+  /// table. Its delimiter row contains only pipes, colons and hyphens, so it
+  /// supplies column alignment without inspecting or rewriting cell content.
+  static func columns(in markdown: String) -> [Self] {
+    guard let delimiter = markdown.split(separator: "\n").first(where: { line in
+      let text = line.trimmingCharacters(in: .whitespaces)
+      return text.contains("-") && text.allSatisfy { $0 == "|" || $0 == ":" || $0 == "-" || $0.isWhitespace }
+    }) else { return [] }
+    var text = delimiter.trimmingCharacters(in: .whitespaces)
+    if text.first == "|" { text.removeFirst() }
+    if text.last == "|" { text.removeLast() }
+    return text.split(separator: "|", omittingEmptySubsequences: false).map { part in
+      let item = part.trimmingCharacters(in: .whitespaces)
+      if item.hasPrefix(":") && item.hasSuffix(":") { return .center }
+      if item.hasSuffix(":") { return .trailing }
+      return .leading
+    }
+  }
+}
+
+private struct NativeMarkdownTableLayout {
+  var width: CGFloat = 0
+  var alignments: [NativeMarkdownTableAlignment] = []
+  var minimumColumnWidth: CGFloat? {
+    guard width > 0, !alignments.isEmpty else { return nil }
+    return max(0, (width - CGFloat(alignments.count + 1) * 0.5) / CGFloat(alignments.count))
+  }
+}
+private struct NativeMarkdownTableLayoutKey: EnvironmentKey {
+  static let defaultValue = NativeMarkdownTableLayout()
+}
+private extension EnvironmentValues {
+  var nativeMarkdownTableLayout: NativeMarkdownTableLayout {
+    get { self[NativeMarkdownTableLayoutKey.self] }
+    set { self[NativeMarkdownTableLayoutKey.self] = newValue }
+  }
+}
+private struct NativeMarkdownTableWidthKey: PreferenceKey {
+  static let defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct NativeMarkdownTable: View {
+  let configuration: BlockConfiguration
+  let appearance: OpenUITableAppearance
+  let radius: CGFloat
+  @State private var width: CGFloat = 0
+  @State private var alignments: [NativeMarkdownTableAlignment] = []
+
+  var body: some View {
+    NativeTableViewport {
+      configuration.label
+        .fixedSize(horizontal: true, vertical: false)
+        .environment(\.nativeMarkdownTableLayout, .init(width: width, alignments: alignments))
+        .markdownTableBorderStyle(.init(.insideBorders, color: appearance.gridLine, width: 0.5))
+        .markdownTableBackgroundStyle(.init { row, column in
+          row == 0 || column == 0 ? appearance.headerBackground : appearance.background
+        })
+        .clipShape(RoundedRectangle(cornerRadius: appearance.cornerRadius ?? radius, style: .continuous))
+        .overlay {
+          RoundedRectangle(cornerRadius: appearance.cornerRadius ?? radius, style: .continuous)
+            .strokeBorder(appearance.gridLine, lineWidth: 0.5)
+        }
+    }
+    .background(GeometryReader { geometry in
+      Color.clear.preference(key: NativeMarkdownTableWidthKey.self, value: geometry.size.width)
+    })
+    .onPreferenceChange(NativeMarkdownTableWidthKey.self) { value in
+      if value.isFinite && value > 0 && abs(width - value) > 0.5 { width = value }
+    }
+    .onAppear { updateAlignment(configuration.content) }
+    .onChange(of: configuration.content) { updateAlignment($0) }
+  }
+  private func updateAlignment(_ content: MarkdownContent) {
+    let next = NativeMarkdownTableAlignment.columns(in: content.renderMarkdown())
+    if next != alignments { alignments = next }
+  }
+}
+
+private struct NativeMarkdownTableCell: View {
+  let configuration: TableCellConfiguration
+  @Environment(\.nativeMarkdownTableLayout) private var layout
+  @Environment(\.openUITheme) private var theme
+  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+  var body: some View {
+    let alignment = layout.alignments.indices.contains(configuration.column)
+      ? layout.alignments[configuration.column].frameAlignment : .leading
+    let font = configuration.row == 0 ? theme.tableAppearance?.headerFont : theme.tableAppearance?.bodyFont
+    configuration.label
+      .markdownTextStyle {
+        if let font {
+          FontFamily(font.family.map(FontProperties.Family.custom) ?? .system(font.design))
+          FontSize(font.size)
+          FontWeight(font.weight)
+        } else if configuration.row == 0 { FontWeight(.medium) }
+        BackgroundColor(nil)
+      }
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(minHeight: font.map { $0.resolved(for: .body).measuredLineHeight(scale: scale) }, alignment: .top)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 12)
+      .frame(minWidth: configuration.row == 0 ? layout.minimumColumnWidth : nil, alignment: alignment)
+  }
+}
+
 /// Shared native Markdown presentation. Remark owns text parsing and extensions;
 /// MarkdownUI lays out native blocks, and CodeBlock shares the standard renderer.
 struct NativeMarkdownText: View {
@@ -39,6 +155,25 @@ struct NativeMarkdownText: View {
   private var font: OpenUIFont { style.resolvedFont(theme: theme, inherited: inheritedFont) }
   private var mathSize: CGFloat { font.size * scale }
   private var mathColor: String { NativeCSSColor.css(foreground, scheme: colorScheme) }
+  private var markdownTheme: Theme {
+    var result = Theme.basic
+    if let table = theme.tableAppearance {
+      result = result.table { configuration in
+        NativeMarkdownTable(configuration: configuration, appearance: table, radius: theme.radius3xl)
+          .markdownMargin(top: 0, bottom: theme.spaceM)
+      }.tableCell { configuration in
+        NativeMarkdownTableCell(configuration: configuration)
+      }
+    }
+    if let spacing = theme.markdownListItemSpacing {
+      result = result.listItem { configuration in
+        configuration.label
+          .frame(minHeight: font.measuredLineHeight(scale: scale), alignment: .topLeading)
+          .padding(.bottom, max(0, spacing) * scale)
+      }
+    }
+    return result
+  }
   private struct StreamingInput: Equatable {
     let source: OpenUIString
     let active: Bool
@@ -66,7 +201,19 @@ struct NativeMarkdownText: View {
         FontDigitVariant(style.numeric || font.monospacedDigits ? .monospaced : .normal)
       }
       .markdownTextStyle(\.link) { ForegroundColor(theme.textNeutralLink); UnderlineStyle(.single) }
-      .markdownTextStyle(\.strong) { FontWeight(style.emphasisWeight ?? theme.textBodyDefaultHeavy.weight) }
+      .markdownTextStyle(\.strong) {
+        if let emphasis = theme.markdownEmphasisFont {
+          FontFamily(emphasis.family.map(FontProperties.Family.custom) ?? .system(emphasis.design))
+          FontWeight(emphasis.weight)
+        } else {
+          FontWeight(style.emphasisWeight ?? theme.textBodyDefaultHeavy.weight)
+        }
+      }
+      .markdownTextStyle(\.code) {
+        if theme.markdownEmphasisFont != nil { FontFamily(.system(.monospaced)) }
+        FontFamilyVariant(.monospaced)
+        FontSize(.em(0.94))
+      }
       .markdownSoftBreakMode(mode == .markdown ? .space : .lineBreak)
       .markdownBlockStyle(\.paragraph) { configuration in
         configuration.label.fixedSize(horizontal: false, vertical: true)
@@ -85,7 +232,7 @@ struct NativeMarkdownText: View {
           language: OpenUIString(NativeMarkdownCode.language(configuration.language)), theme: theme)
           .markdownMargin(top: theme.spacing("s"), bottom: theme.spacing("s"))
       }
-      .markdownTheme(.basic)
+      .markdownTheme(markdownTheme)
       .markdownImageProvider(NativeMarkdownImageProvider(math: math, fontSize: mathSize, color: mathColor))
       .markdownInlineImageProvider(NativeMarkdownInlineImages(math: math, fontSize: mathSize, color: mathColor, resources: resources))
       .textSelection(.enabled)

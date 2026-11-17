@@ -188,7 +188,18 @@ struct NativeDataTable: View {
     @State private var stableColumns: [Column]?
     @Namespace private var measurementScope
     private let pageSize = 10 // Pinned upstream Table's DEFAULT_PAGE_SIZE.
-    private var columnGap: CGFloat { context.theme.spacing("ml") }
+    private var tableAppearance: OpenUITableAppearance? { context.theme.tableAppearance }
+    private var tableCellTheme: OpenUIThemeValues {
+        var theme = context.theme
+        if let font = tableAppearance?.bodyFont {
+            theme.textBodyDefault = font
+            theme.textBodyDefaultHeavy = font.weight(.medium)
+            theme.textBodySm = font
+            theme.textBodySmHeavy = font.weight(.medium)
+        }
+        return theme
+    }
+    private var columnGap: CGFloat { tableAppearance == nil ? context.theme.spacing("ml") : 0 }
     private var readsByRow: Bool { typeSize.isAccessibilitySize }
     private var currentColumns: [Column] {
         context.children("columns").compactMap { child in
@@ -275,6 +286,19 @@ struct NativeDataTable: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("openui.table")
         .accessibilityValue(Text(waiting ? "Loading data" : "", bundle: NativeControlResources.bundle))
+        .background {
+            if let appearance = tableAppearance {
+                RoundedRectangle(cornerRadius: appearance.cornerRadius ?? context.theme.radius3xl).fill(appearance.background)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: tableAppearance.map { $0.cornerRadius ?? context.theme.radius3xl } ?? 0))
+        .overlay {
+            if let appearance = tableAppearance {
+                RoundedRectangle(cornerRadius: appearance.cornerRadius ?? context.theme.radius3xl)
+                    .strokeBorder(appearance.gridLine, lineWidth: 0.5)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             NativeDelayedPresentation(active: waiting) { visible in
                 if visible { NativeLoadingIndicator().padding(context.theme.space2xs) }
@@ -299,15 +323,23 @@ struct NativeDataTable: View {
         // Layout changes preserve the cell subtree, including custom controls.
         tableLayout {
             ForEach(columns) { column in
-                Text(column.title).openUIFont(context.theme.textBodySmHeavy, role: .control)
+                Text(column.title).openUIFont(tableAppearance?.headerFont ?? context.theme.textBodySmHeavy, role: .control)
                     .foregroundStyle(context.theme.textNeutralPrimary)
                     .accessibilityAddTraits(.isHeader)
-                    .padding(.vertical, context.theme.spaceS)
+                    .frame(minHeight: tableAppearance?.headerFont.map { $0.resolved(for: .body).measuredLineHeight(scale: textScale) }, alignment: .top)
+                    .padding(.vertical, tableAppearance == nil ? context.theme.spaceS : context.theme.spaceM)
+                    .padding(.horizontal, tableAppearance == nil ? 0 : context.theme.spaceS)
                     .multilineTextAlignment(column.numeric ? .trailing : .leading)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
+                    .background { if let appearance = tableAppearance { appearance.headerBackground } }
+                    .overlay(alignment: .trailing) {
+                        if let appearance = tableAppearance, column.id != columns.last?.id, !readsByRow {
+                            appearance.gridLine.frame(width: 0.5).allowsHitTesting(false).accessibilityHidden(true)
+                        }
+                    }
                     .opacity(readsByRow ? 0 : 1).accessibilityHidden(readsByRow)
             }
-            context.theme.borderDefault.frame(height: 1 / displayScale).layoutValue(key: NativeTableBoundaryKey.self, value: true)
+            (tableAppearance?.gridLine ?? context.theme.borderDefault).frame(height: tableAppearance == nil ? 1 / displayScale : 0.5).layoutValue(key: NativeTableBoundaryKey.self, value: true)
                 .opacity(readsByRow ? 0 : 1).accessibilityHidden(true)
             ForEach(visibleRows, id: \.self) { row in
                 ForEach(columns) { column in
@@ -318,18 +350,31 @@ struct NativeDataTable: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         cell(column.data.indices.contains(row) ? column.data[row] : .null)
-                            .openUIFont(column.numeric ? context.theme.textBodyDefault.monospacedDigit() : context.theme.textBodyDefault)
+                            .openUIFont(column.numeric ? tableCellTheme.textBodyDefault.monospacedDigit() : tableCellTheme.textBodyDefault)
+                            .environment(\.openUITheme, tableCellTheme)
                     }
                         .multilineTextAlignment(column.numeric && !readsByRow ? .trailing : .leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.vertical, readsByRow ? context.theme.spaceXs : context.theme.spaceSM)
+                        .frame(minHeight: tableAppearance?.bodyFont.map { $0.resolved(for: .body).measuredLineHeight(scale: textScale) }, alignment: .top)
+                        .padding(.vertical, readsByRow ? context.theme.spaceXs : (tableAppearance == nil ? context.theme.spaceSM : context.theme.spaceM))
+                        .padding(.horizontal, tableAppearance == nil ? 0 : context.theme.spaceS)
                         .frame(maxWidth: .infinity, maxHeight: .infinity,
                             alignment: column.numeric && !readsByRow ? .topTrailing : .topLeading)
+                        .background {
+                            if let appearance = tableAppearance, !readsByRow {
+                                column.id == columns.first?.id ? appearance.headerBackground : appearance.background
+                            }
+                        }
+                        .overlay(alignment: .trailing) {
+                            if let appearance = tableAppearance, column.id != columns.last?.id, !readsByRow {
+                                appearance.gridLine.frame(width: 0.5).allowsHitTesting(false).accessibilityHidden(true)
+                            }
+                        }
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("openui.table.cell.\(row).\(column.id)")
                 }
                 if row < visibleRows.upperBound - 1 {
-                    context.theme.borderDefault.frame(height: 1 / displayScale).layoutValue(key: NativeTableBoundaryKey.self, value: true)
+                    (tableAppearance?.gridLine ?? context.theme.borderDefault).frame(height: tableAppearance == nil ? 1 / displayScale : 0.5).layoutValue(key: NativeTableBoundaryKey.self, value: true)
                         .accessibilityHidden(true)
                 }
             }

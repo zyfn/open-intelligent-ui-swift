@@ -1,6 +1,7 @@
 import SwiftLang
 #if os(macOS)
 import AppKit
+import ApplicationServices
 import Combine
 import SwiftUI
 import XCTest
@@ -11,7 +12,7 @@ import XCTest
 /// These regressions are not client replay or frame-time measurements.
 final class MountedStreamingTextProgressTests: XCTestCase {
     @MainActor func testRenderedTextReaderIncludesPlainSwiftUITextAndScrollContent() async throws {
-        let (host, window) = mount(VStack {
+        let (host, window) = try await mount(VStack {
             Text("Plain SwiftUI text")
             ScrollView { Text("Native scroll content") }
         })
@@ -44,7 +45,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         let state = OpenUIState(schema: library.library.toSchema())
         defer { state.reset() }
         state.push("root=Stack([fixed,tail])\nfixed=TextContent(\"稳定的正文段落\")\ntail=TextContent(\"")
-        let (host, window) = mount(OpenUIContentView(state: state, registry: registry))
+        let (host, window) = try await mount(OpenUIContentView(state: state, registry: registry))
         defer { window.close() }
         try await waitForRenderedText("稳定的正文段落", in: host)
         XCTAssertGreaterThan(fixedBuilds, 0)
@@ -74,7 +75,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())
         state.push("root=Stack([CardHeader(\"SHANGHAI → SUZH")
-        let (host, window) = mount(ScrollView {
+        let (host, window) = try await mount(ScrollView {
             OpenUIContentView(state: state, registry: library.registry)
                 .frame(maxWidth: .infinity, alignment: .leading)
         })
@@ -134,7 +135,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
             let scheduler = MountedTextScheduler()
             let buffer = NativeStreamingTextBuffer(schedule: scheduler.schedule)
             let document = NativeMarkdownDocument()
-            let (host, window) = mount(MountedTextHarness(model: model, buffer: buffer, document: document))
+            let (host, window) = try await mount(MountedTextHarness(model: model, buffer: buffer, document: document))
             defer { window.close(); document.cancel(); buffer.cancel() }
 
             try await waitFor("initial text preparation", in: host) {
@@ -193,7 +194,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         let prefix = "家庭 👨‍👩‍👧，2 位成"
         let complete = prefix + "人，行程已确认。"
         state.push("root=TextContent(\"\(prefix)")
-        let (host, window) = mount(OpenUIContentView(state: state, registry: library.registry))
+        let (host, window) = try await mount(OpenUIContentView(state: state, registry: library.registry))
         defer { window.close() }
         try await waitForRenderedText(prefix, in: host)
 
@@ -208,14 +209,38 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         XCTAssertTrue(state.errors.isEmpty)
     }
 
-    @MainActor private func mount<Content: View>(_ content: Content) -> (NSHostingView<AnyView>, NSWindow) {
-        _ = NSApplication.shared
+    @MainActor private static let application: NSApplication = {
+        let application = NSApplication.shared
+        application.finishLaunching()
+        return application
+    }()
+
+    @MainActor private func mount<Content: View>(_ content: Content) async throws -> (NSHostingView<AnyView>, NSWindow) {
+        _ = Self.application
         let host = NSHostingView(rootView: AnyView(content.frame(width: 390, height: 600, alignment: .topLeading)))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 390, height: 600),
             styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
         window.orderFront(nil)
+        host.layoutSubtreeIfNeeded()
+        // SwiftUI creates virtual accessibility nodes lazily. A read-only client
+        // request to this test process activates that tree; direct NSView getters
+        // alone otherwise find selection overlays but miss ordinary SwiftUI Text.
+        // AppKit must be able to answer on main while this request is in flight.
+        let request = await Task.detached {
+            let onMain = Thread.isMainThread
+            let application = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+            var role: CFTypeRef?
+            let error = AXUIElementCopyAttributeValue(application, kAXRoleAttribute as CFString, &role)
+            return (onMain: onMain, code: error.rawValue, role: role as? String)
+        }.value
+        guard !request.onMain, request.code == AXError.success.rawValue,
+              request.role == kAXApplicationRole as String else {
+            window.close()
+            XCTFail("Could not initialize this test process's accessibility tree: onMain=\(request.onMain), code=\(request.code), role=\(String(describing: request.role))")
+            throw MountedTextFailure.accessibilityRequest
+        }
         return (host, window)
     }
 
@@ -281,7 +306,7 @@ final class MountedStreamingTextProgressTests: XCTestCase {
     }
 
     @MainActor private func renderedText(in host: NSView) -> String {
-        var visited = Set<ObjectIdentifier>(), text: [String] = []
+        var visited = Set<ObjectIdentifier>(), retained: [NSObject] = [], text: [String] = []
         // Public AppKit accessibility getters also cover SwiftUI elements;
         // no source value is injected into their labels for this test.
         let label = NSSelectorFromString("accessibilityLabel")
@@ -293,6 +318,9 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         func visit(_ object: NSObject, depth: Int) {
             guard depth < 128, visited.count < 8_192,
                   visited.insert(ObjectIdentifier(object)).inserted else { return }
+            // Virtual AX objects can be temporary; retain them until traversal
+            // ends so a recycled address cannot look like an already-visited node.
+            retained.append(object)
             for content in [read(object, label), read(object, value)].compactMap({ $0 }) {
                 if let string = content as? String { text.append(string) }
                 else if let attributed = content as? NSAttributedString { text.append(attributed.string) }
@@ -301,16 +329,16 @@ final class MountedStreamingTextProgressTests: XCTestCase {
             for child in accessible {
                 if let child = child as? NSObject { visit(child, depth: depth + 1) }
             }
-            if accessible.isEmpty, let view = object as? NSView {
+            if let view = object as? NSView {
                 for child in view.subviews { visit(child, depth: depth + 1) }
             }
         }
         visit(host, depth: 0)
-        return text.joined(separator: "\n")
+        return withExtendedLifetime(retained) { text.joined(separator: "\n") }
     }
 }
 
-private enum MountedTextFailure: Error { case timeout }
+private enum MountedTextFailure: Error { case timeout, accessibilityRequest }
 
 @MainActor private final class MountedTextModel: ObservableObject {
     struct Input {

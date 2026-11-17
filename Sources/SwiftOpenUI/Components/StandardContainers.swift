@@ -25,6 +25,7 @@ struct OpenUIStyledCard: View {
     let context: OpenUIComponentContext
 
     var body: some View {
+        let _ = print("PHOTO_CARD_TRACE styled type=\(context.element.typeName) revision=\(context.presentationSourceRevision) variant=\(String(describing: context.string("variant"))) panelInset=\(context.theme.componentStyle.panelInset) ready=\(context.layoutConfigurationReady)")
         OpenUIStack(context: context)
             .environment(\.openUICardMediaInset,
                 context.string("variant") == "clear" || context.string("variant") == "sunk"
@@ -43,6 +44,7 @@ struct OpenUICardSurface: ViewModifier {
         let surface = NativeContentSurface(variant, fallback: .card)
         let ready = active && parentLayoutReady
         let inset = ready && surface != .clear ? theme.componentStyle.panelInset : 0
+        let _ = print("PHOTO_CARD_TRACE surface variant=\(String(describing: variant)) panelInset=\(theme.componentStyle.panelInset) active=\(active) parentReady=\(parentLayoutReady) appliedInset=\(inset)")
         content.environment(\.openUIActionDensity, .compact)
             // Transparent layout units own allocation, not gutters. The parent
             // supplies the gap; nested clear cards must not accumulate insets.
@@ -93,6 +95,7 @@ struct OpenUIStack: View {
         let mediaWidthReady = parentMediaWidthReady && layoutReady && (direction != "row" || context.rowWidthReady)
         let content = children
         let first = content.first?.id
+        let _ = print("PHOTO_CARD_TRACE stack type=\(context.element.typeName) revision=\(context.presentationSourceRevision) direction=\(direction) incomingInset=\(cardMediaInset) layoutReady=\(layoutReady) first=\(String(describing: first)) children=\(content.map(\.id))")
         OpenUIFlexLayout(
             direction: direction, gap: gap,
             align: layoutReady ? context.string("align") ?? "stretch" : "stretch",
@@ -145,6 +148,7 @@ struct NativeContentImage: View {
     let context: OpenUIComponentContext
     @Environment(\.openUICardMediaInset) private var cardMediaInset
     var body: some View {
+        let _ = print("PHOTO_CARD_TRACE image type=\(context.element.typeName) statement=\(String(describing: context.element.statementId)) revision=\(context.presentationSourceRevision) incomingInset=\(cardMediaInset) panelInset=\(context.theme.componentStyle.panelInset)")
         NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
             layout: .cover, role: .content)
             // Suggest a media width when a row measures its children. Grid card

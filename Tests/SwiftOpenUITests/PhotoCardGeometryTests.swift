@@ -58,6 +58,7 @@ final class PhotoCardGeometryTests: XCTestCase {
       for (container, expected) in variants {
         state.setSource("root=\(container)\npicture=Image(\"photo\")\ntail=TextContent(\"still", streaming: true)
         settle()
+        print("PHOTO_CARD_TRACE test container=\(container) currentType=\(String(describing: state.root?.typeName)) currentVariant=\(String(describing: state.root.flatMap { PropValue.string($0, "variant") })) revision=\(state.sourceRevision) width=\(measured.width) mediaInset=\(measured.mediaInset)")
         XCTAssertTrue(state.errors.isEmpty)
         XCTAssertFalse(state.isComplete)
         XCTAssertTrue(measured.layoutReady, "A closed container must own its layout while its text streams")
@@ -72,6 +73,24 @@ final class PhotoCardGeometryTests: XCTestCase {
         XCTAssertEqual(measured.width, expected, accuracy: 1,
           "Completing unchanged layout cannot resize the image")
       }
+    }
+  }
+
+  @MainActor func testDiagnosticFirstMountCardKeepsItsContentInset() throws {
+    try withStreamingImage { state, settle, measured in
+      state.setSource("root=Card([picture,tail])\npicture=Image(\"photo\")\ntail=TextContent(\"still", streaming: true)
+      settle()
+      print("PHOTO_CARD_TRACE fresh currentType=\(String(describing: state.root?.typeName)) currentVariant=\(String(describing: state.root.flatMap { PropValue.string($0, "variant") })) revision=\(state.sourceRevision) width=\(measured.width) mediaInset=\(measured.mediaInset)")
+      XCTAssertTrue(state.errors.isEmpty)
+      XCTAssertFalse(state.isComplete)
+      XCTAssertTrue(measured.layoutReady)
+      XCTAssertEqual(measured.width, 300 - OpenUIThemeValues().spaceML * 2, accuracy: 1)
+      state.push(" arriving\")")
+      settle()
+      XCTAssertEqual(measured.width, 300 - OpenUIThemeValues().spaceML * 2, accuracy: 1)
+      state.complete()
+      settle()
+      XCTAssertEqual(measured.width, 300 - OpenUIThemeValues().spaceML * 2, accuracy: 1)
     }
   }
 
@@ -232,6 +251,7 @@ private struct PhotoCardImageGeometryProbe: View {
     }
   }
   private func record(_ sample: Sample) {
+    print("PHOTO_CARD_TRACE geometry width=\(sample.width) incomingInset=\(sample.inset) layoutReady=\(sample.layoutReady)")
     measured.width = sample.width
     measured.mediaInset = sample.inset
     measured.layoutReady = sample.layoutReady

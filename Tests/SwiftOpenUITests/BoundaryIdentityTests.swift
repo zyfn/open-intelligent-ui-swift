@@ -106,6 +106,13 @@ private final class BoundaryReadinessView: NSView {
 }
 private struct BoundaryReadinessMarker: NSViewRepresentable {
   let element: EvaluatedElement
+  // Language equality excludes readiness. Carry the immutable snapshot identity
+  // as a view input so SwiftUI updates this marker without remounting its NSView.
+  private let snapshotIdentity: ObjectIdentifier
+  init(element: EvaluatedElement) {
+    self.element = element
+    snapshotIdentity = ObjectIdentifier(element)
+  }
   func makeNSView(context: Context) -> BoundaryReadinessView { BoundaryReadinessView() }
   func updateNSView(_ view: BoundaryReadinessView, context: Context) { view.element = element; view.updates += 1 }
 }
