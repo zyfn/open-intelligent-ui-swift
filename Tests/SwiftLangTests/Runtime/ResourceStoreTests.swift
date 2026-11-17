@@ -499,6 +499,7 @@ extension ResourceStoreTests {
     let budget = NativeResourceCacheBudget(maximumCost: payloadSize * 2, maximumCount: 128)
     let first = NativeResourceStore(budget: budget), second = NativeResourceStore(budget: budget)
     let third = NativeResourceStore(budget: budget), loader = ByteLoader()
+    defer { withExtendedLifetime((first, second, third)) {} }
     let a = first.scoped(.init(loader: loader)), b = second.scoped(.init(loader: loader))
     let c = third.scoped(.init(loader: loader))
     let request = try XCTUnwrap(a.request(for: "https://resource.example/shared-address"))

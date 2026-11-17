@@ -407,20 +407,9 @@ final class StreamingRenderIsolationTests: XCTestCase {
         let id = context.string("id") ?? "unknown", field = context.string("field") ?? ""
         let value = field.isEmpty ? Value.string("static") : context.fieldBinding(field).wrappedValue
         let text = displayString(value)
-        #if DEBUG
-        let _ = traceChanges(id: id)
-        #endif
         let _ = record(id: id, text: text)
         Text(text)
     }
-
-    #if DEBUG
-    private func traceChanges(id: String) {
-        guard ProcessInfo.processInfo.environment["OPENUI_TRACE_COMPONENTS"] == "1" else { return }
-        print("NATIVE_READER_BODY id=\(id) phase=\(log.phase)")
-        Self._printChanges()
-    }
-    #endif
 
     private func displayString(_ value: Value) -> String {
         if case .string(let string) = value { return string.displayString }

@@ -162,36 +162,39 @@ jobs:
           path: outputs/verification/native-deep-data.log
           if-no-files-found: warn
           retention-days: 7
-      - name: Focused native closure regressions
+      - name: Focused native Debug closure regressions
         if: ${{ !cancelled() }}
         shell: bash
-        env:
-          OPENUI_TRACE_COMPONENTS: '1'
         run: |
           set -euo pipefail
-          failed=0
-          for configuration in debug release; do
-            if swift test --configuration "$configuration" --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses' \
-                2>&1 | tee "outputs/verification/native-closure-$configuration.log"; then
-              :
-            else
-              failed=1
-            fi
-          done
-          exit "$failed"
-      - name: Retain focused closure diagnostics immediately
+          swift test --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses' \
+            2>&1 | tee outputs/verification/native-closure-debug.log
+      - name: Retain focused Debug closure diagnostics immediately
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: native-closure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: outputs/verification/native-closure-*.log
+          name: native-closure-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/native-closure-debug.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Focused native Release closure regressions
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --configuration release --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses' \
+            2>&1 | tee outputs/verification/native-closure-release.log
+      - name: Retain focused Release closure diagnostics immediately
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-closure-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/native-closure-release.log
           if-no-files-found: warn
           retention-days: 7
       - name: OpenUI media and text regressions
         if: ${{ !cancelled() }}
         shell: bash
-        env:
-          OPENUI_TRACE_COMPONENTS: '1'
         run: |
           set -euo pipefail
           failed=0

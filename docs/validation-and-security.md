@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.21 · 更新日期：2026-11-17
+文档版本：1.22 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -533,11 +533,15 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 回退快照与文字/SVG 采集 | 独立纯 SwiftUI 对照也读不到文字，surface/boundary 已收到最新 readiness 而测试 marker 未更新。marker 携带不可变快照身份；测试初始化当前进程 AX 树并遍历真实原生/虚拟节点，不把预期文本写入 label；原等待时限和断言保留 |
 | Card 图片宽度 | [独立 macOS 日志](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44046887577/job/133914682735) 显示新 Card 正确应用 16 pt inset、内容宽 268 pt，退出的旧 Stack 随后用 300 pt 覆盖单个测试记录。探针改按挂载实例记录并在退出时删除；保留原输入、宽度、epoch 并检查唯一挂载实例，生产 Card 视觉不变 |
 | 六个就绪回归把完整源码当作未完成输入 | 用锁定上游未修改源码独立构建，对原六段完整 Lang 及各自最后一个右括号之前的前缀逐阶段核对：前缀 `meta.incomplete=true`，右括号到达后为 false；正式 bundle 的 complete/closed 均一致。测试保留原完整源码，先喂真实前缀验证拒绝，再补同一末尾验证闭合即启用，不把全流结束重新设为交互门槛 |
-| Store 读者的偶发额外重算 | 保留 builder/body 完全不增加的断言，增加实际挂载订阅信号和呈现输入对照；需原生日志区分误通知与环境输入变化，不能按随机失败忽略 |
+| Store 读者的额外重算 | 原生诊断中只有 left 收到订阅信号，right/plain 的节点、订阅和呈现输入保持；`3165598` 的首轮父级更新出现 `@self changed`，没有调用持有动态属性的内容边界的相等比较。候选把纯输入 Equatable 边界与 StateObject/Environment 内容分开，保留最近文档解析、环境变化、注册表及父闭包捕获；原 builder/body 零增长断言与等待时限不变，需同提交 Debug/Release 复验 |
+| SVG 的值在可读描述中 | `3165598` 的原生树明确显示 raw value 为 nil，而 `accessibilityValueDescription` 从 Loading 变为 Unable to load graphic。测试读取实际可读描述并遍历同 alt 的语义节点，不根据预期字符串选值；两配置均通过，完整 alt、固定高度和未闭合 URL 零请求断言保留 |
+| Release 测试中的资源 owner 提前释放 | 空响应测试只有 scoped 弱引用继续使用，原 owner 数组最后一次 map 后可被释放，首次 request 因 scope 失效返回 nil。测试明确保持 owner 到全部断言结束；同类跨文档 LRU 夹具也保持三个 owner。生产的弱所有权、额度和原命中/淘汰断言均不改变 |
 
 本地已完成 Core JS **170/170**、Validation **6/6**、目录兼容 **7/7**、固定上游独立对照 **0 unexplained differences**、来源/所有权、本地化、Gallery 目录、workflow YAML/Bash 及 `git diff --check`。当前 Linux 无 Swift/AppKit，原生结果以本候选在 macOS 的 Debug/Release、全量、ASan、独立消费者、iOS 和 Gallery 门禁为准；前置阶段新增生命周期组和六个就绪回归所属类别，没有删除旧门禁。
 
-原 `1f070fe` 的全量日志还包含 SwiftIntelligentUI 标题排版用例 60/65 pt 差异，它来自未修改的该库路径。本次遵循只处理 OpenUI 及通用基础层的范围，不改该库视觉、不放宽其 2 pt 断言；该项仍须独立验收。所有本地确证与候选日志放 `outputs/repair-baseline/`，不将基线成功、新候选源码完成或部分原生通过写成完整客户端流畅度验收。
+`21cbb3e` 的 Debug 前置 **103/103** 通过；媒体/文本两配置各执行 275 项，文字、readiness、焦点、Card 和 Overview 回归通过，三个尺寸转换重复各 **2/2**。该阶段仍有 SVG 读取、Store 读者及 Release owner 夹具失败，不能记作全组通过。`3165598` 的剩余三项定向检查为 Debug **3/3**、Release **2/3**：SVG 与空响应夹具均通过，Store 读者在 Release 仍多次构建，所以继续修正内部输入边界。诊断代码只用于定位，交付代码移除临时 `_printChanges` 和环境开关；后续检查按 Debug/Release 分别立即归档，全部既有大组与门禁仍执行。
+
+原 `1f070fe` 的全量日志还包含 SwiftIntelligentUI 标题排版用例 60/65 pt 差异，它来自未修改的该库路径。本次遵循只处理 OpenUI 及通用基础层的范围，不改该库视觉、不放宽其 2 pt 断言；该项仍须独立验收。基线与独立 oracle 放 `outputs/repair-baseline/`，生命周期前置证据放 `outputs/repair-lifecycle/run-44053853788/`，两轮候选分别放 `outputs/repair-candidate-21cbb3e/` 与 `outputs/repair-candidate-3165598/`；不将基线成功、新候选源码完成或部分原生通过写成完整客户端流畅度验收。
 
 ### 内核目标验收
 
