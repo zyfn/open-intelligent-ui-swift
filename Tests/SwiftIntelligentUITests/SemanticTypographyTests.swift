@@ -57,14 +57,56 @@ final class SemanticTypographyTests: XCTestCase {
     @MainActor func testMarkdownUsesTheSameBodyAndHeadingMetricsAtDynamicTypeSizes() throws {
         let library = try OpenIntelligentUIComponents()
         for size in [DynamicTypeSize.large, .accessibility2] {
-            XCTAssertEqual(try height("Markdown($copy)", library: library, size: size),
-                           try height("Text($copy)", library: library, size: size), accuracy: 2)
+            let markdownBody = try height("Markdown($copy)", library: library, size: size)
+            let nativeBody = try height("Text($copy)", library: library, size: size)
+            print("Typography metrics: size=\(size) role=body markdown=\(markdownBody) native=\(nativeBody)")
+            XCTAssertEqual(markdownBody, nativeBody, accuracy: 2, "body at \(size)")
             for (prefix, titleSize) in [("# ", "xl"), ("## ", "lg"), ("### ", "md")] {
-                XCTAssertEqual(try height("Markdown(\"\(prefix)\" + $copy)", library: library, size: size),
-                               try height("Title($copy,\"\(titleSize)\")", library: library, size: size), accuracy: 2)
+                let markdown = try height("Markdown(\"\(prefix)\" + $copy)", library: library, size: size)
+                let native = try height("Title($copy,\"\(titleSize)\")", library: library, size: size)
+                print("Typography metrics: size=\(size) role=\(titleSize) markdown=\(markdown) native=\(native)")
+                XCTAssertEqual(markdown, native, accuracy: 2, "heading \(prefix) at \(size)")
+                #if os(macOS)
+                if abs(markdown - native) > 2 {
+                    try diagnoseHeadingFont(level: prefix.count - 1, titleSize: titleSize, size: size)
+                }
+                #endif
             }
         }
     }
+
+    #if os(macOS)
+    /// Isolate the font adapter from Markdown parsing and the component layout.
+    /// Keep the same copy, width and Dynamic Type environment as the assertion.
+    @MainActor private func diagnoseHeadingFont(level: Int, titleSize: String, size: DynamicTypeSize) throws {
+        let theme = OpenIntelligentUITheme()
+        let preferred = InlineFonts.semantic(style: MarkdownTypography.nativeHeadingStyle(level: level), typeSize: size)
+        let native = InlineFonts.styled(preferred, weight: theme.headingWeight, tabular: false, italic: false)
+        let adapter = MarkdownFontStyle(native)
+        for (name, font) in [("preferred", preferred), ("styled", native)] {
+            print("Typography native font: size=\(size) role=\(titleSize) recipe=\(name) name=\(font.fontName) points=\(font.pointSize) ascent=\(font.ascender) descent=\(font.descender) leading=\(font.leading) descriptor=\(font.fontDescriptor.fontAttributes)")
+        }
+        print("Typography adapter: role=\(titleSize) size=\(adapter.size) family=\(adapter.family) weight=\(adapter.weight) themeWeight=\(theme.headingWeight)")
+        let fonts: [(String, Font)] = [
+            ("semantic", TitleTypography.font(size: titleSize, theme: theme)),
+            ("native", Font(native)),
+            ("fixed-adapter-weight", .system(size: adapter.size.rounded()).weight(adapter.weight)),
+            ("fixed-theme-weight", .system(size: adapter.size.rounded()).weight(theme.headingWeight)),
+        ]
+        for (name, font) in fonts {
+            let plain = try diagnosticHeight(Text(verbatim: copy).font(font), size: size)
+            let attributed = try diagnosticHeight(
+                Text(InlineTypography.attributed(copy, font: font, emphasis: theme.headingWeight)).font(font), size: size)
+            print("Typography isolated text: size=\(size) role=\(titleSize) recipe=\(name) plain=\(plain) attributed=\(attributed)")
+        }
+    }
+
+    @MainActor private func diagnosticHeight<Content: View>(_ content: Content, size: DynamicTypeSize) throws -> Double {
+        let renderer = ImageRenderer(content: content.fixedSize(horizontal: false, vertical: true)
+            .environment(\.dynamicTypeSize, size).environment(\.colorScheme, .light).frame(width: 320))
+        return Double(try XCTUnwrap(renderer.cgImage).height)
+    }
+    #endif
 
     @MainActor func testFixedNativeBodyPartnerIsNotScaledAgainByMarkdown() throws {
         let library = try OpenIntelligentUIComponents()

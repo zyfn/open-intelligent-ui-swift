@@ -167,7 +167,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses' \
+          swift test --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses|testMarkdownUsesTheSameBodyAndHeadingMetricsAtDynamicTypeSizes' \
             2>&1 | tee outputs/verification/native-closure-debug.log
       - name: Retain focused Debug closure diagnostics immediately
         if: ${{ !cancelled() }}
