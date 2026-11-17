@@ -5,6 +5,20 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class StreamingTextPresentationTests: XCTestCase {
+  @MainActor func testChineseEmphasisRemainsFormattedAcrossIncrementalDocumentPreparation() async {
+    let document = NativeMarkdownDocument()
+    defer { document.cancel() }
+    for source in ["**看你要不要收藏。**", "**看你要不要收藏。**17173", "**看你要不要收藏。**17173 同期另一篇提到"] {
+      let request = markdownRequest(source)
+      document.receive(request)
+      await waitForMarkdownResult(document, source: request.source)
+      let content = document.content(for: request)
+      XCTAssertTrue(content.renderHTML().contains("<strong>看你要不要收藏。</strong>"))
+      XCTAssertEqual(content.renderPlainText(), source.replacingOccurrences(of: "**", with: ""))
+      XCTAssertEqual(document.currentSource, request.source, "Preparation must not rewrite the stored source")
+    }
+  }
+
   @MainActor private final class ManualScheduler {
     var deliveries: [@MainActor () -> Void] = []
     var cancelled = Set<Int>()

@@ -533,29 +533,74 @@ struct NativeSteps: View {
   let context: OpenUIComponentContext
   @Environment(\.displayScale) private var displayScale
   @ScaledMetric(relativeTo: .body) private var markerDiameter: CGFloat = 28
+  @ScaledMetric(relativeTo: .body) private var timelineMarker: CGFloat = 12
+  @ScaledMetric(relativeTo: .body) private var timelineLane: CGFloat = 16
   var body: some View {
     let items = context.children("items")
-    VStack(alignment: .leading, spacing: 0) {
+    // A trailing optional variant is unknown until its argument or the call
+    // closes. Show arriving text without guessing a numbered/timeline marker.
+    let variantReady = context.layoutConfigurationReady
+    // If generation has stopped without deciding the trailing variant, keep
+    // completed items readable using the component's default numbered style.
+    let showMarkers = variantReady || context.hasInterruptedData || (!context.isStreaming && !context.hasPendingData)
+    let timeline = variantReady && context.presentationString("variant") == "timeline"
+    return VStack(alignment: .leading, spacing: 0) {
       ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-        HStack(alignment: .top, spacing: context.theme.spacing("m")) {
-          NativeStepMarker(number: index + 1, theme: context.theme, diameter: markerDiameter)
-          VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
-            Text(NativeValue.string(item.value, "title") ?? "").openUIFont(context.theme.textBodyDefaultHeavy, role: .title)
-            NativeMarkdownText(text: NativeValue.string(item.value, "details") ?? "",
-              style: context.theme.textStyle(.body).richText())
+        HStack(alignment: .top, spacing: timeline ? context.theme.spaceS : context.theme.spacing("m")) {
+          Group {
+            if !showMarkers {
+              Color.clear.frame(width: markerDiameter, height: markerDiameter).accessibilityHidden(true)
+            } else if timeline {
+              Circle().strokeBorder(context.theme.textNeutralLink, lineWidth: 2)
+                .frame(width: timelineMarker, height: timelineMarker)
+                .padding(.top, context.theme.space2xs)
+                .frame(width: timelineLane)
+                .accessibilityHidden(true)
+            } else {
+              NativeStepMarker(number: index + 1, theme: context.theme, diameter: markerDiameter)
+            }
+          }
+          if timeline {
+            VStack(alignment: .leading, spacing: context.theme.space2xs) {
+              if let time = NativeStepsTimeline.time(item.value), !time.isEmpty {
+                Text(time).openUIFont(context.theme.textBodySm, role: .detail)
+                  .foregroundStyle(index == 0 ? context.theme.textNeutralLink : context.theme.textNeutralSecondary)
+              }
+              Text(NativeValue.string(item.value, "title") ?? "")
+                .openUIFont(context.theme.textHeadingXs, role: .title)
+                .foregroundStyle(context.theme.textNeutralPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+              NativeMarkdownText(text: NativeValue.string(item.value, "details") ?? "",
+                style: context.theme.textStyle(.supporting).richText())
+            }.frame(maxWidth: .infinity, alignment: .leading)
+          } else {
+            VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
+              Text(NativeValue.string(item.value, "title") ?? "").openUIFont(context.theme.textBodyDefaultHeavy, role: .title)
+              NativeMarkdownText(text: NativeValue.string(item.value, "details") ?? "",
+                style: context.theme.textStyle(.body).richText())
+            }
           }
         }
-        .padding(.bottom, index < items.count - 1 ? context.theme.spacing("m") : 0)
+        .padding(.bottom, index < items.count - 1 ? (timeline ? context.theme.spaceL : context.theme.spacing("m")) : 0)
         .background(alignment: .topLeading) {
-          if index < items.count - 1 {
+          if showMarkers && index < items.count - 1 {
             Rectangle().fill(context.theme.borderInteractive)
               .frame(width: 1.5 / displayScale)
-              .padding(.top, markerDiameter + context.theme.spacing("xs")).offset(x: markerDiameter / 2)
+              .padding(.top, timeline ? timelineMarker + context.theme.space2xs : markerDiameter + context.theme.spacing("xs"))
+              .offset(x: timeline ? timelineLane / 2 : markerDiameter / 2)
               .accessibilityHidden(true)
           }
         }
       }
     }
+  }
+}
+/// A time label is displayed only after the complete positional argument has
+/// arrived, so an unfinished clock value is not presented as a fact.
+enum NativeStepsTimeline {
+  static func time(_ value: Value) -> String? {
+    guard case .element(let item) = value, item.sourceReadiness["time"].complete else { return nil }
+    return PropValue.string(item, "time")
   }
 }
 /// The badge follows its text's measured size, including custom fonts and Dynamic Type.

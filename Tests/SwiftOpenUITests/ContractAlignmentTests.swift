@@ -13,7 +13,13 @@ final class ContractAlignmentTests: XCTestCase {
         XCTAssertEqual(schema.components["Card"]?.map(\.name), ["children", "variant", "direction", "gap", "align", "justify", "wrap"])
         let upstream = LibrarySpec(json: OpenUIReference.catalog.field("spec")!)
         for expected in upstream.components where !["Card", "TabItem", "AccordionItem"].contains(expected.name) {
-            XCTAssertEqual(library.toSpec().components.first { $0.name == expected.name }?.signature, expected.signature, expected.name)
+            let signature: String
+            switch expected.name {
+            case "Steps": signature = "Steps(items: StepsItem[], variant?: \"default\" | \"timeline\")"
+            case "StepsItem": signature = "StepsItem(title: string, details: string, time?: string)"
+            default: signature = expected.signature
+            }
+            XCTAssertEqual(library.toSpec().components.first { $0.name == expected.name }?.signature, signature, expected.name)
         }
     }
 

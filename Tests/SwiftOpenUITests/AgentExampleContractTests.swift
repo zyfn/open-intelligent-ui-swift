@@ -18,7 +18,18 @@ final class AgentExampleContractTests: XCTestCase {
     let standard=try OpenUIComponents.library().toSpec()
     let expandedSlots:Set<String>=["Card","TabItem","AccordionItem"]
     for component in standard.components where !expandedSlots.contains(component.name) {
-      XCTAssertEqual(spec.components.first { $0.name==component.name }?.signature,component.signature,component.name)
+      switch component.name {
+      case "JourneyLine":
+        XCTAssertEqual(component.signature, "JourneyLine(mode: \"flight\" | \"train\" | \"bus\" | \"taxi\")")
+      case "Steps":
+        XCTAssertEqual(component.signature, "Steps(items: StepsItem[], variant?: \"default\" | \"timeline\")")
+        XCTAssertEqual(spec.components.first { $0.name == "Steps" }?.signature, "Steps(items: StepsItem[])")
+      case "StepsItem":
+        XCTAssertEqual(component.signature, "StepsItem(title: string, details: string, time?: string)")
+        XCTAssertEqual(spec.components.first { $0.name == "StepsItem" }?.signature, "StepsItem(title: string, details: string)")
+      default:
+        XCTAssertEqual(spec.components.first { $0.name==component.name }?.signature,component.signature,component.name)
+      }
     }
     let schema=compileLibrarySchema(spec)
     let manifest=try JSONSerialization.jsonObject(with:Data(contentsOf:contractDirectory.appendingPathComponent("manifest.json"))) as! [String:Any]

@@ -9,8 +9,10 @@ final class GeographicGraphicTests: XCTestCase {
                                                   subdirectory: "Fixtures/AgentCasesContract"))
     let previous = try LibrarySpec(jsonString: String(contentsOf: fixture, encoding: .utf8))
     for name in ["Map", "MapPoint", "SVG", "Card", "TabItem", "AccordionItem"] {
-      XCTAssertEqual(library.toSpec().components.first { $0.name == name }?.signature,
-                     previous.components.first { $0.name == name }?.signature, name)
+      let old = try XCTUnwrap(previous.components.first { $0.name == name }?.signature)
+      let expected = ["Card", "TabItem", "AccordionItem"].contains(name)
+        ? old.replacingOccurrences(of: " | SVG)[]", with: " | SVG | JourneyLine)[]") : old
+      XCTAssertEqual(library.toSpec().components.first { $0.name == name }?.signature, expected, name)
     }
     let state = OpenUIState(schema: library.library.toSchema())
     for source in [

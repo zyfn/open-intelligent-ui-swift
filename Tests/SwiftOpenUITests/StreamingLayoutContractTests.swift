@@ -36,6 +36,40 @@ final class StreamingLayoutContractTests: XCTestCase {
   }
 
   #if os(macOS)
+  @MainActor func testSourceOnlyTerminalFeedbackHasNoVisibleFooterOrReservedHeight() throws {
+    _ = NSApplication.shared
+    let quiet = NSHostingView(rootView: NativePendingContent(loading: false).frame(width: 320))
+    XCTAssertLessThan(quiet.fittingSize.height, 1)
+    let failure = NSHostingView(rootView: NativePendingContent(loading: false,
+      terminalMessage: "Content unavailable").frame(width: 320))
+    XCTAssertGreaterThan(failure.fittingSize.height, 10,
+      "Removing source diagnostics must not suppress explicit data/resource failures")
+  }
+
+  @MainActor func testTerminalPartialStackKeepsReadablePrefixWithoutNarratingParserDiagnostics() throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    var registry = library.registry
+    registry["TextContent"] = { _, _ in AnyView(Text("Visible prose")) }
+    func height(_ source: String) throws -> CGFloat {
+      let state = OpenUIState(schema: library.library.toSchema())
+      state.setSource(source)
+      XCTAssertNotNil(state.root)
+      if source.hasSuffix("missing") {
+        XCTAssertFalse(try XCTUnwrap(state.root).isSourceComplete,
+          "Removing a diagnostic footer must not mark the underlying input as complete")
+      }
+      let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry).frame(width: 320))
+      return host.fittingSize.height
+    }
+    let complete = try height(#"root=Stack([TextContent("Visible prose")])"#)
+    let incomplete = #"root=Stack([TextContent("Visible prose"),missing"#
+    let parser = createParser(schema: library.library.toSchema())
+    XCTAssertTrue(parser.parse(incomplete).meta.incomplete, "Retain the original malformed source and its diagnostics")
+    XCTAssertEqual(try height(incomplete), complete, accuracy: 1,
+      "A terminal readable prefix must not append a generic Content is incomplete paragraph")
+  }
+
   @MainActor func testClearCardsShareColumnsWithoutAddingContentInsets() throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()

@@ -1,5 +1,6 @@
 import { unified } from "unified";
 import remarkParse from "remark-parse";
+import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkStringify from "remark-stringify";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -9,7 +10,10 @@ import { remarkCitations } from "upstream:citations";
 import { safeUrl } from "upstream:safe-url";
 
 function processor(mode) {
-  let value = unified().use(remarkParse);
+  // Parse CJK delimiter boundaries once, then let remark-stringify emit
+  // CommonMark-safe character references for the native Markdown consumer.
+  // Do not use the bidi serializer: cmark does not implement CJK delimiters.
+  let value = unified().use(remarkParse).use(remarkCjkFriendly);
   if (mode !== "markdown") value = value.use(remarkGfm, { singleTilde: false }).use(remarkCitations);
   if (mode === "textContent") value = value.use(remarkMath, { singleDollarTextMath: false });
   if (mode !== "markdown") value = value.use(remarkBreaks);
