@@ -83,28 +83,35 @@ final class SemanticTypographyTests: XCTestCase {
         let native = InlineFonts.styled(preferred, weight: theme.headingWeight, tabular: false, italic: false)
         let adapter = MarkdownFontStyle(native)
         let fixed = NSFont.systemFont(ofSize: adapter.size.rounded(), weight: InlineFonts.weight(adapter.weight))
+        let fixedStyled = InlineFonts.styled(NSFont.systemFont(ofSize: adapter.size.rounded()),
+                                             weight: adapter.weight, tabular: false, italic: false)
         let layout = NSLayoutManager()
         func coreTextLineHeight(_ font: NSFont) -> CGFloat {
             CTFontGetAscent(font as CTFont) + CTFontGetDescent(font as CTFont) + CTFontGetLeading(font as CTFont)
         }
-        for (name, font) in [("preferred", preferred), ("styled", native), ("fixed", fixed)] {
+        for (name, font) in [("preferred", preferred), ("styled", native), ("fixed", fixed), ("fixed-styled", fixedStyled)] {
             print("Typography native font: size=\(size) role=\(titleSize) recipe=\(name) name=\(font.fontName) points=\(font.pointSize) ascent=\(font.ascender) descent=\(font.descender) leading=\(font.leading) ctLineHeight=\(coreTextLineHeight(font)) layoutLineHeight=\(layout.defaultLineHeight(for: font)) descriptor=\(font.fontDescriptor.fontAttributes)")
         }
         print("Typography adapter: role=\(titleSize) size=\(adapter.size) family=\(adapter.family) weight=\(adapter.weight) themeWeight=\(theme.headingWeight)")
         let leadingDelta = max(0, native.leading - fixed.leading)
         let coreTextDelta = max(0, coreTextLineHeight(native) - coreTextLineHeight(fixed))
         let layoutDelta = max(0, layout.defaultLineHeight(for: native) - layout.defaultLineHeight(for: fixed))
-        print("Typography spacing candidates: size=\(size) role=\(titleSize) leading=\(leadingDelta) coreText=\(coreTextDelta) layout=\(layoutDelta)")
+        let styledCoreTextDelta = max(0, coreTextLineHeight(native) - coreTextLineHeight(fixedStyled))
+        let styledLayoutDelta = max(0, layout.defaultLineHeight(for: native) - layout.defaultLineHeight(for: fixedStyled))
+        print("Typography spacing candidates: size=\(size) role=\(titleSize) leading=\(leadingDelta) coreText=\(coreTextDelta) layout=\(layoutDelta) styledCoreText=\(styledCoreTextDelta) styledLayout=\(styledLayoutDelta)")
         let fixedFont = Font.system(size: adapter.size.rounded()).weight(adapter.weight)
         let fonts: [(String, Font, CGFloat)] = [
             ("semantic", TitleTypography.font(size: titleSize, theme: theme), 0),
             ("native", Font(native), 0),
             ("fixed-native", Font(fixed), 0),
+            ("fixed-styled-native", Font(fixedStyled), 0),
             ("fixed-adapter-weight", fixedFont, 0),
             ("fixed-theme-weight", .system(size: adapter.size.rounded()).weight(theme.headingWeight), 0),
             ("fixed-leading-delta", fixedFont, leadingDelta),
             ("fixed-coretext-delta", fixedFont, coreTextDelta),
             ("fixed-layout-delta", fixedFont, layoutDelta),
+            ("fixed-styled-coretext-delta", fixedFont, styledCoreTextDelta),
+            ("fixed-styled-layout-delta", fixedFont, styledLayoutDelta),
         ]
         let samples = [
             ("copy", copy),
@@ -113,6 +120,11 @@ final class SemanticTypographyTests: XCTestCase {
             ("cjk-one", "中文标题"),
             ("cjk-two", "中文标题\n中文标题"),
         ]
+        for (name, font) in [("native", native), ("fixed", fixed), ("fixed-styled", fixedStyled)] {
+            for (sample, text) in samples {
+                try diagnoseNativeLayout(font: font, text: text, sample: sample, recipe: name, role: titleSize, size: size)
+            }
+        }
         for (name, font, spacing) in fonts {
             for (sample, text) in samples {
                 let plain = try diagnosticHeight(Text(verbatim: text).font(font).lineSpacing(spacing), size: size)
@@ -122,6 +134,59 @@ final class SemanticTypographyTests: XCTestCase {
                 Text(InlineTypography.attributed(copy, font: font, emphasis: theme.headingWeight)).font(font).lineSpacing(spacing), size: size)
             print("Typography isolated attributed: size=\(size) role=\(titleSize) recipe=\(name) spacing=\(spacing) attributed=\(attributed)")
         }
+    }
+
+    @MainActor private func diagnoseNativeLayout(font: NSFont, text: String, sample: String,
+                                                 recipe: String, role: String, size: DynamicTypeSize) throws {
+        let attributed = NSAttributedString(string: text, attributes: [.font: font])
+        let storage = NSTextStorage(attributedString: attributed)
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: 320, height: 10_000))
+        container.lineFragmentPadding = 0
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        layout.ensureLayout(for: container)
+        var fragments: [[String: Any]] = []
+        var previousBaseline: CGFloat?
+        layout.enumerateLineFragments(forGlyphRange: NSRange(location: 0, length: layout.numberOfGlyphs)) {
+            rect, used, _, glyphs, _ in
+            let glyph = layout.location(forGlyphAt: glyphs.location)
+            let baseline = rect.minY + glyph.y
+            var record: [String: Any] = ["y": Double(rect.minY), "height": Double(rect.height),
+                "usedY": Double(used.minY), "usedHeight": Double(used.height),
+                "glyphY": Double(glyph.y), "baseline": Double(baseline)]
+            if let previousBaseline { record["advance"] = Double(baseline - previousBaseline) }
+            fragments.append(record)
+            previousBaseline = baseline
+        }
+
+        let setter = CTFramesetterCreateWithAttributedString(attributed as CFAttributedString)
+        let path = CGPath(rect: CGRect(x: 0, y: 0, width: 320, height: 10_000), transform: nil)
+        let frame = CTFramesetterCreateFrame(setter, CFRange(location: 0, length: attributed.length), path, nil)
+        let lines = CTFrameGetLines(frame) as! [CTLine]
+        var origins = Array(repeating: CGPoint.zero, count: lines.count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
+        let coreTextLines: [[String: Any]] = lines.enumerated().map { index, line in
+            var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+            let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+            let runs = CTLineGetGlyphRuns(line) as! [CTRun]
+            let runFonts: [[String: Any]] = runs.map { run in
+                let attributes = CTRunGetAttributes(run) as NSDictionary
+                guard let font = attributes[kCTFontAttributeName as String] as? NSFont else {
+                    return ["font": String(describing: attributes[kCTFontAttributeName as String])]
+                }
+                return ["font": font.fontName, "points": Double(font.pointSize),
+                        "ascent": Double(font.ascender), "descent": Double(font.descender), "leading": Double(font.leading)]
+            }
+            var record: [String: Any] = ["originY": Double(origins[index].y), "width": width,
+                "ascent": Double(ascent), "descent": Double(descent), "leading": Double(leading), "runs": runFonts]
+            if index > 0 { record["advance"] = Double(origins[index - 1].y - origins[index].y) }
+            return record
+        }
+        let record: [String: Any] = ["size": String(describing: size), "role": role, "recipe": recipe, "sample": sample,
+            "textKitHeight": Double(layout.usedRect(for: container).height), "textKit": fragments, "coreText": coreTextLines]
+        let json = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
+        print("Typography native layout: \(String(decoding: json, as: UTF8.self))")
     }
 
     @MainActor private func diagnosticHeight<Content: View>(_ content: Content, size: DynamicTypeSize) throws -> Double {
