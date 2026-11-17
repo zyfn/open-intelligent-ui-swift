@@ -1,0 +1,274 @@
+// Public synthetic stress input; contains no customer conversation or service data.
+// Target: about 200 reachable element identities and a long phone-width document.
+// Height must be measured on the target platform; this is not a Muse replay.
+root = Stack([section01, section02, section03, section04, section05, section06, section07, section08, section09, section10, section11, section12, section13, section14, section15, section16, section17, section18, section19, section20, section21, section22, section23, section24, notesForm], "column", "l")
+readingBody = "This is a public synthetic reading sample. Each section repeats a fixed mixture of paragraphs, a small table, and a short summary so that layout work can be compared without private conversation data.\n\n这段文字用于检查较窄阅读宽度下的自然换行。内容长度、标点和段落边界保持固定；切换宽度时应重新计算高度，再次回到原宽度时应恢复相同的阅读布局。\n\n- **保持内容完整**：列表、强调和普通文字共同参与排版。\n- `stable-source` 是普通代码片段，不执行任何程序。\n- [公开示例链接](https://example.com/reading) 只用于链接布局。\n\n完成加载后，重复测量不应重新提交语言源码。这个样本不代表真实会话，也没有经过设备性能等价验证。"
+
+section01 = Card([
+  TextContent("Synthetic section 01 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 01 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 01-A","Sample 01-B","Sample 01-C","Sample 01-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section02 = Card([
+  TextContent("Synthetic section 02 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 02 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 02-A","Sample 02-B","Sample 02-C","Sample 02-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section03 = Card([
+  TextContent("Synthetic section 03 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 03 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 03-A","Sample 03-B","Sample 03-C","Sample 03-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section04 = Card([
+  TextContent("Synthetic section 04 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 04 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 04-A","Sample 04-B","Sample 04-C","Sample 04-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section05 = Card([
+  TextContent("Synthetic section 05 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 05 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 05-A","Sample 05-B","Sample 05-C","Sample 05-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section06 = Card([
+  TextContent("Synthetic section 06 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 06 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 06-A","Sample 06-B","Sample 06-C","Sample 06-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section07 = Card([
+  TextContent("Synthetic section 07 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 07 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 07-A","Sample 07-B","Sample 07-C","Sample 07-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section08 = Card([
+  TextContent("Synthetic section 08 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 08 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 08-A","Sample 08-B","Sample 08-C","Sample 08-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section09 = Card([
+  TextContent("Synthetic section 09 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 09 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 09-A","Sample 09-B","Sample 09-C","Sample 09-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section10 = Card([
+  TextContent("Synthetic section 10 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 10 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 10-A","Sample 10-B","Sample 10-C","Sample 10-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section11 = Card([
+  TextContent("Synthetic section 11 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 11 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 11-A","Sample 11-B","Sample 11-C","Sample 11-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section12 = Card([
+  TextContent("Synthetic section 12 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 12 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 12-A","Sample 12-B","Sample 12-C","Sample 12-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section13 = Card([
+  TextContent("Synthetic section 13 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 13 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 13-A","Sample 13-B","Sample 13-C","Sample 13-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section14 = Card([
+  TextContent("Synthetic section 14 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 14 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 14-A","Sample 14-B","Sample 14-C","Sample 14-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section15 = Card([
+  TextContent("Synthetic section 15 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 15 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 15-A","Sample 15-B","Sample 15-C","Sample 15-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section16 = Card([
+  TextContent("Synthetic section 16 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 16 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 16-A","Sample 16-B","Sample 16-C","Sample 16-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section17 = Card([
+  TextContent("Synthetic section 17 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 17 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 17-A","Sample 17-B","Sample 17-C","Sample 17-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section18 = Card([
+  TextContent("Synthetic section 18 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 18 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 18-A","Sample 18-B","Sample 18-C","Sample 18-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section19 = Card([
+  TextContent("Synthetic section 19 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 19 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 19-A","Sample 19-B","Sample 19-C","Sample 19-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section20 = Card([
+  TextContent("Synthetic section 20 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 20 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 20-A","Sample 20-B","Sample 20-C","Sample 20-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section21 = Card([
+  TextContent("Synthetic section 21 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 21 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 21-A","Sample 21-B","Sample 21-C","Sample 21-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section22 = Card([
+  TextContent("Synthetic section 22 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 22 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 22-A","Sample 22-B","Sample 22-C","Sample 22-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section23 = Card([
+  TextContent("Synthetic section 23 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 23 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 23-A","Sample 23-B","Sample 23-C","Sample 23-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+section24 = Card([
+  TextContent("Synthetic section 24 · 公开阅读样本", "large-heavy"),
+  MarkDownRenderer(readingBody, "clear"),
+  TextContent("区段 24 的摘要用于检查正文与表格之间的间距。页面宽度变化后，内容顺序、链接和输入状态仍应保持。"),
+  Table([
+    Col("Item", ["Sample 24-A","Sample 24-B","Sample 24-C","Sample 24-D"]),
+    Col("Description", ["Fixed public data","Independent row text","A longer label wraps","No network request"]),
+    Col("Value", [1,2,3,4])
+  ])
+], "clear")
+
+notesForm = Form("synthetic-notes", Buttons([Button("记录本地草稿", @ToAssistant("Inspect this synthetic document"))]), [
+  FormControl("Notes", Input("notes", "Public test input")),
+  FormControl("Reference", Input("reference", "Optional local value"))
+])

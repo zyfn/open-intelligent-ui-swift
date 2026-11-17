@@ -207,7 +207,7 @@ struct NativeDataTable: View {
             let raw = PropValue.value(element, "data") ?? .null
             let data: [Value]
             if case .array(let values) = raw {
-                data = Array(values)
+                data = values.values
             } else {
                 data = raw == .null || raw == .undefined ? [] : [raw]
             }
@@ -222,12 +222,12 @@ struct NativeDataTable: View {
            let stableColumns { return stableColumns }
         return currentColumns
     }
-    private var columnsReady: Bool {
+    private func columnsReady(_ columns: [Column]) -> Bool {
         if stableColumns != nil { return true }
         let source = context.element.sourceReadiness["columns"]
         return source.complete || (source.closed && source.expectedCount == columns.count)
     }
-    private var rowCount: Int {
+    private func rowCount(in columns: [Column]) -> Int {
         let maximum = columns.map { $0.data.count }.max() ?? 0
         guard !context.element.isSourceComplete else { return maximum }
         for row in 0..<maximum {
@@ -240,16 +240,14 @@ struct NativeDataTable: View {
         }
         return maximum
     }
-    private var pageCount: Int { max(1, (rowCount + pageSize - 1) / pageSize) }
-    private var safePage: Int { min(currentPage, pageCount - 1) }
-    private var visibleRows: Range<Int> {
-        let start = safePage * pageSize
-        return start..<min(start + pageSize, rowCount)
-    }
     @ViewBuilder var body: some View {
+        // Share one projection through this render. Completed tables still read
+        // current data; stableColumns covers incomplete or unavailable data.
+        let columns = self.columns
         Group {
-            if columnsReady && !columns.isEmpty { loadedTable }
-            else if waiting {
+            if columnsReady(columns) && !columns.isEmpty {
+                loadedTable(columns: columns, rowCount: rowCount(in: columns))
+            } else if waiting {
                 NativePendingContent(loading: true, message: "Loading data")
             } else { stateMessage }
         }
@@ -266,9 +264,13 @@ struct NativeDataTable: View {
             : incomplete ? "Table is incomplete" : "No data", bundle: NativeControlResources.bundle)
             .nativeTextStyle(context.theme.textStyle(.supporting)).padding(.vertical, context.theme.spaceS)
     }
-    private var loadedTable: some View {
-        VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
-            NativeTableViewport { tableContent }
+    private func loadedTable(columns: [Column], rowCount: Int) -> some View {
+        let pageCount = max(1, (rowCount + pageSize - 1) / pageSize)
+        let safePage = min(currentPage, pageCount - 1)
+        let start = safePage * pageSize
+        let visibleRows = start..<min(start + pageSize, rowCount)
+        return VStack(alignment: .leading, spacing: context.theme.spacing("s")) {
+            NativeTableViewport { tableContent(columns: columns, visibleRows: visibleRows) }
             if !waiting && (rowCount == 0 || incomplete || context.hasDataFailure) { stateMessage }
             if pageCount > 1 {
                 NativePageControls(page: safePage, count: pageCount, enabled: true, identifier: "openui.table") { currentPage = $0 }
@@ -307,7 +309,7 @@ struct NativeDataTable: View {
         .environment(\.openUIInteractionScopeReady, context.canInteract && !context.hasPendingData && !context.hasDataFailure)
         .environment(\.openUIActionDensity, .compact)
     }
-    private var tableLayout: AnyLayout {
+    private func tableLayout(columns: [Column]) -> AnyLayout {
         if readsByRow {
             return AnyLayout(NativeTableReadingLayout(columns: columns.count,
                 width: max(minimumWidth, availableWidth), gap: context.theme.spaceXs,
@@ -319,9 +321,12 @@ struct NativeDataTable: View {
             columnMinimums: columns.map { $0.numeric ? minimumWidth : context.presentation.minimumTextColumnWidth * textScale }
         ))
     }
-    @ViewBuilder private var tableContent: some View {
+    @ViewBuilder private func tableContent(columns: [Column], visibleRows: Range<Int>) -> some View {
+        let firstColumnID = columns.first?.id
+        let lastColumnID = columns.last?.id
+        let cellTheme = tableCellTheme
         // Layout changes preserve the cell subtree, including custom controls.
-        tableLayout {
+        tableLayout(columns: columns) {
             ForEach(columns) { column in
                 Text(column.title).openUIFont(tableAppearance?.headerFont ?? context.theme.textBodySmHeavy, role: .control)
                     .foregroundStyle(context.theme.textNeutralPrimary)
@@ -333,7 +338,7 @@ struct NativeDataTable: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: column.numeric ? .topTrailing : .topLeading)
                     .background { if let appearance = tableAppearance { appearance.headerBackground } }
                     .overlay(alignment: .trailing) {
-                        if let appearance = tableAppearance, column.id != columns.last?.id, !readsByRow {
+                        if let appearance = tableAppearance, column.id != lastColumnID, !readsByRow {
                             appearance.gridLine.frame(width: 0.5).allowsHitTesting(false).accessibilityHidden(true)
                         }
                     }
@@ -350,8 +355,8 @@ struct NativeDataTable: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         cell(column.data.indices.contains(row) ? column.data[row] : .null)
-                            .openUIFont(column.numeric ? tableCellTheme.textBodyDefault.monospacedDigit() : tableCellTheme.textBodyDefault)
-                            .environment(\.openUITheme, tableCellTheme)
+                            .openUIFont(column.numeric ? cellTheme.textBodyDefault.monospacedDigit() : cellTheme.textBodyDefault)
+                            .environment(\.openUITheme, cellTheme)
                     }
                         .multilineTextAlignment(column.numeric && !readsByRow ? .trailing : .leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -362,11 +367,11 @@ struct NativeDataTable: View {
                             alignment: column.numeric && !readsByRow ? .topTrailing : .topLeading)
                         .background {
                             if let appearance = tableAppearance, !readsByRow {
-                                column.id == columns.first?.id ? appearance.headerBackground : appearance.background
+                                column.id == firstColumnID ? appearance.headerBackground : appearance.background
                             }
                         }
                         .overlay(alignment: .trailing) {
-                            if let appearance = tableAppearance, column.id != columns.last?.id, !readsByRow {
+                            if let appearance = tableAppearance, column.id != lastColumnID, !readsByRow {
                                 appearance.gridLine.frame(width: 0.5).allowsHitTesting(false).accessibilityHidden(true)
                             }
                         }

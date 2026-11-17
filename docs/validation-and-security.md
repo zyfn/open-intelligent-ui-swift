@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.27 · 更新日期：2026-11-17
+文档版本：1.28 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -119,6 +119,34 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | Swift 原生验收 | BLOCKED：定向 XCTest、完整 `swift test`、Release host 子集均因找不到 swift 返回 127；模块图检查同样无法运行 `swift package dump-package`。新增 4 项 XCTest 尚未编译/执行，其中 Query 反馈测试含 24 组状态预期及实时/提交边界检查 |
 
 执行证据在忽略的 `outputs/lang-runtime-boundaries/`。删除中间数组和合并遍历属于源码层面的工作收敛；本轮没有 Apple App CPU、内存、帧率或 push 延迟测量，不据此宣称设备性能提升。
+
+### 完成长文档的滚动与布局
+
+本轮从已合入的 `2db93675e50ba89579594c5220e935928bea55bd` 开始。客户端反馈来自锁定 SDK `7d9b36a` 的模拟器 Debug 长会话：页面约 53,810 pt，观测到的三个视图实例约 14,091–18,034 pt，各实例根求值结果按对象身份去重可达 162–206 个元素。实例未绑定业务标识，不能认定为三个独立文档；可达元素数量不是实际 SwiftUI 视图数。
+
+| 客户端一次隔离实验 | 超过 100 ms 的回调间隔数 | 最大间隔 |
+| --- | ---: | ---: |
+| 完整 OpenUI | 19 | 约 280 ms |
+| 表格等高隔离 | 20 | 约 197 ms |
+| Markdown 等高隔离 | 17 | 约 183 ms |
+| 整个 OpenUI 根视图等高隔离 | 0 | 约 57 ms |
+
+以上是用户提供的 CADisplayLink 回调间隔，非函数耗时或本环境实测。每组仅一次，操作总时长、位置和机器负载未完全控制，过程中模拟器曾重启，不能换算成优化百分比。表格 `currentColumns` 的临时复用实验消除了对应采样出现，仍有长间隔；单独移除表格或 Markdown 也不足以解释整体问题。内存快照未附有效分配栈或持有链，尚未证明泄漏。临时等高隐藏只用于隔离，没有作为 SDK 的呈现策略。
+
+源码核对确认，`7d9b36a` 至本轮基线的 FlowLayout、标准表格和 Markdown 核心呈现路径没有变化。此次只收敛两处明确重复工作：Flex 的测量与放置共享当前 Layout 有效 proposal 的 frames；表格一次 body 只推导一份当前列及分页值，复用不可变列数组。保持原有布局算法、组件身份、流式推进、表格数据回退和完成后的动态更新，机制说明在 [OpenUI](openui.md#布局与流式)。布局或子视图变化的失效遵循 Apple 的 [Layout.updateCache](https://developer.apple.com/documentation/swiftui/layout/updatecache(_:subviews:)) 契约；缓存仅属于一个布局实例，不能以文档 complete 作为永久有效条件。
+
+共享压力输入使用 [mixed-long-document.openui](../Tests/SwiftOpenUITests/Fixtures/mixed-long-document.openui)，文字为固定合成内容，不含真实会话、账号或网络资源。随包内核与真实目录解析得到 200 个可达元素，批量输入与每 64、512 个 UTF-16 单元分块输入的完整结果一致，错误及未解析引用均为空。它覆盖混合正文、卡片、表格和表单；目标是在同一输入下复测尺寸、更新和交互，尚未证明与客户端真实会话等价。原生测试记录实际元素数量和高度，不把设计目标高度写成测量值。可通过现有 Gallery 直接打开：
+
+~~~sh
+swift run --package-path Examples/Gallery -c release OpenUIGallery \
+  --library openui \
+  --program "$PWD/Tests/SwiftOpenUITests/Fixtures/mixed-long-document.openui" \
+  --width 390 --height 844 --zoom 1
+~~~
+
+验收分开检查计算复用与正确失效：同一有效 proposal 的 frame 计算可复用；宽度、同数量内容、字体、布局值、子项增删仍更新几何；完成后表格状态修改及行数收缩仍更新可见内容。长文档重复拟合须保持无额外解析、语义发布或重挂，宽度往返仍恢复正确几何。计数和几何测试不代表滚动帧率，最终仍需同一输入、设备、构建和手势下的 App 对照，包括滚动位置、流式尾部、动态高度、表单草稿、链接和会话切换。
+
+当前本地没有 Apple/Swift 执行环境；本轮新增原生用例的编译与执行状态以候选 CI 为准。现有 Debug/Release 组件回归入口加入 `LayoutMeasurementReductionTests`，长文档接入现有 HostSizingIsolationTests 与 Release fitting 验收；没有另建性能测试流程。LanguageRuntime 基准不挂载 SwiftUI，不能替代此项验收。本地执行记录在忽略的 `outputs/long-document-layout-cost/`。后续若需要区段呈现，宿主继续拥有滚动可见范围、消息回收和阅读位置，SDK 继续拥有同一文档的节点身份、引用、Store 和交互；本轮没有引入分段 State 或视口管理器。
 
 ### 文档资源生命周期
 

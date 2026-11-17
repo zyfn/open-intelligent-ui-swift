@@ -201,6 +201,86 @@ final class TableMountedViewTests:XCTestCase {
     XCTAssertEqual(received,1)
     XCTAssertFalse(editing.draft.hasChanges)
   }
+
+  @MainActor func testCompletedTableUpdatesMountedCellsAndShrinksItsVisibleRows() throws {
+    _ = NSApplication.shared
+    let standard = try OpenUIComponents.library()
+    let customCell = OpenUIComponent(name: "MountedTableValue", description: "Mounted cell evidence",
+      params: [OpenUIParameter.string("id"), OpenUIParameter.string("value")]) { context in
+        MountedTableValue(id: context.string("id") ?? "", value: context.string("value") ?? "")
+          .fixedSize()
+      }
+    let library = try standard.extending(adding: [customCell])
+    let state = OpenUIState(schema: library.library.toSchema())
+    defer { state.reset() }
+    state.setSource("""
+      $rows=[]
+      root=Table([Col("Value",@Each($rows,row,MountedTableValue(row.id,row.value)))])
+      """)
+    func rows(_ count: Int, prefix: String) -> Value {
+      .array((0..<count).map { index in
+        .object([
+          ObjectField(key: "id", value: .string("r\(index)")),
+          ObjectField(key: "value", value: .string("\(prefix) \(index)")),
+        ])
+      })
+    }
+    state.setState("$rows", value: rows(12, prefix: "before"))
+    XCTAssertTrue(state.isComplete)
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    let revision = state.presentationRevision
+    let hosting = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .frame(width: 360).fixedSize(horizontal: false, vertical: true)
+      .frame(width: 360, height: 700, alignment: .topLeading))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 700),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = hosting
+    window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+    window.orderFront(nil)
+    defer { window.close() }
+    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+    func cells() -> [NSTextField] {
+      descendants(hosting).compactMap { $0 as? NSTextField }
+        .filter { $0.identifier?.rawValue.hasPrefix("openui.test.table.") == true }
+    }
+    func cell(_ id: String) throws -> NSTextField {
+      try XCTUnwrap(cells().first { $0.identifier?.rawValue == "openui.test.table.\(id)" })
+    }
+    func settle() {
+      hosting.layoutSubtreeIfNeeded()
+      RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+      hosting.layoutSubtreeIfNeeded()
+    }
+
+    settle()
+    XCTAssertEqual(cells().count, 10, "The initial table mounts only its first page")
+    let first = try cell("r0")
+    XCTAssertEqual(first.stringValue, "before 0")
+    XCTAssertEqual(try cell("r9").stringValue, "before 9")
+
+    state.setState("$rows", value: rows(12, prefix: "updated"))
+    settle()
+    XCTAssertTrue(try cell("r0") === first, "A completed table updates its existing cell")
+    XCTAssertEqual(first.stringValue, "updated 0")
+    XCTAssertEqual(try cell("r9").stringValue, "updated 9")
+    XCTAssertEqual(cells().count, 10)
+
+    state.setState("$rows", value: rows(2, prefix: "short"))
+    settle()
+    XCTAssertTrue(try cell("r0") === first)
+    XCTAssertEqual(first.stringValue, "short 0")
+    XCTAssertEqual(try cell("r1").stringValue, "short 1")
+    XCTAssertEqual(cells().count, 2, "Row and pagination inputs must use the current columns")
+    XCTAssertEqual(state.presentationRevision, revision)
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+
+    state.setSource(#"root=Table([Col("Replacement",[MountedTableValue("replacement","new document")])])"#)
+    settle()
+    XCTAssertEqual(cells().count, 1)
+    XCTAssertEqual(try cell("replacement").stringValue, "new document")
+    XCTAssertFalse(cells().contains { $0 === first }, "Replacing the source retires the old table contents")
+  }
 }
 
 @MainActor private final class MountedTableTextSize: ObservableObject {

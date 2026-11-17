@@ -1,9 +1,33 @@
 import SwiftLang
 import Foundation
+import SwiftUI
 import XCTest
 @testable import SwiftOpenUI
+#if os(macOS)
+import AppKit
+#endif
 
 final class LayoutMeasurementReductionTests: XCTestCase {
+    func testFlexPlacementReusesOnlyTheMostRecentMatchingProposal() {
+        var cache = OpenUIFlexLayout.Cache(), measurements = 0
+        func measured(_ width: CGFloat?, _ height: CGFloat? = nil) -> [CGRect] {
+            cache.resolve(.init(width: width, height: height)) {
+                measurements += 1
+                return [CGRect(x: 0, y: 0, width: width ?? 100, height: height ?? 40)]
+            }
+        }
+        let first = measured(320)
+        XCTAssertEqual(measured(320), first)
+        XCTAssertEqual(measurements, 1, "Sizing and placement can share the same effective proposal")
+        XCTAssertEqual(measured(160).first?.width, 160)
+        XCTAssertEqual(measured(160, 80).first?.height, 80)
+        XCTAssertEqual(measured(320), first)
+        XCTAssertEqual(measurements, 4, "Different proposals replace the one cached entry")
+        cache = .init()
+        XCTAssertEqual(measured(320), first)
+        XCTAssertEqual(measurements, 5, "A new layout/subview lifetime must measure again")
+    }
+
     func testFlexReusesNegotiatedWidthsOnlyInsideTheCurrentCall() {
         var calls = [Int](repeating: 0, count: 3)
         let actual = NativeFlexRowWidths.proposals(ideal: [40, 200, 80], growing: [false, true, false], width: 360, gap: 10) {
@@ -243,3 +267,115 @@ final class LayoutMeasurementReductionTests: XCTestCase {
                      size: CGSize(width: max(width, textFrame.maxX), height: height), stacked: false)
     }
 }
+
+#if os(macOS)
+extension LayoutMeasurementReductionTests {
+    @MainActor func testMountedFlexInvalidatesForSameCountContentWidthAndDynamicType() {
+        let inputs = FlexCacheInputs()
+        withFlexHost(inputs, row: false) { height in
+            let initial = height()
+            inputs.childSize.height = 160
+            let taller = height()
+            XCTAssertEqual(taller, initial + 120, accuracy: 1,
+                           "A same-count child height change must invalidate the placement")
+
+            inputs.text = String(repeating: "Long text wraps and keeps every word visible. ", count: 12)
+            let longer = height()
+            XCTAssertGreaterThan(longer, taller)
+            inputs.width = 160
+            let narrower = height()
+            XCTAssertGreaterThan(narrower, longer)
+            inputs.typeSize = .accessibility3
+            XCTAssertGreaterThan(height(), narrower, "Environment-driven text sizing must invalidate the cache")
+
+            inputs.text = "Short text"
+            inputs.width = 320; inputs.typeSize = .large
+            _ = height() // Settle parent changes before the child shrinks independently.
+            inputs.childSize.height = 40
+            XCTAssertEqual(height(), initial, accuracy: 1, "Returning to prior inputs must not retain a tall frame")
+        }
+    }
+
+    @MainActor func testMountedFlexInvalidatesForLayoutValuesConfigurationAndChildren() {
+        let inputs = FlexCacheInputs()
+        withFlexHost(inputs, row: true) { height in
+            XCTAssertEqual(height(), 40, accuracy: 1)
+            inputs.minimumWidth = 250
+            XCTAssertEqual(height(), 92, accuracy: 1, "Layout values must change wrapping at the same proposal")
+            inputs.gap = 24
+            XCTAssertEqual(height(), 104, accuracy: 1, "Layout parameters must invalidate the placement")
+            inputs.wrap = false
+            XCTAssertEqual(height(), 40, accuracy: 1)
+            inputs.wrap = true; inputs.count = 3
+            XCTAssertEqual(height(), 168, accuracy: 1)
+            inputs.count = 1
+            XCTAssertEqual(height(), 40, accuracy: 1, "Removed children must not leave cached frames")
+        }
+    }
+
+    @MainActor private func withFlexHost(_ inputs: FlexCacheInputs, row: Bool,
+                                        check: (() -> CGFloat) -> Void) {
+        _ = NSApplication.shared
+        let host = NSHostingView(rootView: FlexCacheFixture(inputs: inputs, row: row))
+        let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: 320, height: 1800),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+        defer { window.close() }
+        check {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            host.layoutSubtreeIfNeeded()
+            return host.fittingSize.height
+        }
+    }
+}
+
+@MainActor private final class FlexCacheInputs: ObservableObject {
+    @Published var width: CGFloat = 320
+    let childSize = FlexCacheChildSize()
+    @Published var text = "Short text"
+    @Published var typeSize: DynamicTypeSize = .large
+    @Published var minimumWidth: CGFloat = 100
+    @Published var gap: CGFloat = 12
+    @Published var wrap = true
+    @Published var count = 2
+}
+
+@MainActor private final class FlexCacheChildSize: ObservableObject {
+    @Published var height: CGFloat = 40
+}
+
+private struct FlexCacheFixture: View {
+    @ObservedObject var inputs: FlexCacheInputs
+    let row: Bool
+
+    var body: some View {
+        OpenUIFlexLayout(direction: row ? "row" : "column", gap: inputs.gap,
+                         align: "stretch", justify: "start", wrap: inputs.wrap) {
+            if row {
+                ForEach(0..<inputs.count, id: \.self) { _ in
+                    Color.clear.frame(idealWidth: 100).frame(height: 40)
+                        .layoutValue(key: OpenUIFlexGrowKey.self, value: true)
+                        .layoutValue(key: OpenUIFlexMinimumWidthKey.self, value: inputs.minimumWidth)
+                }
+            } else {
+                FlexCacheSizedChild(size: inputs.childSize)
+                FlexCacheText(text: inputs.text)
+            }
+        }
+        .frame(width: inputs.width)
+        .environment(\.dynamicTypeSize, inputs.typeSize)
+    }
+}
+
+private struct FlexCacheSizedChild: View {
+    @ObservedObject var size: FlexCacheChildSize
+    var body: some View { Color.clear.frame(height: size.height) }
+}
+
+private struct FlexCacheText: View {
+    let text: String
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 16
+    var body: some View { Text(text).font(.system(size: fontSize)).fixedSize(horizontal: false, vertical: true) }
+}
+#endif

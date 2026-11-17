@@ -68,9 +68,34 @@ struct OpenUIFlexLayout: Layout {
     var wrapJustifyBetweenAsStart = false
     var rowGap: CGFloat? = nil
 
+    /// One proposal's placement, owned by SwiftUI's layout/subview lifetime.
+    /// Updating content, environment or layout parameters invalidates this cache.
+    struct Cache {
+        private var proposal: ProposedViewSize?
+        private var frames: [CGRect] = []
+        init() {}
+
+        mutating func resolve(_ proposal: ProposedViewSize, measure: () -> [CGRect]) -> [CGRect] {
+            if let previous = self.proposal,
+               previous.width == proposal.width, previous.height == proposal.height { return frames }
+            frames = measure()
+            self.proposal = proposal
+            return frames
+        }
+    }
+
+    func makeCache(subviews: Subviews) -> Cache { Cache() }
+    func updateCache(_ cache: inout Cache, subviews: Subviews) { cache = Cache() }
+
     private func finite(_ value: CGFloat?) -> CGFloat? {
         value.flatMap { $0.isFinite ? max(0, $0) : nil }
     }
+
+    private func frames(_ proposal: ProposedViewSize, _ subviews: Subviews, cache: inout Cache) -> [CGRect] {
+        let effective = ProposedViewSize(width: finite(proposal.width), height: finite(proposal.height))
+        return cache.resolve(effective) { frames(effective, subviews) }
+    }
+
     private func frames(_ proposal: ProposedViewSize, _ subviews: Subviews) -> [CGRect] {
         guard !subviews.isEmpty else { return [] }
         if direction == "column" {
@@ -161,15 +186,16 @@ struct OpenUIFlexLayout: Layout {
             wrap: wrap, baselines: dimensions.map { $0[.firstTextBaseline] }, crossExtent: finite(proposal.height), rowGap: rowGap)
     }
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let measured = ProposedViewSize(width: proposal.width, height: fillsHeight ? proposal.height : nil)
-        let placed = frames(measured, subviews)
+        let placed = frames(measured, subviews, cache: &cache)
         return CGSize(width: finite(proposal.width) ?? placed.map(\.maxX).max() ?? 0,
                       height: max(fillsHeight ? finite(proposal.height) ?? 0 : 0, placed.map(\.maxY).max() ?? 0))
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        for (view, frame) in zip(subviews, frames(ProposedViewSize(width: bounds.width, height: fillsHeight ? bounds.height : nil), subviews)) {
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+        let placed = frames(ProposedViewSize(width: bounds.width, height: fillsHeight ? bounds.height : nil), subviews, cache: &cache)
+        for (view, frame) in zip(subviews, placed) {
             view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
                        anchor: .topLeading, proposal: ProposedViewSize(frame.size))
         }
