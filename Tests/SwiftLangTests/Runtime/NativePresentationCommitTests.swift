@@ -193,6 +193,76 @@ final class NativePresentationCommitTests: XCTestCase {
         XCTAssertEqual(value(interrupted), .number(7))
     }
 
+    func testDependencyFeedbackAcrossQueryAndSourceLifecycles() {
+        let phases: [(name: String, complete: Bool, interrupted: Bool)] = [
+            ("streaming", false, false), ("completed", true, false), ("interrupted", true, true)
+        ]
+        // Each row lists pending/failed/interrupted feedback for the three phases.
+        let cases: [(name: String, statuses: [QueryStatus?], expected: [[Bool]])] = [
+            ("no dependencies", [], [[false, false, false], [false, false, false], [false, false, false]]),
+            ("missing", [nil], [[true, false, false], [false, false, false], [false, false, true]]),
+            ("idle", [.idle], [[true, false, false], [false, false, false], [false, false, true]]),
+            ("loading", [.loading], [[true, false, false], [true, false, false], [true, false, false]]),
+            ("success", [.success], [[false, false, false], [false, false, false], [false, false, false]]),
+            ("error", [.error], [[false, true, false], [false, true, false], [false, true, false]]),
+            ("mixed waiting", [.success, .error, nil, .idle],
+                [[true, true, false], [false, true, false], [false, true, true]]),
+            ("mixed loading", [.success, .loading, .error, nil, .idle],
+                [[true, true, false], [true, true, false], [true, true, true]])
+        ]
+        for example in cases {
+            let dependencies = example.statuses.indices.map { OpenUIString("q\($0)") }
+            var statuses: [OpenUIString: QueryStatus] = [:]
+            for (dependency, status) in zip(dependencies, example.statuses) { statuses[dependency] = status }
+            for (index, phase) in phases.enumerated() {
+                var reads: [OpenUIString] = []
+                let feedback = nativeQueryDependencyFlags(dependencies,
+                    isComplete: phase.complete, isInterrupted: phase.interrupted) { dependency in
+                    reads.append(dependency)
+                    return statuses[dependency]
+                }
+                XCTAssertEqual([feedback.pending, feedback.failed, feedback.interrupted], example.expected[index],
+                               "\(example.name), \(phase.name)")
+                XCTAssertEqual(reads, dependencies, "Each dependency must be sampled once from the supplied boundary")
+            }
+        }
+    }
+
+    @MainActor func testDependencyFeedbackKeepsLiveAndCommittedCompletionBoundaries() {
+        for interrupted in [false, true] {
+            let state = OpenUIState(schema: schema)
+            defer { state.onParseResult = nil; state.reset() }
+            state.setSource("root=Box(1)", streaming: true)
+            // A missing dependency isolates source lifecycle feedback from tool scheduling.
+            let element = EvaluatedElement(typeName: "Dependent", sourceReadiness: .init(
+                complete: true, closed: true, queryDependencies: ["missing"]))
+            let before = state.nativePresentation
+            let initialContext = OpenUIComponentContext(element: element, registry: [:], state: state)
+            XCTAssertTrue(initialContext.hasPendingData)
+            XCTAssertTrue(NativeComponentPresentation.capture(element, state: state).pendingData)
+            var inspected = false
+            state.onParseResult = { _ in
+                inspected = true
+                XCTAssertTrue(state.isComplete)
+                XCTAssertTrue(state.nativePresentation === before)
+                let live = OpenUIComponentContext(element: element, registry: [:], state: state)
+                let committed = NativeComponentPresentation.capture(element, state: state)
+                XCTAssertEqual([live.hasPendingData, live.hasDataFailure, live.hasInterruptedData],
+                               [false, false, interrupted], "A manual context retains immediate lifecycle reads")
+                XCTAssertEqual([committed.pendingData, committed.failedData, committed.interruptedData],
+                               [true, false, false], "Native presentation must keep the previous complete commit")
+            }
+
+            if interrupted { state.interrupt() } else { state.complete() }
+
+            XCTAssertTrue(inspected)
+            let live = OpenUIComponentContext(element: element, registry: [:], state: state)
+            let committed = NativeComponentPresentation.capture(element, state: state)
+            XCTAssertEqual([live.hasPendingData, live.hasDataFailure, live.hasInterruptedData], [false, false, interrupted])
+            XCTAssertEqual([committed.pendingData, committed.failedData, committed.interruptedData], [false, false, interrupted])
+        }
+    }
+
     @MainActor func testRejectedWriteCommitsFailureWithTheLastGoodRootAndStore() throws {
         let state = OpenUIState(schema: schema)
         state.setSource("$value=7\nroot=Box($value)")

@@ -1,6 +1,6 @@
 # OpenUI Swift SDK
 
-文档版本：1.0 · 更新日期：2026-11-17
+文档版本：1.1 · 更新日期：2026-11-17
 
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择OpenUI 或 OpenIntelligentUI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
@@ -112,6 +112,18 @@ state.setSource(snapshot, streaming: true) // 或提交增长中的完整快照
 增量传输则使用 `state.push(chunk)`，正常结束调用 `state.complete()`，用户中断调用 `state.interrupt()`。独立文档使用新的 state；复用已有 state 时显式 `reset()`。不要在 SwiftUI `body`、布局测量或尺寸拟合中创建 state、反复提交源码或写业务状态。
 
 `OpenUIView` 只连接宿主状态与所选库。状态观察由 SwiftLang 的公共 host 负责；库的视觉包装不会再增加一层状态观察。
+
+#### 终态与诊断
+
+`complete()` 表示本轮源码输入结束。解析器可能同时返回可渲染的 `root` 和诊断；`meta.incomplete == false` 仅表示没有检测到未闭合输入，不能证明正文完整。例如字符串内未转义的双引号可能使正文成为后续位置参数，产生 `type-mismatch`、`excess-args`，同时保留第一个字符串作为可读前缀。诊断的 `severity` 可以缺省；标为 warning 的参数丢弃也可能损失正文。
+
+宿主需要控制最终消息的展示时，使用现有入口即可：
+
+1. 在 `onParseResult` 中只保存当前文档最新的 `ParseMeta`、`nativeLimitExceeded` 和 `sourceRevision`。覆盖旧值，不累积流式过程中的暂时性诊断，也不逐块读取解析树、重新解析或扫描源码。
+2. 正常传输结束后调用 `complete()`，在调用返回后确认仍是同一请求和 `sourceRevision`，再读取最新元数据与 `state.root`、`state.errors`。保守验收要求有 root、未中断、没有检测到未闭合输入或未解析引用、没有解析/运行时诊断且未超限。`onError` 会去重，终态不一定再次上报流式阶段已经出现的相同错误，不能把等待新错误回调作为验收触发点。
+3. 终态验收失败时，由宿主将消息标为生成失败，隐藏异常正文并使用既有的消息级重试入口；原始 Lang 保留用于排查。SDK 的容错 root 仍可供调试，不应把它直接标记为完整答案。替换或 reset 时清理所保存的元数据，旧请求的晚到数据继续由宿主原有请求生命周期拦截。
+
+这是基于已报告诊断的保守验收，SDK 当前没有通用的严格语法校验入口；空诊断也不能证明容错解析没有遗漏内容。Query、Mutation、资源加载和实际业务成功仍按各自状态判断。消息级处理不需要猜测正文、补写引号或改写原始 Lang。
 
 ### 3. 从同一库导出生成契约
 

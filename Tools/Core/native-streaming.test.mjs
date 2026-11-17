@@ -69,3 +69,48 @@ for (const [index, source] of cases.entries()) {
   }
  });
 }
+
+// Record tolerant parsing and diagnostic delivery with the shipped OpenUI
+// catalog. Inner quotes in the first input are intentionally not escaped.
+const {spec: openUISpec} = JSON.parse(readFileSync(
+ new URL('../../Sources/SwiftOpenUI/Resources/upstream-catalog.json', import.meta.url), 'utf8'));
+const quotedTextCases = [
+ {
+  name: 'unescaped inner quotes retain prefixes and terminal diagnostics',
+  source: String.raw`root = Stack([headline, verdictText])
+headline = MarkDownRenderer("# 杭州好玩，但它不给"刺激"，给的是"松弛"")
+verdictText = TextContent("杭州的好玩，是"待着舒服"，不是"玩得尽兴"。")`,
+  texts: ['# 杭州好玩，但它不给', '杭州的好玩，是'],
+  errors: [
+   ['type-mismatch', 'headline', 'MarkDownRenderer', '/variant'],
+   ['excess-args', 'headline', 'MarkDownRenderer', ''],
+   ['type-mismatch', 'verdictText', 'TextContent', '/size'],
+   ['excess-args', 'verdictText', 'TextContent', ''],
+  ],
+ },
+ {
+  name: 'escaped inner quotes preserve complete text through final delivery',
+  source: String.raw`root = Stack([headline, verdictText])
+headline = MarkDownRenderer("# 杭州好玩，但它不给\"刺激\"，给的是\"松弛\"")
+verdictText = TextContent("杭州的好玩，是\"待着舒服\"，不是\"玩得尽兴\"。")`,
+  texts: ['# 杭州好玩，但它不给"刺激"，给的是"松弛"', '杭州的好玩，是"待着舒服"，不是"玩得尽兴"。'],
+  errors: [],
+ },
+];
+for (const example of quotedTextCases) {
+ test(example.name, () => {
+  const batch = core.createParser(openUISpec.schema, openUISpec.root).parse(example.source);
+  assert.equal(batch.root?.typeName, 'Stack');
+  const children = batch.root.props.children;
+  assert.deepEqual(plain(children.map(child => child.typeName)), ['MarkDownRenderer', 'TextContent']);
+  assert.deepEqual([children[0].props.textMarkdown, children[1].props.text], example.texts);
+  assert.equal(batch.meta.incomplete, false);
+  assert.equal(bridge.nativeBudgetExceeded(batch), false);
+  assert.deepEqual(plain(batch.meta.errors.map(error =>
+   [error.code, error.statementId, error.component, error.path])), example.errors);
+
+  const streamed = core.createStreamingParser(openUISpec.schema, openUISpec.root);
+  for (const scalar of example.source) streamed.push(scalar);
+  assert.deepEqual(snapshot(streamed.getResult(true)), snapshot(batch), 'terminal batch/scalar parity');
+ });
+}

@@ -73,10 +73,21 @@ const result = await build({
           contents: messageBoundary(readFileSync(args.path, 'utf8')),
           loader: 'ts',
         }));
-        b.onLoad({ filter: /\/parser\/materialize\.ts$/ }, (args) => ({
-          contents: readiness(materializer(readFileSync(args.path, 'utf8'), join(bridge, 'budget.ts')), 'materialize', join(bridge, 'readiness.ts')),
-          loader: 'ts',
-        }));
+        b.onLoad({ filter: /\/parser\/materialize\.ts$/ }, (args) => {
+          let source = readFileSync(args.path, 'utf8');
+          // Readiness attaches to the budgeted materialization entry points.
+          source = materializer(source, join(bridge, 'budget.ts'));
+          source = readiness(source, 'materialize', join(bridge, 'readiness.ts'));
+          return { contents: source, loader: 'ts' };
+        });
+        b.onLoad({ filter: /\/parser\/parser\.ts$/ }, (args) => {
+          let source = readFileSync(args.path, 'utf8');
+          source = sourcePreprocessing(source, join(bridge, 'source-preprocess.ts'));
+          source = evaluationBudget(source, 'parser', join(bridge, 'budget.ts'));
+          source = readiness(source, 'parser', join(bridge, 'readiness.ts'));
+          source += '\nexport {preprocess as nativePreprocess};';
+          return { contents: source, loader: 'ts' };
+        });
         b.onLoad({ filter: /\/utils\/validation\.ts$/ }, (args) => ({
           contents: validationOwnKeys(replaceOnce(
             readFileSync(args.path, 'utf8'),
@@ -112,21 +123,12 @@ const result = await build({
           ['query-manager', /\/runtime\/queryManager\.ts$/],
         ]) b.onLoad({filter}, args => {
           let source = evaluationBudget(readFileSync(args.path, 'utf8'), kind, join(bridge, 'budget.ts'));
-          if (kind === 'evaluate-prop') source = readiness(propActionProvenance(source, join(bridge, 'captures.ts')),
-            kind, join(bridge, 'readiness.ts'));
+          if (kind === 'evaluate-prop') {
+            source = propActionProvenance(source, join(bridge, 'captures.ts'));
+            source = readiness(source, kind, join(bridge, 'readiness.ts'));
+          }
           return { contents: source, loader: 'ts' };
         });
-      },
-    },
-    {
-      name: 'native-helper-exports',
-      setup(b) {
-        b.onLoad({ filter: /\/parser\/parser\.ts$/ }, (args) => ({
-          contents:
-            readiness(evaluationBudget(sourcePreprocessing(readFileSync(args.path, 'utf8'), join(bridge, 'source-preprocess.ts')), 'parser', join(bridge, 'budget.ts')), 'parser', join(bridge, 'readiness.ts')) +
-            '\nexport {preprocess as nativePreprocess};',
-          loader: 'ts',
-        }));
       },
     },
     {

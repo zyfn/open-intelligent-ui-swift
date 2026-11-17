@@ -117,6 +117,25 @@ func nativeUnwrappedFieldValue(form: OpenUIString?, name: OpenUIString,
     return value
 }
 
+/// Derive dependency feedback from either live state or one immutable commit.
+/// The caller owns that boundary; this helper retains no query state.
+func nativeQueryDependencyFlags(_ dependencies: [OpenUIString], isComplete: Bool, isInterrupted: Bool,
+                                status: (OpenUIString) -> QueryStatus?)
+    -> (pending: Bool, failed: Bool, interrupted: Bool) {
+    var pending = false, failed = false, interrupted = false
+    for dependency in dependencies {
+        switch status(dependency) {
+        case .some(.loading): pending = true
+        case .some(.error): failed = true
+        case .some(.idle), .none:
+            if !isComplete { pending = true }
+            if isInterrupted { interrupted = true }
+        case .some(.success): break
+        }
+    }
+    return (pending, failed, interrupted)
+}
+
 /// One readiness rule for live action validation and committed UI reads.
 /// The caller supplies values from the appropriate ownership boundary.
 func nativeElementActionsAreReady(_ element: EvaluatedElement, planIsReady: (ActionPlan) -> Bool) -> Bool {

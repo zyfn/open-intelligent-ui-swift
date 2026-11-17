@@ -16,13 +16,14 @@ struct NativeComponentPresentation {
     @MainActor static func capture(_ source: EvaluatedElement, state: OpenUIState) -> Self {
         let commit = state.nativePresentation
         let element = state.nativeLiveElement(matching: source)
-        let queries = element.sourceReadiness.queryDependencies.map { commit.queryStates[$0.displayString] }
+        let feedback = nativeQueryDependencyFlags(element.sourceReadiness.queryDependencies,
+            isComplete: commit.isComplete, isInterrupted: commit.isInterrupted,
+            status: { commit.queryStates[$0.displayString]?.status })
         return Self(element: element, ready: state.nativeIsElementReady(element),
             sourceRevision: commit.sourceRevision, presentationRevision: commit.presentationRevision,
             streaming: !commit.isComplete, queryLoading: commit.isQueryLoading,
-            pendingData: queries.contains { $0?.status == .loading || (!commit.isComplete && ($0 == nil || $0?.status == .idle)) },
-            failedData: queries.contains { $0?.status == .error },
-            interruptedData: commit.isInterrupted && queries.contains { $0 == nil || $0?.status == .idle })
+            pendingData: feedback.pending, failedData: feedback.failed,
+            interruptedData: feedback.interrupted)
     }
 
     func hasSameInputs(as other: Self) -> Bool {

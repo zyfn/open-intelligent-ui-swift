@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.26 · 更新日期：2026-11-17
+文档版本：1.27 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -102,7 +102,23 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-本次从已核对的 main `1f070fe5428467ed60c6be2870a2f5f6e1386494` 集成此前独立的文档资源生命周期优化，保留主线的图片尺寸、自动重试、请求策略和 readiness 修复，见下一节；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。整合后的验收源码为 `315cd4edc9de744b8996a1b9c3bb271c6b34acbc`，执行记录为 [CI 44073952191](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44073952191)，逐项状态见[客户端复测收尾候选](#客户端复测收尾候选)。下文历史章节中的“本轮”“当前”“尚未执行”描述该轮交付时的状态，通过数量、客户端样本和 CI 结果仅属于其标明的版本，不覆盖后续执行记录。
+此前从已核对的 main `1f070fe5428467ed60c6be2870a2f5f6e1386494` 集成独立的文档资源生命周期优化，保留主线的图片尺寸、自动重试、请求策略和 readiness 修复，见[文档资源生命周期](#文档资源生命周期)；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。整合后的验收源码为 `315cd4edc9de744b8996a1b9c3bb271c6b34acbc`，执行记录为 [CI 44073952191](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44073952191)，逐项状态见[客户端复测收尾候选](#客户端复测收尾候选)。下文历史章节中的“本轮”“当前”“尚未执行”描述该轮交付时的状态，通过数量、客户端样本和 CI 结果仅属于其标明的版本，不覆盖后续执行记录。
+
+### Query 反馈去重与终态引号回归
+
+本轮从 `f8ea337cd1421dae08fd224ce27428e47215e4b0` 开始，交付前整合主线 `d2e4cabdb649452f9ddc02c851ad20d1d9aa1998` 的图片占位主题更新。Context 与原生呈现的 Query 反馈改为同一个内部函数，一次遍历计算 pending、failed、interrupted，删除临时 Query 数组；两个调用方仍分别读取实时状态和同一份不可变提交。Core 构建中的嵌套变换展开为原顺序的语句，合并职责重叠的插件包装。没有新增公开 API、缓存、状态所有者或语言解析路径。
+
+引号案例加入现有 `native-streaming.test.mjs` 和 `CompletionDeliveryTests`，均使用实际 OpenUI 组件契约。未转义输入固定保留原样，验证终态的两个文本前缀与四项诊断；正确转义对照验证完整正文、空诊断，以及批量和逐字符输入的一致性。Swift 用例还覆盖 `onParseResult` 和最终 `state.errors`，不要求完成时再次触发已去重的 `onError`。这些测试记录现有容错行为，宿主展示规则见 [README](../README.md#终态与诊断)。日志重建的最小输入不代表原会话全文回放，也未确定转义在哪一环丢失。
+
+| 检查 | 实际结果与边界 |
+| --- | --- |
+| 正常 Core 重建 | PASS；`lang-core.js` 仍为 867,563 bytes，SHA-256 `cff0c3f3dd7009ef0f779e1e16b1fb510087c79ff2dedc8f081987fc35cd2a49` 与基线相同；生成清单仅更新 adapterSha256 |
+| 全部 Core JS 回归 | **172/172 PASS，0 failed、0 skipped**，含新增的两项引号回归；单独运行流式文件为 28/28，已包含在 172 项中 |
+| 独立上游对照 | PASS：51 parser、5 action、4 Query、6 serializer round-trip、21 Lang 1.1、2 split/merge 对照，`unexplainedDifferences=0` |
+| 源码所有权与格式 | `check_openui_integration.py` 和 `git diff --check` PASS；不代表原生编译通过 |
+| Swift 原生验收 | BLOCKED：定向 XCTest、完整 `swift test`、Release host 子集均因找不到 swift 返回 127；模块图检查同样无法运行 `swift package dump-package`。新增 4 项 XCTest 尚未编译/执行，其中 Query 反馈测试含 24 组状态预期及实时/提交边界检查 |
+
+执行证据在忽略的 `outputs/lang-runtime-boundaries/`。删除中间数组和合并遍历属于源码层面的工作收敛；本轮没有 Apple App CPU、内存、帧率或 push 延迟测量，不据此宣称设备性能提升。
 
 ### 文档资源生命周期
 

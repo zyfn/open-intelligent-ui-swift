@@ -63,10 +63,12 @@ public struct OpenUIComponentContext {
             self.hasDataFailure = presentation.failedData
             self.hasInterruptedData = presentation.interruptedData
         } else {
-            let queries = element.sourceReadiness.queryDependencies.map { state.queryStates[$0.displayString] }
-            self.hasPendingData = queries.contains { $0?.status == .loading || (!state.isComplete && ($0 == nil || $0?.status == .idle)) }
-            self.hasDataFailure = queries.contains { $0?.status == .error }
-            self.hasInterruptedData = state.isInterrupted && queries.contains { $0 == nil || $0?.status == .idle }
+            let feedback = nativeQueryDependencyFlags(element.sourceReadiness.queryDependencies,
+                isComplete: state.isComplete, isInterrupted: state.isInterrupted,
+                status: { state.queryStates[$0.displayString]?.status })
+            self.hasPendingData = feedback.pending
+            self.hasDataFailure = feedback.failed
+            self.hasInterruptedData = feedback.interrupted
         }
     }
 
