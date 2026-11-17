@@ -148,7 +148,30 @@ jobs:
           mkdir -p outputs/verification
           { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
             2>&1 | tee outputs/verification/provenance.log
+      - name: OpenUI media and text regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          for configuration in debug release; do
+            if swift test --configuration "$configuration" --filter 'NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests' \
+                2>&1 | tee "outputs/verification/openui-media-text-$configuration.log"; then
+              :
+            else
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - name: Retain OpenUI regression diagnostics immediately
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-openui-media-text-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/openui-media-text-*.log
+          if-no-files-found: warn
+          retention-days: 7
       - name: All native package tests
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail

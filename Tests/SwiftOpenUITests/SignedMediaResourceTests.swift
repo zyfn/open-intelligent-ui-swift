@@ -8,6 +8,35 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class SignedMediaResourceTests: XCTestCase {
+  @MainActor func testPNGFixturesRoundTripAsOpaquePrimaryColors() throws {
+    let fixtures: [(name: String, color: NSColor, rgba: [UInt8])] = [
+      ("red", .red, [255, 0, 0, 255]),
+      ("green", .green, [0, 255, 0, 255]),
+      ("blue", .blue, [0, 0, 255, 255])
+    ]
+    for fixture in fixtures {
+      let data = try png(fixture.color)
+      let source = try XCTUnwrap(CGImageSourceCreateWithData(data as CFData, nil))
+      let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(source, 0, nil))
+      XCTAssertEqual(image.width, 2)
+      XCTAssertEqual(image.height, 2)
+      // Decode the fixture without SDK code so transparent input cannot be
+      // mistaken for a resource or mounted-rendering regression.
+      let space = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+      let canvas = try XCTUnwrap(CGContext(data: nil, width: 2, height: 2,
+        bitsPerComponent: 8, bytesPerRow: 8, space: space,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+      canvas.setBlendMode(.copy)
+      canvas.draw(image, in: CGRect(x: 0, y: 0, width: 2, height: 2))
+      let pixels = try XCTUnwrap(canvas.data).assumingMemoryBound(to: UInt8.self)
+      for y in 0..<2 { for x in 0..<2 {
+        let offset = y * canvas.bytesPerRow + x * 4
+        let rgba = Array(UnsafeBufferPointer(start: pixels.advanced(by: offset), count: 4))
+        XCTAssertEqual(rgba, fixture.rgba, "\(fixture.name) pixel (\(x), \(y)) must retain its opaque primary color")
+      } }
+    }
+  }
+
   @MainActor func testMountedImageRecoversTransientFailureWithoutATapOrNewSignature() async throws {
     let loader = SignedImageLoader(data: try png(.red), transientFailures: 1)
     let log = SignedImageStatusLog()
@@ -40,13 +69,13 @@ final class SignedMediaResourceTests: XCTestCase {
   }
 
   @MainActor func testPreviewUpgradesAThumbnailWithoutChangingItsSignedRequest() async throws {
-    let data = try largePNG(side: 512)
+    let data = try png(side: 512)
     let loader = SignedImageLoader(data: data, heldPaths: ["detail.png"])
     let resources = OpenUIResourceContext(loader: loader)
     let cache = NativeMediaCache()
     let target = NativeMediaResourceTarget(source: "https://signed.test/detail.png", resources: resources)
     let request = target.resolve(in: cache)
-    let thumbnail = try await NativeMediaCache.prepare(largePNG(side: 512, color: .blue), loader: loader, targetPixelSize: 32)
+    let thumbnail = try await NativeMediaCache.prepare(png(side: 512, color: .blue), loader: loader, targetPixelSize: 32)
     cache.insert(thumbnail, for: request)
     cache.markPresented(request)
     let probe = SignedPixelProbe()
@@ -274,7 +303,7 @@ final class SignedMediaResourceTests: XCTestCase {
     XCTAssertTrue(ready(), "Mounted resource did not reach the expected state", file: file, line: line)
   }
 
-  @MainActor private func largePNG(side: Int, color: NSColor = .red) throws -> Data {
+  @MainActor private func png(side: Int, color: NSColor = .red) throws -> Data {
     let canvas = try XCTUnwrap(CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
       bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
     canvas.setFillColor(color.cgColor)
@@ -335,12 +364,7 @@ final class SignedMediaResourceTests: XCTestCase {
   }
 
   @MainActor private func png(_ color: NSColor) throws -> Data {
-    let pixels = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
-      pixelsWide: 2, pixelsHigh: 2, bitsPerSample: 8, samplesPerPixel: 4,
-      hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-      bytesPerRow: 8, bitsPerPixel: 32))
-    for x in 0..<2 { for y in 0..<2 { pixels.setColor(color, atX: x, y: y) } }
-    return try XCTUnwrap(pixels.representation(using: .png, properties: [:]))
+    try png(side: 2, color: color)
   }
 }
 

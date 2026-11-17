@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.14 · 更新日期：2026-11-17
+文档版本：1.15 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -382,7 +382,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ### OpenUI 图片与首次正文准备
 
-本轮从 `ceb90cdf` 创建独立候选，只处理 OpenUI 图片与原生 Markdown 的重复工作和恢复路径，必要的资源/诊断基础设施仍归 SwiftLang。SwiftIntelligentUI、语言输入契约、固定 JS、来源 fixture 与既有断言保持；没有把此前未合入的文档资源生命周期分支整体带入。
+本轮从 `ceb90cdf` 创建独立候选，只处理 OpenUI 图片与原生 Markdown 的重复工作和恢复路径，必要的资源/诊断基础设施仍归 SwiftLang。SwiftIntelligentUI、语言输入契约、固定 JS、原始 Lang fixture 与既有行为断言保持；没有把此前未合入的文档资源生命周期分支整体带入。
 
 | 路径 | 本轮实现 | 验证目标 |
 | --- | --- | --- |
@@ -391,9 +391,15 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 失败归因 | 保留原 URLError 类型/代码，附加 HTTP 状态与预算阶段；调试日志只输出固定阶段及数值 | 区分响应字节、源像素、解码缓冲及 HTTP；无地址/凭据/任意错误文本进入日志 |
 | 首次 Markdown | 后台首次 pending 时，同配置追加复用可读 fallback；中间结果照常交付，纠正与配置变化退休旧任务 | 受控 worker 的连续追加、中间进展、共享前缀纠正、配置切换、取消/重新进入；没有 prepared 的首次读取及已有 prepared 的兼容前缀读取 |
 
-对应原生入口为 `NativeImageSizingTests`、`NativeMediaRetryTests`、`NativeMediaResourceTests`、`SignedMediaResourceTests`、`ResourceStoreTests`、`StreamingTextPresentationTests`，并保留 `MountedStreamingTextProgressTests`、`StreamingMediaRetentionTests`、`HostSizingIsolationTests` 和 `RuntimeHostIsolationTests`。本轮新增的定向入口并入现有 Release 回归筛选，不删除旧类别；全量 `swift test` 继续是独立门禁。
+对应原生入口为 `NativeImageSizingTests`、`NativeMediaRetryTests`、`NativeMediaResourceTests`、`SignedMediaResourceTests`、`ResourceStoreTests`、`StreamingTextPresentationTests`，并保留 `MountedStreamingTextProgressTests`、`StreamingMediaRetentionTests`、`HostSizingIsolationTests` 和 `RuntimeHostIsolationTests`。图片与文字回归在全量门禁前分别执行 Debug / Release，并立即归档日志；全量 `swift test` 在定向失败后仍执行，现有 Release 大组也保留全部旧类别。该顺序用于尽早取得用例证据，不改变整体验收要求。
 
-本轮在 Linux 上实际尝试原生命令，但环境没有 Swift/Xcode；新增与既有 XCTest 尚未编译或执行。检查命令、退出码与日志在忽略的 `outputs/verification/openui-media-responsiveness/`。源码审查、格式/所有权检查及新测试 PNG 的 CRC/解压行检查不构成 ImageIO、SwiftUI 或设备流畅度验收。默认仍下载原 src，不能把像素缓冲估算写成网络流量或 App CPU 的实测下降；首次图片失败的客户端根因仍须由具体 HTTP/错误与实际限制判定。
+本地 Linux 没有 Swift/Xcode，原生命令实际退出 127；原生执行随后由 macOS CI 完成。首个候选 `05f0786f` 的新增测试存在 `CGSize(width: .infinity, ...)` 类型歧义，`4679be97` 显式改为 `CGFloat.infinity` 后编译通过。[该提交的完整 CI](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44033110029) 通过了独立产品消费者、Release fitting、Gallery 测试与案例、历史契约、性能工具与既有基准、iOS 16 Simulator SDK 编译及 Gallery App 构建。Debug 已观察到 691 个通过、13 个失败，随后在 Query 预算用例期间以 signal 10 中止；13 个失败 testcase 与 `ceb90cdf` 基线一致。ASan 仍有基线相同的 3 个失败 testcase 与 signal 4 中止，日志没有 AddressSanitizer 内存错误诊断。这些中止不能记作全量通过。
+
+`4679be97` 的 Release 扩大组执行 278 项、264 项通过、14 项失败，其中最初新增的 34 项有 32 项通过；新增两项失败都落在 Signed 图片的可见像素条件。原有三项 Signed 测试同样失败，但此前 main 的全量测试在到达该类前中止，旧 Release filter 又未包含该类，不能直接把它们标成已复现的基线失败。其他扩入的 SVG 回退失败已在 main 的 Debug 日志存在。
+
+为区分测试输入与 SDK 渲染，[独立 macOS 探针](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44038302782) 原样运行 main 与候选共同的 2×2 `NSBitmapImageRep.setColor` 造图器，并在进入 SDK 前用 ImageIO 回读。要求红、绿、蓝的三张原始 PNG 各四个像素实际全为 RGBA `(0,0,0,0)`；同尺寸、同颜色的既有 CGContext 造图路径则分别回读 `(255,0,0,255)`、`(0,255,0,255)`、`(0,0,255,255)`。原 helper 的 SHA-256 为 `82ae11797117be394556bd99ad9c100702bd879e4bf465ae89ef39a16ba4e099`，原 PNG、逐像素 JSON 与代码保留在该探针 artifact。测试造图器据此统一到既有 CGContext 路径，仍生成原先要求的 2×2 不透明主色，并增加独立颜色往返检查；原有显示、签名、请求、取消及尺寸断言全部保留。该修正不修改 SDK 生产源码或原始 Lang fixture，修正后的执行结果以对应分支流水线日志为准。
+
+检查命令、完整日志、基线对照与探针原图保存在忽略的 `outputs/verification/openui-media-responsiveness/`。默认仍下载原 src，不能把卡片像素缓冲的减少写成网络流量或 App CPU 的实测下降；测试造图器的透明像素也不能解释真实客户端的首次图片失败，该根因仍须由具体 HTTP/错误与实际限制判定。当前整体原生门禁仍未关闭，源码审查、局部通过及构建成功均不等于客户端流畅度验收。
 
 最小客户端对照使用同一 Release App、设备、源码、节点数与图片，分别回放一次性静态和既有 24 units / 80ms 流式输入；图片再分同几何静态占位、已完成的缓存图片、冷加载三组。该控制实验保持原始 Lang，不改历史 fixture 以压低负载。各组记录被动展示和相同滚动过程的主线程占用、帧停顿、峰值内存及图片请求/解码次数。Instruments `org.openui.swiftlang` / `Runtime` 的 `Image decode`、`Markdown preparation`、`Markdown fallback` 与既有 Parse/Root evaluation/Native projection/Live index/Bridge cleanup 对照，可区分图片、正文准备和同步内核成本。没有设备 trace 时不把剩余整 root 工作、周期桥接清理或屏外 shimmer 指定为当前 App 唯一根因。
 
