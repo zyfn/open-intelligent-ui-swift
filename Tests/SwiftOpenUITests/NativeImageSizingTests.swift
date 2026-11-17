@@ -23,7 +23,7 @@ final class NativeImageSizingTests: XCTestCase {
       NativeMediaPreview.displaySize(viewport: CGSize(width: 400.1, height: 225.1), scale: 3, mode: .fill),
       NativeMediaPreview.displaySize(viewport: CGSize(width: 400.2, height: 225.2), scale: 3, mode: .fill))
     XCTAssertNil(NativeMediaPreview.displaySize(viewport: .zero, scale: 3, mode: .fill))
-    XCTAssertNil(NativeMediaPreview.displaySize(viewport: CGSize(width: .infinity, height: 100), scale: 3, mode: .fill))
+    XCTAssertNil(NativeMediaPreview.displaySize(viewport: CGSize(width: CGFloat.infinity, height: 100), scale: 3, mode: .fill))
     XCTAssertNil(NativeMediaPreview.displaySize(viewport: CGSize(width: 400, height: 0), scale: 3, mode: .fit))
     XCTAssertNil(NativeMediaPreview.displaySize(viewport: card, scale: .nan, mode: .fill))
   }
