@@ -37,6 +37,16 @@ enum NativeAccessibilityTestSupport {
         return value as? String
     }
 
+    static func readableValue(of element: NSObject) -> String? {
+        // AppKit exposes a human-readable value separately from the raw value.
+        // Prefer the published description when checking what an assistive
+        // client reads, without manufacturing an expected value.
+        if let description = stringAttribute("accessibilityValueDescription", of: element), !description.isEmpty {
+            return description
+        }
+        return stringAttribute("accessibilityValue", of: element)
+    }
+
     static func elements(in root: NSObject) -> [NSObject] {
         var visited = Set<ObjectIdentifier>()
         var elements: [NSObject] = []

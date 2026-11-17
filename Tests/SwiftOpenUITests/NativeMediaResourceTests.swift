@@ -159,21 +159,33 @@ final class NativeMediaResourceTests: XCTestCase {
     window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
     defer { window.close() }
     try await NativeAccessibilityTestSupport.activate(in: host)
+    var graphicCandidates: [String] = []
     func graphicAccessibility() -> (label: String, value: String)? {
+      var matches: [(label: String, value: String)] = []
+      graphicCandidates.removeAll(keepingCapacity: true)
       for element in NativeAccessibilityTestSupport.elements(in: host) {
-        if NativeAccessibilityTestSupport.stringAttribute("accessibilityLabel", of: element) == alternative {
-          return (alternative, NativeAccessibilityTestSupport.stringAttribute("accessibilityValue", of: element) ?? "")
-        }
+        guard let label = NativeAccessibilityTestSupport.stringAttribute("accessibilityLabel", of: element),
+          label == alternative else { continue }
+        let value = NativeAccessibilityTestSupport.stringAttribute("accessibilityValue", of: element)
+        let role = NativeAccessibilityTestSupport.stringAttribute("accessibilityRole", of: element)
+        let description = NativeAccessibilityTestSupport.stringAttribute("accessibilityValueDescription", of: element)
+        graphicCandidates.append("\(String(reflecting: type(of: element))) role=\(String(describing: role)) value=\(String(describing: value)) valueDescription=\(String(describing: description))")
+        matches.append((label, NativeAccessibilityTestSupport.readableValue(of: element) ?? ""))
       }
-      return nil
+      // A native wrapper can inherit its only child's label while the virtual
+      // semantic child owns the value. Inspect all matching nodes before
+      // selecting a value; never select by the expected loading/error text.
+      return matches.first { !$0.value.isEmpty } ?? matches.first
     }
     let loading = NSLocalizedString("Loading", bundle: NativeControlResources.bundle, comment: "")
     let unavailable = NSLocalizedString("Unable to load graphic", bundle: NativeControlResources.bundle, comment: "")
     host.layoutSubtreeIfNeeded()
     try await Task.sleep(nanoseconds: 50_000_000)
     let loadingHeight = host.fittingSize.height
-    XCTAssertEqual(graphicAccessibility()?.label, alternative)
-    XCTAssertEqual(graphicAccessibility()?.value, loading)
+    let loadingAccessibility = graphicAccessibility()
+    print("SVG loading accessibility: \(graphicCandidates)")
+    XCTAssertEqual(loadingAccessibility?.label, alternative, "\(graphicCandidates)")
+    XCTAssertEqual(loadingAccessibility?.value, loading, "\(graphicCandidates)")
     XCTAssertEqual(loader.signingCount, 0, "An unclosed source cannot start an SVG resource request")
 
     state.interrupt()
@@ -188,10 +200,12 @@ final class NativeMediaResourceTests: XCTestCase {
     // Visible multiline failure copy is no longer part of this presentation.
     XCTAssertEqual(host.fittingSize.height, loadingHeight, accuracy: 1,
       "A terminal graphic state must preserve its reserved frame")
-    XCTAssertEqual(graphicAccessibility()?.label, alternative,
-      "The complete authored alternative remains readable after interruption")
-    XCTAssertEqual(graphicAccessibility()?.value, unavailable,
-      "The mounted graphic must stop announcing a load after its stream is interrupted")
+    let unavailableAccessibility = graphicAccessibility()
+    print("SVG interrupted accessibility: \(graphicCandidates)")
+    XCTAssertEqual(unavailableAccessibility?.label, alternative,
+      "The complete authored alternative remains readable after interruption; \(graphicCandidates)")
+    XCTAssertEqual(unavailableAccessibility?.value, unavailable,
+      "The mounted graphic must stop announcing a load after its stream is interrupted; \(graphicCandidates)")
     XCTAssertEqual(loader.signingCount, 0, "Stopping an incomplete stream must not submit its partial address")
   }
   #endif

@@ -25,7 +25,13 @@ public struct OpenUIComponentHost<Content: View>: View {
     }
 
     public var body: some View {
-        NativeComponentContent(element: element, registry: registry, state: state,
+        #if DEBUG
+        if nativeComponentDiagnosticsEnabled(element) {
+            print("NATIVE_HOST \(nativeComponentDiagnosticName(element)) state=\(ObjectIdentifier(state)) element=\(ObjectIdentifier(element)) content=\(ObjectIdentifier(contentIdentity)) registry=\(registry.renderRevision)")
+            Self._printChanges()
+        }
+        #endif
+        return NativeComponentContent(element: element, registry: registry, state: state,
             contentIdentity: contentIdentity, content: content).equatable()
     }
 }
@@ -78,12 +84,25 @@ private struct NativeComponentContent<Content: View>: View, Equatable {
     @Environment(\.openUIUserInteraction) private var userInteraction
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.state === rhs.state && lhs.contentIdentity === rhs.contentIdentity
+        let equal = lhs.state === rhs.state && lhs.contentIdentity === rhs.contentIdentity
             && lhs.registry.renderRevision == rhs.registry.renderRevision
             && nativePresentationInputsEqual(lhs.element, rhs.element)
+        #if DEBUG
+        if nativeComponentDiagnosticsEnabled(rhs.element) {
+            print("NATIVE_CONTENT_EQUAL \(nativeComponentDiagnosticName(rhs.element)) result=\(equal) state=\(lhs.state === rhs.state) content=\(lhs.contentIdentity === rhs.contentIdentity) registry=\(lhs.registry.renderRevision == rhs.registry.renderRevision) element=\(lhs.element === rhs.element)")
+        }
+        #endif
+        return equal
     }
 
     var body: some View {
+        #if DEBUG
+        if nativeComponentDiagnosticsEnabled(element) {
+            print("NATIVE_CONTENT \(nativeComponentDiagnosticName(element)) subscription=\(ObjectIdentifier(subscription)) state=\(ObjectIdentifier(state)) element=\(ObjectIdentifier(element)) content=\(ObjectIdentifier(contentIdentity)) registry=\(registry.renderRevision) storeRevision=\(state.nativePresentation.storeRevision)")
+            Self._printChanges()
+            print("NATIVE_ENV \(nativeComponentDiagnosticName(element)) values=\(String(reflecting: values)) resources=\(resources) form=\(String(reflecting: formName)) exactForm=\(String(reflecting: exactFormName)) program=\(String(reflecting: programScoped)) interactionReady=\(interactionScopeReady) activation=\(String(reflecting: activationIntent.map(ObjectIdentifier.init))) userInteraction=\(userInteraction == nil ? "nil" : "present")")
+        }
+        #endif
         let (presentation, reads) = subscription.begin(element: element, state: state)
         let element = presentation.element
         var context = OpenUIComponentContext(element: element, registry: registry, state: state,
@@ -107,6 +126,18 @@ private struct NativeComponentContent<Content: View>: View, Equatable {
         }
     }
 }
+
+#if DEBUG
+// Temporary, opt-in native CI diagnostics. Remove before merging the repair.
+private func nativeComponentDiagnosticsEnabled(_ element: EvaluatedElement) -> Bool {
+    (element.typeName == "Reader" || element.typeName == "Group")
+        && ProcessInfo.processInfo.environment["OPENUI_TRACE_COMPONENTS"] == "1"
+}
+
+private func nativeComponentDiagnosticName(_ element: EvaluatedElement) -> String {
+    "type=\(element.typeName) id=\(PropValue.string(element, "id") ?? "group")"
+}
+#endif
 
 private struct OpenUIProgramScope<Content: View>: View {
     let owner: ObjectIdentifier

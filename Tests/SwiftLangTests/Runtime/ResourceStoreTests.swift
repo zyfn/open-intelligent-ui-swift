@@ -519,6 +519,9 @@ extension ResourceStoreTests {
   @MainActor func testSharedByteCountLimitAlsoBoundsEmptyResponses() async throws {
     let budget = NativeResourceCacheBudget(maximumCost: 1, maximumCount: 2)
     let stores = (0..<3).map { _ in NativeResourceStore(budget: budget) }
+    // Scoped loaders and the shared budget intentionally do not retain their
+    // document owners. Keep them alive past the last array use in Release too.
+    defer { withExtendedLifetime(stores) {} }
     let loader = ScopedFixtureLoader()
     loader.account = ""
     let contexts = stores.map { $0.scoped(.init(loader: loader)) }

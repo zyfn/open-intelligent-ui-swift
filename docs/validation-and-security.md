@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.20 · 更新日期：2026-11-17
+文档版本：1.21 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -100,7 +100,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ## 4. 内核稳定性审查与当前验收状态
 
-当前候选从已核对的 main `1f070fe5428467ed60c6be2870a2f5f6e1386494` 集成此前独立的文档资源生命周期优化，保留主线的图片尺寸、自动重试、请求策略和 readiness 修复，见下一节；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。下文各历史轮次的通过数量、客户端样本和 CI 状态仅属于其标明的版本。
+当前候选从已核对的 main `1f070fe5428467ed60c6be2870a2f5f6e1386494` 集成此前独立的文档资源生命周期优化，保留主线的图片尺寸、自动重试、请求策略和 readiness 修复，见下一节；此前的内核清理记录见[内核职责与失败边界清理](#内核职责与失败边界清理)。当前逐项执行状态见[客户端复测收尾候选](#客户端复测收尾候选)。下文历史章节中的“本轮”“当前”“尚未执行”描述该轮交付时的状态，通过数量、客户端样本和 CI 结果仅属于其标明的版本，不覆盖后续执行记录。
 
 ### 文档资源生命周期
 
@@ -112,12 +112,14 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 此次集成保留这 15 项，另增加一项共享图片预算与当前请求策略的组合回归：修改限额后允许较小的有效图片替换旧高清缓存，拒绝旧限额结果、退休 scope 和不匹配的 owner 入池。冲突解决同时保留主线的显示尺寸、HTTP 自动重试、签名请求及全部限额检查；Release 筛选取两条分支的完整并集。原独立分支的检查结果列在下表，不作为此次集成的原生通过证据。
 
-| 本轮检查 | 实际结果与边界 |
+| `dad6d4f` 交付时的检查 | 当时的实际结果与边界 |
 | --- | --- |
 | 实际打包核心的 JS 回归 | 167/167 通过，0 failed、0 skipped；本轮 JS 资源未修改，这只保留语言行为基线，不覆盖新的 Swift 实现 |
 | Validation / catalog compatibility | 6/6 与 7/7 通过，0 failed、0 skipped |
 | 资源完整性与源码归属 | `check_openui_integration.py` 通过；lang-core.js、manifest 和许可 SHA-256 与基线一致；没有修改历史 fixture |
-| 原生测试与完整 SwiftPM 图 | 本地 `swift test` 与模块图检查实际受缺少 Swift 工具链阻塞；新增 XCTest 未编译、未执行，Release fitting 与设备 UI 复测未运行 |
+| 原生测试与完整 SwiftPM 图 | 当时本地 `swift test` 与模块图检查受缺少 Swift 工具链阻塞；新增 XCTest 未编译、未执行，Release fitting 与设备 UI 复测未运行 |
+
+集成候选 `21cbb3e` 已在 macOS CI 运行扩大后的 Debug 前置组，103/103 通过，其中新增生命周期回归 16/16 通过。Release 和完整门禁结果统一记录于[客户端复测收尾候选](#客户端复测收尾候选)，不再以独立分支交付时的工具链限制描述集成后的状态。
 
 本地日志在忽略的 `outputs/document-resource-lifetime/`。缓存上限不包含宿主强持有的所有历史 State、挂载图片、工具结果和系统资源；本轮没有自动卸载文档、暂停 Query、删除未提交草稿或实现完整 checkpoint。缓存淘汰后再次访问旧资源可能重新加载。每个未桥接原生引用现在也持有一枚空身份记录，净分配成本和移除全表扫描的实际收益需同条件 Release 测量。尚无本候选的 App CPU、真机内存、帧率或持续滚动证据，不据此宣布客户端卡顿或长会话问题已全部解决。
 
@@ -434,7 +436,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 | 问题 | 独立依据与本次处理 |
 | --- | --- |
-| 深层 Query 结果使测试进程中止 | 原日志只有 signal 10/4，没有可用内存错误栈。数组/对象的数据预算检查改为显式帧栈，保留全部额度、DAG 成本与循环检查；原崩溃用例不改，新增 512 KiB 工作线程上的 256/257/300 层检查及释放。是否解除崩溃以原生执行为准 |
+| 深层 Query 结果使测试进程中止 | 原日志只有 signal 10/4，没有可用内存错误栈。数组/对象的数据预算检查改为显式帧栈，保留全部额度、DAG 成本与循环检查；原崩溃用例不改，新增 512 KiB 工作线程上的 256/257/300 层检查及释放。后续 `1f070fe` Debug 深层前置 55/55、SwiftLang ASan 428/428 通过；`21cbb3e` 扩大后的 Debug 前置 103/103 通过，原失败用例在这些执行中未再中止 |
 | 闭合组件仍不可交互、饼图初始为空 | 独立 shipped-bundle 探针确认 pending statement 被无条件标成未闭合；删除这层标记，继续使用真实 token/AST 边界。原饼图输入在旧资源中 values.closed=true 而 complete=false，新资源中已一致。未闭合字符串、数组和嵌套动作的拒绝回归保留 |
 | 按钮“重挂载三次” | [原生隔离探针](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44043824471) 保留原断言，实际观测背景 GeometryReader 出现三次，而按钮边界只有一个 StateObject lifetime。布局测试改为计数持久组件身份，保留全部宽高和身份数量断言，没有改生产按钮 |
 | 精确表单字段缺失 | 同一探针证实测试构造的 Input 不属于 live tree，写入按既有成员资格规则被拒绝。正例改用真实节点的公共字段 API，保留精确 form/key 和 payload 断言；另加真实解析 Unicode 字段正例及非当前节点不可写的反例，不放宽执行资格 |
@@ -443,7 +445,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | Mutation patch 后状态 | 固定官方源码的独立构建确认原 patch 删除了不再被根引用的声明；该原始输入应没有状态项。保留取消、不等待 provider、用户编辑和旧结果隔离断言，以解析声明集合证明 nil；新增仍被根引用的声明保持 idle 对照 |
 | 手工 rootExpression 无结果 | 同一官方 oracle 证明求值阶段 Comp 需要 mappedProps；手工 AST 补齐属性映射，保留原 manual 结果断言，没有另建参数映射器 |
 | 临时文字尾空格 | 固定上游 preprocess 与 pending-statement trim 对未闭合前缀裁尾，闭合后保留原始尾空格。原分块不变，测试显式列出中间预览，并新增闭合尾空格到达同一挂载叶子的回归；不 trim 实际显示结果、不改固定 oracle |
-| 回退快照、纯文字采集、Card 图片宽度 | 原断言继续执行，补充构建/更新计数、纯 SwiftUI 对照、无障碍树/截图和实际 inset，等待原生证据定位；尚未宣布修好 |
+| 回退快照、纯文字采集、Card 图片宽度 | 该阶段保留原断言，补充构建/更新计数、纯 SwiftUI 对照、无障碍树/截图和实际 inset；后续已取得观测路径与退出视图覆盖记录的独立证据，定位、修正及逐提交验收见[客户端复测收尾候选](#客户端复测收尾候选) |
 
 本地实际执行 170 项 native JavaScript 回归全部通过；与未修改的固定官方源码对照完成 51 项 parser、5 项 action trace、4 项 Query snapshot、6 项 serializer、21 项 1.1.1 专项及 2 项 merge 比较，未解释差异为 0。上述两个原生测试前提的独立官方 oracle 另有 6 项断言通过。源码归属和工作流语法检查通过，模块脚本在本地仍因缺少 Swift 无法运行。CI 将深层数据和状态回归前置并立即归档，随后执行扩大的 Debug/Release 挂载组、原有全量和全部原有门禁；新增配置不代表原生检查已通过。
 
@@ -466,7 +468,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 **原生复验顺序。** 固定候选 revision，先编译并运行新增与既有 XCTest，保留每项失败的第一条 expected/actual。随后复跑用户的 10 项原生失败、signed media 和 SVG 拖动；稳定性补测包括 Store 往返与原子拒绝、Action 取消/累计预算、共享原生值 readiness、旧 Context 刷新、标准容器身份，以及 Gallery 窗口、高清升级和签名复用。不能因本轮实现覆盖相近模块就修改旧断言压绿。
 
-实际 Muse 半句停滞仍需取得原始输入与客户端回放，逐段关联输入、投影、发布、text buffer、Markdown prepared 与可见文本版本，检查“目标字段已完整，其他节点继续生成时，done 前画面必须更新”。新增 mounted 回归覆盖直接 Text 与 Markdown 的持续输入场景，但没有运行，且小型 SDK 用例不能替代复杂客户端回放。
+实际 Muse 半句停滞仍需取得原始输入与客户端回放，逐段关联输入、投影、发布、text buffer、Markdown prepared 与可见文本版本，检查“目标字段已完整，其他节点继续生成时，done 前画面必须更新”。覆盖直接 Text 与 Markdown 的 mounted 回归已在 macOS CI 执行；`1f070fe` 的三项文字采集用例失败，独立纯 SwiftUI 对照也无法被旧读取器取得。收尾候选修正实际无障碍树的观测路径，执行结果见[客户端复测收尾候选](#客户端复测收尾候选)；小型 SDK 用例不能替代复杂客户端回放。
 
 现有 `testCanonicalMarkdownPreparationCoalescesWithoutStarvingContinuousInput` 在 MainActor 同步循环投喂后才等待最终结果，未证明持续分片时的中间可见进展。文本 buffer 的 48 ms 逻辑是 throttle，追加不重置计时器；不能把真实停滞直接解释成普通 debounce。两个允许旧前缀的展示阶段和共享 Markdown worker 的等待需测量；如果直接 Text 也停滞，还要检查更上游的宿主、投影和发布。后续客户端断点与源码复核将一个确定缺陷收敛到变化回调交付旧捕获文本，修正见上节；没有把共享 native Value 的特殊触发当作该 App 事故的根因。共享 worker 的等待和其它性能成本仍需另测。
 
@@ -509,14 +511,14 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 - `OpenUIState.push` 仍在 MainActor 同步解析、整 root 求值/投影并建立 live index。持续细分块仍会增加整轮工作次数；本轮没有自动按显示帧合并输入，也没有改客户端的 push/complete/interrupt 使用方式。
 - 多步 Action 的累计额度已经加入，但逐步 Set/Reset 引发的 root 更新及计划结束后的更新仍保留。内部呈现提交与节点字段订阅不等于语言求值的增量依赖计算，也未合并跨步骤的语义工作；必须保留每步 Store 可见性、Mutation 失败即停止和事件次序，不可直接删中间通知。
 - Query 快照比较仍重复序列化完整数据，上述计数已确认其规模增长；本轮批量错误提取只减少原生呈现读取，没有删减 JS 快照比较。优化需保持 snapshot 值、正常通知及共享对象语义。Query 的内部通知投递已合并，实际原生执行次数和整 root 工作量尚未测量。旧 JS manager 探针中 100 个独立请求产生 100 次初始通知和 100 次完成通知；该计数不能直接换算成新实现的 MainActor 任务数，也不能宣称已测得“200 次变成 1 次”。不同执行时刻仍可能各产生一次呈现更新。
-- 普通 push 的公开 readiness/root 双重通知已收敛到一次 root 发布；SwiftLangView 现观察完整内部提交，轻量 ComponentHost 仍观察最近 State。节点字段订阅和 mounted 回归已加入，但未执行 Apple 测试，尚未取得真实“尾部更新而稳定兄弟不重算”的 body 计数。OpenUI 的 ActionSurface、字段和 EditableTable 已统一使用 Context 依赖；全局 partial 翻转、引用属性变化、Host 的环境观察和其他消费者仍会带来更新，不能宣称视图已完全隔离或 App CPU 已降低。
+- 普通 push 的公开 readiness/root 双重通知已收敛到一次 root 发布；SwiftLangView 现观察完整内部提交，轻量 ComponentHost 仍观察最近 State。节点字段订阅和 mounted 回归已在 macOS CI 执行：`1f070fe` 的普通流式尾部隔离用例通过，字段读者用例在媒体/文本 Debug 组出现首次额外重算，而全量、Release streaming 和 ASan 组通过。候选增加实际挂载订阅信号与呈现输入对照，结果见[客户端复测收尾候选](#客户端复测收尾候选)。OpenUI 的 ActionSurface、字段和 EditableTable 已统一使用 Context 依赖；全局 partial 翻转、引用属性变化、Host 的环境观察和其他消费者仍会带来更新，不能宣称视图已完全隔离或 App CPU 已降低。
 - SharedCore 用锁串行化共享 JavaScriptCore。锁保护线程安全，不会自动把工作移到后台；多个文档可能相互等待。迁移到 worker 需要同步定义不可变输入/输出、回调线程、取消和提交代次，不能用 `Task.detached` 直接包住当前 MainActor State。
 - 当前节点的 identity 快径和匿名 scalar 属性分桶不消除复杂引用节点的旧快照语义搜索；变化键比较也有成本。当前内核普通流会重建 JS 引用，整树索引遍历及每轮挂载订阅检查仍需原生计时，不能假定其复杂度已经降到只与文字尾部有关。
 - 尚无本轮真机 Release 的帧耗时、输入响应和长期内存数据。文档拥有的编辑记录保留离屏草稿，不能为压低缓存数字随意淘汰用户未提交内容；动态字段的长期留存需要专项测量。
 
 编码前保护的范围以适配清单为准：高层 OpenUIState、Query/Mutation 输入输出、Evaluator 上下文和 AST，以及本轮补齐的 SDK CoreStore、手工 Query AST 与 ParseResult fallback 都在相应编码边界预检。底层 Store 保留原有 void 写入/初始化签名，拒绝时保留旧值，并通过内部失败状态供 OpenUIState 走已有错误渠道；没有新增客户端写入 API。自定义 Store 的策略、宿主函数返回前的自身计算，以及 provider 忽略取消后仍在进行的外部工作不能被库抢占。不能将这些限制解释为任意宿主代码的隔离沙箱。
 
-现有 [LanguageRuntime 基准](../Benchmarks/LanguageRuntime/README.md) 使用公开 MainActor State 的真实流式路径及宽对象构造，报告逐次 push、complete、整流、发布次数与耗时分位数；CI 分片调整为客户端对照的 24/128 units 并保存 JSON，README 给出同样 201 节点参数。配置完成不等于测量已执行。原生验收还必须同时检查 terminal flush、停止/换源后旧结果失效、超限前无工具派发、完整控件可用、未完整控件不可执行，以及 Release UI 的 body/布局/挂载和滚动交互。
+现有 [LanguageRuntime 基准](../Benchmarks/LanguageRuntime/README.md) 使用公开 MainActor State 的真实流式路径及宽对象构造，报告逐次 push、complete、整流、发布次数与耗时分位数；CI 分片为客户端对照的 24/128 units 并保存 JSON，README 给出同样 201 节点参数。`1f070fe` 的 [CI run 44046828032](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44046828032) 已生成两组 Release 测量，rows=200、components=201、streamIterations=5；原始 JSON 保存在 `outputs/repair-baseline/native-acceptance/`。这些数值绑定该 runner，不把另一候选在不同 job 的数字当作同机性能提升。原生验收还必须同时检查 terminal flush、停止/换源后旧结果失效、超限前无工具派发、完整控件可用、未完整控件不可执行，以及 Release UI 的 body/布局/挂载和滚动交互。
 
 前轮纠正了旧基准调用与公共 API 的漂移：`Evaluator(context:store:schema:)` 的 `store` 实参已没有对应初始化器，基准改为当前 `Evaluator(context:schema:)`，状态仍由传入的 EvaluationContext 回调读取。YAML 及 workflow 内 shell 语法曾单独检查；这些检查不构成 Swift 编译通过的证明。
 
