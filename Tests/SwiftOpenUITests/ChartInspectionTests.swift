@@ -54,6 +54,7 @@ final class ChartInspectionTests: XCTestCase {
     window.isReleasedWhenClosed = false; window.contentView = host
     window.setFrameOrigin(.init(x: -10000, y: -10000)); window.orderFront(nil)
     defer { window.close() }
+    var captureNumber = 0
     func blueFraction() throws -> Double {
       host.layoutSubtreeIfNeeded()
       RunLoop.main.run(until: Date().addingTimeInterval(0.1))
@@ -70,12 +71,22 @@ final class ChartInspectionTests: XCTestCase {
             color.blueComponent < 0.3 { orange += 1 }
         }
       }
+      captureNumber += 1
+      print("OPENUI_PIE_FRAME", captureNumber, host.bounds, host.fittingSize, blue, orange)
+      if let directory = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"],
+        let png = image.representation(using: .png, properties: [:]) {
+        try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent("pie-\(captureNumber).png"))
+      }
       XCTAssertGreaterThan(blue + orange, 100, "A blank or loading chart cannot pass data retention")
       return Double(blue) / Double(max(1, blue + orange))
     }
 
     let initial = try blueFraction()
     XCTAssertEqual(initial, 0.25, accuracy: 0.03)
+    if initial == 0 {
+      host.displayIfNeeded()
+      print("OPENUI_PIE_SECOND_FRAME", try blueFraction())
+    }
     state.push("values=[3")
     XCTAssertFalse(state.isComplete)
     XCTAssertEqual(try blueFraction(), initial, accuracy: 0.02,

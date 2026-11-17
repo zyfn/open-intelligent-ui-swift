@@ -103,6 +103,7 @@ final class NativeComponentsTests: XCTestCase {
         let input = EvaluatedElement(typeName: "Input", props: [("name", .string(fieldName))])
         let fieldContext = OpenUIComponentContext(
             element: input, registry: library.registry, state: state, exactFormName: formName)
+        print("OPENUI_FORM_OWNER", fieldContext.canInteract, input === children[0])
         let field = NativeFieldState(context: fieldContext)
         field.initialize()
         field.write(.string("value"))
