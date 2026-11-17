@@ -152,7 +152,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test --filter 'QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests|ResourceCacheBudgetTests|ResourceStoreTests|SharedCoreBridgeTests' \
+          swift test --filter 'QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests|ResourceCacheBudgetTests|ResourceStoreTests|SharedCoreBridgeTests|SliderFeedbackRenderingTests' \
             2>&1 | tee outputs/verification/native-deep-data.log
       - name: Retain deep-data diagnostics immediately
         if: ${{ !cancelled() }}

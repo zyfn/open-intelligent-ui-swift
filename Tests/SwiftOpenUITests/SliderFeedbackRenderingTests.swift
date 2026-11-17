@@ -130,6 +130,38 @@ final class SliderFeedbackRenderingTests: XCTestCase {
     }
   }
 
+  @MainActor func testMountedFieldInitializesItsCompletedLiteralWithoutReplacingTheInput() throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    // Input's literal value is its initial field value. Its native TextField
+    // stays present while disabled, so this also observes the owner's lifetime.
+    state.push("root=Input(\"name\",null,\"text\",null,\"par")
+    let partial = try XCTUnwrap(state.root)
+    XCTAssertTrue(partial.sourceReadiness["name"].complete)
+    XCTAssertFalse(partial.sourceReadiness["value"].complete)
+    XCTAssertEqual(PropValue.value(partial, "value"), .string("par"))
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry).frame(width: 320))
+    let window = mount(host, width: 320, height: 120)
+    defer { window.close() }
+    pump(host)
+    let input = try numericInput(in: host)
+    XCTAssertFalse(input.isEnabled)
+    XCTAssertNil(state.snapshotState()["name"], "An incomplete literal must not initialize the Store")
+
+    state.push("t\")")
+    pump(host)
+
+    XCTAssertFalse(state.isComplete, "A closed field initializes before the surrounding stream finishes")
+    XCTAssertTrue(try numericInput(in: host) === input, "Completing the value must preserve the field owner")
+    XCTAssertTrue(input.isEnabled)
+    XCTAssertEqual(input.stringValue, "part")
+    XCTAssertNotNil(state.snapshotState()["name"])
+    XCTAssertEqual(state.fieldValue(form: nil, name: "name"), .string("part"),
+      "The completed initial value must reach the Store, not only appear through a read fallback")
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+  }
+
   @MainActor func testMountedNameChangeKeepsDraftsAndRejectedPendingWritesWithTheirField() throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
