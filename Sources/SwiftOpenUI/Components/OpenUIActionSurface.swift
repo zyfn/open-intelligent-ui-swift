@@ -96,10 +96,9 @@ private struct NativeActionSurface<Content: View>: View {
         if performing { return Text("In progress", bundle: NativeControlResources.bundle) }
         if hostEnabled && !context.canInteract {
             if context.hasDataFailure { return Text("Content unavailable", bundle: NativeControlResources.bundle) }
-            if context.hasInterruptedData || (!context.isStreaming && !context.hasPendingData) {
-                return Text("Content is incomplete", bundle: NativeControlResources.bundle)
+            if context.isStreaming || context.hasPendingData {
+                return Text("Loading", bundle: NativeControlResources.bundle)
             }
-            return Text("Loading", bundle: NativeControlResources.bundle)
         }
         return Text("")
     }

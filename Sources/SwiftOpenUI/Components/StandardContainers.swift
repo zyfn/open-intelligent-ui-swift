@@ -120,7 +120,7 @@ struct OpenUIStack: View {
             if !layoutReady && (projection.blocked || content.isEmpty),
                context.isStreaming || context.hasPendingData || context.hasDataFailure || content.isEmpty {
                 NativePendingContent(loading: !context.hasDataFailure && (context.isStreaming || context.hasPendingData),
-                    terminalMessage: context.hasDataFailure ? "Content unavailable" : "Content is incomplete")
+                    terminalMessage: context.hasDataFailure ? "Content unavailable" : nil)
             }
         }
     }

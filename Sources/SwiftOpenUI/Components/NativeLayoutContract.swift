@@ -101,17 +101,20 @@ struct NativePendingContent: View {
   /// Accessibility-only resource state; the renderer does not narrate an
   /// Agent's business activity while source/layout information is arriving.
   var message: LocalizedStringKey = "Loading"
-  var terminalMessage: LocalizedStringKey = "Content is incomplete"
+  // Source/layout incompleteness is an internal diagnostic. Only explicit
+  // component or resource failures provide a user-facing terminal message.
+  var terminalMessage: LocalizedStringKey?
   @Environment(\.openUITheme) private var theme
   @ScaledMetric(relativeTo: NativeTextRole.detail.textStyle) private var scale: CGFloat = 1
   var body: some View {
+    if loading || terminalMessage != nil {
     HStack(spacing: theme.spaceS) {
       if loading {
         NativeDelayedPresentation(active: true) { visible in
           if visible { NativeLoadingIndicator() }
         }.frame(width: theme.textLabelSm.size * scale,
           height: theme.textStyle(.supporting).font.measuredLineHeight(scale: scale))
-      } else {
+      } else if let terminalMessage {
         Text(terminalMessage, bundle: NativeControlResources.bundle)
           .nativeTextStyle(theme.textStyle(.supporting))
       }
@@ -120,6 +123,7 @@ struct NativePendingContent: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .allowsHitTesting(false)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel(Text(loading ? message : terminalMessage, bundle: NativeControlResources.bundle))
+    .accessibilityLabel(Text(loading ? message : terminalMessage ?? "", bundle: NativeControlResources.bundle))
+    }
   }
 }

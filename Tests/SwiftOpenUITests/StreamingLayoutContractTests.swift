@@ -36,6 +36,16 @@ final class StreamingLayoutContractTests: XCTestCase {
   }
 
   #if os(macOS)
+  @MainActor func testSourceOnlyTerminalFeedbackHasNoVisibleFooterOrReservedHeight() throws {
+    _ = NSApplication.shared
+    let quiet = NSHostingView(rootView: NativePendingContent(loading: false).frame(width: 320))
+    XCTAssertLessThan(quiet.fittingSize.height, 1)
+    let failure = NSHostingView(rootView: NativePendingContent(loading: false,
+      terminalMessage: "Content unavailable").frame(width: 320))
+    XCTAssertGreaterThan(failure.fittingSize.height, 10,
+      "Removing source diagnostics must not suppress explicit data/resource failures")
+  }
+
   @MainActor func testTerminalPartialStackKeepsReadablePrefixWithoutNarratingParserDiagnostics() throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
