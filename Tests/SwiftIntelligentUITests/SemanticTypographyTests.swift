@@ -4,6 +4,7 @@ import SwiftLang
 @testable import SwiftIntelligentUI
 #if os(macOS)
 import AppKit
+import CoreText
 #endif
 
 final class SemanticTypographyTests: XCTestCase {
@@ -67,9 +68,7 @@ final class SemanticTypographyTests: XCTestCase {
                 print("Typography metrics: size=\(size) role=\(titleSize) markdown=\(markdown) native=\(native)")
                 XCTAssertEqual(markdown, native, accuracy: 2, "heading \(prefix) at \(size)")
                 #if os(macOS)
-                if abs(markdown - native) > 2 {
-                    try diagnoseHeadingFont(level: prefix.count - 1, titleSize: titleSize, size: size)
-                }
+                try diagnoseHeadingFont(level: prefix.count - 1, titleSize: titleSize, size: size)
                 #endif
             }
         }
@@ -83,21 +82,45 @@ final class SemanticTypographyTests: XCTestCase {
         let preferred = InlineFonts.semantic(style: MarkdownTypography.nativeHeadingStyle(level: level), typeSize: size)
         let native = InlineFonts.styled(preferred, weight: theme.headingWeight, tabular: false, italic: false)
         let adapter = MarkdownFontStyle(native)
-        for (name, font) in [("preferred", preferred), ("styled", native)] {
-            print("Typography native font: size=\(size) role=\(titleSize) recipe=\(name) name=\(font.fontName) points=\(font.pointSize) ascent=\(font.ascender) descent=\(font.descender) leading=\(font.leading) descriptor=\(font.fontDescriptor.fontAttributes)")
+        let fixed = NSFont.systemFont(ofSize: adapter.size.rounded(), weight: InlineFonts.weight(adapter.weight))
+        let layout = NSLayoutManager()
+        func coreTextLineHeight(_ font: NSFont) -> CGFloat {
+            CTFontGetAscent(font as CTFont) + CTFontGetDescent(font as CTFont) + CTFontGetLeading(font as CTFont)
+        }
+        for (name, font) in [("preferred", preferred), ("styled", native), ("fixed", fixed)] {
+            print("Typography native font: size=\(size) role=\(titleSize) recipe=\(name) name=\(font.fontName) points=\(font.pointSize) ascent=\(font.ascender) descent=\(font.descender) leading=\(font.leading) ctLineHeight=\(coreTextLineHeight(font)) layoutLineHeight=\(layout.defaultLineHeight(for: font)) descriptor=\(font.fontDescriptor.fontAttributes)")
         }
         print("Typography adapter: role=\(titleSize) size=\(adapter.size) family=\(adapter.family) weight=\(adapter.weight) themeWeight=\(theme.headingWeight)")
-        let fonts: [(String, Font)] = [
-            ("semantic", TitleTypography.font(size: titleSize, theme: theme)),
-            ("native", Font(native)),
-            ("fixed-adapter-weight", .system(size: adapter.size.rounded()).weight(adapter.weight)),
-            ("fixed-theme-weight", .system(size: adapter.size.rounded()).weight(theme.headingWeight)),
+        let leadingDelta = max(0, native.leading - fixed.leading)
+        let coreTextDelta = max(0, coreTextLineHeight(native) - coreTextLineHeight(fixed))
+        let layoutDelta = max(0, layout.defaultLineHeight(for: native) - layout.defaultLineHeight(for: fixed))
+        print("Typography spacing candidates: size=\(size) role=\(titleSize) leading=\(leadingDelta) coreText=\(coreTextDelta) layout=\(layoutDelta)")
+        let fixedFont = Font.system(size: adapter.size.rounded()).weight(adapter.weight)
+        let fonts: [(String, Font, CGFloat)] = [
+            ("semantic", TitleTypography.font(size: titleSize, theme: theme), 0),
+            ("native", Font(native), 0),
+            ("fixed-native", Font(fixed), 0),
+            ("fixed-adapter-weight", fixedFont, 0),
+            ("fixed-theme-weight", .system(size: adapter.size.rounded()).weight(theme.headingWeight), 0),
+            ("fixed-leading-delta", fixedFont, leadingDelta),
+            ("fixed-coretext-delta", fixedFont, coreTextDelta),
+            ("fixed-layout-delta", fixedFont, layoutDelta),
         ]
-        for (name, font) in fonts {
-            let plain = try diagnosticHeight(Text(verbatim: copy).font(font), size: size)
+        let samples = [
+            ("copy", copy),
+            ("latin-one", "Heading"),
+            ("latin-two", "Heading\nHeading"),
+            ("cjk-one", "中文标题"),
+            ("cjk-two", "中文标题\n中文标题"),
+        ]
+        for (name, font, spacing) in fonts {
+            for (sample, text) in samples {
+                let plain = try diagnosticHeight(Text(verbatim: text).font(font).lineSpacing(spacing), size: size)
+                print("Typography isolated text: size=\(size) role=\(titleSize) recipe=\(name) sample=\(sample) spacing=\(spacing) plain=\(plain)")
+            }
             let attributed = try diagnosticHeight(
-                Text(InlineTypography.attributed(copy, font: font, emphasis: theme.headingWeight)).font(font), size: size)
-            print("Typography isolated text: size=\(size) role=\(titleSize) recipe=\(name) plain=\(plain) attributed=\(attributed)")
+                Text(InlineTypography.attributed(copy, font: font, emphasis: theme.headingWeight)).font(font).lineSpacing(spacing), size: size)
+            print("Typography isolated attributed: size=\(size) role=\(titleSize) recipe=\(name) spacing=\(spacing) attributed=\(attributed)")
         }
     }
 

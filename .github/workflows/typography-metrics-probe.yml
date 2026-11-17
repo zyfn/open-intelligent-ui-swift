@@ -1,0 +1,42 @@
+name: Isolated typography metrics probe
+
+on:
+  push:
+    branches: ['probe/openui-typography-metrics-20261117']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typography-metrics:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Record diagnostic provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs/typography-metrics
+          { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
+            2>&1 | tee outputs/typography-metrics/provenance.log
+      - name: Compare native and reconstructed heading metrics
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses|testMarkdownUsesTheSameBodyAndHeadingMetricsAtDynamicTypeSizes' \
+            2>&1 | tee outputs/typography-metrics/typography-metrics.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: typography-metrics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/typography-metrics/
+          if-no-files-found: error
+          retention-days: 7
