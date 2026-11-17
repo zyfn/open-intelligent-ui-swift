@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.13 · 更新日期：2026-11-18
+文档版本：1.14 · 更新日期：2026-11-18
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -188,7 +188,7 @@ readiness 与 root 由同一次公开 root 发布交付；Query、Mutation、错
 
 Context 的 element 和状态标志是构造时快照；字段与 Binding getter 保留动态读取行为，每次从最新的完整原生提交取值，不读正在提交的 Store。长期持有一个 Context 不等于冻结整个文档。`canInteract`、动作和写入继续在执行时检查当前文档、目标 membership 与 readiness，过期控件不能因旧只读快照仍可交互。若宿主在公开 setter 回调中强制拟合，旧内容仍可显示，而依赖 `canInteract` 的控件/链接可先被安全禁用；不承诺所有交互 gate 与旧显示快照同时切换。公开手工构造的 Context 和 Host 状态读写保留原有即时读取合同；内部只读呈现不是第二个可写 Store，也不新增客户端观察 API。
 
-OpenUI 的 EditableTable / Slider 在局部编辑 owner 处使用完整的 form/name 身份，动态换字段时选择该字段已有草稿，普通更新不重建控件；未闭合的名字仅有挂载期临时草稿。此边界不修改 RenderNode 或文档身份。Slider 通过弱 Context 使用现有写入路径的内部完成回调：实际 Store 写入通过预算后、公开更新前确认接受值，排队写入仍在执行时复查目标，拒绝明确结束。草稿先更新已提交基线，再仅清理对应编辑，保留绑定转换和同步重入的新输入；原有字段镜像及公开通知顺序不变。字段初始化仍由现有 Store 的缺失检查决定。组件行为与验收见 [OpenUI](openui.md#状态字段与动作) 和[验证说明](validation-and-security.md#sdk-正常接入与生命周期审查)。
+OpenUI 原生字段的初始化、焦点和校验注册归属于同一个完整的 form/name 身份；换字段时切换字段内容 owner，普通值更新不重建控件。EditableTable / Slider 按该身份选择文档已有草稿，未闭合的名字仅有挂载期临时草稿。此边界不修改外层 Context 订阅、RenderNode 或文档身份。Slider 通过弱 Context 使用现有写入路径的内部完成回调：实际 Store 写入通过预算后、公开更新前确认接受值，排队写入仍在执行时复查目标，拒绝明确结束。草稿先更新已提交基线，再仅清理对应编辑，保留绑定转换和同步重入的新输入；原有字段镜像及公开通知顺序不变。字段初始化仍由现有 Store 的缺失检查决定。组件行为与验收见 [OpenUI](openui.md#状态字段与动作) 和[验证说明](validation-and-security.md#sdk-正常接入与生命周期审查)。
 
 live index 继续遍历当前 root，建立 membership 和按当前深度优先顺序排列的候选；相同 root 引用可跳过重复索引。匿名且仅含标量属性的旧节点按属性分桶，具名/复杂节点保留原分组及语义/readiness 歧义检查。索引更新分别记录 membership 变化与呈现输入变化：仅当同键候选唯一、属性全为标量且完整呈现输入相同时，重建的元素包装可以保持呈现不变并跳过该订阅的 lookup/readiness capture。membership 仍立即换成实际新对象；字段、Query、执行资格及文档变化独立触发复核。引用属性和歧义候选继续保守检查，不递归比较业务值，也不保留历史图的引用账本。旧快照查找单次遍历候选并检查语义及歧义，不再创建匹配数组或把首候选的 readiness 与自身递归比较；属性遍历仍保留原深度边界。当前内核在普通文字流中仍重建内容稳定的 JS 节点，不能假设存在可复用的原生子树；没有保留依赖该假设的容器 DAG 缓存。真实流仍可能全量索引和检查全部挂载订阅。全局 partial、引用属性及真实 Store/Query 变化仍可更新多个组件，收益须以原生工作计数和实际挂载结果验证。
 

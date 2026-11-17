@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.30 · 更新日期：2026-11-18
+文档版本：1.31 · 更新日期：2026-11-18
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -135,6 +135,8 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 共享写入完成回调另由 `RuntimeReentrancyTests` 验证：实际转换后的值在公开状态通知之前确认；排队期间不提前确认；直接绑定、转换绑定、普通字段与表单字段在目标退休或预算拒绝时均只回调一次失败。既有无回调的入口不额外读取 Store，公开 API 与通知顺序保持。
 
 标准 OpenUI 的文档创建测量使用真实目录，在同一进程内交替执行“同一目录创建临时 facade 并复用 reader”和“每次重新 toSchema 的原路径”，各采样 12 次、预热两轮；计时在解析源码之前停止，并单独记录 facade 构造及首次创建文档（包含 reader 准备）的耗时。Debug/Release 输出沿用 `OPENUI_SNAPSHOT_DIR`，文件名为 `library-document-creation-debug.json` 和 `library-document-creation-release.json`。该测量不挂载界面，不代表会话加载总耗时、滚动帧率或真机收益，也不设置未经基线支持的时间阈值。不可变 schema 的按需准备与每文档 JS 身份边界见[架构](architecture.md#3-唯一的客户端运行链路)。
+
+首个候选 `fc45e0a9` 的 [macOS CI 44142858110](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44142858110) 已执行该测量：88 个组件的重复文档创建，Debug 的 p50 从逐次准备的 147.12 ms 变为复用后的 14.67 ms，Release 从 162.14 ms 变为 15.78 ms；首次创建仍含 reader 准备，分别为 135.07 ms、148.91 ms。该轮 OpenUI 子集在 Debug / Release 各执行 355 项，各有 3 项新字段默认值断言失败，不能据局部性能数据称整体通过。失败均为换字段、换 Form 或流式名字闭合后新字段的 Store 值仍为空；修正将既有初始化、焦点和校验注册统一到字段内容的生命周期，删除捕获旧字段的名称变化回调，原测试与断言保持。完整原生验收以修正提交的 CI 为准。
 
 源码所有权检查和当前随包 JS 的 172 项回归在本地通过；本地没有 Apple/Swift 编译环境，新增原生用例、完整 XCTest、Release fitting 与 iOS 编译的实际状态以该候选 CI 为准。现有 Debug/Release 子集加入 facade 与 Intelligent UI 挂载用例，没有另建测试流水线。执行证据在忽略的 `outputs/sdk-runtime-performance-review/`。
 

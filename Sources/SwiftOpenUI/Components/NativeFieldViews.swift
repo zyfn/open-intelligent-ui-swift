@@ -19,10 +19,12 @@ struct OpenUINativeField: View {
     enum Kind { case input, textArea, select, radio, checkbox, switches, slider, date, chips, optionCards }
     let context: OpenUIComponentContext
     let kind: Kind
+    @Environment(\.openUIFormNameReady) private var formNameReady
 
     var body: some View {
         OpenUIContextContent(context: context) { context in
-            NativeFieldContent(context: context, kind: kind)
+            let identity = NativeFieldEditingIdentity(context, formNameReady: formNameReady)
+            NativeFieldContent(context: context, kind: kind, editingIdentity: identity).id(identity)
         }
     }
 }
@@ -30,8 +32,8 @@ struct OpenUINativeField: View {
 private struct NativeFieldContent: View {
     let context: OpenUIComponentContext
     let kind: OpenUINativeField.Kind
+    let editingIdentity: NativeFieldEditingIdentity?
     @Environment(\.openUIFormValidation) private var validation
-    @Environment(\.openUIFormNameReady) private var formNameReady
     @Environment(\.openUIFieldLabel) private var fieldLabel
     @Environment(\.locale) private var locale
     @Environment(\.isEnabled) private var enabled
@@ -45,9 +47,6 @@ private struct NativeFieldContent: View {
     @State private var registration = UUID()
     @State private var registeredName: OpenUIString?
     private var field: NativeFieldState { .init(context: context) }
-    private var editingIdentity: NativeFieldEditingIdentity? {
-        NativeFieldEditingIdentity(context, formNameReady: formNameReady)
-    }
     private var label: String { fieldLabel ?? field.name.displayString }
     private var accessibleLabel: String {
         field.isRequired ? label + ", " + NativeControlText.localized("Required", locale: locale) : label
@@ -72,10 +71,6 @@ private struct NativeFieldContent: View {
             }
             .onChange(of: enabled) { current in
                 register(enabled: current, interactive: context.canInteract)
-            }
-            .onChange(of: editingIdentity) { _ in
-                field.initialize()
-                register(enabled: enabled, interactive: context.canInteract)
             }
             .onChange(of: context.element) { _ in
                 register(enabled: enabled, interactive: context.canInteract)
@@ -224,7 +219,7 @@ private struct NativeFieldContent: View {
                 }
             }.openUISwitchSurface(kind == .switches ? context.string("variant") : nil, theme: context.theme)
         case .slider:
-            NativeSliderField(context: context, editingIdentity: editingIdentity).id(editingIdentity)
+            NativeSliderField(context: context, editingIdentity: editingIdentity)
         case .date: NativeDateField(context: context, label: label)
         case .chips, .optionCards:
             NativeChoiceField(context: context, cards: kind == .optionCards)
