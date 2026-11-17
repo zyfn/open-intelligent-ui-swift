@@ -114,7 +114,11 @@ struct OpenUIStack: View {
                         direction == "column" && stretches)
                     .environment(\.openUIStretchHeight, direction == "row" && stretches)
             }
-            if !layoutReady && (projection.blocked || children.isEmpty) {
+            // Keep source/layout diagnostics on the runtime. Once generation
+            // stops, readable prose must not gain a generic diagnostic footer.
+            // Empty surfaces and actual data failures still need local feedback.
+            if !layoutReady && (projection.blocked || content.isEmpty),
+               context.isStreaming || context.hasPendingData || context.hasDataFailure || content.isEmpty {
                 NativePendingContent(loading: !context.hasDataFailure && (context.isStreaming || context.hasPendingData),
                     terminalMessage: context.hasDataFailure ? "Content unavailable" : "Content is incomplete")
             }

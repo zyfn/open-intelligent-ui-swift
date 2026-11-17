@@ -1,8 +1,10 @@
 # 验证与依赖安全
 
-文档版本：1.18 · 更新日期：2026-11-17
+文档版本：1.19 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
+
+中文强调与正文尾部反馈的定向修复基于 `c20081d`：原始中文标点案例和终态未闭合 Stack 的新增检查先复现失败，修复后 Markdown、流式文本准备、布局与 readiness 相关 54 项 Debug 检查通过。Release 使用忽略目录中的精简测试包，只复制原有目标 XCTest 文件并直接链接当前 Sources/资源，10 项中文强调、正文前缀及 Host 拟合检查通过；标准整包 Release 测试构建仍被 Xcode 26.6 的 SwiftLangTests `NativeValueBudgetTests.testSyntheticMetadataAndActionLeavesShareTheInspectionAllowance` 优化器崩溃阻断，不能记为通过。另一次较宽的定向运行发现 `FullLibraryParityTests.testModalPresentationWritesDuringStreamingButRejectsReplacedSources` 失败，未修改的 `c20081d` 独立 checkout 也复现同一断言，原断言保留。本轮未执行全量测试，日志保存在 `outputs/targeted-chinese-markdown/`。
 
 ## 1. 实际打包依赖与可复现生成
 
