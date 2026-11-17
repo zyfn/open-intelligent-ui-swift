@@ -18,6 +18,7 @@ struct RichMarkdown: View {
     var isTitle = false
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.displayScale) private var displayScale
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
     @ScaledMetric(relativeTo: .body) private var bodyScale: CGFloat = 1
     #if compiler(>=6.2)
@@ -94,8 +95,22 @@ struct RichMarkdown: View {
         let systemFamily = semantic
             ? TitleTypography.font(size: role, theme: theme) == TitleTypography.font(size: role, theme: OpenIntelligentUITheme())
             : usesSystemBodyFamily
+        let style = MarkdownFontStyle(font, usesSystemFamily: systemFamily, size: size, weight: semantic ? nil : theme.headingWeight)
+        #if os(macOS)
+        let leading: CGFloat
+        if semantic && systemFamily {
+            let native = MarkdownTypography.measureHeadingFont(TitleTypography.font(size: role, theme: theme),
+                                                                size: typeSize, displayScale: displayScale)
+            let fixed = MarkdownTypography.measureHeadingFont(.system(size: style.size.rounded()).weight(style.weight),
+                                                               size: typeSize, displayScale: displayScale)
+            leading = max(0, native.advance - fixed.advance)
+        } else { leading = 0 }
+        #else
+        let leading: CGFloat = 0
+        #endif
         return configuration.label
-            .markdownTextStyle { MarkdownFontStyle(font, usesSystemFamily: systemFamily, size: size, weight: semantic ? nil : theme.headingWeight) }
+            .markdownTextStyle { style }
+            .transformEnvironment(\.lineSpacing) { $0 += leading }
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)

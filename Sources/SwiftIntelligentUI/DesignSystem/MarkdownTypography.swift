@@ -55,6 +55,22 @@ enum MarkdownTypography {
         (1...3).contains(level) && !theme.hasCustomMarkdownHeadingScales
     }
 
+    #if os(macOS)
+    @MainActor static func measureHeadingFont(_ font: Font, size: DynamicTypeSize,
+                                              displayScale: CGFloat? = nil, text: String = "Ag\nAg") -> HeadingFontMeasurement {
+        let result = HeadingFontMeasurementBox()
+        let content = HeadingFontMeasurementLayout(result: result) {
+            Text(verbatim: text).font(font).lineSpacing(0).fixedSize()
+        }.environment(\.dynamicTypeSize, size)
+        let view = displayScale.map { AnyView(content.environment(\.displayScale, $0)) } ?? AnyView(content)
+        let host = NSHostingView(rootView: view)
+        let fitted = host.fittingSize
+        var measured = result.value
+        measured.fittingHeight = fitted.height
+        return measured
+    }
+    #endif
+
     static func headingScale(level: Int, theme: OpenIntelligentUITheme) -> Double {
         switch level {
         case 1...3: return theme.headingScale(level - 1)
@@ -72,3 +88,32 @@ enum MarkdownTypography {
         }
     }
 }
+
+#if os(macOS)
+struct HeadingFontMeasurement {
+    var firstBaseline: CGFloat = 0
+    var lastBaseline: CGFloat = 0
+    var fittingHeight: CGFloat = 0
+    var advance: CGFloat { lastBaseline - firstBaseline }
+}
+
+private final class HeadingFontMeasurementBox {
+    var value = HeadingFontMeasurement()
+}
+
+private struct HeadingFontMeasurementLayout: Layout {
+    let result: HeadingFontMeasurementBox
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let text = subviews.first else { return .zero }
+        let dimensions = text.dimensions(in: .unspecified)
+        result.value.firstBaseline = dimensions[.firstTextBaseline]
+        result.value.lastBaseline = dimensions[.lastTextBaseline]
+        return CGSize(width: dimensions.width, height: dimensions.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: .unspecified)
+    }
+}
+#endif

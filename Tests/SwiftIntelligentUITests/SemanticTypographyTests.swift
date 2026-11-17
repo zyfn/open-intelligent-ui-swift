@@ -4,7 +4,6 @@ import SwiftLang
 @testable import SwiftIntelligentUI
 #if os(macOS)
 import AppKit
-import CoreText
 #endif
 
 final class SemanticTypographyTests: XCTestCase {
@@ -12,9 +11,9 @@ final class SemanticTypographyTests: XCTestCase {
 
     @MainActor private func height(_ component: String, library: OpenIntelligentUIComponents,
                                    theme: OpenIntelligentUITheme = .init(), size: DynamicTypeSize = .large,
-                                   scheme: ColorScheme = .light) throws -> Double {
+                                   scheme: ColorScheme = .light, copyText: String? = nil) throws -> Double {
         let state = library.makeState()
-        state.setSource("root = Col([\(component)])\n$copy = \"\(copy)\"")
+        state.setSource("root = Col([\(component)])\n$copy = \"\(copyText ?? copy)\"")
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
             .openIntelligentUITheme(theme).environment(\.dynamicTypeSize, size)
@@ -68,130 +67,65 @@ final class SemanticTypographyTests: XCTestCase {
                 print("Typography metrics: size=\(size) role=\(titleSize) markdown=\(markdown) native=\(native)")
                 XCTAssertEqual(markdown, native, accuracy: 2, "heading \(prefix) at \(size)")
                 #if os(macOS)
-                try diagnoseHeadingFont(level: prefix.count - 1, titleSize: titleSize, size: size)
+                try diagnoseHostedFont(level: prefix.count - 1, titleSize: titleSize, size: size)
+                let hostedMarkdown = try hostedHeight("Markdown(\"\(prefix)\" + $copy)", library: library, size: size)
+                let hostedTitle = try hostedHeight("Title($copy,\"\(titleSize)\")", library: library, size: size)
+                print("Typography SDK host: role=\(titleSize) size=\(size) markdown=\(hostedMarkdown) title=\(hostedTitle)")
+                XCTAssertEqual(hostedMarkdown, hostedTitle, accuracy: 2, "hosted heading \(prefix) at \(size)")
+                let longCopy = Array(repeating: copy, count: 3).joined(separator: " ")
+                let longMarkdown = try height("Markdown(\"\(prefix)\" + $copy)", library: library, size: size, copyText: longCopy)
+                let longTitle = try height("Title($copy,\"\(titleSize)\")", library: library, size: size, copyText: longCopy)
+                let longHostedMarkdown = try hostedHeight("Markdown(\"\(prefix)\" + $copy)", library: library, size: size, copyText: longCopy)
+                let longHostedTitle = try hostedHeight("Title($copy,\"\(titleSize)\")", library: library, size: size, copyText: longCopy)
+                print("Typography SDK long: role=\(titleSize) size=\(size) imageMarkdown=\(longMarkdown) imageTitle=\(longTitle) hostMarkdown=\(longHostedMarkdown) hostTitle=\(longHostedTitle)")
+                XCTAssertEqual(longMarkdown, longTitle, accuracy: 2, "long heading \(prefix) at \(size)")
+                XCTAssertEqual(longHostedMarkdown, longHostedTitle, accuracy: 2, "long hosted heading \(prefix) at \(size)")
                 #endif
             }
         }
     }
 
     #if os(macOS)
-    /// Isolate the font adapter from Markdown parsing and the component layout.
-    /// Keep the same copy, width and Dynamic Type environment as the assertion.
-    @MainActor private func diagnoseHeadingFont(level: Int, titleSize: String, size: DynamicTypeSize) throws {
+    @MainActor private func diagnoseHostedFont(level: Int, titleSize: String, size: DynamicTypeSize) throws {
         let theme = OpenIntelligentUITheme()
-        let preferred = InlineFonts.semantic(style: MarkdownTypography.nativeHeadingStyle(level: level), typeSize: size)
-        let native = InlineFonts.styled(preferred, weight: theme.headingWeight, tabular: false, italic: false)
-        let adapter = MarkdownFontStyle(native)
-        let fixed = NSFont.systemFont(ofSize: adapter.size.rounded(), weight: InlineFonts.weight(adapter.weight))
-        let fixedStyled = InlineFonts.styled(NSFont.systemFont(ofSize: adapter.size.rounded()),
-                                             weight: adapter.weight, tabular: false, italic: false)
-        let layout = NSLayoutManager()
-        func coreTextLineHeight(_ font: NSFont) -> CGFloat {
-            CTFontGetAscent(font as CTFont) + CTFontGetDescent(font as CTFont) + CTFontGetLeading(font as CTFont)
-        }
-        for (name, font) in [("preferred", preferred), ("styled", native), ("fixed", fixed), ("fixed-styled", fixedStyled)] {
-            print("Typography native font: size=\(size) role=\(titleSize) recipe=\(name) name=\(font.fontName) points=\(font.pointSize) ascent=\(font.ascender) descent=\(font.descender) leading=\(font.leading) ctLineHeight=\(coreTextLineHeight(font)) layoutLineHeight=\(layout.defaultLineHeight(for: font)) descriptor=\(font.fontDescriptor.fontAttributes)")
-        }
-        print("Typography adapter: role=\(titleSize) size=\(adapter.size) family=\(adapter.family) weight=\(adapter.weight) themeWeight=\(theme.headingWeight)")
-        let leadingDelta = max(0, native.leading - fixed.leading)
-        let coreTextDelta = max(0, coreTextLineHeight(native) - coreTextLineHeight(fixed))
-        let layoutDelta = max(0, layout.defaultLineHeight(for: native) - layout.defaultLineHeight(for: fixed))
-        let styledCoreTextDelta = max(0, coreTextLineHeight(native) - coreTextLineHeight(fixedStyled))
-        let styledLayoutDelta = max(0, layout.defaultLineHeight(for: native) - layout.defaultLineHeight(for: fixedStyled))
-        print("Typography spacing candidates: size=\(size) role=\(titleSize) leading=\(leadingDelta) coreText=\(coreTextDelta) layout=\(layoutDelta) styledCoreText=\(styledCoreTextDelta) styledLayout=\(styledLayoutDelta)")
-        let fixedFont = Font.system(size: adapter.size.rounded()).weight(adapter.weight)
-        let fonts: [(String, Font, CGFloat)] = [
-            ("semantic", TitleTypography.font(size: titleSize, theme: theme), 0),
-            ("native", Font(native), 0),
-            ("fixed-native", Font(fixed), 0),
-            ("fixed-styled-native", Font(fixedStyled), 0),
-            ("fixed-adapter-weight", fixedFont, 0),
-            ("fixed-theme-weight", .system(size: adapter.size.rounded()).weight(theme.headingWeight), 0),
-            ("fixed-leading-delta", fixedFont, leadingDelta),
-            ("fixed-coretext-delta", fixedFont, coreTextDelta),
-            ("fixed-layout-delta", fixedFont, layoutDelta),
-            ("fixed-styled-coretext-delta", fixedFont, styledCoreTextDelta),
-            ("fixed-styled-layout-delta", fixedFont, styledLayoutDelta),
+        let native = InlineFonts.styled(InlineFonts.semantic(style: MarkdownTypography.nativeHeadingStyle(level: level), typeSize: size),
+                                       weight: theme.headingWeight, tabular: false, italic: false)
+        let style = MarkdownFontStyle(native)
+        let fonts: [(String, Font)] = [
+            ("semantic", TitleTypography.font(size: titleSize, theme: theme)),
+            ("fixed", .system(size: style.size.rounded()).weight(style.weight)),
         ]
-        let samples = [
-            ("copy", copy),
-            ("latin-one", "Heading"),
-            ("latin-two", "Heading\nHeading"),
-            ("cjk-one", "中文标题"),
-            ("cjk-two", "中文标题\n中文标题"),
-        ]
-        for (name, font) in [("native", native), ("fixed", fixed), ("fixed-styled", fixedStyled)] {
-            for (sample, text) in samples {
-                try diagnoseNativeLayout(font: font, text: text, sample: sample, recipe: name, role: titleSize, size: size)
+        for scale in [CGFloat?](arrayLiteral: nil, 1, 2) {
+            for (recipe, font) in fonts {
+                let one = MarkdownTypography.measureHeadingFont(font, size: size, displayScale: scale, text: "Ag")
+                let two = MarkdownTypography.measureHeadingFont(font, size: size, displayScale: scale)
+                let imageOne = try diagnosticHeight(Text(verbatim: "Ag").font(font).lineSpacing(0), size: size, displayScale: scale)
+                let imageTwo = try diagnosticHeight(Text(verbatim: "Ag\nAg").font(font).lineSpacing(0), size: size, displayScale: scale)
+                print("Typography hosted baseline: role=\(titleSize) size=\(size) scale=\(String(describing: scale)) recipe=\(recipe) first=\(two.firstBaseline) last=\(two.lastBaseline) advance=\(two.advance) heightOne=\(one.fittingHeight) heightTwo=\(two.fittingHeight) heightDelta=\(two.fittingHeight - one.fittingHeight) imageOne=\(imageOne) imageTwo=\(imageTwo)")
+                XCTAssertGreaterThan(two.advance, 0, "The two-line host must resolve its baselines synchronously")
             }
-        }
-        for (name, font, spacing) in fonts {
-            for (sample, text) in samples {
-                let plain = try diagnosticHeight(Text(verbatim: text).font(font).lineSpacing(spacing), size: size)
-                print("Typography isolated text: size=\(size) role=\(titleSize) recipe=\(name) sample=\(sample) spacing=\(spacing) plain=\(plain)")
-            }
-            let attributed = try diagnosticHeight(
-                Text(InlineTypography.attributed(copy, font: font, emphasis: theme.headingWeight)).font(font).lineSpacing(spacing), size: size)
-            print("Typography isolated attributed: size=\(size) role=\(titleSize) recipe=\(name) spacing=\(spacing) attributed=\(attributed)")
         }
     }
 
-    @MainActor private func diagnoseNativeLayout(font: NSFont, text: String, sample: String,
-                                                 recipe: String, role: String, size: DynamicTypeSize) throws {
-        let attributed = NSAttributedString(string: text, attributes: [.font: font])
-        let storage = NSTextStorage(attributedString: attributed)
-        let layout = NSLayoutManager()
-        let container = NSTextContainer(size: CGSize(width: 320, height: 10_000))
-        container.lineFragmentPadding = 0
-        layout.addTextContainer(container)
-        storage.addLayoutManager(layout)
-        layout.ensureLayout(for: container)
-        var fragments: [[String: Any]] = []
-        var previousBaseline: CGFloat?
-        layout.enumerateLineFragments(forGlyphRange: NSRange(location: 0, length: layout.numberOfGlyphs)) {
-            rect, used, _, glyphs, _ in
-            let glyph = layout.location(forGlyphAt: glyphs.location)
-            let baseline = rect.minY + glyph.y
-            var record: [String: Any] = ["y": Double(rect.minY), "height": Double(rect.height),
-                "usedY": Double(used.minY), "usedHeight": Double(used.height),
-                "glyphY": Double(glyph.y), "baseline": Double(baseline)]
-            if let previousBaseline { record["advance"] = Double(baseline - previousBaseline) }
-            fragments.append(record)
-            previousBaseline = baseline
-        }
-
-        let setter = CTFramesetterCreateWithAttributedString(attributed as CFAttributedString)
-        let path = CGPath(rect: CGRect(x: 0, y: 0, width: 320, height: 10_000), transform: nil)
-        let frame = CTFramesetterCreateFrame(setter, CFRange(location: 0, length: attributed.length), path, nil)
-        let lines = CTFrameGetLines(frame) as! [CTLine]
-        var origins = Array(repeating: CGPoint.zero, count: lines.count)
-        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
-        let coreTextLines: [[String: Any]] = lines.enumerated().map { index, line in
-            var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
-            let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-            let runs = CTLineGetGlyphRuns(line) as! [CTRun]
-            let runFonts: [[String: Any]] = runs.map { run in
-                let attributes = CTRunGetAttributes(run) as NSDictionary
-                guard let font = attributes[kCTFontAttributeName as String] as? NSFont else {
-                    return ["font": String(describing: attributes[kCTFontAttributeName as String])]
-                }
-                return ["font": font.fontName, "points": Double(font.pointSize),
-                        "ascent": Double(font.ascender), "descent": Double(font.descender), "leading": Double(font.leading)]
-            }
-            var record: [String: Any] = ["originY": Double(origins[index].y), "width": width,
-                "ascent": Double(ascent), "descent": Double(descent), "leading": Double(leading), "runs": runFonts]
-            if index > 0 { record["advance"] = Double(origins[index - 1].y - origins[index].y) }
-            return record
-        }
-        let record: [String: Any] = ["size": String(describing: size), "role": role, "recipe": recipe, "sample": sample,
-            "textKitHeight": Double(layout.usedRect(for: container).height), "textKit": fragments, "coreText": coreTextLines]
-        let json = try JSONSerialization.data(withJSONObject: record, options: [.sortedKeys])
-        print("Typography native layout: \(String(decoding: json, as: UTF8.self))")
+    @MainActor private func hostedHeight(_ component: String, library: OpenIntelligentUIComponents,
+                                         size: DynamicTypeSize, copyText: String? = nil) throws -> Double {
+        let state = library.makeState()
+        state.setSource("root = Col([\(component)])\n$copy = \"\(copyText ?? copy)\"")
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        let host = NSHostingView(rootView: OpenIntelligentUIContentView(state: state, library: library)
+            .openIntelligentUITheme(.init()).environment(\.dynamicTypeSize, size)
+            .environment(\.colorScheme, .light).frame(width: 320))
+        let height = Double(host.fittingSize.height)
+        XCTAssertGreaterThan(height, 0)
+        return height
     }
 
-    @MainActor private func diagnosticHeight<Content: View>(_ content: Content, size: DynamicTypeSize) throws -> Double {
-        let renderer = ImageRenderer(content: content.fixedSize(horizontal: false, vertical: true)
-            .environment(\.dynamicTypeSize, size).environment(\.colorScheme, .light).frame(width: 320))
+    @MainActor private func diagnosticHeight<Content: View>(_ content: Content, size: DynamicTypeSize,
+                                                           displayScale: CGFloat?) throws -> Double {
+        let view = content.fixedSize().environment(\.dynamicTypeSize, size).environment(\.colorScheme, .light)
+            .frame(width: 320)
+        let scoped = displayScale.map { AnyView(view.environment(\.displayScale, $0)) } ?? AnyView(view)
+        let renderer = ImageRenderer(content: scoped)
         return Double(try XCTUnwrap(renderer.cgImage).height)
     }
     #endif
