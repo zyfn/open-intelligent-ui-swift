@@ -53,6 +53,22 @@ private struct NativeFieldContent: View {
     }
     private var placeholder: String { context.string("placeholder") ?? "" }
     private var canEdit: Bool { enabled && context.canInteract }
+    private var lifecycleInput: LifecycleInput {
+        .init(context: context, enabled: enabled, interactive: context.canInteract)
+    }
+
+    private struct LifecycleInput: Equatable {
+        let context: OpenUIComponentContext
+        let enabled: Bool
+        let interactive: Bool
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.context.element == rhs.context.element
+                && lhs.context.exactFormName == rhs.context.exactFormName
+                && lhs.context.presentationSourceRevision == rhs.context.presentationSourceRevision
+                && lhs.enabled == rhs.enabled && lhs.interactive == rhs.interactive
+        }
+    }
 
     var body: some View {
         feedback.disabled(!context.canInteract)
@@ -61,21 +77,8 @@ private struct NativeFieldContent: View {
                 if kind == .input || kind == .textArea { focused = true }
                 accessibilityFocused = true
             }
-            .onAppear {
-                field.initialize()
-                register(enabled: enabled, interactive: context.canInteract)
-            }
-            .onChange(of: context.canInteract) { complete in
-                if complete { field.initialize() }
-                register(enabled: enabled, interactive: complete)
-            }
-            .onChange(of: enabled) { current in
-                register(enabled: current, interactive: context.canInteract)
-            }
-            .onChange(of: context.element) { _ in
-                register(enabled: enabled, interactive: context.canInteract)
-                field.mirror()
-            }
+            .onAppear { updateLifecycle(lifecycleInput) }
+            .onChange(of: lifecycleInput) { updateLifecycle($0) }
             .onChange(of: field.value) { _ in
                 field.mirror()
                 if let validation {
@@ -109,9 +112,14 @@ private struct NativeFieldContent: View {
             }
         }.environment(\.openUIFieldError, error)
     }
-    private func register(enabled: Bool, interactive: Bool) {
-        // onChange delivers the current value even when its closure retains the
-        // prior view's environment snapshot. Register that value, not the capture.
+    private func updateLifecycle(_ input: LifecycleInput) {
+        // Deliver the current props together with readiness; an onChange
+        // closure may still capture the previous render's incomplete default.
+        let field = NativeFieldState(context: input.context)
+        field.initialize()
+        register(field: field, enabled: input.enabled, interactive: input.interactive)
+    }
+    private func register(field: NativeFieldState, enabled: Bool, interactive: Bool) {
         let canEdit = enabled && interactive
         if let registeredName, registeredName != field.name {
             validation?.unregister(registeredName, owner: registration)

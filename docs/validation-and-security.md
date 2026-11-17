@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.31 · 更新日期：2026-11-18
+文档版本：1.32 · 更新日期：2026-11-18
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -129,6 +129,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 同一组件目录每次创建文档和识别源码都重新 author/compile 相同 reader | 不可变 `OpenUIComponentLibrary` 按需保存编译元数据，多个临时 facade 可复用；每份 State 仍有独立 prepared JS library 与执行状态 | `LibraryFacadeTests`：扩展 reader 隔离、多个 facade 的真实函数返回默认对象/嵌套数组隔离；既有 provider、状态与动作测试继续覆盖 |
 | Intelligent UI 多处声明了未读取的整份 State 订阅 | 删除 11 个已注册组件中的冗余声明；独立动作表面复用现有 `OpenUIContextContent`，保留真正使用 State 的阅读锚点和附件宿主 | `InputTests`、`AncestorInteractionScopeTests`：真实输入编辑、当前绑定、闭合启用、替换文档及独立 Context 的原 owner |
 | 已挂载的 EditableTable / Slider 切换字段或表单名时，原 StateObject 可能继续持有旧字段草稿；Slider 拒绝的写入提前丢弃 pending | 编辑 owner 随完整字段键切换，复用文档既有草稿；未闭合名字只使用挂载期临时草稿。现有写入路径在实际接受后交付内部回调，草稿保留绑定转换、排队拒绝及同步重入的新编辑 | `TableMountedViewTests`、`SliderFeedbackRenderingTests`、`StreamingFormCorrectnessTests`：a→b→a、父 Form 切换、逐字符名字、普通更新保持控件、规范化到旧值、排队拒绝/重入与旧文档回调 |
+| 同一字段的初始字面值在流式补全后已显示完整，但旧 Context 的初始化被拒，Store 仍缺失字段 | 初始化和校验注册从同一观察值接收当前 Context 及启用/就绪快照；保留现有缺失检查、镜像和字段值验证，不以重挂载或后台重试补偿 | `SliderFeedbackRenderingTests`：真实 Input 的名字先闭合，初始值 `par`→`part`；partial 不写、控件身份保持、字段闭合后实际 Store 为完整值，不等待 complete |
 | Markdown 后台成功后仍保留已被覆盖的同步源码与解析树 | 只释放被当前有效结果覆盖的 fallback；保留 body 已提前读取的新纠正，退休结果仍无效 | `StreamingTextPresentationTests`：受控后台结果、纠正交错、取消后读取及旧 generation |
 | 响应缓存命中绕过后来收紧的字节限额 | 命中、网络完成和等待者恢复共用当前字节限制检查 | `ResourceStoreTests`：收紧拒绝、等值接受、放宽复用，底层请求保持一次 |
 
@@ -137,6 +138,8 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 标准 OpenUI 的文档创建测量使用真实目录，在同一进程内交替执行“同一目录创建临时 facade 并复用 reader”和“每次重新 toSchema 的原路径”，各采样 12 次、预热两轮；计时在解析源码之前停止，并单独记录 facade 构造及首次创建文档（包含 reader 准备）的耗时。Debug/Release 输出沿用 `OPENUI_SNAPSHOT_DIR`，文件名为 `library-document-creation-debug.json` 和 `library-document-creation-release.json`。该测量不挂载界面，不代表会话加载总耗时、滚动帧率或真机收益，也不设置未经基线支持的时间阈值。不可变 schema 的按需准备与每文档 JS 身份边界见[架构](architecture.md#3-唯一的客户端运行链路)。
 
 首个候选 `fc45e0a9` 的 [macOS CI 44142858110](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44142858110) 已执行该测量：88 个组件的重复文档创建，Debug 的 p50 从逐次准备的 147.12 ms 变为复用后的 14.67 ms，Release 从 162.14 ms 变为 15.78 ms；首次创建仍含 reader 准备，分别为 135.07 ms、148.91 ms。该轮 OpenUI 子集在 Debug / Release 各执行 355 项，各有 3 项新字段默认值断言失败，不能据局部性能数据称整体通过。失败均为换字段、换 Form 或流式名字闭合后新字段的 Store 值仍为空；修正将既有初始化、焦点和校验注册统一到字段内容的生命周期，删除捕获旧字段的名称变化回调，原测试与断言保持。完整原生验收以修正提交的 CI 为准。
+
+保留上述修正的 `31972ca` 仅新增一项同控件初始值补全回归并将字段组提前执行。[CI 44153559179](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44153559179) 的前置 112 项中，原来三项均通过；新增一项有两条断言失败，实际界面已显示 `part`、控件启用且身份不变，但 Store 条目不存在、字段值仍为 null。该原生证据证明只检查界面会漏掉初始化问题。生产修正将三个捕获旧输入的生命周期回调收敛为当前输入的统一交付；测试原输入、Store 断言和等待方式保持。它是字段正确性修复，不计为滚动性能改善。
 
 源码所有权检查和当前随包 JS 的 172 项回归在本地通过；本地没有 Apple/Swift 编译环境，新增原生用例、完整 XCTest、Release fitting 与 iOS 编译的实际状态以该候选 CI 为准。现有 Debug/Release 子集加入 facade 与 Intelligent UI 挂载用例，没有另建测试流水线。执行证据在忽略的 `outputs/sdk-runtime-performance-review/`。
 
