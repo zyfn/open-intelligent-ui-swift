@@ -33,7 +33,7 @@
   },
   "Steps": {
     "category": "Layout",
-    "program": "root = Stack([Steps([StepsItem(\"选择方向\",\"从兴趣出发\"),StepsItem(\"安排时间\",\"保留弹性\"),StepsItem(\"准备出发\",\"核对必需信息\")])])"
+    "program": "root = Stack([Steps([StepsItem(\"选择方向\",\"从兴趣出发\"),StepsItem(\"安排时间\",\"保留弹性\")]),Steps([StepsItem(\"西湖\",\"沿湖散步\",\"09:00\"),StepsItem(\"灵隐寺\",\"游览古寺\")],\"timeline\")])"
   },
   "StepsItem": {
     "category": "Layout",
@@ -375,5 +375,9 @@
   "SVG": {
     "category": "Media",
     "program": "root = Stack([SVG(\"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 160'><rect x='10' y='10' width='300' height='140' rx='16' fill='#e8f1fb'/><circle cx='80' cy='80' r='36' fill='#3478f6'/><text x='144' y='88' font-size='24' fill='#222'>Hello SVG</text></svg>\",null,\"圆形与文字示例\",160)])"
+  },
+  "JourneyLine": {
+    "category": "Content",
+    "program": "root = Stack([JourneyLine(\"flight\"),JourneyLine(\"train\"),JourneyLine(\"bus\"),JourneyLine(\"taxi\")])"
   }
 }

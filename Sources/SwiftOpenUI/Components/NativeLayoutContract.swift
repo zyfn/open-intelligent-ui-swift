@@ -12,11 +12,19 @@ enum NativeLayoutContract {
     case "IconText": return ["layout", "iconSize", "iconVariant"]
     case "ImageText": return ["layout", "imageSize"]
     case "CompositeCardBlock", "VisualCardBlock", "ContextCardBlock", "OverviewCardBlock", "SnippetCardBlock": return ["layout", "responsive", "gap"]
-    case "Carousel": return ["variant"]
+    case "Carousel", "Steps": return ["variant"]
     case "LineChart", "BarChart", "HorizontalBarChart", "AreaChart", "ScatterChart", "RadarChart",
          "PieChart", "RadialChart", "SingleStackedBarChart":
       return ["height", "variant", "appearance", "xLabel", "yLabel"]
     default: return []
+    }
+  }
+  /// These containers can preserve a readable prefix while their layout is
+  /// unresolved; their renderers handle the pending presentation themselves.
+  static func showsReadableContentWhilePending(_ name: String) -> Bool {
+    switch name {
+    case "Stack", "Card", "Steps": return true
+    default: return false
     }
   }
   static func ready(_ source: NativeSourceReadiness, fields: [String]) -> Bool {

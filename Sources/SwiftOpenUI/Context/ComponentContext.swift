@@ -103,7 +103,7 @@ struct NativeComponentHost<Content: View>: View {
         let element = context.element
         let atomic = ["Card", "Form", "CompositeCardItem", "VisualCardItem", "ContextCardItem", "OverviewCardItem", "SnippetCardItem"].contains(element.typeName)
         let presented = Group {
-            if !context.layoutConfigurationReady && element.typeName != "Stack" && element.typeName != "Card" {
+            if !context.layoutConfigurationReady && !NativeLayoutContract.showsReadableContentWhilePending(element.typeName) {
                 NativePendingContent(loading: !context.hasDataFailure && (context.isStreaming || context.hasPendingData),
                     terminalMessage: context.hasDataFailure ? "Content unavailable" : "Content is incomplete")
             } else if context.registry.supportsPresentationPlaceholder(element.typeName),

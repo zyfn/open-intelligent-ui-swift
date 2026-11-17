@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.20 · 更新日期：2026-11-17
+文档版本：1.21 · 更新日期：2026-11-17
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -21,11 +21,15 @@ let view = OpenUIView(state: state, library: library)
 
 ## 组件目录
 
-实际目录由 OpenUIComponents 注册并导出，包括固定上游的 84 个定义，以及原生 Map、MapPoint、SVG，共 87 个定义。其中 72 个是可视定义，15 个是由父组件消费的结构或数据定义；不能把注册数等同于独立可点击控件数量。
+实际目录由 OpenUIComponents 注册并导出，包括固定上游的 84 个定义，以及原生 Map、MapPoint、SVG 和 JourneyLine，共 88 个定义。其中 73 个是可视定义，15 个是由父组件消费的结构或数据定义；不能把注册数等同于独立可点击控件数量。
 
 Gallery 按 Layout、Content、Controls、DataDisplay、Media 浏览实际注册定义，结构子项标注父组件上下文，组件用法默认展开。签名、位置参数和默认值以 library.specification 为准，不另维护一张手写权威目录。原始参考目录在 [upstream-catalog.json](../Sources/SwiftOpenUI/Resources/upstream-catalog.json)，原生注册在 [Catalog](../Sources/SwiftOpenUI/Catalog/)。
 
 只有实际实现并注册的定义进入生成契约。Swift 包名、文件归属和视觉调整不改变已支持的 Lang 组件名、参数顺序、绑定和枚举。
+
+Steps 默认仍为数字步骤；`Steps(items, "timeline")` 显示行程时间线，`StepsItem(title, details, time?)` 的时间仅在已知时填写。可选参数均追加在原参数后，旧调用不变。`variant` 的完整性使用 SDK 公共布局依赖机制判断。流式生成建议先输出 `root = Steps(items, "timeline")`，再逐步输出 `items`，使样式可以先确定；行内列表尚未到达尾部样式参数时，先呈现已到达的文字，避免预先猜测节点样式，样式确定后字号和缩进仍可能调整。生成中断且样式始终未确定时，已完成的条目回退到默认数字步骤；已经确定的时间线样式保持不变。未闭合的时间值不会作为完整时间显示。
+
+交通方向线使用 `JourneyLine(mode)`，沿用设计师的四种方式 `flight`、`train`、`bus`、`taxi` 和虚线造型；它只表达起终点方向，不代表地图路线。
 
 ## 组件定义与扩展
 

@@ -32,8 +32,8 @@ final class ReferenceCatalogTests: XCTestCase {
       return group
     }
     XCTAssertNotNil(installed.registry["EditableTable"])
-    XCTAssertEqual(installed.library.components.count, 87)
-    XCTAssertEqual(generation.components.count, 86)
+    XCTAssertEqual(installed.library.components.count, 88)
+    XCTAssertEqual(generation.components.count, 87)
     XCTAssertFalse(generation.toSpec().components.contains { $0.name == "EditableTable" })
     XCTAssertFalse(
       generation.componentGroups?.contains { $0.components.contains("EditableTable") } ?? true)
@@ -66,13 +66,27 @@ final class ReferenceCatalogTests: XCTestCase {
 
   func testAll84RenderersUseThePinnedUpstreamDefinitions() throws {
     let library = try OpenUIComponents.library()
-    XCTAssertEqual(library.library.components.count, 87)
+    XCTAssertEqual(library.library.components.count, 88)
     XCTAssertEqual(Array(library.library.components.prefix(84)).map(\.name), OpenUIReference.definitions.map(\.name))
     for expected in OpenUIReference.definitions {
       let actual = try XCTUnwrap(library.library.components.first { $0.name == expected.name })
       XCTAssertNotNil(library.registry[expected.name])
-      XCTAssertEqual(actual.description, expected.description, expected.name)
-      XCTAssertEqual(actual.params.map(\.name), expected.params.map(\.name), expected.name)
+      let suffix: String
+      let appended: [String]
+      switch expected.name {
+      case "Steps":
+        suffix = " Use timeline for chronological events; omit variant for numbered instructions."
+        appended = ["variant"]
+      case "StepsItem":
+        suffix = " Optional time is shown in timeline when known; do not invent times."
+        appended = ["time"]
+      default: suffix = ""; appended = []
+      }
+      XCTAssertEqual(actual.description, expected.description + suffix, expected.name)
+      XCTAssertEqual(actual.params.map(\.name), expected.params.map(\.name) + appended, expected.name)
+      for extra in actual.params.dropFirst(expected.params.count) {
+        XCTAssertFalse(extra.required, "\(expected.name).\(extra.name) must remain optional")
+      }
       for (a, b) in zip(actual.params, expected.params) {
         if ["Card", "TabItem", "AccordionItem"].contains(expected.name), ["children", "content"].contains(a.name) {
           continue // Explicit SDK Map/SVG slot extensions are verified separately.
