@@ -125,10 +125,12 @@ struct NativeSVG: View {
 private struct NativeSVGPlaceholder: View {
     let alt: String
     let loading: Bool
+    @Environment(\.openUITheme) private var theme
 
     var body: some View {
         Color.clear.overlay {
-            NativeLoadingSurface(active: loading, showsMediaSymbol: true)
+            NativeLoadingSurface(active: loading, showsMediaSymbol: true,
+                                 background: loading ? theme.imagePlaceholderBackground : nil)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)

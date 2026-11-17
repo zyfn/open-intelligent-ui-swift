@@ -33,6 +33,8 @@ public struct OpenUITheme {
     public var foreground: Color?
     public var popoverBackground: Color?
     public var sunk: Color?
+    /// Image loading and reveal background; nil inherits the shared theme or SDK default.
+    public var imagePlaceholderBackground: Color?
     public var sunkLight: Color?
     public var highlight: Color?
     public var borderDefault: Color?
@@ -139,6 +141,7 @@ public struct OpenUITheme {
         if let foreground { values.foreground = foreground }
         if let popoverBackground { values.popoverBackground = popoverBackground }
         if let sunk { values.sunk = sunk }
+        if let imagePlaceholderBackground { values.imagePlaceholderBackground = imagePlaceholderBackground }
         if let sunkLight { values.sunkLight = sunkLight }
         if let highlight { values.highlight = highlight }
         if let borderDefault { values.borderDefault = borderDefault }
@@ -248,6 +251,8 @@ public struct OpenUIThemeValues {
     public var foreground: Color = NativeControlPalette.adaptive(light: 0xFFFFFF, dark: 0x17171B)
     public var popoverBackground: Color = NativeControlPalette.adaptive(light: 0xFFFFFF, dark: 0x242429)
     public var sunk: Color = NativeControlPalette.adaptive(light: 0xF5F5F7, dark: 0x1F1F24)
+    /// Image loading and reveal background, independently configurable from sunk.
+    public var imagePlaceholderBackground: Color = NativeControlPalette.adaptive(light: 0xF5F5F7, dark: 0x1F1F24)
     public var sunkLight: Color = NativeControlPalette.adaptive(light: 0xFAFAFC, dark: 0x17171B)
     public var highlight: Color = NativeControlPalette.adaptive(light: 0xF1F1F4, dark: 0x2A2A30)
     public var borderDefault: Color = NativeControlPalette.adaptive(light: 0xE0E0E5, dark: 0x393940, highContrastLight: 0xCBCBD3, highContrastDark: 0x5A5A64)

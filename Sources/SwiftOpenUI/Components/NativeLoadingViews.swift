@@ -6,6 +6,7 @@ import SwiftUI
 struct NativeLoadingSurface: View {
   var active = true
   var showsMediaSymbol = false
+  var background: Color? = nil
   @Environment(\.openUIPresentation) private var nativePresentation
 
   @Environment(\.openUITheme) private var theme
@@ -19,7 +20,7 @@ struct NativeLoadingSurface: View {
   var body: some View {
     GeometryReader { geometry in
       ZStack {
-        theme.sunk
+        background ?? theme.sunk
         theme.textNeutralSecondary.opacity(0.035)
         if showsMediaSymbol && geometry.size.width >= 64 && geometry.size.height >= 48 {
           Image(systemName: "photo")
@@ -66,7 +67,7 @@ struct NativeMediaReveal: ViewModifier {
       Group {
         if let fallbackSystemImage {
           NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
-        } else { theme.sunk }
+        } else { theme.imagePlaceholderBackground }
       }.opacity(visible || !enabled ? 0 : 1)
       content.opacity(visible || !enabled ? 1 : 0)
     }

@@ -328,11 +328,13 @@ struct NativeRemoteImage: View {
   private func placeholder(loading: Bool) -> some View {
     canvas {
       ZStack {
-        if role == .content && fallbackSystemImage == nil { theme.sunk }
+        if role == .content && fallbackSystemImage == nil {
+          loading ? theme.imagePlaceholderBackground : theme.sunk
+        }
         // Failure copy must not sit beneath a translucent loading surface.
         // Swap states without cross-fading their separate photo symbols.
         if loading && fallbackSystemImage == nil {
-          NativeLoadingSurface(showsMediaSymbol: true)
+          NativeLoadingSurface(showsMediaSymbol: true, background: theme.imagePlaceholderBackground)
             .transition(.identity)
         } else {
           NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
