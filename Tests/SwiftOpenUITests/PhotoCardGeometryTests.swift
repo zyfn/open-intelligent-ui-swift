@@ -30,10 +30,7 @@ final class PhotoCardGeometryTests: XCTestCase {
     let image = try XCTUnwrap(standard.library.components.first { $0.name == "Image" })
     let library = try standard.extending(overriding: [OpenUIComponent(image) { context in
       NativeComponentHost(context: context) { context in
-        NativeContentImage(context: context).background(GeometryReader { geometry in
-          Color.clear.onAppear { measured.width = geometry.size.width }
-            .onChange(of: geometry.size.width) { measured.width = $0 }
-        })
+        NativeContentImage(context: context).background(PhotoCardImageGeometryProbe(measured: measured))
       }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
@@ -63,8 +60,9 @@ final class PhotoCardGeometryTests: XCTestCase {
         settle()
         XCTAssertTrue(state.errors.isEmpty)
         XCTAssertFalse(state.isComplete)
+        XCTAssertTrue(measured.layoutReady, "A closed container must own its layout while its text streams")
         XCTAssertEqual(measured.width, expected, accuracy: 1,
-          "A column's width must not wait for its unrelated trailing text")
+          "A column's width must not wait for its unrelated trailing text; media inset=\(measured.mediaInset)")
         state.push(" arriving\")")
         settle()
         XCTAssertFalse(state.isComplete)
@@ -213,5 +211,30 @@ final class PhotoCardGeometryTests: XCTestCase {
       "A short standalone name must not reserve an invisible second line; grid peers align in their row layout")
   }
 }
-@MainActor private final class PhotoCardWidth { var width: CGFloat = 0 }
+@MainActor private final class PhotoCardWidth {
+  var width: CGFloat = 0
+  var mediaInset: CGFloat = 0
+  var layoutReady = false
+}
+private struct PhotoCardImageGeometryProbe: View {
+  let measured: PhotoCardWidth
+  @Environment(\.openUICardMediaInset) private var inset
+  @Environment(\.openUIAncestorLayoutReady) private var layoutReady
+  private struct Sample: Equatable {
+    let width: CGFloat
+    let inset: CGFloat
+    let layoutReady: Bool
+  }
+  var body: some View {
+    GeometryReader { geometry in
+      let sample = Sample(width: geometry.size.width, inset: inset, layoutReady: layoutReady)
+      Color.clear.onAppear { record(sample) }.onChange(of: sample) { record($0) }
+    }
+  }
+  private func record(_ sample: Sample) {
+    measured.width = sample.width
+    measured.mediaInset = sample.inset
+    measured.layoutReady = sample.layoutReady
+  }
+}
 #endif

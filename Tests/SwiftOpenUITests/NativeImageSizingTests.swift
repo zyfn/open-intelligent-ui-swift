@@ -230,6 +230,10 @@ final class NativeImageSizingTests: XCTestCase {
     func view(width: CGFloat, ready: Bool) -> AnyView {
       AnyView(NativeRemoteImage(src: "https://images.test/card", layout: .aspect(16.0 / 9.0),
         onResource: { probe.pixels = $0.decodedPixelSize })
+        .background(GeometryReader { geometry in
+          Color.clear.onAppear { probe.viewport = geometry.size }
+            .onChange(of: geometry.size) { probe.viewport = $0 }
+        })
         .environment(\.displayScale, 3)
         .environment(\.openUIMediaWidthReady, ready)
         .environment(\.openUIMediaCache, cache)
@@ -247,12 +251,15 @@ final class NativeImageSizingTests: XCTestCase {
     XCTAssertEqual(loader.requestCount, 0, "Unresolved card geometry must not start a full-size download/decode")
     host.rootView = view(width: 400, ready: true)
     await settle(host) { probe.pixels == 1280 }
+    XCTAssertEqual(probe.viewport.width, 400, accuracy: 1)
     XCTAssertEqual(probe.pixels, 1280)
     XCTAssertEqual(loader.requestCount, 1)
     XCTAssertEqual(loader.signingCount, 1)
 
     host.rootView = view(width: 600, ready: true)
     await settle(host) { probe.pixels >= 1800 }
+    XCTAssertEqual(probe.viewport.width, 600, accuracy: 1,
+      "The new viewport must reach the mounted image before its pixel request is assessed")
     XCTAssertGreaterThanOrEqual(probe.pixels, 1800)
     XCTAssertLessThanOrEqual(probe.pixels, 2048)
     XCTAssertEqual(loader.requestCount, 2)
@@ -293,6 +300,7 @@ final class NativeImageSizingTests: XCTestCase {
 @MainActor private final class SizedImageProbe {
   var pixels = 0
   var status: NativeMediaStatus?
+  var viewport = CGSize.zero
 }
 
 private final class SizedImageLoader: OpenUIResourceLoading {

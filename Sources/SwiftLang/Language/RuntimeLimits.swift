@@ -310,24 +310,8 @@ private final class NativeValueBudget {
         switch value {
         case .string(let string): return text(string)
         case .number, .boolean, .null, .undefined: return Cost()
-        case .array(let array):
-            return reference(array, at: depth) {
-                sequence(array, at: depth) { self.value($0, at: $1) }
-            }
-        case .object(let object):
-            return reference(object, at: depth) {
-                var hasElementMarker = false
-                var cost = fields(object, at: depth, key: { $0.key.count }) { field, level in
-                    if field.key == "type", case .string(let type) = field.value, type == "element" {
-                        hasElementMarker = true
-                    }
-                    return self.value(field.value, at: level)
-                }
-                // The JS output guard also counts plain objects with this
-                // marker, without interpreting them as a native component.
-                if hasElementMarker { cost.elements = min(Cost.maximumElements + 1, cost.elements + 1) }
-                return cost
-            }
+        case .array, .object:
+            return data(value, at: depth)
         case .element(let element):
             return reference(element, at: depth) { self.element(element, at: depth) }
         case .actionPlan(let plan):
@@ -343,6 +327,105 @@ private final class NativeValueBudget {
                 cost.append(text(binding.target), keyUnits: 6)
                 cost.append(ast(binding.expression, at: depth + 1), keyUnits: 4)
                 return cost
+            }
+        }
+    }
+
+    /// A provider completes on a concurrency worker, whose stack is smaller
+    /// than the main thread's. Even the depth check must not recurse through
+    /// hundreds of generic collection/closure frames before it can reject a
+    /// data graph. Keep one frame per open container and visit one child at a
+    /// time; wide inputs never allocate a second work list of all their values.
+    private struct DataFrame {
+        let value: Value
+        let identity: ObjectIdentifier
+        let depth: Int
+        var index = 0
+        var cost = Cost.container
+        var hasElementMarker = false
+
+        mutating func next() -> Value? {
+            guard !cost.exceeds else { return nil }
+            switch value {
+            case .array(let array):
+                guard index < array.count else { return nil }
+                defer { index += 1 }
+                return array[index]
+            case .object(let object):
+                guard index < object.count else { return nil }
+                let field = object[index]
+                index += 1
+                cost.utf16 = min(Cost.maximumUTF16 + 1,
+                    cost.utf16 + min(Cost.maximumUTF16 + 1, field.key.count))
+                guard !cost.exceeds else { return nil }
+                if field.key == "type", case .string(let type) = field.value, type == "element" {
+                    hasElementMarker = true
+                }
+                return field.value
+            default:
+                return nil
+            }
+        }
+
+        var completedCost: Cost {
+            var result = cost
+            // Match the JS output guard without interpreting plain data as a
+            // native component. Each occurrence of a shared marker is charged.
+            if hasElementMarker { result.elements = min(Cost.maximumElements + 1, result.elements + 1) }
+            return result
+        }
+    }
+
+    private func data(_ root: Value, at rootDepth: Int) -> Cost {
+        var frames: [DataFrame] = []
+        var next: (value: Value, depth: Int)? = (root, rootDepth)
+        var first = true // value(_:at:) has already charged the root visit.
+        var measured = Cost()
+        while true {
+            if let input = next {
+                next = nil
+                let object: AnyObject?
+                let count: Int
+                switch input.value {
+                case .array(let array): object = array; count = array.count
+                case .object(let fields): object = fields; count = fields.count
+                default: object = nil; count = 0
+                }
+                if let object {
+                    let visited = first || visit()
+                    first = false
+                    let id = ObjectIdentifier(object)
+                    if !visited || input.depth >= Cost.maximumDepth || path.contains(id) {
+                        measured = .oversized
+                    } else if let cached = memo[id] {
+                        measured = input.depth + cached.depth > Cost.maximumDepth ? .oversized : cached
+                    } else if count >= Cost.maximumNodes {
+                        measured = .oversized
+                    } else {
+                        path.insert(id)
+                        var frame = DataFrame(value: input.value, identity: id, depth: input.depth)
+                        if let child = frame.next() {
+                            frames.append(frame)
+                            next = (child, input.depth + 1)
+                            continue
+                        }
+                        measured = frame.completedCost
+                        memo[id] = measured
+                        path.remove(id)
+                    }
+                } else {
+                    measured = value(input.value, at: input.depth)
+                }
+            }
+            guard var parent = frames.popLast() else { return measured }
+            parent.cost.append(measured)
+            if let child = parent.next() {
+                frames.append(parent)
+                next = (child, parent.depth + 1)
+            } else {
+                measured = parent.completedCost
+                memo[parent.identity] = measured
+                path.remove(parent.identity)
             }
         }
     }

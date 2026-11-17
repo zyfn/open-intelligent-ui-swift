@@ -29,11 +29,10 @@ final class ButtonLayoutContractTests: XCTestCase {
       // when constructing the internal button implementation directly.
       return NativeComponentHost(context: context) { context in
         OpenUINativeButton(context: context)
-          .modifier(ButtonIdentityDiagnostic(key: key, frames: frames))
+          .modifier(ButtonMountIdentity(key: key, frames: frames))
           .background(GeometryReader { geometry in
           Color.clear.onAppear {
             frames.rects[key] = geometry.frame(in: .global)
-            frames.mounts[key, default: 0] += 1
           }.onChange(of: geometry.frame(in: .global)) { frames.rects[key] = $0 }
         })
       }
@@ -157,8 +156,6 @@ final class ButtonLayoutContractTests: XCTestCase {
       XCTAssertEqual(try XCTUnwrap(values.rects["Do"]).width, field.width, accuracy: 1)
       state.setState("$submit", value: .boolean(false)); settle()
       XCTAssertLessThan(try XCTUnwrap(values.rects["Do"]).width, field.width - 40)
-      print("OPENUI_BUTTON_IDENTITY", values.mounts, values.lifetimes)
-      XCTAssertEqual(values.lifetimes["Do"]?.count, 1, "A persistent StateObject must retain its identity")
       XCTAssertEqual(values.mounts["Do"], 1, "Only layout/label changes; the action control retains its identity")
     }
   }
@@ -171,16 +168,22 @@ private final class ButtonFrames {
   var lifetimes: [String: Set<UUID>] = [:]
 }
 
-private final class ButtonLifetimeDiagnostic: ObservableObject { let id = UUID() }
-private struct ButtonIdentityDiagnostic: ViewModifier {
+private final class ButtonLifetime: ObservableObject { let id = UUID() }
+
+/// GeometryReader's background can appear again after a label/layout change
+/// while its button stays mounted. Count the component's persistent StateObject
+/// lifetime instead, so the identity assertions measure actual replacements.
+private struct ButtonMountIdentity: ViewModifier {
   let key: String
   let frames: ButtonFrames
-  @StateObject private var lifetime = ButtonLifetimeDiagnostic()
+  @StateObject private var lifetime = ButtonLifetime()
+
   func body(content: Content) -> some View {
     content.onAppear {
-      frames.lifetimes[key, default: []].insert(lifetime.id)
-      print("OPENUI_BUTTON_APPEAR", key, lifetime.id)
-    }.onDisappear { print("OPENUI_BUTTON_DISAPPEAR", key, lifetime.id) }
+      if frames.lifetimes[key, default: []].insert(lifetime.id).inserted {
+        frames.mounts[key, default: 0] += 1
+      }
+    }
   }
 }
 #endif

@@ -23,10 +23,10 @@ export function readiness(source, kind, path) {
     source = replaceOnce(source, '    mutationStatements,\n  };\n}', '    mutationStatements,\n  }, ctx, entry ? syms.get(entry.id) : undefined, entry?.id);\n}');
     source = replaceOnce(source, 'split(tokenize(text))', 'split(tokenize(text, trimmed.length, !wasIncomplete))');
     source = replaceOnce(source, 'split(tokenize(closed))', 'split(tokenize(closed, pendingText.length, complete && !wasIncomplete))');
-    source = replaceOnce(source, `      if (completedStmtMap.has(s.id) && wasIncomplete) continue;
-      const expr = parseExpression(s.tokens);`, `      if (completedStmtMap.has(s.id) && wasIncomplete) continue;
-      const expr = parseExpression(s.tokens);
-      if (!complete) nativeTagSyntax(expr, false);`);
+    // The last statement may remain in the streaming parser's pending buffer
+    // after all of its real delimiters have arrived. Its token/AST markers
+    // already distinguish received syntax from auto-closed preview syntax;
+    // stream termination must not override a closed component's readiness.
   } else if (kind === 'materialize') {
     source = replaceOnce(source, 'return nativeBudget(ctx,()=>nativeMaterializeValue(node,ctx),null);', 'return nativeFinishMaterialization(node,ctx,nativeBudget(ctx,()=>nativeMaterializeValue(node,ctx),null));');
     source = replaceOnce(source, 'return nativeBudget(ctx,()=>nativeMaterializeExpr(node,ctx,scopedRefs),{k:"Null"});', 'return nativeFinishMaterialization(node,ctx,nativeBudget(ctx,()=>nativeMaterializeExpr(node,ctx,scopedRefs),{k:"Null"}),scopedRefs);');

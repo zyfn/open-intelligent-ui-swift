@@ -10,6 +10,16 @@ import XCTest
 /// text. Source probes alone cannot detect a view that missed its last update.
 /// These regressions are not client replay or frame-time measurements.
 final class MountedStreamingTextProgressTests: XCTestCase {
+    @MainActor func testRenderedTextReaderIncludesPlainSwiftUITextAndScrollContent() async throws {
+        let (host, window) = mount(VStack {
+            Text("Plain SwiftUI text")
+            ScrollView { Text("Native scroll content") }
+        })
+        defer { window.close() }
+        try await waitForRenderedText("Plain SwiftUI text", in: host)
+        try await waitForRenderedText("Native scroll content", in: host)
+    }
+
     @MainActor func testStandardMarkdownBuilderStaysStableWhileAnotherTextStreams() async throws {
         let library = try OpenUIComponents.library()
         var registry = library.registry
@@ -40,10 +50,16 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         XCTAssertGreaterThan(fixedBuilds, 0)
         let settledBuilds = fixedBuilds
         var text = ""
-        for chunk in ["SHANGHAI", " → ", "SUZHOU", " · 2 DAYS", " · 3 位成人"] {
+        // Match the pinned parser's explicit pending-prefix contract without
+        // normalizing actual rendered text or changing the incoming chunks.
+        let previews = ["SHANGHAI", "SHANGHAI →", "SHANGHAI → SUZHOU",
+            "SHANGHAI → SUZHOU · 2 DAYS", "SHANGHAI → SUZHOU · 2 DAYS · 3 位成人"]
+        for (index, chunk) in ["SHANGHAI", " → ", "SUZHOU", " · 2 DAYS", " · 3 位成人"].enumerated() {
             text += chunk
             state.push(chunk)
-            try await waitForRenderedText(text, in: host)
+            let tail = try XCTUnwrap(PropValue.children(try XCTUnwrap(state.root)).first { $0.statementId == "tail" })
+            XCTAssertEqual(PropValue.string(tail, "text"), previews[index])
+            try await waitForRenderedText(previews[index], in: host)
             XCTAssertFalse(state.isComplete)
             XCTAssertEqual(fixedBuilds, settledBuilds,
                 "The registered standard Markdown renderer must not rebuild for an unrelated text append")
@@ -217,8 +233,51 @@ final class MountedStreamingTextProgressTests: XCTestCase {
             if condition() { return }
             try await Task.sleep(nanoseconds: 10_000_000)
         } while Date() < deadline
-        XCTFail("Timed out waiting for \(description); rendered text: \(renderedText(in: host))")
+        let rendered = renderedText(in: host)
+        let snapshot = recordFailureSnapshot(in: host)
+        XCTFail("Timed out waiting for \(description); rendered text: \(rendered); after display: \(renderedText(in: host)); snapshot: \(snapshot)\n\(renderedHierarchy(in: host))")
         throw MountedTextFailure.timeout
+    }
+
+    @MainActor private func recordFailureSnapshot(in host: NSView) -> String {
+        guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return "unavailable" }
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        guard let data = bitmap.representation(using: .png, properties: [:]) else { return "unavailable" }
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("outputs/verification/observation-diagnostics", isDirectory: true)
+        let filename = name.replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
+        let destination = directory.appendingPathComponent(filename + ".png")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: destination)
+            return destination.path
+        } catch { return "could not save: \(error)" }
+    }
+
+    @MainActor private func renderedHierarchy(in host: NSView) -> String {
+        var visited = Set<ObjectIdentifier>(), retained: [NSObject] = [], lines: [String] = []
+        func read(_ object: NSObject, _ name: String) -> AnyObject? {
+            let selector = NSSelectorFromString(name)
+            return object.responds(to: selector) ? object.perform(selector)?.takeUnretainedValue() : nil
+        }
+        func visit(_ object: NSObject, depth: Int, edge: String) {
+            guard depth < 24, visited.count < 512,
+                  visited.insert(ObjectIdentifier(object)).inserted else { return }
+            // Keep temporary accessibility nodes alive during this diagnostic
+            // walk, so reused addresses cannot hide an unrelated sibling.
+            retained.append(object)
+            let frame = (object as? NSView).map { " frame=\($0.frame) bounds=\($0.bounds) hidden=\($0.isHidden)" } ?? ""
+            lines.append("\(depth) \(edge) \(String(reflecting: type(of: object)))\(frame) label=\(String(describing: read(object, "accessibilityLabel"))) value=\(String(describing: read(object, "accessibilityValue")))")
+            for child in read(object, "accessibilityChildren") as? [Any] ?? [] {
+                if let child = child as? NSObject { visit(child, depth: depth + 1, edge: "AX") }
+                else { lines.append("\(depth + 1) unhandled AX child: \(String(reflecting: type(of: child)))") }
+            }
+            if let view = object as? NSView {
+                for child in view.subviews { visit(child, depth: depth + 1, edge: "subview") }
+            }
+        }
+        visit(host, depth: 0, edge: "root")
+        return withExtendedLifetime(retained) { lines.joined(separator: "\n") }
     }
 
     @MainActor private func renderedText(in host: NSView) -> String {

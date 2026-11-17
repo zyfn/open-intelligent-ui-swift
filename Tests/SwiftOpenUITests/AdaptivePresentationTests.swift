@@ -50,8 +50,13 @@ final class AdaptivePresentationTests: XCTestCase {
     state.setSource("root=OptionCards(\"choice\",\"single\",[OptionCard(\"a\",\"First\",\(literal),Icon(\"train\")),OptionCard(\"b\",\"Second\",null,Icon(\"train\")),OptionCard(\"c\",\"Third\",null,Icon(\"train\"))])")
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
     let width = AdaptiveWidth(); width.value = 440
+    // This regression exercises stable controls with the original 200pt
+    // reading policy. The restored 136pt default has its own column regression
+    // in ReadingControlPresentationTests.
+    var presentation = OpenUIPresentation(); presentation.minimumChoiceWidth = 200
     let hosting = NSHostingView(rootView: AdaptiveFixture(width: width) {
       OpenUIContentView(state: state, registry: library.registry)
+        .environment(\.openUIPresentation, presentation)
     })
     try inWindow(hosting) {
       let original = controls(hosting)

@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.16 · 更新日期：2026-11-17
+文档版本：1.17 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -382,7 +382,7 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 ### OpenUI 图片与首次正文准备
 
-本轮从 `ceb90cdf` 创建独立候选，只处理 OpenUI 图片与原生 Markdown 的重复工作和恢复路径，必要的资源/诊断基础设施仍归 SwiftLang。SwiftIntelligentUI、语言输入契约、固定 JS、原始 Lang fixture 与既有行为断言保持；没有把此前未合入的文档资源生命周期分支整体带入。
+本轮从 `ceb90cdf` 创建独立候选，最初处理 OpenUI 图片与原生 Markdown 的重复工作和恢复路径，必要的资源/诊断基础设施仍归 SwiftLang。随后根据客户端反馈，把基线的 13 项原生失败及深层数据崩溃纳入同一候选；以下分别记录实现修复、测试合同校正和待验证项。SwiftIntelligentUI、公开语言输入契约与原始 Lang fixture 保持；没有把此前未合入的文档资源生命周期分支整体带入。
 
 | 路径 | 本轮实现 | 验证目标 |
 | --- | --- | --- |
@@ -404,6 +404,27 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 检查命令、完整日志、基线对照与探针原图保存在忽略的 `outputs/verification/openui-media-responsiveness/`。默认仍下载原 src，不能把卡片像素缓冲的减少写成网络流量或 App CPU 的实测下降；测试造图器的透明像素也不能解释真实客户端的首次图片失败，该根因仍须由具体 HTTP/错误与实际限制判定。当前整体原生门禁仍未关闭，源码审查、局部通过及构建成功均不等于客户端流畅度验收。
 
 最小客户端对照使用同一 Release App、设备、源码、节点数与图片，分别回放一次性静态和既有 24 units / 80ms 流式输入；图片再分同几何静态占位、已完成的缓存图片、冷加载三组。该控制实验保持原始 Lang，不改历史 fixture 以压低负载。各组记录被动展示和相同滚动过程的主线程占用、帧停顿、峰值内存及图片请求/解码次数。Instruments `org.openui.swiftlang` / `Runtime` 的 `Image decode`、`Markdown preparation`、`Markdown fallback` 与既有 Parse/Root evaluation/Native projection/Live index/Bridge cleanup 对照，可区分图片、正文准备和同步内核成本。没有设备 trace 时不把剩余整 root 工作、周期桥接清理或屏外 shimmer 指定为当前 App 唯一根因。
+
+### 基线原生失败的逐项核实
+
+`b41c8d00` 的后续定向执行中，新增 35 项在 Release 全通过，Debug 有 1 项卡片变宽后的解码升级失败；显式像素切回自动尺寸在两配置和额外三次 Debug 重复中通过。变宽失败没有作为随机失败忽略：尺寸观察移到加载/成功分支之外的同一个稳定边界，保留原像素、请求和签名断言，另记录实际画幅是否从 400 pt 变为 600 pt。该变更仍须同一原生回归验证。
+
+| 问题 | 独立依据与本次处理 |
+| --- | --- |
+| 深层 Query 结果使测试进程中止 | 原日志只有 signal 10/4，没有可用内存错误栈。数组/对象的数据预算检查改为显式帧栈，保留全部额度、DAG 成本与循环检查；原崩溃用例不改，新增 512 KiB 工作线程上的 256/257/300 层检查及释放。是否解除崩溃以原生执行为准 |
+| 闭合组件仍不可交互、饼图初始为空 | 独立 shipped-bundle 探针确认 pending statement 被无条件标成未闭合；删除这层标记，继续使用真实 token/AST 边界。原饼图输入在旧资源中 values.closed=true 而 complete=false，新资源中已一致。未闭合字符串、数组和嵌套动作的拒绝回归保留 |
+| 按钮“重挂载三次” | [原生隔离探针](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44043824471) 保留原断言，实际观测背景 GeometryReader 出现三次，而按钮边界只有一个 StateObject lifetime。布局测试改为计数持久组件身份，保留全部宽高和身份数量断言，没有改生产按钮 |
+| 精确表单字段缺失 | 同一探针证实测试构造的 Input 不属于 live tree，写入按既有成员资格规则被拒绝。正例改用真实节点的公共字段 API，保留精确 form/key 和 payload 断言；另加真实解析 Unicode 字段正例及非当前节点不可写的反例，不放宽执行资格 |
+| 选项列数 | `191c264` 将默认最小宽度从 200 改为 136，现有默认宽度用例要求三列。原两列稳定性用例显式设置已有宿主配置 200，保持原 raw Lang、两列、长文和身份断言，默认值不变 |
+| SVG 中断后高度 | `433c2ed` 和现行 OpenUI 文档明确安静画幅及 alt 仅通过无障碍读取。旧扩高预期改为尺寸不变，并检查 Loading 转为 Unable to load graphic、完整 alt 可读及未闭合 URL 零请求；未恢复可见长说明 |
+| Mutation patch 后状态 | 固定官方源码的独立构建确认原 patch 删除了不再被根引用的声明；该原始输入应没有状态项。保留取消、不等待 provider、用户编辑和旧结果隔离断言，以解析声明集合证明 nil；新增仍被根引用的声明保持 idle 对照 |
+| 手工 rootExpression 无结果 | 同一官方 oracle 证明求值阶段 Comp 需要 mappedProps；手工 AST 补齐属性映射，保留原 manual 结果断言，没有另建参数映射器 |
+| 临时文字尾空格 | 固定上游 preprocess 与 pending-statement trim 对未闭合前缀裁尾，闭合后保留原始尾空格。原分块不变，测试显式列出中间预览，并新增闭合尾空格到达同一挂载叶子的回归；不 trim 实际显示结果、不改固定 oracle |
+| 回退快照、纯文字采集、Card 图片宽度 | 原断言继续执行，补充构建/更新计数、纯 SwiftUI 对照、无障碍树/截图和实际 inset，等待原生证据定位；尚未宣布修好 |
+
+本地实际执行 170 项 native JavaScript 回归全部通过；与未修改的固定官方源码对照完成 51 项 parser、5 项 action trace、4 项 Query snapshot、6 项 serializer、21 项 1.1.1 专项及 2 项 merge 比较，未解释差异为 0。上述两个原生测试前提的独立官方 oracle 另有 6 项断言通过。源码归属和工作流语法检查通过，模块脚本在本地仍因缺少 Swift 无法运行。CI 将深层数据和状态回归前置并立即归档，随后执行扩大的 Debug/Release 挂载组、原有全量和全部原有门禁；新增配置不代表原生检查已通过。
+
+原始失败日志、未改 SDK 的 macOS 探针、逐像素图及官方源码对照证据保存在 `outputs/verification/openui-media-responsiveness/`。这些测试合同校正不计为客户端性能提升，CPU、FPS、滚动和首次真实图片成功率仍需客户端复测。
 
 ### 客户端仍未关闭的验收
 

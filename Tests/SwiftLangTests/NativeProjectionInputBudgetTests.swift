@@ -43,7 +43,11 @@ final class NativeProjectionInputBudgetTests: XCTestCase {
         let schema = schema()
         var result = createParser(schema: schema).parse("root=Box(\"parsed\")")
         result.root = nil
-        result.rootExpression = .comp(name: "Box", args: [.str("manual")], mappedProps: nil, fn: false)
+        // The pinned core evaluates component expressions after the parser
+        // maps positional arguments to properties. An unmapped Comp is not a
+        // materialized root expression (upstream returns null / no-root).
+        result.rootExpression = .comp(name: "Box", args: [.str("manual")],
+            mappedProps: [("value", .str("manual"))], fn: false)
         let evaluator = evaluator(schema)
         let root = try XCTUnwrap(evaluator.evaluateRoot(result))
         XCTAssertEqual(PropValue.string(root, "value"), "manual")

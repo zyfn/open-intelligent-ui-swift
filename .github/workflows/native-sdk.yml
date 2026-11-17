@@ -11,7 +11,6 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
-      OPENUI_SNAPSHOT_DIR: ${{ github.workspace }}/outputs/component-probe
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,14 +19,16 @@ jobs:
         run: |
           mkdir -p outputs/component-probe
           { git rev-parse HEAD; swift --version; xcodebuild -version; } > outputs/component-probe/provenance.log
-          cp Tests/SwiftOpenUITests/ButtonLayoutContractTests.swift Tests/SwiftOpenUITests/ChartInspectionTests.swift Tests/SwiftOpenUITests/NativeComponentsTests.swift outputs/component-probe/
-      - name: Observe unchanged failing assertions
+          cp Tests/SwiftOpenUITests/BoundaryIdentityTests.swift Tests/SwiftOpenUITests/MountedStreamingTextProgressTests.swift Tests/SwiftOpenUITests/PhotoCardGeometryTests.swift outputs/component-probe/
+      - name: Observe mounted boundary and text failures
         run: |
           set -o pipefail
-          swift test --filter 'testChangingSingleActionIntentDoesNotRemountItsButton|testMountedPieRetainsCompletedValuesUntilReplacementDataCloses|testFormSubmissionUsesExistingEventsAndExactFieldKeys' 2>&1 | tee outputs/component-probe/tests.log
+          swift test --filter 'BoundaryIdentityTests|MountedStreamingTextProgressTests|PhotoCardGeometryTests|NativeImageSizingTests' 2>&1 | tee outputs/component-probe/tests.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: openui-component-diagnostic-${{ github.run_id }}
-          path: outputs/component-probe/
+          path: |
+            outputs/component-probe/
+            outputs/verification/observation-diagnostics/
           retention-days: 7

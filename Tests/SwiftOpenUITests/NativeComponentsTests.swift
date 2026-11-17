@@ -100,13 +100,15 @@ final class NativeComponentsTests: XCTestCase {
         let formName = OpenUIString(codeUnits: [0xD800])
         let fieldName = OpenUIString("e\u{301}")
         let children = PropValue.children(state.root!)
-        let input = EvaluatedElement(typeName: "Input", props: [("name", .string(fieldName))])
+        let input = try XCTUnwrap(children.first)
         let fieldContext = OpenUIComponentContext(
             element: input, registry: library.registry, state: state, exactFormName: formName)
-        print("OPENUI_FORM_OWNER", fieldContext.canInteract, input === children[0])
-        let field = NativeFieldState(context: fieldContext)
-        field.initialize()
-        field.write(.string("value"))
+        XCTAssertTrue(fieldContext.canInteract, "A field writer must belong to the current document")
+        // Exercise exact field/form keys through the public field API on a live
+        // owner. A fabricated Input with different props is not part of this
+        // document and must not be allowed to write into its form payload.
+        fieldContext.initializeField(fieldName, value: .null, componentType: "Input")
+        fieldContext.fieldBinding(fieldName, componentType: "Input").wrappedValue = .string("value")
         let context = OpenUIComponentContext(
             element: children[1], registry: library.registry, state: state, exactFormName: formName)
         Task { @MainActor in
@@ -121,6 +123,38 @@ final class NativeComponentsTests: XCTestCase {
             XCTAssertEqual(wrapped["componentType"], .string("Input"))
         }
         wait(for: [done], timeout: 3)
+    }
+
+    @MainActor func testAnUnrelatedFieldCannotWriteIntoTheCurrentDocument() throws {
+        let library = try OpenUIComponents.library()
+        let state = OpenUIState(schema: library.library.toSchema())
+        state.setSource("root=Input(\"email\")")
+        let name = OpenUIString("e\u{301}")
+        let unrelated = EvaluatedElement(typeName: "Input", props: [("name", .string(name))])
+        let context = OpenUIComponentContext(
+            element: unrelated, registry: library.registry, state: state)
+        XCTAssertFalse(context.canInteract)
+        let field = NativeFieldState(context: context)
+        field.initialize()
+        field.write(.string("must not commit"))
+        XCTAssertEqual(state.fieldValue(form: nil as OpenUIString?, name: name), .null)
+    }
+
+    @MainActor func testParsedFieldPreservesTheExactUnicodeName() throws {
+        let library = try OpenUIComponents.library()
+        let state = OpenUIState(schema: library.library.toSchema())
+        state.setSource(#"root=Input("e\u0301")"#)
+        let formName = OpenUIString(codeUnits: [0xD800])
+        let context = OpenUIComponentContext(element: try XCTUnwrap(state.root),
+            registry: library.registry, state: state, exactFormName: formName)
+        let field = NativeFieldState(context: context)
+        XCTAssertEqual(field.name.codeUnits, [0x65, 0x0301])
+        XCTAssertTrue(context.canInteract)
+        field.initialize()
+        field.write(.string("typed"))
+        XCTAssertEqual(context.fieldValue(field.name), .string("typed"))
+        XCTAssertEqual(context.fieldValue(OpenUIString("\u{e9}")), .null,
+            "Canonically equivalent display text must not alias a different field key")
     }
 
     @MainActor func testFieldDefaultsDoNotCommitIncompleteStreamingProps() throws {

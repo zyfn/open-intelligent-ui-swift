@@ -33,11 +33,15 @@ final class StreamingRenderIsolationTests: XCTestCase {
         XCTAssertGreaterThan(fixedBuilders, 0)
         XCTAssertGreaterThan(fixedBodies, 0)
         var text = ""
-        for chunk in ["SHANGHAI", " → ", "SUZHOU", " · 2 DAYS", " · 3 位成人"] {
+        // The pinned parser trims an unfinished source's trailing whitespace;
+        // its raw buffer retains that space once the next token arrives.
+        let previews = ["SHANGHAI", "SHANGHAI →", "SHANGHAI → SUZHOU",
+            "SHANGHAI → SUZHOU · 2 DAYS", "SHANGHAI → SUZHOU · 2 DAYS · 3 位成人"]
+        for (index, chunk) in ["SHANGHAI", " → ", "SUZHOU", " · 2 DAYS", " · 3 位成人"].enumerated() {
             text += chunk
             state.push(chunk)
             harness.settle()
-            XCTAssertEqual(log.shown["tail"]?.text, text, "The mounted view must advance before complete")
+            XCTAssertEqual(log.shown["tail"]?.text, previews[index], "The mounted view must advance before complete")
             XCTAssertEqual(log.builders["fixed"], fixedBuilders)
             XCTAssertEqual(log.bodies["fixed"], fixedBodies)
         }
@@ -55,6 +59,26 @@ final class StreamingRenderIsolationTests: XCTestCase {
         harness.settle()
         XCTAssertEqual(log.shown["fixed"]?.text, "replacement")
         XCTAssertGreaterThan(log.mounts["fixed", default: 0], fixedMounts)
+    }
+
+    @MainActor func testClosingAStringRestoresItsTrailingWhitespaceInTheSameMountedLeaf() throws {
+        let log = RenderLog(), library = try self.library(log)
+        let state = OpenUIState(schema: library.library.toSchema())
+        defer { state.reset() }
+        state.push("root=Probe(\"tail\",\"SHANGHAI → ")
+        let harness = RenderHarness(AnyView(SwiftLangView(state: state, registry: library.registry)))
+        defer { harness.close() }
+        harness.settle()
+        XCTAssertEqual(log.shown["tail"]?.text, "SHANGHAI →")
+        let mounts = log.mounts["tail", default: 0]
+        XCTAssertGreaterThan(mounts, 0)
+        state.push("\")")
+        harness.settle()
+        XCTAssertEqual(log.shown["tail"]?.text, "SHANGHAI → ",
+            "A closed string retains its authored trailing space; display code must not trim it")
+        XCTAssertTrue(try XCTUnwrap(log.shown["tail"]).ready)
+        XCTAssertFalse(state.isComplete)
+        XCTAssertEqual(log.mounts["tail", default: 0], mounts)
     }
 
     @MainActor func testFieldsBindingsAndDefaultsNotifyWithoutChangedComponentProps() throws {

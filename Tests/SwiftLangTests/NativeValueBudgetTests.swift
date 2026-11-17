@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import SwiftLang
 
@@ -46,6 +47,28 @@ final class NativeValueBudgetTests: XCTestCase {
     func testDepthBoundaryIsCheckedBeforeRecursiveEncoding() {
         XCTAssertFalse(nativeValueExceedsLimits(nested(.number(1), levels: 256)))
         XCTAssertTrue(nativeValueExceedsLimits(nested(.number(1), levels: 257)))
+    }
+
+    func testDeepDataCheckAndReleaseFitAConcurrencyWorkerStack() async {
+        let finished = expectation(description: "Deep provider data checked and released")
+        let worker = Thread {
+            autoreleasepool {
+                for depth in [256, 257, 300] {
+                    var value = Value.number(1)
+                    for level in 0..<depth {
+                        value = level.isMultiple(of: 2) ? .array([value])
+                            : .object([ObjectField(key: "next", value: value)])
+                    }
+                    XCTAssertEqual(nativeValueExceedsLimits(value), depth > NativeValueCost.maximumDepth)
+                }
+            }
+            finished.fulfill()
+        }
+        // Exercise both preflight and destruction away from XCTest's larger
+        // main-thread stack, as QueryManager does after a provider completes.
+        worker.stackSize = 512 * 1_024
+        worker.start()
+        await fulfillment(of: [finished], timeout: 2)
     }
 
     func testSharedDAGCountsOccurrencesWithoutExpandingTheGraph() {

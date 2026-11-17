@@ -192,6 +192,10 @@ final class NativeComponentSubscriptionTests: XCTestCase {
         let sink = subscription.objectWillChange.sink { changes += 1 }
         defer { sink.cancel() }
         state.push("\")")
+        XCTAssertFalse(state.isComplete, "A component's received delimiter does not terminate the stream")
+        XCTAssertTrue(try XCTUnwrap(state.root).isSourceComplete)
+        XCTAssertTrue(try XCTUnwrap(state.root).sourceReadiness.complete)
+        XCTAssertFalse(original.isSourceComplete, "The old immutable preview must retain its own readiness")
         XCTAssertEqual(changes, 1)
         XCTAssertTrue(try makeContext(subscription, state: state, element: original).canInteract)
         let revision = state.sourceRevision
@@ -199,6 +203,29 @@ final class NativeComponentSubscriptionTests: XCTestCase {
         XCTAssertEqual(state.sourceRevision, revision)
         XCTAssertEqual(changes, 2)
         XCTAssertFalse(try makeContext(subscription, state: state, element: original).canInteract)
+    }
+
+    @MainActor func testReadinessRequiresRealComponentAndNestedActionDelimiters() throws {
+        for (prefix, suffix) in [
+            ("root=Probe(\"text", "\")"),
+            ("root=Probe(1", ")"),
+            ("root=Probe(true", ")"),
+            ("root=Probe([\"text\"", "])"),
+            ("root=Probe(@OpenUrl(\"https://example.test", "\"))")
+        ] {
+            let state = makeState()
+            defer { state.reset() }
+            state.setSource(prefix, streaming: true)
+            let subscription = NativeComponentSubscription()
+            let pending = try XCTUnwrap(state.root)
+            XCTAssertFalse(pending.isSourceComplete, prefix)
+            XCTAssertFalse(try makeContext(subscription, state: state).canInteract, prefix)
+            state.push(suffix)
+            XCTAssertFalse(state.isComplete)
+            XCTAssertTrue(try XCTUnwrap(state.root).isSourceComplete, prefix + suffix)
+            XCTAssertTrue(try makeContext(subscription, state: state).canInteract, prefix + suffix)
+            XCTAssertFalse(pending.isSourceComplete)
+        }
     }
 
     @MainActor func testCompletionReachesTheSameSubscriptionWithoutChangingItsOwner() throws {

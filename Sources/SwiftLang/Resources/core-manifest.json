@@ -16,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "3370c7cb7be0d9e7a1a60914c52547b5ae69b4c2d8f1703ebd275b7667bab485",
-  "bytes": 867580,
+  "sha256": "cff0c3f3dd7009ef0f779e1e16b1fb510087c79ff2dedc8f081987fc35cd2a49",
+  "bytes": 867563,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "acf7c43b9b034327674fbfc898f19f4c02eebb1cc930d659db03abf0cc91c66e",
+  "adapterSha256": "2f7c2b432dcfd7253836d3f6aa5ef92dd016c52b6810db5f9d44815ec314c616",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {

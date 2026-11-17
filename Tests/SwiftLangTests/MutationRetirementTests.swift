@@ -141,14 +141,52 @@ final class MutationRetirementTests: XCTestCase {
             returned.fulfill(); return events
         }
         await fulfillment(of: [started], timeout: 2)
+        var patchedMutationIDs: [String]?
+        state.onParseResult = { patchedMutationIDs = $0.mutationStatements.map(\.statementId) }
         state.applyPatch("save=Mutation(\"save\",{n:2})\nroot=Button(@ToAssistant(\"current\"))")
+        state.onParseResult = nil
         await fulfillment(of: [returned], timeout: 1)
         XCTAssertEqual(provider.cancellations, ["save"])
         provider.releaseFirst("save", value: .string("stale"))
         let events = await action.value
         XCTAssertTrue(events.isEmpty)
         XCTAssertEqual(state.stateValue("$note"), .string("edited"))
+        // The official merge removes declarations unreachable from the new
+        // root. This patch no longer references save, so it has no idle slot.
+        XCTAssertEqual(patchedMutationIDs, [])
+        XCTAssertNil(state.mutationStates["save"])
+    }
+
+    @MainActor func testPatchKeepsReachableMutationIdleAfterRetiringItsOldAction() async throws {
+        let started = expectation(description: "Action tool started")
+        let returned = expectation(description: "Patched action returned before provider")
+        let provider = SuspendedProvider(started: ["save": [started]])
+        let schema = LibrarySchema(components: ["Button": [ParamDef(name: "action", required: true)]],
+            callDefs: builtinCallDefs, rootComponent: "Button")
+        let state = OpenUIState(schema: schema, toolProvider: provider)
+        defer { provider.releaseAll(); state.reset() }
+        state.setSource("$note=\"default\"\nsave=Mutation(\"save\",{n:1})\nroot=Button(Action([@Run(save),@Set($note,\"stale\"),@ToAssistant(\"stale\")]))")
+        state.setState("$note", value: .string("edited"))
+        let plan = try XCTUnwrap(PropValue.actionPlan(try XCTUnwrap(state.root), "action"))
+        let action = Task {
+            let events = await state.perform(plan)
+            returned.fulfill(); return events
+        }
+        await fulfillment(of: [started], timeout: 2)
+        var patchedMutationIDs: [String]?
+        state.onParseResult = { patchedMutationIDs = $0.mutationStatements.map(\.statementId) }
+        state.applyPatch("save=Mutation(\"save\",{n:2})\nroot=Button(@Run(save))")
+        state.onParseResult = nil
+        await fulfillment(of: [returned], timeout: 1)
+        XCTAssertEqual(provider.cancellations, ["save"])
+        XCTAssertEqual(patchedMutationIDs, ["save"])
         XCTAssertEqual(state.mutationStates["save"]?.status, .idle)
+        provider.releaseFirst("save", value: .string("stale"))
+        let events = await action.value
+        XCTAssertTrue(events.isEmpty)
+        XCTAssertEqual(state.stateValue("$note"), .string("edited"))
+        XCTAssertEqual(state.mutationStates["save"]?.status, .idle)
+        XCTAssertEqual(provider.calls, ["save": 1])
     }
 
     @MainActor func testDisposeReleasesAllAwaitersWithoutProviderCooperation() async {
