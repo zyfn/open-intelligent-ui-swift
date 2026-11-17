@@ -91,6 +91,9 @@ final class QueryLifecycleTests: XCTestCase {
             synchronize(manager, [request("timer", interval: 0.02)])
             await eventually { provider.calls.filter { $0 == "timer" }.count >= 2 }
             synchronize(manager, [request("timer", interval: 0)])
+            // Stopping the interval preserves a fetch already accepted by a tick.
+            // Its native Task may enter the provider after the interval is cleared.
+            await eventually { manager.queryState(for: "q")?.status == .success }
             let count = provider.calls.count
             try? await Task.sleep(nanoseconds: 65_000_000)
             XCTAssertEqual(provider.calls.count, count)

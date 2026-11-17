@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.4 · 更新日期：2026-11-17
+文档版本：1.5 · 更新日期：2026-11-17
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -48,7 +48,7 @@
 - Markdown 提供完整文档块排版，默认正文与 Text 共用阅读角色，H1/H2/H3 对应页面、章节、对象标题；宿主显式 markdownHeadingScales 仍优先。ImageText、列表、Quote、Flashcard 等紧凑上下文只缩短段距至 innerSpacing，保留多个段落的区分，不把段距归零或自动缩小正文。Quote 仍表示引文，浅底、圆角、侧线和内边距使用同一表面。Code 与 Markdown 代码块共用原文、着色和复制操作；长代码先显示有界预览，可展开，复制始终派发完整原文。
 - Citation 在混排段落中使用紧凑内联尺寸，不把完整按钮触达高度带入正文行；独立来源块和多来源 Popover 保留完整触达与导航能力。图片署名和来源可在同一小段 Text 中组合，不额外添加重复的图片链接。
 
-普通 Text/Title 直接应用宿主 Font；Markdown 通过固定 MarkdownUI 的字体属性入口应用已解析字体，并抵消其内部 body 缩放，避免把原生字号再次放大。macOS 的默认语义系统标题另按原生字体与重建固定字体的 leading 差恢复额外行距，保留宿主已有行距；不靠固定高度或 padding 对齐测量值。宿主任何显式 `markdownHeadingScales` 赋值都继续表示原来的前三层相对比例，包括数值与默认数组相同时；未覆盖时才采用语义标题角色。旧系统仍需使用既有 nativeFont 配对，不能自动反解任意 SwiftUI Font；无法按名称回读的私有字体设计回退到系统字体，不猜测私有字族名称。本库没有 Callout 组件：Quote 保持引文语义，Badge 表示短状态，Box 只提供作者明确选择的表面。
+普通 Text/Title 直接应用宿主 Font；Markdown 通过固定 MarkdownUI 的字体属性入口应用已解析字体，并抵消其内部 body 缩放，避免把原生字号再次放大。macOS 的默认语义系统标题使用同一 SwiftUI 文本引擎取得语义字体与重建固定字体的行间基线差，恢复额外行距并保留宿主已有行距；度量按字体及实际环境有界复用，不靠固定高度或 padding 对齐。宿主任何显式 `markdownHeadingScales` 赋值都继续表示原来的前三层相对比例，包括数值与默认数组相同时；未覆盖时才采用语义标题角色。旧系统仍需使用既有 nativeFont 配对，不能自动反解任意 SwiftUI Font；无法按名称回读的私有字体设计回退到系统字体，不猜测私有字族名称。本库没有 Callout 组件：Quote 保持引文语义，Badge 表示短状态，Box 只提供作者明确选择的表面。
 
 ### 2.3 控件、输入与选择
 

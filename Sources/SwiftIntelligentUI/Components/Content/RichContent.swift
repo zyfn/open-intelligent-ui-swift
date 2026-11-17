@@ -18,6 +18,12 @@ struct RichMarkdown: View {
     var isTitle = false
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
+    #if os(macOS)
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.locale) private var locale
+    @Environment(\.legibilityWeight) private var legibilityWeight
+    @Environment(\.layoutDirection) private var layoutDirection
+    #endif
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
     @ScaledMetric(relativeTo: .body) private var bodyScale: CGFloat = 1
     #if compiler(>=6.2)
@@ -95,7 +101,14 @@ struct RichMarkdown: View {
             ? TitleTypography.font(size: role, theme: theme) == TitleTypography.font(size: role, theme: OpenIntelligentUITheme())
             : usesSystemBodyFamily
         let style = MarkdownFontStyle(font, usesSystemFamily: systemFamily, size: size, weight: semantic ? nil : theme.headingWeight)
-        let leading = semantic && systemFamily ? MarkdownTypography.semanticHeadingLineSpacing(font, style: style) : 0
+        #if os(macOS)
+        let leading = semantic && systemFamily ? (MarkdownTypography.semanticHeadingLineSpacing(
+            TitleTypography.font(size: role, theme: theme), style: style, typeSize: typeSize,
+            displayScale: displayScale, locale: locale, legibilityWeight: legibilityWeight,
+            layoutDirection: layoutDirection) ?? 0) : 0
+        #else
+        let leading: CGFloat = 0
+        #endif
         return configuration.label
             .markdownTextStyle { style }
             .transformEnvironment(\.lineSpacing) { $0 += leading }

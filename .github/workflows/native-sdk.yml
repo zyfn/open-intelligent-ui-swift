@@ -167,7 +167,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses|SemanticTypographyTests' \
+          swift test --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses|testRefetchDuringFlightQueuesAndRefreshTimerStops|SemanticTypographyTests' \
             2>&1 | tee outputs/verification/native-closure-debug.log
       - name: Retain focused Debug closure diagnostics immediately
         if: ${{ !cancelled() }}
@@ -182,7 +182,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test --configuration release --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses|SemanticTypographyTests' \
+          swift test --configuration release --filter 'testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone|testSharedByteCountLimitAlsoBoundsEmptyResponses|testRefetchDuringFlightQueuesAndRefreshTimerStops|SemanticTypographyTests' \
             2>&1 | tee outputs/verification/native-closure-release.log
       - name: Retain focused Release closure diagnostics immediately
         if: ${{ !cancelled() }}

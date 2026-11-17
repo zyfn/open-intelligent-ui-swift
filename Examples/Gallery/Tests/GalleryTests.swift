@@ -172,7 +172,8 @@ final class GalleryTests: XCTestCase {
             let items = try GalleryComponent.load(kind, resourceRoot: root)
             XCTAssertEqual(Set(items.map(\.name)), Set(library.specification.components.map(\.name)))
             if kind == .openUI {
-                XCTAssertEqual(items.count, 87)
+                XCTAssertEqual(items.count, 88)
+                XCTAssertTrue(items.contains { $0.name == "JourneyLine" })
                 XCTAssertEqual(items.filter(\.supporting).count, 15)
                 XCTAssertEqual(items.first { $0.name == "SelectItem" }?.container, "Select")
             }

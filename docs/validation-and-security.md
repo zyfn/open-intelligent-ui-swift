@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.24 · 更新日期：2026-11-17
+文档版本：1.25 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -549,9 +549,20 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 用户随后提供的 17 项截图明确包含 SwiftIntelligentUI 的 Markdown 字体用例，因此本次范围增加这一项定向修复。独立诊断提交 `8856632` 在同一 macOS 15 runner 保留原文、320 pt 宽度、large/accessibility2 和 2 pt 容差：H1 为 Markdown 60 / Title 65 pt，H2 为 57/59、H3 为 48/48、正文为 36/36。独立纯 Text 与相同 AttributedString 的对照均显示语义 Font 和 Font(NSFont) 为 65，而同字号/字重的固定 system Font 为 60；17 pt semibold 相同，差异来自语义字体度量在 MarkdownUI 重建时丢失，非字重或输入内容。
 
-最小修正只针对 macOS 默认语义系统标题：按实际原生字体与 MarkdownUI 所用的取整字号/实际字重之 leading 差恢复额外行距，并保留宿主已有行距。显式相对标题比例、自定义字体路径和 iOS 排版保持原规则；不加固定高度、padding 或放宽断言。完整 `SemanticTypographyTests` 已加入早期 Debug/Release 检查，修正后的通过状态须绑定后续候选执行结果；临时诊断打印和诊断分支 workflow 不进入交付。
+直接使用 AppKit leading 差的候选 `3152ca7` 修正了 H1，却把 H2 从 57/59 pt 补成 62/59 pt，Debug/Release 均由原 2 pt 断言拦下。独立诊断进一步确认 CTFont 总行高、TextKit 默认行高和真实 SwiftUI 基线并非同一个量，不能按标题级别写固定补偿，也不能选择只让短文进入容差的近似值。
 
-基线与独立 oracle 放 `outputs/repair-baseline/`，生命周期前置证据放 `outputs/repair-lifecycle/run-44053853788/`，历次候选分别放 `outputs/repair-candidate-21cbb3e/`、`outputs/repair-candidate-3165598/` 和 `outputs/repair-candidate-4a5108f/`；不将基线成功、新候选源码完成或部分原生通过写成完整客户端流畅度验收。
+诊断提交 `2fc398a` 的 [原生执行](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44069771066) 保留原文字、宽度、字号和断言，另加入三倍长标题。公开 Canvas 文本解析与 NSHostingView 的 ViewDimensions 在 displayScale 1/2 上得到相同的实际行间基线：H1 为语义 22 / 固定 20 pt，H2 为 20/19，H3 为 16/16。18 次直接测量和 3 次外层 body 冷调用均同步完成；未观察到布局循环或更新中改写状态的诊断。采用该基线差的 SDK 探针中，原文的 Markdown/Title 高度为 64/65、59/59、48/48，长文为 196/197、159/159、112/112；ImageRenderer 与 NSHostingView 两条路径都在原 2 pt 容差内，H1 的 1 pt 首尾行框差没有逐行累积。这些通过结果属于诊断提交，不直接代替正式缓存实现的验收。
+
+正式修正只在 macOS 默认语义系统标题路径，通过同一 Canvas context 解析实际语义字体和 MarkdownUI 重建的固定字体，读取首末行 baseline 差。缓存以完整字体对、动态字号、displayScale、locale、legibilityWeight 和布局方向为键，最多 32 项，只保留标量，不保留 renderer、图像、宿主或文档。未获得合法同步度量时不缓存；合法的零差正常复用。真实标题累加宿主已有行距；显式相对比例、自定义字体和 iOS 路径保持原规则。新增两项真实 SDK 回归覆盖短/长标题的首次及缓存渲染、两种字号与 scale 下的冷/重复原生拟合，以及拟合不发布 SDK 状态。完整字体组继续在早期 Debug/Release 执行，正式结果须绑定后续候选；诊断专用源码、打印及 workflow 不进入交付。
+
+`3152ca7` 的 [完整流水线记录](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44064403011) 中，包内 **1215** 个 testcase 执行完毕：SwiftLang **444/444**、SwiftOpenUI **570/570**，SwiftIntelligentUI **200 通过 / 1 失败**，唯一失败 testcase 为上述 H2 字体的两条断言。媒体/文本两配置各 **278/278**、Release 边界 **339/339**、Release fitting **4/4**、三个独立产品消费者、iOS 产品与 Gallery 构建、Gallery fixtures **184 batch + 184 streamed**、历史 IUI **61 个组件契约**、工具构建及两轮 Release benchmark 均成功。后续还出现以下两项独立失败，整条执行因此不能记作通过：
+
+| 后续失败 | 独立依据与修正 |
+| --- | --- |
+| Gallery 目录数量仍写 87 | 主线 `c20081d` 已加入 JourneyLine，实际注册集合、ReferenceCatalogTests 和设计文档均为 88；`7d9b36a` 与 `3152ca7` 的独立 Gallery 均只有旧数量断言失败。数量同步为 88 并明确检查 JourneyLine 存在，保留全部集合相等、15 个 supporting 子项及逐例求值检查；原 Lang 示例不改 |
+| ASan 中 Query 停表后的调用计数 5/4 | ASan 构建与 444 个 testcase 均执行完成，443 通过 / 1 计时断言失败，没有 AddressSanitizer 内存错误报告。固定官方 queryManager 与实际 bundle 的受控时序均复现：40 ms tick 先接受第 5 个请求，停表时 provider 计数仍为 4，该已接受任务随后进入 provider；停表后 65 ms 没有新 tick 或新请求。测试改为等待已接受查询 success 后记录计数，保留原 65 ms、精确不增长及 in-flight 排队断言；不改生产调度，也不取消合法在途请求。该 case 加入早期 Debug/Release，仍由完整 ASan 再验收 |
+
+基线、readiness 与 Query 定时器独立 oracle 放 `outputs/repair-baseline/`，生命周期前置证据放 `outputs/repair-lifecycle/run-44053853788/`，历次候选分别放 `outputs/repair-candidate-21cbb3e/`、`outputs/repair-candidate-3165598/`、`outputs/repair-candidate-4a5108f/` 和 `outputs/repair-candidate-3152ca7/`，字体独立基线证据放 `outputs/typography-metrics-2fc398a/`；不将基线成功、新候选源码完成或部分原生通过写成完整客户端流畅度验收。
 
 ### 内核目标验收
 

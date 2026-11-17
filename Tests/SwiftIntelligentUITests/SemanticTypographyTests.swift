@@ -11,9 +11,9 @@ final class SemanticTypographyTests: XCTestCase {
 
     @MainActor private func height(_ component: String, library: OpenIntelligentUIComponents,
                                    theme: OpenIntelligentUITheme = .init(), size: DynamicTypeSize = .large,
-                                   scheme: ColorScheme = .light) throws -> Double {
+                                   scheme: ColorScheme = .light, copyText: String? = nil) throws -> Double {
         let state = library.makeState()
-        state.setSource("root = Col([\(component)])\n$copy = \"\(copy)\"")
+        state.setSource("root = Col([\(component)])\n$copy = \"\(copyText ?? copy)\"")
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
             .openIntelligentUITheme(theme).environment(\.dynamicTypeSize, size)
@@ -66,6 +66,31 @@ final class SemanticTypographyTests: XCTestCase {
         }
     }
 
+    @MainActor func testLongMarkdownHeadingsKeepTitleMetricsAcrossColdAndWarmRendering() throws {
+        let library = try OpenIntelligentUIComponents()
+        let longCopy = Array(repeating: copy, count: 3).joined(separator: " ")
+        for size in [DynamicTypeSize.large, .accessibility2] {
+            for text in [copy, longCopy] {
+                for (prefix, titleSize) in [("# ", "xl"), ("## ", "lg"), ("### ", "md")] {
+                    #if os(macOS)
+                    MarkdownTypography.headingSpacingCache.removeAll()
+                    #endif
+                    let component = "Markdown(\"\(prefix)\" + $copy)"
+                    let first = try height(component, library: library, size: size, copyText: text)
+                    let title = try height("Title($copy,\"\(titleSize)\")", library: library, size: size, copyText: text)
+                    let context = "heading \(prefix), \(size), characters=\(text.count)"
+                    XCTAssertEqual(first, title, accuracy: 2, context)
+                    #if os(macOS)
+                    XCTAssertFalse(MarkdownTypography.headingSpacingCache.isEmpty,
+                                   "Cold SDK rendering must resolve both fonts synchronously: \(context)")
+                    #endif
+                    XCTAssertEqual(try height(component, library: library, size: size, copyText: text),
+                                   first, "Cached metrics must preserve the first rendered height: \(context)")
+                }
+            }
+        }
+    }
+
     @MainActor func testFixedNativeBodyPartnerIsNotScaledAgainByMarkdown() throws {
         let library = try OpenIntelligentUIComponents()
         var theme = OpenIntelligentUITheme()
@@ -109,6 +134,49 @@ final class SemanticTypographyTests: XCTestCase {
     }
 
     #if os(macOS)
+    @MainActor func testMarkdownHeadingMetricsSurviveColdAndRepeatedNativeFitting() throws {
+        let library = try OpenIntelligentUIComponents()
+        let longCopy = Array(repeating: copy, count: 3).joined(separator: " ")
+        for size in [DynamicTypeSize.large, .accessibility2] {
+            for scale in [CGFloat(1), CGFloat(2)] {
+                for text in [copy, longCopy] {
+                    func host(_ component: String) -> (NSHostingView<AnyView>, OpenUIState) {
+                        let state = library.makeState()
+                        state.setSource("root = Col([\(component)])\n$copy = \"\(text)\"")
+                        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+                        let content = OpenIntelligentUIContentView(state: state, library: library)
+                            .openIntelligentUITheme(.init())
+                            .environment(\.dynamicTypeSize, size)
+                            .environment(\.displayScale, scale)
+                            .environment(\.colorScheme, .light)
+                            .frame(width: 320)
+                        return (NSHostingView(rootView: AnyView(content)), state)
+                    }
+                    for (prefix, titleSize) in [("# ", "xl"), ("## ", "lg"), ("### ", "md")] {
+                        MarkdownTypography.headingSpacingCache.removeAll()
+                        let (markdown, state) = host("Markdown(\"\(prefix)\" + $copy)")
+                        let revision = state.presentationRevision
+                        let first = markdown.fittingSize.height
+                        let cachedKeys = Set(MarkdownTypography.headingSpacingCache.keys)
+                        let (title, _) = host("Title($copy,\"\(titleSize)\")")
+                        let expected = title.fittingSize.height
+                        let context = "heading \(prefix), \(size), scale=\(scale), characters=\(text.count)"
+                        XCTAssertGreaterThan(first, 0, context)
+                        XCTAssertFalse(cachedKeys.isEmpty,
+                                       "Cold native fitting must resolve both fonts synchronously: \(context)")
+                        XCTAssertEqual(first, expected, accuracy: 2, context)
+                        for _ in 0..<3 {
+                            XCTAssertEqual(markdown.fittingSize.height, first, accuracy: 0.001, context)
+                        }
+                        XCTAssertEqual(Set(MarkdownTypography.headingSpacingCache.keys), cachedKeys, context)
+                        XCTAssertEqual(state.presentationRevision, revision,
+                                       "Font measurement must not publish SDK state: \(context)")
+                    }
+                }
+            }
+        }
+    }
+
     @MainActor func testMountedInlineRolesAndNativeFontPartnerSurviveThemeUpdates() throws {
         _ = NSApplication.shared
         let library = try OpenIntelligentUIComponents()
