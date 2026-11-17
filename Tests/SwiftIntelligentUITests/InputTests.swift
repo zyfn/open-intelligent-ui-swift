@@ -2,6 +2,9 @@ import XCTest
 import SwiftUI
 import SwiftLang
 @testable import SwiftIntelligentUI
+#if os(macOS)
+import AppKit
+#endif
 
 final class InputTests: XCTestCase {
     func testNumericDraftsDoNotReplaceLastValidValue() {
@@ -77,4 +80,100 @@ final class InputTests: XCTestCase {
         XCTAssertEqual(state.stateValue("$name"), .string("初始"))
         XCTAssertEqual(state.stateValue("$amount"), .number(12))
     }
+
+    #if os(macOS)
+    @MainActor func testMountedInputsKeepEditingIdentityWhileTheirOwnBindingsUpdate() throws {
+        _ = NSApplication.shared
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        defer { state.reset() }
+        state.setSource("""
+        $left="left before"
+        $right="right before"
+        root=Col([Input($left,"Left"),Input($right,"Right")])
+        """)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        let host = NSHostingView(rootView: OpenIntelligentUIContentView(state: state, library: library)
+            .frame(width: 320, height: 240, alignment: .topLeading))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 320, height: 240),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+        defer { window.close() }
+        func fields(_ view: NSView) -> [NSTextField] {
+            let current = (view as? NSTextField).flatMap { $0.isEditable ? $0 : nil }
+            return (current.map { [$0] } ?? []) + view.subviews.flatMap(fields)
+        }
+        func settle() {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            host.layoutSubtreeIfNeeded()
+        }
+        settle()
+        XCTAssertEqual(fields(host).count, 2)
+        let left = try XCTUnwrap(fields(host).first { $0.stringValue == "left before" })
+        let right = try XCTUnwrap(fields(host).first { $0.stringValue == "right before" })
+        left.selectText(nil)
+        let editor = try XCTUnwrap(left.currentEditor() as? NSTextView)
+        editor.insertText("edited left", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        settle()
+        XCTAssertEqual(state.stateValue("$left"), .string("edited left"))
+
+        state.setState("$right", value: .string("right after"))
+        state.setFieldValue(form: nil, name: "unobserved", value: .string("unrelated field"))
+        settle()
+        XCTAssertEqual(fields(host).count, 2)
+        XCTAssertTrue(fields(host).contains { $0 === left })
+        XCTAssertTrue(fields(host).contains { $0 === right })
+        XCTAssertTrue(left.currentEditor() === editor, "An unrelated publication must preserve the active editor")
+        XCTAssertEqual(editor.string, "edited left")
+        XCTAssertEqual(right.stringValue, "right after", "The existing Context subscription must deliver this input's binding")
+
+        window.makeFirstResponder(nil)
+        state.setState("$left", value: .string("external left"))
+        settle()
+        XCTAssertEqual(left.stringValue, "external left")
+        state.setSource("$replacement=\"replacement document\"\nroot=Input($replacement,\"Replacement\")")
+        settle()
+        let replacement = try XCTUnwrap(fields(host).first)
+        XCTAssertEqual(fields(host).count, 1)
+        XCTAssertEqual(replacement.stringValue, "replacement document")
+        XCTAssertFalse(replacement === left || replacement === right, "Replacement owns a new editing lifetime")
+    }
+
+    @MainActor func testMountedInputEnablesWhenItsCallClosesWithoutRemounting() throws {
+        _ = NSApplication.shared
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        defer { state.reset() }
+        state.push("$name=\"Initial\"\nroot=Input($name,\"Name\"")
+        let host = NSHostingView(rootView: OpenIntelligentUIContentView(state: state, library: library)
+            .frame(width: 320, height: 100))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 320, height: 100),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+        defer { window.close() }
+        func field(_ view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField, field.isEditable { return field }
+            return view.subviews.lazy.compactMap(field).first
+        }
+        func settle() {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            host.layoutSubtreeIfNeeded()
+        }
+        settle()
+        let input = try XCTUnwrap(field(host))
+        XCTAssertFalse(input.isEnabled)
+        state.push(")")
+        settle()
+        XCTAssertFalse(state.isComplete)
+        XCTAssertTrue(input.isEnabled)
+        XCTAssertTrue(field(host) === input)
+        state.complete()
+        state.setState("$name", value: .string("Updated"))
+        settle()
+        XCTAssertTrue(field(host) === input)
+        XCTAssertEqual(input.stringValue, "Updated")
+    }
+    #endif
 }

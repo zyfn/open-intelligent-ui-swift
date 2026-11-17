@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.29 · 更新日期：2026-11-17
+文档版本：1.30 · 更新日期：2026-11-18
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -119,6 +119,26 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | Swift 原生验收 | BLOCKED：定向 XCTest、完整 `swift test`、Release host 子集均因找不到 swift 返回 127；模块图检查同样无法运行 `swift package dump-package`。新增 4 项 XCTest 尚未编译/执行，其中 Query 反馈测试含 24 组状态预期及实时/提交边界检查 |
 
 执行证据在忽略的 `outputs/lang-runtime-boundaries/`。删除中间数组和合并遍历属于源码层面的工作收敛；本轮没有 Apple App CPU、内存、帧率或 push 延迟测量，不据此宣称设备性能提升。
+
+### SDK 正常接入与生命周期审查
+
+本轮基线为 `23476b748dc103667c1d50832c27c2874a486a14`，审查共享输入/执行/发布链路、两套组件库、布局、字段编辑、Markdown 与资源生命周期。修复保持现有 Lang 契约、`OpenUIView(state:library:)` 和 `push / complete / interrupt` 接入；不增加业务场景分支或宿主调度协议。
+
+| 确认的问题 | 修复边界 | 回归证据入口 |
+| --- | --- | --- |
+| 同一组件目录每次创建文档和识别源码都重新 author/compile 相同 reader | 不可变 `OpenUIComponentLibrary` 按需保存编译元数据，多个临时 facade 可复用；每份 State 仍有独立 prepared JS library 与执行状态 | `LibraryFacadeTests`：扩展 reader 隔离、多个 facade 的真实函数返回默认对象/嵌套数组隔离；既有 provider、状态与动作测试继续覆盖 |
+| Intelligent UI 多处声明了未读取的整份 State 订阅 | 删除 11 个已注册组件中的冗余声明；独立动作表面复用现有 `OpenUIContextContent`，保留真正使用 State 的阅读锚点和附件宿主 | `InputTests`、`AncestorInteractionScopeTests`：真实输入编辑、当前绑定、闭合启用、替换文档及独立 Context 的原 owner |
+| 已挂载的 EditableTable / Slider 切换字段或表单名时，原 StateObject 可能继续持有旧字段草稿；Slider 拒绝的写入提前丢弃 pending | 编辑 owner 随完整字段键切换，复用文档既有草稿；未闭合名字只使用挂载期临时草稿。现有写入路径在实际接受后交付内部回调，草稿保留绑定转换、排队拒绝及同步重入的新编辑 | `TableMountedViewTests`、`SliderFeedbackRenderingTests`、`StreamingFormCorrectnessTests`：a→b→a、父 Form 切换、逐字符名字、普通更新保持控件、规范化到旧值、排队拒绝/重入与旧文档回调 |
+| Markdown 后台成功后仍保留已被覆盖的同步源码与解析树 | 只释放被当前有效结果覆盖的 fallback；保留 body 已提前读取的新纠正，退休结果仍无效 | `StreamingTextPresentationTests`：受控后台结果、纠正交错、取消后读取及旧 generation |
+| 响应缓存命中绕过后来收紧的字节限额 | 命中、网络完成和等待者恢复共用当前字节限制检查 | `ResourceStoreTests`：收紧拒绝、等值接受、放宽复用，底层请求保持一次 |
+
+共享写入完成回调另由 `RuntimeReentrancyTests` 验证：实际转换后的值在公开状态通知之前确认；排队期间不提前确认；直接绑定、转换绑定、普通字段与表单字段在目标退休或预算拒绝时均只回调一次失败。既有无回调的入口不额外读取 Store，公开 API 与通知顺序保持。
+
+标准 OpenUI 的文档创建测量使用真实目录，在同一进程内交替执行“同一目录创建临时 facade 并复用 reader”和“每次重新 toSchema 的原路径”，各采样 12 次、预热两轮；计时在解析源码之前停止，并单独记录 facade 构造及首次创建文档（包含 reader 准备）的耗时。Debug/Release 输出沿用 `OPENUI_SNAPSHOT_DIR`，文件名为 `library-document-creation-debug.json` 和 `library-document-creation-release.json`。该测量不挂载界面，不代表会话加载总耗时、滚动帧率或真机收益，也不设置未经基线支持的时间阈值。不可变 schema 的按需准备与每文档 JS 身份边界见[架构](architecture.md#3-唯一的客户端运行链路)。
+
+源码所有权检查和当前随包 JS 的 172 项回归在本地通过；本地没有 Apple/Swift 编译环境，新增原生用例、完整 XCTest、Release fitting 与 iOS 编译的实际状态以该候选 CI 为准。现有 Debug/Release 子集加入 facade 与 Intelligent UI 挂载用例，没有另建测试流水线。执行证据在忽略的 `outputs/sdk-runtime-performance-review/`。
+
+整体审查没有发现滚动/尺寸拟合主动重建 State 或提交源码的路径；已有完整呈现提交、节点比较与弱订阅不能再当作待实现功能。真实 push、字段和 Query 更新仍可能整 root 求值/投影、索引并检查全部挂载订阅；当前没有设备 trace 可以把它们认定为已完成文档滚动的根因。引用弹窗等待 Markdown 引擎共享锁、行内 Markdown 图片的解码复用，以及远程 SVG 的首次重复解析保留为可定位的测量入口，不据代码出现位置宣称它们解释整次卡顿。仍需相同 App 输入与设备的滚动前后对照，以及同进程进入/离开时的对象持有链；本轮不宣称解决所有卡顿、证明无泄漏或提供长文档分段回收。
 
 ### 完成长文档的滚动与布局
 

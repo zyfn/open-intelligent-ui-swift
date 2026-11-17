@@ -58,8 +58,10 @@ final class NativeSliderDraft: ObservableObject {
   @Published private(set) var text: [String] = []
   private var external: [Double] = []
   private var pending: [Double]?
+  private var pendingRevision = 0
+  private var inFlightRevision: Int?
   private var work: Task<Void, Never>?
-  var commit: (([Double]) -> Void)?
+  var commit: (([Double], @escaping ([Double]?) -> Void) -> Void)?
   var configuration: NativeSliderConfiguration?
 
   func receive(_ values: [Double]) {
@@ -94,6 +96,7 @@ final class NativeSliderDraft: ObservableObject {
   // Coalesce rapid edits while ensuring a form action can synchronously
   // flush the last valid draft before reading its Store payload.
   private func schedule(_ values: [Double]) {
+    pendingRevision &+= 1
     pending = values
     work?.cancel()
     work = Task { @MainActor [weak self] in
@@ -128,10 +131,25 @@ final class NativeSliderDraft: ObservableObject {
   func flush() {
     work?.cancel(); work = nil
     guard validationError() == nil else { pending = nil; return }
-    guard let pending else { return }
-    self.pending = nil
-    external = pending
-    commit?(pending)
+    guard let pending, let commit else { return }
+    let revision = pendingRevision
+    guard inFlightRevision != revision else { return }
+    inFlightRevision = revision
+    commit(pending) { [weak self] accepted in
+      guard let self else { return }
+      if self.inFlightRevision == revision { self.inFlightRevision = nil }
+      guard let accepted else { return }
+      // A write may normalize its input, or a host callback may have edited
+      // again while it was queued. Acknowledge the actual Store value first so
+      // its publication cannot overwrite that newer draft.
+      self.external = accepted
+      guard self.pendingRevision == revision, self.pending == pending else { return }
+      self.pending = nil
+      if self.values != accepted {
+        self.values = accepted
+        self.text = accepted.map(jsNumberString)
+      }
+    }
   }
   deinit { work?.cancel() }
 }
@@ -158,10 +176,11 @@ struct NativeSliderField: View {
   @Environment(\.isEnabled) private var enabled
   @ScaledMetric(relativeTo: .body) private var valueWidth: CGFloat = 88
   @StateObject private var draft: NativeSliderDraft
-  @MainActor init(context: OpenUIComponentContext) {
+  @MainActor init(context: OpenUIComponentContext, editingIdentity: NativeFieldEditingIdentity?) {
     self.context = context
-    _draft = StateObject(wrappedValue: context.editingRecord(kind: "slider",
-      name: context.codeUnitString("name") ?? "", create: NativeSliderDraft.init))
+    _draft = StateObject(wrappedValue: editingIdentity == nil ? NativeSliderDraft()
+      : context.editingRecord(kind: "slider", name: context.codeUnitString("name") ?? "",
+          create: NativeSliderDraft.init))
   }
   @State private var pendingWriteOwner = UUID()
   @State private var registeredPendingName: OpenUIString?
@@ -264,9 +283,17 @@ struct NativeSliderField: View {
   }
   private func configure(_ target: NativeSliderTarget) {
     draft.configuration = configuration
-    draft.commit = target.context.weakOperation { context, values in
-      NativeFieldState(context: context).write(.array(values.map(Value.number)))
+    let minimum = configuration.minimum
+    let write = target.context.weakOperation(onUnavailable: { request in request.1(nil) }) {
+      (context: OpenUIComponentContext, request: ([Double], ([Double]?) -> Void)) in
+      NativeFieldState(context: context).write(.array(request.0.map(Value.number))) { accepted in
+        request.1(accepted.map { value in
+          let values = NativeChartData.numbers(value)
+          return values.isEmpty ? [minimum] : values
+        })
+      }
     }
+    draft.commit = { values, completion in write((values, completion)) }
   }
   private var header: some View {
     let stacked = typeSize.isAccessibilitySize || external.count > 1

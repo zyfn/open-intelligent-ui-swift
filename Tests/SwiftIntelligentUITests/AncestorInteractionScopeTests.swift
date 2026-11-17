@@ -14,6 +14,58 @@ final class AncestorInteractionScopeTests: XCTestCase {
         try await checkMountedScope(container: "Form")
     }
 
+    @MainActor func testStandaloneActionObservesItsOwnerAndRetainsItsOriginalEpoch() throws {
+        _ = NSApplication.shared
+        let library = try OpenIntelligentUIComponents()
+        let owner = library.makeState(), ambient = library.makeState()
+        defer { owner.reset(); ambient.reset() }
+        owner.push("root=Text(\"Owner\"")
+        ambient.setSource("root=Text(\"Ambient\")")
+        let original = OpenUIComponentContext(element: try XCTUnwrap(owner.root),
+            registry: library.readerComponents.registry, state: owner)
+        let log = ActionMountLog()
+        // Hold the Context fixed and supply a different ambient State. The
+        // action must observe the Context owner, including delimiter-only updates.
+        let host = NSHostingView(rootView: OpenIntelligentUIActionSurface(context: original,
+            action: OpenUIActions.continueConversation("Apply")) {
+            ActionMountMarker(log: log).frame(width: 160, height: 32)
+        }.environmentObject(ambient))
+        let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 240, height: 100),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+        defer { window.close() }
+        func settle() {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            host.layoutSubtreeIfNeeded()
+        }
+        settle()
+        let marker = try XCTUnwrap(log.button)
+        XCTAssertEqual(log.mounts, 1)
+        XCTAssertFalse(marker.isEnabled)
+        owner.push(")")
+        settle()
+        XCTAssertFalse(owner.isComplete)
+        XCTAssertTrue(marker.isEnabled, "The owner closing must enable the retained action without an ambient update")
+        owner.complete()
+        settle()
+        let updates = log.updates
+        owner.setFieldValue(form: nil, name: "unobserved", value: .string("unrelated owner field"))
+        ambient.setFieldValue(form: nil, name: "unobserved", value: .string("unrelated ambient field"))
+        settle()
+        let unrelatedUpdates = log.updates - updates
+        XCTAssertEqual(log.mounts, 1)
+        XCTAssertEqual(unrelatedUpdates, 0, "Unrelated fields need not update the native action label")
+        XCTAssertTrue(log.button === marker)
+        XCTAssertTrue(marker.isEnabled)
+        owner.setSource("root=Text(\"Replacement\")")
+        settle()
+        XCTAssertEqual(log.mounts, 1)
+        XCTAssertFalse(marker.isEnabled, "Observation cannot renew a retained event Context's source epoch")
+        XCTAssertFalse(original.canInteract)
+        print("IUI standalone action: mounts=\(log.mounts), unrelated native label updates=\(unrelatedUpdates)")
+    }
+
     @MainActor private func checkMountedScope(container: String) async throws {
         _ = NSApplication.shared
         let recorder = MountedScopeRecorder()
@@ -112,6 +164,27 @@ private struct MountedScopeMarker: NSViewRepresentable {
         button.isEnabled = component.canInteract
         recorder?.contexts[component.element.typeName] = component
         recorder?.enabled[component.element.typeName] = button.isEnabled
+    }
+}
+
+@MainActor private final class ActionMountLog {
+    var mounts = 0
+    var updates = 0
+    weak var button: NSButton?
+}
+
+/// Counts the actual native label's lifecycle, not a reconstructed model or
+/// SwiftUI body execution. The effective enabled value comes from the Button.
+private struct ActionMountMarker: NSViewRepresentable {
+    let log: ActionMountLog
+    @Environment(\.isEnabled) private var enabled
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(title: "Apply", target: nil, action: nil)
+        log.mounts += 1; log.button = button
+        return button
+    }
+    func updateNSView(_ button: NSButton, context: Context) {
+        log.updates += 1; button.isEnabled = enabled
     }
 }
 #endif

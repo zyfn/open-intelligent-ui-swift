@@ -102,6 +102,36 @@ final class ResourceStoreTests: XCTestCase {
     XCTAssertEqual(owner.calls, 2)
   }
 
+  @MainActor func testTightenedResponseLimitRejectsCompletedBytesWithoutRefetching() async throws {
+    let owner = ScopedFixtureLoader(limit: 16), store = NativeResourceStore()
+    let scope = store.scoped(.init(loader: owner))
+    let request = try XCTUnwrap(scope.request(for: "https://resource.example/cached"))
+    let expected = Data(owner.account.utf8)
+    let initial = try await scope.loader.data(for: request)
+    XCTAssertEqual(initial, expected)
+    XCTAssertEqual(owner.calls, 1)
+
+    owner.resourceLimits.maximumResponseBytes = expected.count - 1
+    do {
+      _ = try await scope.loader.data(for: request)
+      XCTFail("Completed bytes must respect the same loader's current response limit")
+    } catch {
+      XCTAssertEqual((error as? URLError)?.code, .dataLengthExceedsMaximum)
+      XCTAssertEqual((error as NSError).userInfo[NativeResourceError.stageKey] as? String, "responseBytes")
+      XCTAssertEqual((error as NSError).userInfo[NativeResourceError.actualKey] as? Double, Double(expected.count))
+      XCTAssertEqual((error as NSError).userInfo[NativeResourceError.limitKey] as? Double, Double(expected.count - 1))
+    }
+    XCTAssertEqual(owner.calls, 1, "Rejecting retained bytes does not need another network request")
+
+    owner.resourceLimits.maximumResponseBytes = expected.count
+    let exact = try await scope.loader.data(for: request)
+    XCTAssertEqual(exact, expected, "The exact current limit remains accepted")
+    owner.resourceLimits.maximumResponseBytes = 32
+    let relaxed = try await scope.loader.data(for: request)
+    XCTAssertEqual(relaxed, expected)
+    XCTAssertEqual(owner.calls, 1, "Relaxing the policy reuses the still valid bounded cache entry")
+  }
+
   func testDefaultDownloadLimitAppliesToAdvertisedAndActualBytes() async throws {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [ResourceFixtureProtocol.self]
@@ -252,7 +282,7 @@ private final class ScopedFixtureLoader: OpenUIResourceLoading {
   var account = "account-a"
   var calls = 0
   var authorizationScopeID: String { account }
-  let resourceLimits: OpenUIResourceLimits
+  var resourceLimits: OpenUIResourceLimits
   init(limit: Int = 1024) { resourceLimits = OpenUIResourceLimits(maximumResponseBytes: limit) }
   func request(for source: String, relativeTo baseURL: URL?) -> URLRequest? {
     URL(string: source, relativeTo: baseURL).map { URLRequest(url: $0) }

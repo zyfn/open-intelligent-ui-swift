@@ -289,7 +289,10 @@ public struct OpenUIResourceContext {
             owner: OwnerKey(identity: ObjectIdentifier(owner), scope: scope), policy: request.cachePolicy.rawValue)
         let retains = request.cachePolicy == .useProtocolCachePolicy
             || request.cachePolicy == .returnCacheDataElseLoad || request.cachePolicy == .returnCacheDataDontLoad
-        if retains, let data = completed[key] { return data }
+        if retains, let data = completed[key] {
+            try Self.checkResponseSize(data, maximum: owner.resourceLimits.maximumResponseBytes)
+            return data
+        }
         let waiterID = UUID()
         let data: Data = try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
@@ -308,10 +311,7 @@ public struct OpenUIResourceContext {
                         let data = try await owner.data(for: request)
                         try Task.checkCancellation()
                         guard owner.authorizationScopeID == scope else { throw CancellationError() }
-                        guard data.count <= max(1, owner.resourceLimits.maximumResponseBytes) else {
-                            throw NativeResourceError.limitExceeded(stage: "responseBytes", actual: Double(data.count),
-                                limit: Double(max(1, owner.resourceLimits.maximumResponseBytes)))
-                        }
+                        try Self.checkResponseSize(data, maximum: owner.resourceLimits.maximumResponseBytes)
                         result = .success(data)
                     } catch { result = .failure(error) }
                     self?.finish(key, id: id, epoch: epoch, retains: retains, result: result)
@@ -325,7 +325,16 @@ public struct OpenUIResourceContext {
         // another live subscriber still owns the shared transport result.
         try Task.checkCancellation()
         guard epoch == generation, owner.authorizationScopeID == scope else { throw CancellationError() }
+        try Self.checkResponseSize(data, maximum: owner.resourceLimits.maximumResponseBytes)
         return data
+    }
+
+    private static func checkResponseSize(_ data: Data, maximum: Int) throws {
+        let limit = max(1, maximum)
+        guard data.count <= limit else {
+            throw NativeResourceError.limitExceeded(stage: "responseBytes", actual: Double(data.count),
+                limit: Double(limit))
+        }
     }
 
     private func finish(_ key: Key, id: UUID, epoch: Int, retains: Bool, result: Result<Data, Error>) {

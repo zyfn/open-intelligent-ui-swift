@@ -19,6 +19,139 @@ final class TableMountedViewTests:XCTestCase {
     withExtendedLifetime(table) {}
   }
 
+  @MainActor func testMountedTableNameChangeKeepsEachFieldsOwnUnsavedDraft() throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.setSource("""
+      $tableName="a"
+      root=EditableTable($tableName,[{header:"Name",type:"text"}],[{id:"r1",values:["source"]}])
+      """)
+    func rows(_ value: String) -> Value {
+      .array([.object([.init(key: "id", value: .string("r1")),
+        .init(key: "values", value: .array([.string(value)]))])])
+    }
+    state.setFieldValue(form: "a", name: "a", value: rows("committed a"), componentType: "EditableTable")
+    state.setFieldValue(form: "b", name: "b", value: rows("committed b"), componentType: "EditableTable")
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    let revision = state.presentationRevision
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .frame(width: 350).fixedSize(horizontal: false, vertical: true))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 350, height: 300),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+    window.orderFront(nil)
+    defer { window.close() }
+    func settle() {
+      host.layoutSubtreeIfNeeded()
+      RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+      host.layoutSubtreeIfNeeded()
+    }
+    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+    func input() throws -> NSTextField {
+      let inputs = descendants(host).compactMap { $0 as? NSTextField }.filter(\.isEditable)
+      XCTAssertEqual(inputs.count, 1)
+      return try XCTUnwrap(inputs.first)
+    }
+    func edit(_ value: String) throws {
+      try input().selectText(nil)
+      let editor = try XCTUnwrap(try input().currentEditor() as? NSTextView)
+      editor.insertText(value, replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+      window.makeFirstResponder(nil)
+      settle()
+    }
+    func record(_ name: OpenUIString) throws -> NativeTableEditingState {
+      try XCTUnwrap(state.existingEditingRecord(kind: "table", form: nil, name: name))
+    }
+
+    settle()
+    let a = try record("a")
+    XCTAssertEqual(try input().stringValue, "committed a")
+    try edit("draft a")
+    XCTAssertEqual(a.draft.value(row: 0, column: 0), .string("draft a"))
+
+    state.setState("$tableName", value: .string("b"))
+    settle()
+    let b = try record("b")
+    XCTAssertFalse(a === b)
+    XCTAssertEqual(try input().stringValue, "committed b", "A different field must not inherit a's dirty cells")
+    XCTAssertFalse(b.hasSourceConflict, "Changing fields is not a source conflict in a's draft")
+    try edit("draft b")
+
+    state.setState("$tableName", value: .string("a"))
+    settle()
+    XCTAssertTrue(try record("a") === a)
+    XCTAssertEqual(try input().stringValue, "draft a")
+    XCTAssertEqual(b.draft.value(row: 0, column: 0), .string("draft b"))
+    XCTAssertTrue(a.draft.hasChanges)
+    XCTAssertTrue(b.draft.hasChanges)
+    XCTAssertEqual(state.fieldValue(form: "a", name: "a"), rows("committed a"))
+    XCTAssertEqual(state.fieldValue(form: "b", name: "b"), rows("committed b"))
+    let retainedInput = try input()
+    state.setFieldValue(form: nil, name: "unrelated", value: .string("changed"))
+    settle()
+    XCTAssertTrue(try input() === retainedInput, "An ordinary Store update must retain the mounted editor")
+    XCTAssertEqual(state.presentationRevision, revision, "Switching a field does not replace the document")
+  }
+
+  @MainActor func testStreamingTableNameKeepsItsPreviewMountedWithoutRetainingPrefixRecords() throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.push("""
+      root=EditableTable($tableName,[{header:"Name",type:"text"}],[{id:"r1",values:["before"]}])
+      $tableName="p
+      """)
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .frame(width: 350).fixedSize(horizontal: false, vertical: true))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 350, height: 250),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+    window.orderFront(nil)
+    defer { window.close() }
+    func settle() {
+      host.layoutSubtreeIfNeeded()
+      RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+      host.layoutSubtreeIfNeeded()
+    }
+    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+    func input() throws -> NSTextField {
+      let inputs = descendants(host).compactMap { $0 as? NSTextField }.filter(\.isEditable)
+      XCTAssertEqual(inputs.count, 1)
+      return try XCTUnwrap(inputs.first)
+    }
+    func record(_ name: OpenUIString) -> NativeTableEditingState? {
+      state.existingEditingRecord(kind: "table", form: nil, name: name)
+    }
+    settle()
+    let preview = try input()
+    XCTAssertEqual(preview.stringValue, "before")
+    XCTAssertNil(record("p"))
+    var name = "p"
+    for character in "review" {
+      name.append(character)
+      state.push(String(character))
+      settle()
+      XCTAssertEqual(PropValue.string(try XCTUnwrap(state.root), "name"), name)
+      XCTAssertFalse(try XCTUnwrap(state.root).sourceReadiness["name"].complete)
+      XCTAssertNil(record(OpenUIString(name)), "A partial name is not a retained field: \(name)")
+      XCTAssertTrue(try input() === preview, "Each new name character must retain the same preview editor")
+    }
+    state.push("\"")
+    state.complete()
+    settle()
+    let committed = try XCTUnwrap(record(OpenUIString(name)))
+    XCTAssertEqual(committed.draft.value(row: 0, column: 0), .string("before"))
+    XCTAssertEqual(try input().stringValue, "before")
+    XCTAssertNil(record("p"))
+    XCTAssertNil(record("pre"))
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+  }
+
   @MainActor func testAutomaticReadingLayoutKeepsMountedCustomCellsInputDraftAndActions() throws {
     _ = NSApplication.shared
     let standard = try OpenUIComponents.library()

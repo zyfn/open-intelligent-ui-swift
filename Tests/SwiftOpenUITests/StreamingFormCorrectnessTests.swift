@@ -6,7 +6,7 @@ final class StreamingFormCorrectnessTests: XCTestCase {
   @MainActor func testSliderFlushCommitsLatestFiniteEditBeforeImmediateFormSubmission() {
     let draft = NativeSliderDraft()
     var commits: [[Double]] = []
-    draft.commit = { commits.append($0) }
+    draft.commit = { value, complete in commits.append(value); complete(value) }
     draft.receive([10])
     draft.edit("12", at: 0)
     XCTAssertTrue(commits.isEmpty, "Rapid edits remain coalesced until an action or timer flush")
@@ -19,7 +19,7 @@ final class StreamingFormCorrectnessTests: XCTestCase {
   @MainActor func testSliderKeepsInvalidTextLocalWithoutPublishingIt() {
     let draft = NativeSliderDraft()
     var commits: [[Double]] = []
-    draft.commit = { commits.append($0) }
+    draft.commit = { value, complete in commits.append(value); complete(value) }
     draft.receive([10])
     draft.edit("invalid", at: 0)
     XCTAssertEqual(draft.text, ["invalid"])
@@ -34,7 +34,7 @@ final class StreamingFormCorrectnessTests: XCTestCase {
     let draft = NativeSliderDraft()
     let validation = NativeFormValidation()
     var committed: [Double] = []
-    draft.commit = { values in committed = values }
+    draft.commit = { values, complete in committed = values; complete(values) }
     draft.receive([10])
     let owner = UUID()
     validation.registerPendingWrite("amount", owner: owner) { [weak draft] in draft?.flush() }
@@ -50,7 +50,7 @@ final class StreamingFormCorrectnessTests: XCTestCase {
   @MainActor func testDraftFeedbackRefreshDoesNotFlushWritesOrRequestFocus() {
     let draft = NativeSliderDraft(), validation = NativeFormValidation()
     var commits: [[Double]] = []
-    draft.commit = { commits.append($0) }
+    draft.commit = { value, complete in commits.append(value); complete(value) }
     draft.receive([10])
     validation.registerPendingWrite("amount", owner: UUID(), flush: { draft.flush() },
       error: { draft.validationError() })
@@ -102,7 +102,7 @@ final class StreamingFormCorrectnessTests: XCTestCase {
     for invalid in ["", " ", "-", "1e", "invalid", "nan", "inf"] {
       let draft = NativeSliderDraft(), validation = NativeFormValidation()
       var writes: [[Double]] = []
-      draft.commit = { writes.append($0) }
+      draft.commit = { value, complete in writes.append(value); complete(value) }
       draft.receive([10])
       validation.registerPendingWrite("amount", owner: UUID(), flush: { draft.flush() },
         error: { draft.validationError() })
@@ -123,7 +123,7 @@ final class StreamingFormCorrectnessTests: XCTestCase {
     let draft = NativeSliderDraft()
     draft.configuration = NativeSliderConfiguration(minimum: 0, maximum: 100, step: 1, discrete: false)
     var writes: [[Double]] = []
-    draft.commit = { writes.append($0) }
+    draft.commit = { value, complete in writes.append(value); complete(value) }
     draft.receive([10, 50])
     draft.edit("110", at: 0); draft.flush()
     XCTAssertTrue(writes.isEmpty)
@@ -176,7 +176,10 @@ final class StreamingFormCorrectnessTests: XCTestCase {
       let context = OpenUIComponentContext(element: try XCTUnwrap(runtime.root), registry: library.registry, state: runtime)
       let first: NativeSliderDraft = context.editingRecord(kind: "slider", name: "amount", create: NativeSliderDraft.init)
       first.receive([10]); first.edit("-", at: 0)
-      first.commit = context.weakOperation { (_: OpenUIComponentContext, _: [Double]) in }
+      let write = context.weakOperation(onUnavailable: { request in request.1(nil) }) {
+        (_: OpenUIComponentContext, request: ([Double], ([Double]?) -> Void)) in request.1(request.0)
+      }
+      first.commit = { values, complete in write((values, complete)) }
       let second: NativeSliderDraft = context.editingRecord(kind: "slider", name: "amount", create: NativeSliderDraft.init)
       XCTAssertTrue(first === second)
       XCTAssertEqual(second.text, ["-"])
@@ -185,6 +188,94 @@ final class StreamingFormCorrectnessTests: XCTestCase {
     state = nil
     XCTAssertNil(releasedState, "Document-owned records must not retain their document through callbacks")
     draft?.flush()
+    var rejected = false
+    draft?.commit?([20]) { rejected = $0 == nil }
+    XCTAssertTrue(rejected, "A retained callback rejects writes after its owner is released")
+    let retained = try XCTUnwrap(draft)
+    let unavailable = try XCTUnwrap(retained.commit)
+    var attempts = 0
+    retained.commit = { value, complete in attempts += 1; unavailable(value, complete) }
+    retained.edit("20", at: 0)
+    retained.flush()
+    retained.flush()
+    XCTAssertEqual(attempts, 2, "An unavailable document must finish each rejected attempt, not leave the draft in flight")
+  }
+
+  @MainActor func testRejectedSliderWriteRemainsPendingUntilItsFieldCanAcceptIt() {
+    let draft = NativeSliderDraft()
+    var accepted = false
+    var writes: [[Double]] = []
+    draft.commit = { value, complete in
+      guard accepted else { complete(nil); return }
+      writes.append(value)
+      complete(value)
+    }
+    draft.receive([10])
+    draft.edit("37", at: 0)
+    draft.flush()
+    draft.receive([10])
+    XCTAssertEqual(draft.text, ["37"], "A rejected write must not advance the committed baseline")
+    XCTAssertTrue(writes.isEmpty)
+    accepted = true
+    draft.flush()
+    draft.flush()
+    XCTAssertEqual(writes, [[37]], "The retained pending value can be accepted once")
+  }
+
+  @MainActor func testSliderCommitCannotClearANewerReentrantEdit() {
+    let draft = NativeSliderDraft()
+    var writes: [[Double]] = []
+    draft.receive([10])
+    draft.commit = { [weak draft] value, complete in
+      writes.append(value)
+      if writes.count == 1 {
+        // The same numeric value can belong to a distinct edit. Value equality
+        // alone must not erase work scheduled during a synchronous callback.
+        draft?.edit("42", at: 0)
+        draft?.edit("37", at: 0)
+      }
+      complete(value)
+    }
+    draft.edit("37", at: 0)
+    draft.flush()
+    draft.flush()
+    draft.flush()
+    XCTAssertEqual(writes, [[37], [37]])
+  }
+
+  @MainActor func testSliderAcceptsThePreviousWriteWithoutClearingANewerPendingEdit() {
+    let draft = NativeSliderDraft()
+    var writes: [[Double]] = []
+    draft.receive([10])
+    draft.commit = { [weak draft] value, complete in
+      writes.append(value)
+      if writes.count == 1 { draft?.edit("42", at: 0) }
+      complete(value)
+    }
+    draft.edit("37", at: 0)
+    draft.flush()
+    draft.receive([37])
+    XCTAssertEqual(draft.text, ["42"], "The accepted 37 is a baseline acknowledgement, not a replacement for the newer 42")
+    draft.flush()
+    draft.flush()
+    XCTAssertEqual(writes, [[37], [42]])
+  }
+
+  @MainActor func testSliderDoesNotEnqueueTheSamePendingWriteTwice() throws {
+    let draft = NativeSliderDraft()
+    var completions: [([Double]?) -> Void] = []
+    draft.receive([10])
+    draft.commit = { _, complete in completions.append(complete) }
+    draft.edit("37", at: 0)
+    draft.flush()
+    draft.flush()
+    XCTAssertEqual(completions.count, 1)
+    try XCTUnwrap(completions.first)(nil)
+    draft.flush()
+    XCTAssertEqual(completions.count, 2, "A rejected write ends its in-flight attempt and retains the pending value")
+    try XCTUnwrap(completions.last)([37])
+    draft.flush()
+    XCTAssertEqual(completions.count, 2)
   }
 
   @MainActor func testReplacementReleasesDraftsButFullBufferCompletionRetainsThem() throws {

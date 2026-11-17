@@ -111,6 +111,7 @@ struct NativeTableDraft {
 
 struct NativeEditableTable: View {
   let context: OpenUIComponentContext
+  @Environment(\.openUIFormNameReady) private var formNameReady
   private let editing: NativeTableEditingState?
 
   @MainActor init(context: OpenUIComponentContext) {
@@ -120,7 +121,8 @@ struct NativeEditableTable: View {
 
   var body: some View {
     OpenUIContextContent(context: context) { context in
-      NativeEditableTableContent(context: context, editing: editing)
+      let identity = NativeFieldEditingIdentity(context, formNameReady: formNameReady)
+      NativeEditableTableContent(context: context, editing: editing, identity: identity).id(identity)
     }
   }
 }
@@ -129,10 +131,11 @@ private struct NativeEditableTableContent: View {
   let context: OpenUIComponentContext
   @StateObject private var editing: NativeTableEditingState
   @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
-  @MainActor init(context: OpenUIComponentContext, editing: NativeTableEditingState?) {
+  @MainActor init(context: OpenUIComponentContext, editing: NativeTableEditingState?, identity: NativeFieldEditingIdentity?) {
     self.context = context
-    _editing = StateObject(wrappedValue: editing ?? context.editingRecord(kind: "table",
-      name: context.codeUnitString("name") ?? "", create: NativeTableEditingState.init))
+    _editing = StateObject(wrappedValue: editing ?? (identity == nil ? NativeTableEditingState()
+      : context.editingRecord(kind: "table", name: context.codeUnitString("name") ?? "",
+          create: NativeTableEditingState.init)))
   }
   private var draft: NativeTableDraft { editing.draft }
   private var saving: Bool { editing.saving }

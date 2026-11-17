@@ -43,7 +43,7 @@ public struct OpenUILibrary {
 
     /// Recognizes a program with this reader; this is not full contract validation.
     public func recognizesUI(in source: String) -> Bool {
-        createParser(schema: reader.library.toSchema()).parse(source).root != nil
+        createParser(schema: reader.preparedSchema).parse(source).root != nil
     }
 
     /// Create one document's state with this reader and its actual function code.
@@ -52,9 +52,14 @@ public struct OpenUILibrary {
         toolProvider: ToolProvider? = nil,
         persistedState: [OpenUIString: Value] = [:]
     ) -> OpenUIState {
-        OpenUIState(schema: reader.library.toSchema(),
-                    functions: reader.library.customFunctions(),
-                    toolProvider: toolProvider, persistedState: persistedState)
+        // The immutable catalog compiles its reader on demand. Each document keeps its own
+        // prepared JS library, parser and execution state, as before.
+        let readerSchema = reader.preparedSchema
+        let schema = LibrarySchema(components: readerSchema.components,
+            callDefs: readerSchema.callDefs, rootComponent: readerSchema.rootComponent,
+            wireSchema: readerSchema.wireSchema)
+        return OpenUIState(schema: schema, functions: reader.library.customFunctions(),
+                           toolProvider: toolProvider, persistedState: persistedState)
     }
 
     @MainActor @_disfavoredOverload public func makeState<S: StringProtocol & Hashable>(

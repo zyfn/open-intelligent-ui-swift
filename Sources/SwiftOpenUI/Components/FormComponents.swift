@@ -19,6 +19,7 @@ struct OpenUINativeForm: View {
         }
         .environment(\.openUIFieldPresentation, .standalone)
         .environment(\.openUIExactFormName, context.codeUnitString("name"))
+        .environment(\.openUIFormNameReady, context.element.sourceReadiness["name"].complete)
         .environment(\.openUIFormValidation, validation)
         .modifier(OpenUICardSurface(theme: context.theme,
             variant: context.presentation.formShowsCardSurface ? "card" : "clear",

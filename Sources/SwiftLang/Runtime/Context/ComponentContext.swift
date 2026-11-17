@@ -120,12 +120,13 @@ public struct OpenUIComponentContext {
     }
     /// Editing records can be retained by the document. Their callbacks must
     /// not retain the document in return, or releasing a renderer leaks it.
-    @MainActor package func weakOperation<Input>(_ body: @escaping (OpenUIComponentContext, Input) -> Void) -> (Input) -> Void {
+    @MainActor package func weakOperation<Input>(onUnavailable: ((Input) -> Void)? = nil,
+        _ body: @escaping (OpenUIComponentContext, Input) -> Void) -> (Input) -> Void {
         let element = element, registry = registry, values = values
         let resources = resources, form = exactFormName, revision = sourceRevision
         let scopeReady = interactionScopeReady
         return { [weak state] value in
-            guard let state, state.sourceRevision == revision else { return }
+            guard let state, state.sourceRevision == revision else { onUnavailable?(value); return }
             var current = OpenUIComponentContext(element: element, registry: registry, state: state,
                 values: values, resources: resources, exactFormName: form)
             current.interactionScopeReady = scopeReady
@@ -176,9 +177,15 @@ public struct OpenUIComponentContext {
         OpenUIRenderChild.children(of: value(name) ?? .null, registry: registry)
     }
     @MainActor public func binding(_ name: String) -> Binding<Value>? {
-        guard let binding = state.binding(for: element, prop: name, expectedSourceRevision: sourceRevision) else { return nil }
+        binding(name, completion: nil)
+    }
+    /// A write can queue during host publication. Acknowledgment comes from
+    /// its existing setter after acceptance, never from a subsequent UI read.
+    @MainActor package func binding(_ name: String, completion: ((Value?) -> Void)?) -> Binding<Value>? {
+        guard let binding = state.binding(for: element, prop: name, expectedSourceRevision: sourceRevision,
+                                          completion: completion) else { return nil }
         return Binding(get: { readBinding(name, binding: binding) },
-            set: { if canInteract { binding.wrappedValue = $0 } })
+            set: { if canInteract { binding.wrappedValue = $0 } else { completion?(nil) } })
     }
     @MainActor private func readBinding(_ name: String, binding: Binding<Value>) -> Value {
         switch self.value(name) {
@@ -205,10 +212,14 @@ public struct OpenUIComponentContext {
         fieldBinding(OpenUIString(String(name)), fallback:fallback, componentType:componentType)
     }
     @MainActor public func fieldBinding(_ name: OpenUIString, fallback: Value = .null, componentType: String = "input") -> Binding<Value> {
+        fieldBinding(name, fallback: fallback, componentType: componentType, completion: nil)
+    }
+    @MainActor package func fieldBinding(_ name: OpenUIString, fallback: Value = .null, componentType: String = "input",
+                                        completion: ((Value?) -> Void)?) -> Binding<Value> {
         let binding = state.fieldBinding(form: exactFormName, name: name, fallback: fallback, componentType: componentType,
-                                         expectedSourceRevision: sourceRevision, source: element)
+                                         expectedSourceRevision: sourceRevision, source: element, completion: completion)
         return Binding(get: { fieldValue(name, fallback: fallback) },
-            set: { if canInteract { binding.wrappedValue = $0 } })
+            set: { if canInteract { binding.wrappedValue = $0 } else { completion?(nil) } })
     }
     @MainActor @_disfavoredOverload public func initializeField<S: StringProtocol>(_ name: S, value: Value, componentType: String = "input") {
         initializeField(OpenUIString(String(name)), value:value, componentType:componentType)

@@ -66,7 +66,6 @@ private struct DateFieldView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
-    @EnvironmentObject private var state: OpenUIState
     @State private var choosing = false
     @State private var proposedDate = Date()
     private var raw: String { InputEditing.text(context.binding("value")?.wrappedValue ?? context.value("value") ?? .null) }

@@ -36,7 +36,6 @@ enum TimerReading {
 
 private struct TimerView: View {
     let context: OpenUIComponentContext
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase

@@ -10,7 +10,6 @@ enum DisclosureComponent {
 private struct DisclosureView: View {
     @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openIntelligentUITheme) private var theme
     @State private var local: Bool?
     private var expanded: Binding<Bool> {

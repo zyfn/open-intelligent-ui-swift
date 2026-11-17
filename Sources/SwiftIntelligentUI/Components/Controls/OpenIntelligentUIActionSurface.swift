@@ -10,12 +10,6 @@ struct OpenIntelligentUIActionSurface<Content: View>: View {
     private let showsProgress: Bool
     private let progressTint: Color?
     private let content: Content
-    // Readiness may change without changing the component's evaluated props.
-    @EnvironmentObject private var state: OpenUIState
-    @Environment(\.isEnabled) private var hostEnabled
-    @Environment(\.locale) private var locale
-    @State private var operation: UUID?
-
     init(context: OpenUIComponentContext, action: ActionPlan, role: ButtonRole? = nil,
          showsProgress: Bool = false, progressTint: Color? = nil,
          @ViewBuilder content: () -> Content) {
@@ -26,6 +20,25 @@ struct OpenIntelligentUIActionSurface<Content: View>: View {
         self.progressTint = progressTint
         self.content = content()
     }
+
+    var body: some View {
+        OpenUIContextContent(context: context) { context in
+            IntelligentUIActionContent(context: context, action: action, role: role,
+                showsProgress: showsProgress, progressTint: progressTint, content: content)
+        }
+    }
+}
+
+private struct IntelligentUIActionContent<Content: View>: View {
+    let context: OpenUIComponentContext
+    let action: ActionPlan
+    let role: ButtonRole?
+    let showsProgress: Bool
+    let progressTint: Color?
+    let content: Content
+    @Environment(\.isEnabled) private var hostEnabled
+    @Environment(\.locale) private var locale
+    @State private var operation: UUID?
 
     var body: some View {
         Button(role: role) {

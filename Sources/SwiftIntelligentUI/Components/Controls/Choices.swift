@@ -58,7 +58,6 @@ enum SelectComponent {
 
 private struct SelectView: View {
     let context: OpenUIComponentContext
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
     @FocusState private var focused: Bool
@@ -111,7 +110,6 @@ enum SegmentedControlComponent {
 private struct NativeSegmentedView: View {
     let context: OpenUIComponentContext
     @Environment(\.locale) private var locale
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.dynamicTypeSize) private var typeSize
     private var options: [ChoiceOption] { ChoiceOption.decode(context.value("options")) }
     private var selection: Binding<String?> {
@@ -149,7 +147,6 @@ private struct ChoiceGroupView: View {
     let context: OpenUIComponentContext
     @Environment(\.locale) private var locale
     let segmented: Bool
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.layoutDirection) private var direction
     @Environment(\.dynamicTypeSize) private var typeSize

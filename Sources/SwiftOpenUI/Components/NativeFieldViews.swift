@@ -31,6 +31,7 @@ private struct NativeFieldContent: View {
     let context: OpenUIComponentContext
     let kind: OpenUINativeField.Kind
     @Environment(\.openUIFormValidation) private var validation
+    @Environment(\.openUIFormNameReady) private var formNameReady
     @Environment(\.openUIFieldLabel) private var fieldLabel
     @Environment(\.locale) private var locale
     @Environment(\.isEnabled) private var enabled
@@ -44,6 +45,9 @@ private struct NativeFieldContent: View {
     @State private var registration = UUID()
     @State private var registeredName: OpenUIString?
     private var field: NativeFieldState { .init(context: context) }
+    private var editingIdentity: NativeFieldEditingIdentity? {
+        NativeFieldEditingIdentity(context, formNameReady: formNameReady)
+    }
     private var label: String { fieldLabel ?? field.name.displayString }
     private var accessibleLabel: String {
         field.isRequired ? label + ", " + NativeControlText.localized("Required", locale: locale) : label
@@ -68,6 +72,10 @@ private struct NativeFieldContent: View {
             }
             .onChange(of: enabled) { current in
                 register(enabled: current, interactive: context.canInteract)
+            }
+            .onChange(of: editingIdentity) { _ in
+                field.initialize()
+                register(enabled: enabled, interactive: context.canInteract)
             }
             .onChange(of: context.element) { _ in
                 register(enabled: enabled, interactive: context.canInteract)
@@ -215,7 +223,8 @@ private struct NativeFieldContent: View {
                         .tint(context.theme.interactiveAccentDefault).frame(minHeight: choiceHeight)
                 }
             }.openUISwitchSurface(kind == .switches ? context.string("variant") : nil, theme: context.theme)
-        case .slider: NativeSliderField(context: context)
+        case .slider:
+            NativeSliderField(context: context, editingIdentity: editingIdentity).id(editingIdentity)
         case .date: NativeDateField(context: context, label: label)
         case .chips, .optionCards:
             NativeChoiceField(context: context, cards: kind == .optionCards)

@@ -323,7 +323,7 @@ private actor NativeMarkdownWorker {
   private var work: Task<Void, Never>?
   private let prepare: Preparation
   private var generation: UInt64 = 0
-  private var fallbackRequest: NativeRichTextRequest?
+  private(set) var fallbackRequest: NativeRichTextRequest?
   private var fallback = MarkdownContent("")
   private(set) var fallbackParseCount = 0
   private(set) var preparationCount = 0
@@ -391,6 +391,12 @@ private actor NativeMarkdownWorker {
       self.work = nil
       if let result, let latest = self.latest, self.compatible(request, latest) {
         self.prepared = result
+        // A body can already have read a correction before receive delivers
+        // it. Release only the fallback this successful result supersedes.
+        if let fallbackRequest = self.fallbackRequest, self.compatible(fallbackRequest, request) {
+          self.fallbackRequest = nil
+          self.fallback = MarkdownContent("")
+        }
       }
       if let next = self.latest, next != request { self.start(next) }
     }

@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.12 · 更新日期：2026-11-17
+文档版本：1.13 · 更新日期：2026-11-18
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -102,6 +102,8 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 5. OpenUIView(state:library:) 交给同一适配层 renderer，按选定库的注册表构建原生组件。
 6. 组件通过 OpenUIComponentContext 读取值、渲染子项、编辑字段和触发动作；业务结果经宿主回填。
 
+不可变的 `OpenUIComponentLibrary` 在首次识别输入或创建文档时编译 reader，随后通过现有内核同步域复用原生 schema 元数据；同一目录创建的多个临时 `OpenUILibrary` 也复用该结果。仅构造 facade、生成提示或读取 spec 不触发这项准备。每份文档仍新建 parser、Store、Query manager，以及保存 prepared JS library 的 `LibrarySchema`；不跨文档共享运行值或执行上下文。扩展库产生新的目录与编译结果，公开可变 `Library.toSchema()` 不做隐式缓存。
+
 客户端入口、调用顺序和业务回调以锁定的 SDK 契约为准。稳定性和性能修复在现有 `push / complete / interrupt` 链路内部完成；不引入另一套流句柄、会话或调度器要求宿主迁移。当前 `push` 保持同步提交语义。
 
 每份文档拥有独立的 parser、Store、查询和 revision/epoch。共享代码及 JS 执行环境不代表共享用户状态。旧文档回调、工具结果和资源结果不得写回替换后的文档。
@@ -135,6 +137,8 @@ Language 中的文件按调用职责组织，语言语义由单一内核维护�
 命中更新访问序号，插入时先满足文档额度，再按所有已登记 cache 中最久未访问的条目满足合计额度。成本与条数同时限制，大于任一允许额度的单项不进入缓存，也不挤掉已有可用条目。全局条数限制同时约束非空 cache 的登记规模，不遍历所有文档或业务对象。
 
 首次使用默认预算时注册一次平台内存压力监听：iOS 接收内存警告，macOS 接收 warning/critical 事件，在 MainActor 上清理这两类已完成缓存。清理不递增文档 generation，不取消 pending 请求，不更换鉴权 scope，不清除已接受的业务值或草稿。正在显示的图片由视图继续持有；后续缓存未命中可重新获取资源，原有高分辨率优先、显式 reload、请求合并和取消规则保持。
+
+原生响应缓存命中与异步完成均按加载器当前的 `maximumResponseBytes` 检查；同一 loader/scope 收紧限额后，旧超限字节通过现有错误通道拒绝。缓存身份、容量与请求合并保持原规则，限额放宽后仍可复用有效条目。
 
 这些上限只覆盖 SDK 已完成缓存中的成本，不覆盖挂载视图保留的图片、在途传输/解码、parser/Store/Query/草稿或 WebKit、MapKit 等系统资源，也不是进程内存上限。清理可能让以后访问旧资源时重新加载。宿主永久保留所有历史 state 的累计成本仍需由消息列表生命周期解决，完整冻结与恢复不是当前接口的能力。
 
@@ -184,6 +188,8 @@ readiness 与 root 由同一次公开 root 发布交付；Query、Mutation、错
 
 Context 的 element 和状态标志是构造时快照；字段与 Binding getter 保留动态读取行为，每次从最新的完整原生提交取值，不读正在提交的 Store。长期持有一个 Context 不等于冻结整个文档。`canInteract`、动作和写入继续在执行时检查当前文档、目标 membership 与 readiness，过期控件不能因旧只读快照仍可交互。若宿主在公开 setter 回调中强制拟合，旧内容仍可显示，而依赖 `canInteract` 的控件/链接可先被安全禁用；不承诺所有交互 gate 与旧显示快照同时切换。公开手工构造的 Context 和 Host 状态读写保留原有即时读取合同；内部只读呈现不是第二个可写 Store，也不新增客户端观察 API。
 
+OpenUI 的 EditableTable / Slider 在局部编辑 owner 处使用完整的 form/name 身份，动态换字段时选择该字段已有草稿，普通更新不重建控件；未闭合的名字仅有挂载期临时草稿。此边界不修改 RenderNode 或文档身份。Slider 通过弱 Context 使用现有写入路径的内部完成回调：实际 Store 写入通过预算后、公开更新前确认接受值，排队写入仍在执行时复查目标，拒绝明确结束。草稿先更新已提交基线，再仅清理对应编辑，保留绑定转换和同步重入的新输入；原有字段镜像及公开通知顺序不变。字段初始化仍由现有 Store 的缺失检查决定。组件行为与验收见 [OpenUI](openui.md#状态字段与动作) 和[验证说明](validation-and-security.md#sdk-正常接入与生命周期审查)。
+
 live index 继续遍历当前 root，建立 membership 和按当前深度优先顺序排列的候选；相同 root 引用可跳过重复索引。匿名且仅含标量属性的旧节点按属性分桶，具名/复杂节点保留原分组及语义/readiness 歧义检查。索引更新分别记录 membership 变化与呈现输入变化：仅当同键候选唯一、属性全为标量且完整呈现输入相同时，重建的元素包装可以保持呈现不变并跳过该订阅的 lookup/readiness capture。membership 仍立即换成实际新对象；字段、Query、执行资格及文档变化独立触发复核。引用属性和歧义候选继续保守检查，不递归比较业务值，也不保留历史图的引用账本。旧快照查找单次遍历候选并检查语义及歧义，不再创建匹配数组或把首候选的 readiness 与自身递归比较；属性遍历仍保留原深度边界。当前内核在普通文字流中仍重建内容稳定的 JS 节点，不能假设存在可复用的原生子树；没有保留依赖该假设的容器 DAG 缓存。真实流仍可能全量索引和检查全部挂载订阅。全局 partial、引用属性及真实 Store/Query 变化仍可更新多个组件，收益须以原生工作计数和实际挂载结果验证。
 
 原始输入先受 UTF-16 上限约束。语句/token/嵌套/操作符检查直接使用同一解析器已产生的 token，在 Pratt 递归前执行；流式已完成语句持有累计账目，重复声明也计入，pending 只检查当前尾部。前缀失效、set 或 reset 按解析器自身的缓存生命周期清账。旧的整份源码二次 preprocess/tokenize/split 预检已删除，没有保留并行保护路径或放宽额度。多行三元式的换行前瞻在同次 split 内复用终点。
@@ -229,7 +235,7 @@ ElementErrorBoundary 以不可变元素快照的身份观察输入，保留同�
 ## 4. 适配层、组件与宿主的边界
 
 - 适配层统一拥有运行机制。组件不另建 parser/Store/state，不重复观察整份文档，不绕过 Context 直接派发动作或写入业务状态。
-- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。SwiftLangView 观察完整的只读呈现提交；轻量 OpenUIComponentHost 仍解析并观察最近 OpenUIState，内部内容边界持有节点订阅。OpenUI 的 ActionSurface、原生字段及 EditableTable 通过 Context 的现有作用域或独立挂载订阅读取，没有各自再观察整份 State；其他库与宿主观察仍须按实际代码核对，不能描述为整棵树只观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
+- OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。SwiftLangView 观察完整的只读呈现提交；轻量 OpenUIComponentHost 仍解析并观察最近 OpenUIState，内部内容边界持有节点订阅。两套 UI 的动作表面通过 Context 的现有作用域或独立挂载订阅读取；OpenUI 原生字段及 EditableTable、Intelligent UI 已注册的输入/选择/日期/计时/图表/折叠组件不再额外订阅未使用的整份 State。Intelligent UI 的 Column 阅读锚点与 InlineParagraph 附件宿主仍使用所需的环境 State；轻量注册 Host 与宿主观察也仍存在，不能描述为整棵树只观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
 - 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
 - typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
 - 通用资源 Context 管理地址、宿主 loader、鉴权作用域和文档生命周期；SwiftLang 的共享基础设施负责原生资源请求、图片解码和缓存预算。占位、裁剪、重试、预览和地图交互由所属组件库决定。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。
@@ -238,7 +244,7 @@ ElementErrorBoundary 以不可变元素快照的身份观察输入，保留同�
 
 OpenUI 的 `NativeRemoteImage` 只提交布局完成后的显示像素需求；它不构造新的资源调度器，也不从测量路径请求图片。加载占位和成功图片共用挂载边界外层的同一个尺寸观察，避免退休内容分支的延迟出现回调覆盖最新画幅。既有 `NativeMediaCache` 持有合并中的加载、取消、有限暂时失败恢复和解码结果，通用 ImageIO 解码根据源比例与 EXIF 决定 fit/fill 需要的最长边。已解码结果和在途键核对冻结的资源策略，不能在限制变化后借用旧预算。显示尺寸改变不改变宿主已经冻结的签名请求；自动恢复在同一个合并工作内进行，显式用户重试才建立新请求。资源预算和 HTTP 状态沿既有 URLError 附加诊断数据，不保留完整响应、地址或凭据。组件占位、预览、实际尺寸及失败后的交互规则仍由 OpenUI 定义，详见其[媒体说明](openui.md#文本媒体与原生差异)。本轮不调整 SwiftIntelligentUI 的独立图片通道。
 
-OpenUI 的 Markdown document 继续只有一个正在准备的请求和一个可替换的最新输入。首次后台结果未返回时，追加输入复用可读同步前缀，已完成的后台中间结果仍持续交付；纠正、配置变化和退休使用同一 generation 失效。同步 fallback 仍负责首次及不能复用既有内容的读取，不引入新的文本状态所有者、Markdown worker 或延迟语言提交的机制。
+OpenUI 的 Markdown document 继续只有一个正在准备的请求和一个可替换的最新输入。首次后台结果未返回时，追加输入复用可读同步前缀，已完成的后台中间结果仍持续交付；纠正、配置变化和退休使用同一 generation 失效。同步 fallback 仍负责首次及不能复用既有内容的读取，不引入新的文本状态所有者、Markdown worker 或延迟语言提交的机制。 有效后台结果覆盖现有 fallback 后释放该同步解析树及其源码；若 body 已提前读取另一次纠正，则保留尚未被该结果覆盖的新 fallback。
 
 reader 提供读取契约，writer 提供当前生成范围。两者从同一注册来源派生，不能维护第二份手写权威 schema。组件名、参数顺序、枚举与绑定属于输入契约；收敛 Swift 包/API 名称不等于改写已存 Lang 程序。两套产品的组件语法分别维护，不通过替换组件名假定互换。
 

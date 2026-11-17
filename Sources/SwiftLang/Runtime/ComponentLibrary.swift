@@ -81,6 +81,27 @@ public struct OpenUIComponent {
 public struct OpenUIComponentLibrary {
     public let library: Library
     public let registry: OpenUIComponentRegistry
+    private let readerSchema: ReaderSchema
+
+    // Catalog copies share immutable metadata; extending creates a new owner.
+    // Prompt-only use never needs to compile a parser schema.
+    private final class ReaderSchema {
+        let library: Library
+        var value: LibrarySchema?
+
+        init(library: Library) { self.library = library }
+
+        func resolve() -> LibrarySchema {
+            SharedCore.shared.sync {
+                if let value { return value }
+                let compiled = library.toSchema()
+                value = compiled
+                return compiled
+            }
+        }
+    }
+
+    var preparedSchema: LibrarySchema { readerSchema.resolve() }
 
     public init(
         components: [OpenUIComponent],
@@ -103,11 +124,13 @@ public struct OpenUIComponentLibrary {
         }
         self.library = library
         self.registry = registry
+        readerSchema = ReaderSchema(library: library)
     }
 
     private init(library: Library, registry: OpenUIComponentRegistry) {
         self.library = library
         self.registry = registry
+        readerSchema = ReaderSchema(library: library)
     }
 
     public func extending(

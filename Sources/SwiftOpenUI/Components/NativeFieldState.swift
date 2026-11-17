@@ -187,6 +187,7 @@ private struct OpenUIFormValidationKey: EnvironmentKey {
     static let defaultValue: NativeFormValidation? = nil
 }
 private struct OpenUIFieldLabelKey: EnvironmentKey { static let defaultValue: String? = nil }
+private struct OpenUIFormNameReadyKey: EnvironmentKey { static let defaultValue = true }
 extension EnvironmentValues {
     var openUIFieldLabel: String? {
         get { self[OpenUIFieldLabelKey.self] }
@@ -196,6 +197,27 @@ extension EnvironmentValues {
     var openUIFormValidation: NativeFormValidation? {
         get { self[OpenUIFormValidationKey.self] }
         set { self[OpenUIFormValidationKey.self] = newValue }
+    }
+
+    var openUIFormNameReady: Bool {
+        get { self[OpenUIFormNameReadyKey.self] }
+        set { self[OpenUIFormNameReadyKey.self] = newValue }
+    }
+}
+
+/// Local editing owners follow the same exact key as the document's records.
+/// Ordinary value updates keep this identity; changing the field selects its
+/// own retained draft without replacing the enclosing component or document.
+struct NativeFieldEditingIdentity: Hashable {
+    let form: OpenUIString?
+    let name: OpenUIString
+
+    init?(_ context: OpenUIComponentContext, formNameReady: Bool) {
+        // String prefixes are previews, not separate fields to retain for the
+        // whole document. Their mounted owner uses a temporary local draft.
+        guard formNameReady, context.element.sourceReadiness["name"].complete else { return nil }
+        form = context.exactFormName
+        name = context.codeUnitString("name") ?? ""
     }
 }
 
@@ -248,13 +270,13 @@ struct NativeFieldState {
     var value: Value {
         context.binding("value")?.wrappedValue ?? context.fieldValue(name, fallback: initialValue)
     }
-    func write(_ value: Value) {
-        guard context.canInteract else { return }
+    func write(_ value: Value, completion: ((Value?) -> Void)? = nil) {
+        guard context.canInteract else { completion?(nil); return }
         context.recordUserInteraction()
-        if let binding = context.binding("value") {
+        if let binding = context.binding("value", completion: completion) {
             binding.wrappedValue = value
         } else {
-            context.fieldBinding(name, componentType: componentType).wrappedValue = value
+            context.fieldBinding(name, componentType: componentType, completion: completion).wrappedValue = value
         }
         mirror()
     }

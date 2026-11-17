@@ -196,6 +196,41 @@ final class StreamingTextPresentationTests: XCTestCase {
 }
 
 extension StreamingTextPresentationTests {
+  @MainActor func testPreparedMarkdownReleasesOnlyItsSupersededFallback() async {
+    let worker = ControlledMarkdownPreparation()
+    let document = NativeMarkdownDocument(prepare: worker.prepare)
+    defer { document.cancel(); worker.cancelRemaining() }
+    let initial = markdownRequest("Initial"), corrected = markdownRequest("Corrected")
+    _ = document.content(for: initial)
+    document.receive(initial)
+    await waitForMarkdownWork(worker, started: 1)
+
+    // SwiftUI may read the next body before its onChange delivers the request.
+    XCTAssertEqual(document.content(for: corrected).renderPlainText(), "Corrected")
+    worker.finish(0)
+    await waitForMarkdownResult(document, source: initial.source)
+    XCTAssertEqual(document.fallbackRequest, corrected,
+      "An older successful result must preserve a correction already read by the next body")
+    let parses = document.fallbackParseCount
+    document.receive(corrected)
+    await waitForMarkdownWork(worker, started: 2)
+    XCTAssertEqual(document.content(for: corrected).renderPlainText(), "Corrected")
+    XCTAssertEqual(document.fallbackParseCount, parses)
+
+    worker.finish(1)
+    await waitForMarkdownResult(document, source: corrected.source)
+    XCTAssertNil(document.fallbackRequest,
+      "Accepted prepared content must release the obsolete synchronous source and content")
+    for _ in 0..<20 {
+      XCTAssertEqual(document.content(for: corrected).renderPlainText(), "Corrected")
+    }
+    document.cancel()
+    XCTAssertEqual(document.content(for: corrected).renderPlainText(), "Corrected")
+    XCTAssertNil(document.fallbackRequest)
+    XCTAssertEqual(document.fallbackParseCount, parses,
+      "Repeated fits and reads after cancellation must continue to use the prepared content")
+  }
+
   @MainActor func testPendingFirstMarkdownPreparationReusesFallbackAndPublishesIntermediateProgress() async {
     let worker = ControlledMarkdownPreparation()
     let document = NativeMarkdownDocument(prepare: worker.prepare)
@@ -325,6 +360,8 @@ extension StreamingTextPresentationTests {
     worker.finish(0, markdown: "Retired content")
     await waitForMarkdownReturns(worker, count: 1)
     XCTAssertNil(document.currentSource)
+    XCTAssertEqual(document.fallbackRequest, remounted,
+      "A retired generation cannot release the current fallback")
     XCTAssertEqual(document.content(for: appended).renderPlainText(), "AB")
     XCTAssertEqual(document.fallbackParseCount, 2,
       "A retired result must not clear the current job and reenable repeated fallback parsing")

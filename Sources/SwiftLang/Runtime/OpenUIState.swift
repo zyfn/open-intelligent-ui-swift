@@ -445,10 +445,13 @@ public final class OpenUIState: ObservableObject {
         }
         mutate { self.setStateNow(name, value: value) }
     }
-    private func setStateNow(_ name: OpenUIString, value: Value) {
-        guard let result = latestResult, result.nativeFailure == nil else { return }
+    private func setStateNow(_ name: OpenUIString, value: Value, completion: ((Value?) -> Void)? = nil) {
+        guard let result = latestResult, result.nativeFailure == nil else { completion?(nil); return }
         store.set(name, value: value, pristine: false)
-        guard !store.nativeLimitExceeded else { stopForRuntimeLimit(); return }
+        guard !store.nativeLimitExceeded else { completion?(nil); stopForRuntimeLimit(); return }
+        // A component acknowledges the actual Store value before publication
+        // can reenter its editor. A valid transformed no-op is still accepted.
+        if let completion { completion(store.get(name) ?? .undefined) }
         update(from: result)
         if mutationIsCurrent { onStateUpdate?(store.getSnapshot()) }
     }
@@ -472,16 +475,18 @@ public final class OpenUIState: ObservableObject {
         return presentation ? isElementCurrent(source) : isElementReady(source)
     }
     private func binding(for name: String, expectedSourceRevision: Int?, source: EvaluatedElement? = nil,
-                         presentation: Bool = false) -> Binding<Value> {
+                         presentation: Bool = false, completion: ((Value?) -> Void)? = nil) -> Binding<Value> {
         Binding(get: { [weak self] in self?.stateValue(name) ?? .null },
                 set: { [weak self] value in
                     guard let self, self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
-                        source: source, presentation: presentation) else { return }
-                    if self.queuedMutations.isEmpty && (self.latestResult == nil || self.latestResult?.nativeFailure != nil) { return }
+                        source: source, presentation: presentation) else { completion?(nil); return }
+                    if self.queuedMutations.isEmpty && (self.latestResult == nil || self.latestResult?.nativeFailure != nil) {
+                        completion?(nil); return
+                    }
                     self.mutate {
                         guard self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
-                            source: source, presentation: presentation) else { return }
-                        self.setStateNow(OpenUIString(name), value: value)
+                            source: source, presentation: presentation) else { completion?(nil); return }
+                        self.setStateNow(OpenUIString(name), value: value, completion: completion)
                     }
                 })
     }
@@ -490,30 +495,32 @@ public final class OpenUIState: ObservableObject {
         binding(for: element, prop: prop, expectedSourceRevision: nil)
     }
     package func binding(for element: EvaluatedElement, prop: String, expectedSourceRevision: Int?,
-                         presentation: Bool = false) -> Binding<Value>? {
+                         presentation: Bool = false, completion: ((Value?) -> Void)? = nil) -> Binding<Value>? {
         guard let value = element.props.last(where: { $0.0 == prop })?.1 else { return nil }
         // The revision-bearing overload belongs to a component callback. Public
         // Host bindings remain independent of the current rendered controls.
         let source = expectedSourceRevision == nil ? nil : element
         if case .binding(let assignment) = value {
             return binding(for: assignment.target, expectedSourceRevision: expectedSourceRevision,
-                           source: source, presentation: presentation)
+                           source: source, presentation: presentation, completion: completion)
         }
         if case .reactiveBinding(let assignment) = value {
             let target = assignment.target, expression = assignment.expression
             return Binding(get: { [weak self] in self?.stateValue(target) ?? .null }, set: { [weak self] newValue in
                 guard let self, self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
-                    source: source, presentation: presentation) else { return }
-                if self.queuedMutations.isEmpty && (self.latestResult == nil || self.latestResult?.nativeFailure != nil) { return }
+                    source: source, presentation: presentation) else { completion?(nil); return }
+                if self.queuedMutations.isEmpty && (self.latestResult == nil || self.latestResult?.nativeFailure != nil) {
+                    completion?(nil); return
+                }
                 self.mutate {
                     guard self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
                               source: source, presentation: presentation),
-                          let result = self.latestResult, result.nativeFailure == nil else { return }
+                          let result = self.latestResult, result.nativeFailure == nil else { completion?(nil); return }
                     let evaluator = self.makeEvaluator(result: result, extraScope: ["$value": newValue])
                     let value = evaluator.evaluate(expression)
-                    guard self.mutationIsCurrent else { return }
-                    if let failure = evaluator.nativeFailure { self.stopForRuntimeFailure(failure); return }
-                    self.setStateNow(OpenUIString(target), value: value)
+                    guard self.mutationIsCurrent else { completion?(nil); return }
+                    if let failure = evaluator.nativeFailure { completion?(nil); self.stopForRuntimeFailure(failure); return }
+                    self.setStateNow(OpenUIString(target), value: value, completion: completion)
                 }
             })
         }
@@ -547,27 +554,37 @@ public final class OpenUIState: ObservableObject {
     }
     private func enqueueFieldValue(form: OpenUIString?, name: OpenUIString, value: Value,
                                    componentType: String?, expectedSourceRevision: Int?,
-                                   source: EvaluatedElement? = nil, presentation: Bool = false) {
-        guard acceptsWrite(expectedSourceRevision: expectedSourceRevision, source: source, presentation: presentation) else { return }
+                                   source: EvaluatedElement? = nil, presentation: Bool = false,
+                                   completion: ((Value?) -> Void)? = nil) {
+        guard acceptsWrite(expectedSourceRevision: expectedSourceRevision, source: source, presentation: presentation) else {
+            completion?(nil); return
+        }
         if queuedMutations.isEmpty {
-            guard let result = latestResult, result.nativeFailure == nil else { return }
+            guard let result = latestResult, result.nativeFailure == nil else { completion?(nil); return }
         }
         mutate {
             guard self.acceptsWrite(expectedSourceRevision: expectedSourceRevision,
-                source: source, presentation: presentation) else { return }
-            self.setFieldValueNow(form: form, name: name, value: value, componentType: componentType)
+                source: source, presentation: presentation) else { completion?(nil); return }
+            self.setFieldValueNow(form: form, name: name, value: value, componentType: componentType, completion: completion)
         }
     }
-    private func setFieldValueNow(form: OpenUIString?, name: OpenUIString, value: Value, componentType: String?) {
+    private func setFieldValueNow(form: OpenUIString?, name: OpenUIString, value: Value,
+                                  componentType: String?, completion: ((Value?) -> Void)? = nil) {
         var properties = [ObjectField(key: "value", value: value)]
         if let componentType { properties.append(ObjectField(key: "componentType", value: .string(componentType))) }
         let wrapped = Value.object(properties)
+        let fieldCompletion: ((Value?) -> Void)? = completion.map { completion in
+            { stored in
+                guard let stored else { completion(nil); return }
+                completion(nativeUnwrappedFieldValue(form: form, name: name, read: { _ in stored }) ?? .undefined)
+            }
+        }
         if let form {
             var fields: [ObjectField] = []
             if case .object(let current) = store.get(form) { fields = Array(current) }
             fields.removeAll { $0.key == name }; fields.append(ObjectField(key: name, value: wrapped))
-            setStateNow(form, value: .object(fields))
-        } else { setStateNow(name, value: wrapped) }
+            setStateNow(form, value: .object(fields), completion: fieldCompletion)
+        } else { setStateNow(name, value: wrapped, completion: fieldCompletion) }
     }
 
     /// Call when an application field mounts. Persisted/user-entered values
@@ -606,10 +623,14 @@ public final class OpenUIState: ObservableObject {
         fieldBinding(form: form, name: name, fallback: fallback, componentType: componentType, expectedSourceRevision: nil)
     }
     package func fieldBinding(form: OpenUIString?, name: OpenUIString, fallback: Value,
-                              componentType: String, expectedSourceRevision: Int?, source: EvaluatedElement? = nil) -> Binding<Value> {
+                              componentType: String, expectedSourceRevision: Int?, source: EvaluatedElement? = nil,
+                              completion: ((Value?) -> Void)? = nil) -> Binding<Value> {
         Binding(get: { [weak self] in self?.fieldValue(form: form, name: name, fallback: fallback) ?? fallback },
-                set: { [weak self] in self?.enqueueFieldValue(form: form, name: name, value: $0,
-                    componentType: componentType, expectedSourceRevision: expectedSourceRevision, source: source) })
+                set: { [weak self] value in
+                    guard let self else { completion?(nil); return }
+                    self.enqueueFieldValue(form: form, name: name, value: value, componentType: componentType,
+                        expectedSourceRevision: expectedSourceRevision, source: source, completion: completion)
+                })
     }
 
     private func formPayload(_ name: OpenUIString?) -> [(OpenUIString, Value)] {

@@ -106,7 +106,6 @@ private struct ChartView: View {
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.locale) private var locale
-    @EnvironmentObject private var state: OpenUIState
     @State private var inspectedLabel: String?
     @State private var inspectionPresented = false
     @State private var inspectedPointID: String?

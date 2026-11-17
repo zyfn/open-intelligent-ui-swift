@@ -65,7 +65,6 @@ struct NumericInputDraft {
 
 private struct InputView: View {
     let context: OpenUIComponentContext
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
     @State private var draft = NumericInputDraft()

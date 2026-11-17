@@ -16,7 +16,6 @@ enum CheckboxComponent {
 
 private struct CheckboxView: View {
     let context: OpenUIComponentContext
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
     @ScaledMetric(relativeTo: .body) private var indicatorSize: CGFloat = 20

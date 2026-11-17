@@ -74,6 +74,106 @@ final class RuntimeReentrancyTests: XCTestCase {
         XCTAssertEqual(snapshots, [.number(2)])
     }
 
+    @MainActor func testWriteCompletionsAcknowledgeCanonicalValuesBeforePublicStateUpdates() throws {
+        let schema = LibrarySchema(components: ["Input": [ParamDef(name: "value", required: true, isBindable: true)]],
+            callDefs: builtinCallDefs)
+        for writer in ["reactive", "field", "formField"] {
+            let state = OpenUIState(schema: schema)
+            state.setSource("$count=10\nroot=Input($count=$value-1)")
+            let context = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: [:], state: state,
+                exactFormName: writer == "formField" ? "form" : nil)
+            var receipts: [Value?] = []
+            var events: [String] = []
+            let completion: (Value?) -> Void = { value in
+                receipts.append(value)
+                events.append("accepted")
+            }
+            let binding: Binding<Value>
+            if writer == "reactive" {
+                binding = try XCTUnwrap(context.binding("value", completion: completion))
+            } else {
+                binding = context.fieldBinding("amount", completion: completion)
+            }
+            state.onStateUpdate = { _ in
+                XCTAssertEqual(receipts, [.number(10)], writer)
+                events.append("published")
+            }
+            defer { state.onStateUpdate = nil }
+
+            // The reactive write normalizes 11 to the already stored 10. Field
+            // receipts expose that same value, without their Store wrappers.
+            binding.wrappedValue = .number(writer == "reactive" ? 11 : 10)
+
+            XCTAssertEqual(receipts, [.number(10)], writer)
+            XCTAssertEqual(events, ["accepted", "published"], writer)
+            XCTAssertEqual(state.stateValue("$count"), .number(10), writer)
+            if writer != "reactive" {
+                XCTAssertEqual(state.fieldValue(form: context.exactFormName, name: "amount"), .number(10), writer)
+            }
+            XCTAssertFalse(state.isInterrupted, writer)
+            XCTAssertTrue(state.errors.isEmpty, writer)
+        }
+    }
+
+    @MainActor func testQueuedWriteCompletionsRejectRetiredTargetsAndOversizedValuesOnce() throws {
+        let schema = LibrarySchema(components: [
+            "Stack": [ParamDef(name: "children", required: true)],
+            "Input": [ParamDef(name: "value", required: true, isBindable: true)],
+            "Box": [ParamDef(name: "value", required: true)]
+        ], callDefs: builtinCallDefs)
+        var oversized = Value.number(1)
+        for _ in 0..<300 { oversized = .array([oversized]) }
+        XCTAssertTrue(nativeValueExceedsLimits(oversized))
+        for writer in ["binding", "reactive", "field", "formField"] {
+            for retire in [true, false] {
+                let label = "\(writer), \(retire ? "retired" : "budget")"
+                let state = OpenUIState(schema: schema)
+                state.setSource("""
+                $shown=true
+                $count=10
+                $trigger=0
+                root=Stack($shown ? [Input($count),Input($count=$value+2),Box("field")] : [])
+                """)
+                let index = writer == "binding" ? 0 : writer == "reactive" ? 1 : 2
+                let element = try XCTUnwrap(PropValue.children(try XCTUnwrap(state.root)).dropFirst(index).first)
+                let context = OpenUIComponentContext(element: element, registry: [:], state: state,
+                    exactFormName: writer == "formField" ? "form" : nil)
+                var receipts: [Value?] = []
+                let completion: (Value?) -> Void = { receipts.append($0) }
+                let binding: Binding<Value>
+                if writer == "binding" || writer == "reactive" {
+                    binding = try XCTUnwrap(context.binding("value", completion: completion))
+                } else {
+                    binding = context.fieldBinding("amount", completion: completion)
+                }
+                var queued = false
+                let subscription = state.$root.dropFirst().sink { _ in
+                    guard !queued, state.stateValue("$trigger") == .number(1) else { return }
+                    queued = true
+                    if retire { state.setState("$shown", value: .boolean(false)) }
+                    XCTAssertTrue(context.canInteract, "The target is still current while its removal is queued: \(label)")
+                    binding.wrappedValue = retire ? .number(37) : oversized
+                    XCTAssertTrue(receipts.isEmpty, "Enqueuing alone must not acknowledge a write: \(label)")
+                }
+                defer { subscription.cancel() }
+
+                state.setState("$trigger", value: .number(1))
+
+                XCTAssertTrue(queued, label)
+                XCTAssertEqual(receipts, [nil], label)
+                XCTAssertEqual(state.stateValue("$count"), .number(10), label)
+                XCTAssertNil(state.snapshotState()["amount"], label)
+                XCTAssertNil(state.snapshotState()["form"], label)
+                XCTAssertEqual(state.isInterrupted, !retire, label)
+                if retire {
+                    XCTAssertTrue(PropValue.children(try XCTUnwrap(state.root)).isEmpty, label)
+                } else {
+                    XCTAssertFalse(state.errors.isEmpty, label)
+                }
+            }
+        }
+    }
+
     @MainActor func testOnErrorRecoveryDoesNotDeliverTheReplacementParseTwice() {
         let state = OpenUIState(schema: schema())
         var recovered = false

@@ -121,7 +121,7 @@ final class FullLibraryParityTests: XCTestCase {
       defer { done.fulfill() }
       let draft = NativeSliderDraft()
       var writes: [[Double]] = []
-      draft.commit = { writes.append($0) }
+      draft.commit = { value, complete in writes.append(value); complete(value) }
       draft.receive([10, 50])
       draft.edit("12", at: 0); draft.edit("18", at: 0); draft.edit("20", at: 0)
       XCTAssertTrue(writes.isEmpty)

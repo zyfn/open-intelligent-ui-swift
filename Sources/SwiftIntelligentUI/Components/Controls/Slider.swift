@@ -37,7 +37,6 @@ struct SliderRange: Equatable {
 
 private struct SliderView: View {
     let context: OpenUIComponentContext
-    @EnvironmentObject private var state: OpenUIState
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var typeSize

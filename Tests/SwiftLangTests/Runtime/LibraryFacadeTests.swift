@@ -39,6 +39,69 @@ final class LibraryFacadeTests: XCTestCase {
         XCTAssertEqual(PropValue.string(try XCTUnwrap(state.root), "text"), "EDITED")
     }
 
+    @MainActor func testDocumentFunctionDefaultsRemainIndependentWithTheSameReader() throws {
+        let defaultValue = Value.object([.init(key: "items", value: .array([.number(1), .number(2)]))])
+        let returns = JSONValue.object([
+            .init(key: "type", value: .string("object")),
+            .init(key: "properties", value: .object([
+                .init(key: "items", value: .object([.init(key: "default", value: .array([.number(1), .number(2)]))]))
+            ])),
+            .init(key: "required", value: .array([.string("items")]))
+        ])
+        let function = DefinedFunction(name: "DefaultPayload", description: "Fill a required return default.",
+            params: [], returns: returns) { _ in .object([]) }
+        let components = try OpenUIComponentLibrary(components: [
+            OpenUIComponent(name: "ProbeValue", description: "Display a value.",
+                params: [ParamDef(name: "value", required: true)]) { _ in EmptyView() }
+        ], functions: [function], root: "ProbeValue")
+        let library = OpenUILibrary(components: components)
+        let source = "$enabled=true\nroot=ProbeValue($enabled ? @DefaultPayload() : {items:[9]})"
+        let first = library.makeState()
+        let second = OpenUILibrary(components: components).makeState()
+        first.setSource(source)
+        second.setSource(source)
+        XCTAssertTrue(first.errors.isEmpty, "\(first.errors)")
+        XCTAssertTrue(second.errors.isEmpty, "\(second.errors)")
+        let left = try XCTUnwrap(PropValue.value(try XCTUnwrap(first.root), "value"))
+        let right = try XCTUnwrap(PropValue.value(try XCTUnwrap(second.root), "value"))
+        XCTAssertEqual(left, defaultValue)
+        XCTAssertEqual(right, defaultValue)
+        XCTAssertFalse(left.isSameValue(as: right), "A shared reader must not share runtime default objects")
+        guard case .object(let leftFields) = left, case .object(let rightFields) = right else {
+            return XCTFail("The function must actually produce object defaults")
+        }
+        let leftItems = try XCTUnwrap(leftFields["items"]), rightItems = try XCTUnwrap(rightFields["items"])
+        XCTAssertFalse(leftItems.isSameValue(as: rightItems))
+        first.setState("$enabled", value: .boolean(false))
+        XCTAssertEqual(PropValue.value(try XCTUnwrap(first.root), "value"),
+                       .object([.init(key: "items", value: .array([.number(9)]))]))
+        XCTAssertEqual(PropValue.value(try XCTUnwrap(second.root), "value"), defaultValue)
+        first.reset()
+        XCTAssertEqual(PropValue.value(try XCTUnwrap(second.root), "value"), defaultValue)
+    }
+
+    @MainActor func testExtendedFacadeKeepsTheOriginalReaderSnapshot() throws {
+        let originalComponents = try components()
+        let original = OpenUILibrary(components: originalComponents)
+        let extended = OpenUILibrary(components: try originalComponents.extending(overriding: [
+            OpenUIComponent(name: "ProbeText", description: "A revised numeric reader.",
+                            params: [OpenUIParameter.number("amount")]) { _ in EmptyView() }
+        ]))
+        for _ in 0..<2 {
+            let first = original.makeState(), second = extended.makeState()
+            first.setSource("root=ProbeText(\"original\")")
+            second.setSource("root=ProbeText(7)")
+            XCTAssertTrue(first.errors.isEmpty, "\(first.errors)")
+            XCTAssertTrue(second.errors.isEmpty, "\(second.errors)")
+            XCTAssertEqual(PropValue.string(try XCTUnwrap(first.root), "text"), "original")
+            XCTAssertEqual(PropValue.value(try XCTUnwrap(second.root), "amount"), .number(7))
+            XCTAssertNil(PropValue.value(try XCTUnwrap(second.root), "text"))
+        }
+        XCTAssertTrue(original.recognizesUI(in: "root=ProbeText(\"original\")"))
+        XCTAssertTrue(extended.recognizesUI(in: "root=ProbeText(7)"))
+        XCTAssertFalse(original.recognizesUI(in: "An ordinary paragraph."))
+    }
+
     private actor RecordingProvider: ToolProvider {
         struct Call: Sendable {
             let name: OpenUIString
