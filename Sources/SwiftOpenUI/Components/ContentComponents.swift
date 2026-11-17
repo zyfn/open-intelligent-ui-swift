@@ -325,10 +325,33 @@ struct NativeWrappingRow<Content: View>: View {
   }
 }
 
+/// Report the label's natural width to Grid while allowing long labels to wrap.
+private struct NativeEntityLabelLayout: Layout {
+  let maximumWidth: CGFloat
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard let label = subviews.first else { return .zero }
+    let ideal = label.sizeThatFits(.unspecified).width
+    let proposed = proposal.width.flatMap { $0.isFinite ? max(1, $0) : nil } ?? maximumWidth
+    let width = max(1, min(maximumWidth, proposed, ideal.isFinite ? max(1, ideal) : maximumWidth))
+    let measured = label.sizeThatFits(ProposedViewSize(width: width, height: nil))
+    return CGSize(width: width, height: measured.height)
+  }
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    subviews.first?.place(at: bounds.origin, anchor: .topLeading,
+                          proposal: ProposedViewSize(width: bounds.width, height: nil))
+  }
+}
+
 struct NativeEntityList: View {
   let context: OpenUIComponentContext
+  @Namespace private var measurementScope
+  @State private var availableWidth: CGFloat = 0
+  private var labelWidthLimit: CGFloat {
+    let width = availableWidth > 0 ? availableWidth : context.presentation.minimumTextColumnWidth * 2.5
+    return max(1, width * 0.4)
+  }
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    Grid(alignment: .topLeading, horizontalSpacing: context.theme.spaceS, verticalSpacing: 0) {
       if context.string("size") != "small", let header = context.value("header"), header != .null {
         row(header, kind: .header)
         separator
@@ -345,27 +368,39 @@ struct NativeEntityList: View {
         row(footer, kind: .footer)
       }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(GeometryReader { geometry in
+      Color.clear.preference(key: NativeListContainerWidths.self, value: [measurementScope: geometry.size.width])
+    })
+    .onPreferenceChange(NativeListContainerWidths.self) { values in
+      guard let width = values[measurementScope], width.isFinite, width > 0,
+            abs(width - availableWidth) > 0.5 else { return }
+      availableWidth = width
+    }
   }
   private var separator: some View {
     Rectangle().fill(context.theme.borderDefault)
-      .frame(height: context.presentation.borderWidth).accessibilityHidden(true)
+      .frame(height: context.presentation.borderWidth).gridCellUnsizedAxes(.horizontal).accessibilityHidden(true)
   }
   private enum RowKind { case header, body, footer }
   private func row(_ value: Value, kind: RowKind) -> some View {
     let small = context.string("size") == "small"
     let numeric = NativeValue.string(value, "rightVariant") == "number"
-    return NativeLabelValueLayout(
-      gap: context.theme.spacing("m"), minimumLabelWidth: context.presentation.minimumTextColumnWidth, equalColumns: true
-    ) {
-      NativeMarkdownText(text: NativeValue.string(value, "left") ?? "", mode: .inline,
-        style: context.theme.entityLabelStyle(compact: small))
+    return GridRow(alignment: .top) {
+      NativeEntityLabelLayout(maximumWidth: labelWidthLimit) {
+        NativeMarkdownText(text: NativeValue.string(value, "left") ?? "", mode: .inline,
+          style: context.theme.entityLabelStyle(compact: small))
+      }
+        .padding(.vertical, context.theme.spacing(kind == .body ? "s" : "m"))
       NativeMarkdownText(text: NativeValue.string(value, "right") ?? "", mode: .inline,
         style: context.theme.entityValueStyle(compact: small, numeric: numeric,
           header: kind == .header, footer: kind == .footer))
-      // Text wraps in its own stable column; numeric values keep trailing alignment.
       .multilineTextAlignment(numeric ? .trailing : .leading)
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: numeric ? .trailing : .leading)
+      .padding(.vertical, context.theme.spacing(kind == .body ? "s" : "m"))
     }
-    .padding(.vertical, context.theme.spacing(kind == .body ? "s" : "m")).textSelection(.enabled)
+    .textSelection(.enabled)
     .accessibilityIdentifier("openui.entity-list.row")
   }
 }

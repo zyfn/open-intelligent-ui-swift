@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.18 · 更新日期：2026-11-17
+文档版本：1.19 · 更新日期：2026-11-17
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -78,6 +78,17 @@ OpenUIView(state: state, library: library)
 ~~~
 
 主题通过同一个 typed Context storage 传递。context.theme 和 context.presentation 读取 OpenUI 的值；自建组件需要相同规则时使用对应 Context 扩展。子树覆盖保留同层其它 typed values；不要用高频几何或计时状态反复改写全局主题。
+
+`tableAppearance` 可为 OpenUI Table 和 SDK 内的 Markdown 表格共同配置网格线、表头与首列背景、内容背景、可选字体和圆角；不设置时保留默认表格。圆角未单独设置时使用 `radius3xl`；使用该表格外观的 Markdown 短表铺满可用宽度，宽表保留列对齐并支持横向滚动。EntityList 默认使用共享标签列，文本值共用起始位置，数值沿右缘对齐；标签较长时允许换行。`markdownListItemSpacing` 控制 SDK 内 Markdown 列表项间距，不影响宿主自己的 Markdown 渲染。这些呈现调整不改变组件参数或历史数据。
+
+`markdownEmphasisFont` 可为 Markdown 的加粗文字指定字体族与字重；字号仍继承所在段落或标题。不配置时沿用默认加粗方式，原文及链接语义不变。
+
+~~~swift
+var theme = OpenUITheme()
+theme.tableAppearance = OpenUITableAppearance(
+    gridLine: .gray, headerBackground: .gray.opacity(0.1), background: .white)
+theme.markdownListItemSpacing = 15
+~~~
 
 颜色使用语义角色与 Apple 平台外观，保持文字、边界、强调和状态的职责。图表序列色不复用为业务状态色。字体、圆角、间距、媒体比例与按钮形状使用所属 token，不让不同类别自行创造一套视觉层级。
 

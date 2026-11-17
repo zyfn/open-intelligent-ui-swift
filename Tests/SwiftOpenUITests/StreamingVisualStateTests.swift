@@ -75,6 +75,30 @@ final class StreamingVisualStateTests: XCTestCase {
     XCTAssertEqual(height(), second, accuracy: 1)
   }
 
+  @MainActor func testEntityListAddsCommittedRowsWhileStreaming() throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.push("root=EntityList(rows)\nrows=[{left:\"短\",right:\"First\"},")
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry).frame(width: 320))
+    let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 320, height: 400),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false; window.contentView = host
+    window.setFrameOrigin(.init(x: -10000, y: -10000)); window.orderFront(nil)
+    defer { window.close() }
+    func height() -> CGFloat {
+      host.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+      return host.fittingSize.height
+    }
+    let first = height()
+    XCTAssertGreaterThan(first, 0, "The committed first row should render before the stream finishes")
+    state.push("{left:\"更长标签\",right:\"Second\"},")
+    let second = height()
+    XCTAssertGreaterThan(second, first + 20, "The appended row should appear in the same list")
+    state.push("]"); state.complete()
+    XCTAssertEqual(height(), second, accuracy: 1)
+  }
+
   @MainActor private func pixels(_ source: String, streaming: Bool, disabled: Bool = false) throws -> (dark: Double, gray: Double) {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
