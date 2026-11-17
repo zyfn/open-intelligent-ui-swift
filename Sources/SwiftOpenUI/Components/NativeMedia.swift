@@ -254,9 +254,7 @@ struct NativeRemoteImage: View {
   private var decodeSizeReady: Bool {
     requestedPixelSize != nil || targetDisplaySize != nil
   }
-  private func recordDisplaySize(_ size: CGSize) {
-    guard requestedPixelSize == nil, needsResolvedWidth else { return }
-    let target = NativeMediaPreview.displaySize(viewport: size, scale: displayScale, mode: displayMode)
+  private func recordDisplaySize(_ target: NativeImageDisplaySize?) {
     if measuredDisplaySize != target { measuredDisplaySize = target }
   }
   private var needsResolvedWidth: Bool {
@@ -348,13 +346,12 @@ struct NativeRemoteImage: View {
     let surface = Color.clear.overlay { content().accessibilityHidden(true) }.clipped().contentShape(Rectangle())
       .background {
         GeometryReader { geometry in
+          let target: NativeImageDisplaySize? = requestedPixelSize == nil && needsResolvedWidth
+            ? NativeMediaPreview.displaySize(viewport: geometry.size, scale: displayScale, mode: displayMode)
+            : nil
           Color.clear
-            .onAppear { recordDisplaySize(geometry.size) }
-            .onChange(of: geometry.size) { recordDisplaySize($0) }
-            .onChange(of: displayScale) { _ in recordDisplaySize(geometry.size) }
-            .onChange(of: displayMode) { _ in recordDisplaySize(geometry.size) }
-            .onChange(of: requestedPixelSize) { _ in recordDisplaySize(geometry.size) }
-            .onChange(of: needsResolvedWidth) { _ in recordDisplaySize(geometry.size) }
+            .onAppear { recordDisplaySize(target) }
+            .onChange(of: target) { recordDisplaySize($0) }
         }
       }
     switch layout {

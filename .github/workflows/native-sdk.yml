@@ -161,6 +161,14 @@ jobs:
               failed=1
             fi
           done
+          for attempt in 1 2 3; do
+            if swift test --skip-build --configuration debug --filter 'testMountedImageCanSwitchFromExplicitPixelsToMeasuredPixels' \
+                2>&1 | tee "outputs/verification/openui-media-text-size-switch-$attempt.log"; then
+              :
+            else
+              failed=1
+            fi
+          done
           exit "$failed"
       - name: Retain OpenUI regression diagnostics immediately
         if: ${{ !cancelled() }}
@@ -170,6 +178,32 @@ jobs:
           path: outputs/verification/openui-media-text-*.log
           if-no-files-found: warn
           retention-days: 7
+      - name: Release native fitting
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test -c release --filter 'HostSizingIsolationTests|RuntimeHostIsolationTests' \
+            2>&1 | tee outputs/verification/release-fitting.log
+      - name: All library products for iOS 16 Simulator
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in SwiftOpenUI SwiftIntelligentUI; do
+            swift build --target "$target" --scratch-path "$RUNNER_TEMP/native-ios" \
+              --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+              2>&1 | tee "outputs/verification/$target-ios.log"
+          done
+      - name: iOS Gallery using the same local package
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project Examples/Gallery/OpenUIGallery.xcodeproj \
+            -scheme OpenUIGallery -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/OpenUIGallery-build" \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee outputs/verification/gallery-ios.log
       - name: All native package tests
         if: ${{ !cancelled() }}
         shell: bash
@@ -191,13 +225,6 @@ jobs:
           set -euo pipefail
           python3 Tools/check_product_consumers.py --scratch-root "$RUNNER_TEMP/native-consumers" \
             2>&1 | tee outputs/verification/product-consumers.log
-      - name: Release native fitting
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test -c release --filter 'HostSizingIsolationTests|RuntimeHostIsolationTests' \
-            2>&1 | tee outputs/verification/release-fitting.log
       - name: Release streaming, failure and resource boundaries
         if: ${{ !cancelled() }}
         shell: bash
@@ -257,25 +284,6 @@ jobs:
               --output "outputs/verification/language-stream-$chunk.json" \
               2>&1 | tee "outputs/verification/language-stream-$chunk.log"
           done
-      - name: All library products for iOS 16 Simulator
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for target in SwiftOpenUI SwiftIntelligentUI; do
-            swift build --target "$target" --scratch-path "$RUNNER_TEMP/native-ios" \
-              --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-              2>&1 | tee "outputs/verification/$target-ios.log"
-          done
-      - name: iOS Gallery using the same local package
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild -project Examples/Gallery/OpenUIGallery.xcodeproj \
-            -scheme OpenUIGallery -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/OpenUIGallery-build" \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee outputs/verification/gallery-ios.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
