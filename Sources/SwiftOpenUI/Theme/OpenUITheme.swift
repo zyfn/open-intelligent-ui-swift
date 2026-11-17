@@ -1,6 +1,27 @@
 import SwiftLang
 import SwiftUI
 
+/// A shared appearance for structured and Markdown tables. Leave unset to use
+/// the SDK's standard presentation.
+public struct OpenUITableAppearance {
+    public var gridLine: Color
+    public var headerBackground: Color
+    public var background: Color
+    public var cornerRadius: CGFloat?
+    public var headerFont: OpenUIFont?
+    public var bodyFont: OpenUIFont?
+
+    public init(gridLine: Color, headerBackground: Color, background: Color, cornerRadius: CGFloat? = nil,
+                headerFont: OpenUIFont? = nil, bodyFont: OpenUIFont? = nil) {
+        self.gridLine = gridLine
+        self.headerBackground = headerBackground
+        self.background = background
+        self.cornerRadius = cornerRadius
+        self.headerFont = headerFont
+        self.bodyFont = bodyFont
+    }
+}
+
 /// Partial overrides using the pinned React Theme names. Nil keeps the SDK default.
 /// Typography roles are complete values; overriding one never mutates another role.
 public struct OpenUITheme {
@@ -18,6 +39,10 @@ public struct OpenUITheme {
     public var borderInteractive: Color?
     public var borderAccent: Color?
     public var borderDanger: Color?
+    public var tableAppearance: OpenUITableAppearance?
+    public var markdownListItemSpacing: CGFloat?
+    /// Optional emphasis face; its size is inherited from the surrounding text.
+    public var markdownEmphasisFont: OpenUIFont?
     public var invertedBackground: Color?
     public var textInfoPrimary: Color?
     public var textSuccessPrimary: Color?
@@ -120,6 +145,9 @@ public struct OpenUITheme {
         if let borderInteractive { values.borderInteractive = borderInteractive }
         if let borderAccent { values.borderAccent = borderAccent }
         if let borderDanger { values.borderDanger = borderDanger }
+        if let tableAppearance { values.tableAppearance = tableAppearance }
+        if let markdownListItemSpacing { values.markdownListItemSpacing = markdownListItemSpacing }
+        if let markdownEmphasisFont { values.markdownEmphasisFont = markdownEmphasisFont }
         if let invertedBackground { values.invertedBackground = invertedBackground }
         if let textInfoPrimary { values.textInfoPrimary = textInfoPrimary }
         if let textSuccessPrimary { values.textSuccessPrimary = textSuccessPrimary }
@@ -209,6 +237,9 @@ public struct OpenUITheme {
 public struct OpenUIThemeValues {
     // Dynamic Color providers are reused across scope resolution and stream updates.
     static let defaults = OpenUIThemeValues()
+    public var tableAppearance: OpenUITableAppearance? = nil
+    public var markdownListItemSpacing: CGFloat? = nil
+    public var markdownEmphasisFont: OpenUIFont? = nil
     public var textNeutralPrimary: Color = NativeControlPalette.adaptive(light: 0x303036, dark: 0xE4E4E7, highContrastLight: 0x000000, highContrastDark: 0xFFFFFF)
     public var textNeutralSecondary: Color = NativeControlPalette.adaptive(light: 0x64646E, dark: 0xA1A1AA, highContrastLight: 0x50505A, highContrastDark: 0xC4C4CE)
     public var textNeutralTertiary: Color = NativeControlPalette.adaptive(light: 0xAAAAB4, dark: 0x686874)

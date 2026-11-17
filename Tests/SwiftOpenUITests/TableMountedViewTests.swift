@@ -159,6 +159,17 @@ final class TableMountedViewTests:XCTestCase {
       }
       try sendAction(expectedCount: index + 2)
     }
+    typeSize.tableAppearance = OpenUITableAppearance(gridLine: .red, headerBackground: .blue, background: .white)
+    settle()
+    XCTAssertTrue(inputs().first === input, "Theme changes must preserve the mounted editing field")
+    XCTAssertTrue(try marker("short") === short, "Theme changes must preserve mounted cells")
+    XCTAssertEqual(state.fieldValue(form: nil, name: "draft"), .string("Edited table draft"))
+    try sendAction(expectedCount: 4)
+    typeSize.tableAppearance = nil
+    settle()
+    XCTAssertTrue(inputs().first === input, "Returning to the default theme must preserve the editing field")
+    XCTAssertTrue(try marker("action") === action)
+    try sendAction(expectedCount: 5)
   }
 
   @MainActor func testMountedSourceObservationDoesNotClearRejectedDraft() async throws {
@@ -194,12 +205,17 @@ final class TableMountedViewTests:XCTestCase {
 
 @MainActor private final class MountedTableTextSize: ObservableObject {
   @Published var value: DynamicTypeSize = .large
+  @Published var tableAppearance: OpenUITableAppearance?
 }
 
 private struct MountedTableEnvironment<Content: View>: View {
   @ObservedObject var typeSize: MountedTableTextSize
   let content: Content
-  var body: some View { content.environment(\.dynamicTypeSize, typeSize.value) }
+  var body: some View {
+    var theme = OpenUIThemeValues()
+    theme.tableAppearance = typeSize.tableAppearance
+    return content.environment(\.dynamicTypeSize, typeSize.value).environment(\.openUITheme, theme)
+  }
 }
 
 private struct MountedTableValue: NSViewRepresentable {

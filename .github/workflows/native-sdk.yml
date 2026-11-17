@@ -169,7 +169,7 @@ jobs:
           set -euo pipefail
           failed=0
           for configuration in debug release; do
-            if swift test --configuration "$configuration" --filter 'NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests|AdaptivePresentationTests|PhotoCardGeometryTests|ReadingControlPresentationTests|ObjectCardCompositionTests|StreamingLayoutContractTests|ButtonLayoutContractTests|ChartInspectionTests|NativeComponentsTests|BoundaryIdentityTests|NativeComponentSubscriptionTests|StreamingRenderIsolationTests' \
+            if swift test --configuration "$configuration" --filter 'NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests|AdaptivePresentationTests|PhotoCardGeometryTests|ReadingControlPresentationTests|ObjectCardCompositionTests|StreamingLayoutContractTests|ButtonLayoutContractTests|ChartInspectionTests|NativeComponentsTests|BoundaryIdentityTests|NativeComponentSubscriptionTests|StreamingRenderIsolationTests|TableAppearanceTests|ReadingRhythmTests|StreamingVisualStateTests|TableMountedViewTests' \
                 2>&1 | tee "outputs/verification/openui-media-text-$configuration.log"; then
               :
             else
