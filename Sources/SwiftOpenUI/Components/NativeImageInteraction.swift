@@ -126,24 +126,46 @@ struct NativeImagePreviewDescription: View {
 
   var body: some View {
     if !alt.isEmpty || readableDetails != nil {
-      ScrollView(.vertical) {
-        VStack(alignment: .leading, spacing: theme.spaceS) {
-          if !alt.isEmpty {
-            Text(alt).nativeTextStyle(theme.textStyle(.body))
-              .fixedSize(horizontal: false, vertical: true)
-          }
-          if let details = readableDetails {
-            Text(details).nativeTextStyle(theme.textStyle(.supporting))
-              .fixedSize(horizontal: false, vertical: true)
-          }
+      NativeImageDescriptionLayout(maximumHeight: maximumHeight) {
+        ViewThatFits(in: .vertical) {
+          copy
+          ScrollView(.vertical) { copy }
         }
-        .lineLimit(nil)
-        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .frame(maxHeight: maximumHeight)
       .accessibilityElement(children: .contain)
       .accessibilityIdentifier("openui.image.preview.description")
     }
+  }
+
+  private var copy: some View {
+    VStack(alignment: .leading, spacing: theme.spaceS) {
+      if !alt.isEmpty {
+        Text(alt).nativeTextStyle(theme.textStyle(.body))
+      }
+      if let details = readableDetails {
+        Text(details).nativeTextStyle(theme.textStyle(.supporting))
+      }
+    }
+    .lineLimit(nil)
+    .fixedSize(horizontal: false, vertical: true)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+/// Measure natural copy first, then offer the bounded region to ViewThatFits.
+/// Short captions retain their own height; only overflowing copy scrolls.
+private struct NativeImageDescriptionLayout: Layout {
+  let maximumHeight: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard let content = subviews.first else { return .zero }
+    let natural = content.sizeThatFits(.init(width: proposal.width, height: nil))
+    return CGSize(width: natural.width,
+      height: min(natural.height, maximumHeight, max(0, proposal.height ?? maximumHeight)))
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: .init(bounds.size))
   }
 }
 

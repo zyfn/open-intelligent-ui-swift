@@ -93,7 +93,6 @@ struct NativeRemoteImage: View {
   @State private var localRetry = NativeImageRetryState()
   @Environment(\.openUIMediaSourceReady) private var sourceReady
   @Environment(\.openUIStreamActive) private var streamActive
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.openUIMediaWidthReady) private var widthReady
   @State private var phase: AsyncImagePhase = .empty
   @State private var loadedEntry: NativeMediaCache.Entry?
@@ -120,8 +119,8 @@ struct NativeRemoteImage: View {
           }
           .onChange(of: presentation.pixelSize) { _ in didPresent(presentation.image) }
       } else {
-        // Keep the placeholder in one structural branch. Only its loading
-        // overlay fades out; a terminal failure never animates parent geometry.
+        // Resource states share one canvas so a failure never changes the
+        // reserved image geometry or moves its neighboring content.
         placeholder(loading: waitingForImage)
           .onAppear(perform: reportPlaceholder)
           .onChange(of: waitingForImage) { _ in reportPlaceholder() }
@@ -285,13 +284,14 @@ struct NativeRemoteImage: View {
     canvas {
       ZStack {
         if role == .content && fallbackSystemImage == nil { theme.sunk }
-        NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
-        if fallbackSystemImage == nil {
-          // Only the loading overlay fades. The quiet placeholder and its tap
-          // target retain the same geometry when loading fails.
-          NativeLoadingSurface(active: loading, showsMediaSymbol: true)
-            .opacity(loading ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeOut(duration: nativePresentation.motion.mediaRevealDuration), value: loading)
+        // Failure copy must not sit beneath a translucent loading surface.
+        // Swap states without cross-fading their separate photo symbols.
+        if loading && fallbackSystemImage == nil {
+          NativeLoadingSurface(showsMediaSymbol: true)
+            .transition(.identity)
+        } else {
+          NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
+            .transition(.identity)
         }
       }
     }

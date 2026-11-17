@@ -397,6 +397,11 @@ final class VisualPolishTests: XCTestCase {
 
   @MainActor func testContentImageFailureKeepsQuietPlaceholderAndRetriesInItsOriginalSlot() async throws {
     let loader = ArtworkFailureLoader(succeedsOnRetry: true)
+    var theme = OpenUITheme()
+    // A host may expose its background through a media slot. Loading must
+    // remain correct without an opaque layer hiding the failure presentation.
+    theme.sunk = .clear
+    theme.textNeutralSecondary = .black
     let loading = expectation(description: "content image loading")
     let unavailable = expectation(description: "content image unavailable")
     let loaded = expectation(description: "content placeholder retry loaded")
@@ -408,12 +413,18 @@ final class VisualPolishTests: XCTestCase {
           if status == .unavailable && !sawFailure { sawFailure = true; unavailable.fulfill() }
           if status == .loaded && !sawSuccess { sawSuccess = true; loaded.fulfill() }
         }).openUIResourceContext(.init(loader: loader))
+        .openUITheme(theme).environment(\.colorScheme, .light)
     }
     let (host, window) = artworkHost(content(alt: "这张内容图片展示完整的交通换乘说明。"),
       size: CGSize(width: 240, height: 160))
     defer { window.close(); Task { await loader.releaseFailure() } }
     await fulfillment(of: [loading], timeout: 3)
     let before = host.fittingSize
+    let loadingImage = try artworkPixels(host, name: "content-image-loading-placeholder")
+    XCTAssertGreaterThan(loadingImage.count { r, g, b in min(r, g, b) < 245 }, 20,
+      "Loading retains its quiet photo symbol on a transparent surface")
+    XCTAssertEqual(loadingImage.count { r, g, b in min(r, g, b) < 180 }, 0,
+      "Loading must not reveal the failure glyph or its status text underneath")
     await loader.releaseFailure()
     await fulfillment(of: [unavailable], timeout: 3)
     let image = try artworkPixels(host, name: "content-image-failed-placeholder")

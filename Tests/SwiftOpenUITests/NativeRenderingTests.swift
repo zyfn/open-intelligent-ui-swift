@@ -7,6 +7,39 @@ import SwiftLang
     @testable import SwiftOpenUI
 
     final class NativeRenderingTests: XCTestCase {
+        @MainActor func testImagePreviewDescriptionKeepsShortCopyCompactAndBoundsLongCopy() throws {
+            _ = NSApplication.shared
+            let theme = OpenUIThemeValues.defaults
+            func height<V: View>(_ content: V, offeredHeight: CGFloat? = 480) throws -> CGFloat {
+                let renderer = ImageRenderer(content: content
+                    .environment(\.openUITheme, theme)
+                    .environment(\.dynamicTypeSize, .large))
+                renderer.proposedSize = ProposedViewSize(width: 320, height: offeredHeight)
+                return try XCTUnwrap(renderer.nsImage).size.height
+            }
+            let caption = "A view across the lake."
+            let short = try height(NativeImagePreviewDescription(alt: caption))
+            let natural = try height(Text(caption).nativeTextStyle(theme.textStyle(.body))
+                .fixedSize(horizontal: false, vertical: true), offeredHeight: nil)
+            XCTAssertEqual(short, natural, accuracy: 1,
+                "A short caption must not reserve an empty scroll viewport below the image")
+
+            let details = "Taken from the western shore."
+            let detailHeight = try height(Text(details).nativeTextStyle(theme.textStyle(.supporting))
+                .fixedSize(horizontal: false, vertical: true), offeredHeight: nil)
+            XCTAssertEqual(try height(NativeImagePreviewDescription(alt: caption, details: details)),
+                natural + theme.spaceS + detailHeight, accuracy: 1,
+                "Gallery details must contribute only their actual reading height")
+
+            let long = (1...30).map { "Description line \($0)" }.joined(separator: "\n")
+            let longHeight = try height(NativeImagePreviewDescription(alt: long))
+            XCTAssertGreaterThan(longHeight, short * 2)
+            XCTAssertLessThanOrEqual(longHeight, 240,
+                "A long description must leave a bounded reading region for the image")
+            XCTAssertLessThanOrEqual(try height(NativeImagePreviewDescription(alt: long), offeredHeight: 64), 64,
+                "A constrained sheet must allow the full description to scroll within its available height")
+        }
+
         @MainActor func testImagePreviewKeepsTextAndCanvasInTheSameAppearance() throws {
             for scheme in [ColorScheme.light, .dark] {
                 let name = scheme == .light ? "image-preview-light" : "image-preview-dark"
