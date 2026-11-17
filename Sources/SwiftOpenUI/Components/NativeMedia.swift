@@ -63,6 +63,8 @@ private struct NativeMediaTaskID: Hashable {
   let target: NativeMediaResourceTarget?
   let sourceReady: Bool
   let pixelSize: Int
+  let displaySize: NativeImageDisplaySize?
+  let sizeReady: Bool
   let cache: ObjectIdentifier?
   let generation: Int?
   let visible: Bool
@@ -100,6 +102,7 @@ struct NativeRemoteImage: View {
   @State private var requestSnapshot: NativeMediaRequestSnapshot?
   @State private var revealLoadedImage = true
   @State private var visible = false
+  @State private var measuredDisplaySize: NativeImageDisplaySize?
   @Environment(\.openUIResourceContext) private var resources
   @Environment(\.openUITheme) private var theme
   @Environment(\.openUICardIsAction) private var cardIsAction
@@ -134,9 +137,10 @@ struct NativeRemoteImage: View {
       retry: { localRetry.retry(baseTarget) }))
     .task(id: NativeMediaTaskID(target: sourceReady ? resourceTarget : nil,
       sourceReady: sourceReady, pixelSize: targetPixelSize,
+      displaySize: targetDisplaySize, sizeReady: decodeSizeReady,
       cache: mediaCache.map(ObjectIdentifier.init), generation: mediaCache?.generation,
       visible: !releasesImageWhenHidden || visible)) {
-      guard sourceReady, !releasesImageWhenHidden || visible,
+      guard sourceReady, decodeSizeReady, !releasesImageWhenHidden || visible,
         validCachedImage == nil || upgradesCachedImage, !Task.isCancelled else { return }
       let snapshot: NativeMediaRequestSnapshot
       if let current = requestSnapshot, current.matches(resourceTarget, cache: mediaCache) {
@@ -146,10 +150,12 @@ struct NativeRemoteImage: View {
         requestSnapshot = snapshot
       }
       guard snapshot.target.isCurrent else { return }
-      if loadedRequest == snapshot.request, let loadedEntry, loadedEntry.satisfies(targetPixelSize) {
+      if loadedRequest == snapshot.request, let loadedEntry = currentLoadedEntry,
+        loadedEntry.satisfies(targetPixelSize, displaySize: targetDisplaySize) {
         return
       }
-      if let retained = mediaCache?[snapshot.request], retained.satisfies(targetPixelSize) {
+      if let retained = mediaCache?[snapshot.request],
+        retained.satisfies(targetPixelSize, displaySize: targetDisplaySize) {
         // A mounted image owns its successful phase. The bounded presentation
         // cache can evict this entry while later cards are still arriving.
         accept(retained, for: snapshot.request)
@@ -157,6 +163,9 @@ struct NativeRemoteImage: View {
         return
       }
       if snapshot.request.request == nil { onStatus?(.unavailable, nil) } else { await load(snapshot) }
+    }
+    .onChange(of: widthReady) { ready in
+      if !ready && needsResolvedWidth { measuredDisplaySize = nil }
     }
     .onAppear { visible = true }
     .onDisappear {
@@ -171,7 +180,7 @@ struct NativeRemoteImage: View {
     let cachedImage = validCachedImage
     if let cachedImage, !upgradesCachedImage { return (cachedImage, nil, false, nil) }
     guard let requestID else { return cachedImage.map { ($0, nil, false, nil) } }
-    if loadedRequest == requestID, let loadedEntry {
+    if loadedRequest == requestID, let loadedEntry = currentLoadedEntry {
       return (loadedEntry.image, loadedEntry.size, revealLoadedImage, loadedEntry.decodedPixelSize)
     }
     if loadedRequest != requestID, let retained = mediaCache?[requestID] {
@@ -194,6 +203,12 @@ struct NativeRemoteImage: View {
   }
   private var displayedImage: Image? {
     presentedImage?.image
+  }
+  // A host can tighten its resource policy without changing the URL. Mounted
+  // pixels have the same policy boundary as the shared completed-image cache.
+  private var currentLoadedEntry: NativeMediaCache.Entry? {
+    guard let loadedEntry, loadedEntry.resourceLimits == resources.loader.resourceLimits else { return nil }
+    return loadedEntry
   }
   private var failed: Bool {
     guard sourceReady, let requestID, requestID.request != nil, loadedRequest == requestID else { return false }
@@ -219,15 +234,30 @@ struct NativeRemoteImage: View {
     onStatus?(waitingForImage ? .loading : .unavailable, nil)
   }
   private var targetPixelSize: Int {
-    let limits = resources.loader.resourceLimits
-    let cap = NativeMediaCache.effectivePixelSize(nil, limits: limits)
-    if let requestedPixelSize { return NativeMediaCache.effectivePixelSize(requestedPixelSize, limits: limits) }
-    if case .thumbnail(let size) = layout {
-      let requested = max(size.width, size.height) * displayScale
-      guard requested.isFinite else { return cap }
-      return max(1, Int(min(CGFloat(cap), ceil(requested))))
+    NativeMediaCache.effectivePixelSize(requestedPixelSize, limits: resources.loader.resourceLimits)
+  }
+  private var displayMode: NativeImageDisplaySize.Mode {
+    switch layout {
+    case .intrinsic: return .width
+    case .fit: return .fit
+    default: return .fill
     }
-    return cap
+  }
+  private var targetDisplaySize: NativeImageDisplaySize? {
+    if requestedPixelSize != nil { return nil }
+    if case .thumbnail(let size) = layout {
+      return NativeMediaPreview.displaySize(viewport: size, scale: displayScale, mode: .fill)
+    }
+    guard widthReady, measuredDisplaySize?.mode == displayMode else { return nil }
+    return measuredDisplaySize
+  }
+  private var decodeSizeReady: Bool {
+    requestedPixelSize != nil || targetDisplaySize != nil
+  }
+  private func recordDisplaySize(_ size: CGSize) {
+    guard requestedPixelSize == nil, needsResolvedWidth else { return }
+    let target = NativeMediaPreview.displaySize(viewport: size, scale: displayScale, mode: displayMode)
+    if measuredDisplaySize != target { measuredDisplaySize = target }
   }
   private var needsResolvedWidth: Bool {
     if case .thumbnail = layout { return false }
@@ -239,12 +269,19 @@ struct NativeRemoteImage: View {
     guard let request = id.request else { return }
     // A size upgrade keeps the last accepted pixels. A different resource may
     // never borrow them, including across authorization or retry boundaries.
-    if loadedRequest != id { loadedEntry = mediaCache?[id]; revealLoadedImage = loadedEntry == nil }
+    if loadedRequest != id || currentLoadedEntry == nil {
+      loadedEntry = mediaCache?[id]; revealLoadedImage = loadedEntry == nil
+    }
     loadedRequest = id; phase = .empty
     do {
       let entry: NativeMediaCache.Entry
-      if let mediaCache { entry = try await mediaCache.resource(id, loader: snapshot.target.loader, targetPixelSize: targetPixelSize) }
-      else { entry = try await NativeMediaCache.load(request, loader: snapshot.target.loader, targetPixelSize: targetPixelSize) }
+      if let mediaCache {
+        entry = try await mediaCache.resource(id, loader: snapshot.target.loader,
+          targetPixelSize: targetPixelSize, displaySize: targetDisplaySize)
+      } else {
+        entry = try await NativeMediaCache.load(request, loader: snapshot.target.loader,
+          targetPixelSize: targetPixelSize, displaySize: targetDisplaySize)
+      }
       try Task.checkCancellation()
       guard !releasesImageWhenHidden || visible,
             snapshot.matches(resourceTarget, cache: mediaCache), id == requestID,
@@ -257,11 +294,11 @@ struct NativeRemoteImage: View {
     }
   }
   @MainActor private func accept(_ entry: NativeMediaCache.Entry, for id: NativeResourceRequestID) {
-    if loadedRequest != id || loadedEntry.map({ $0.decodedPixelSize < entry.decodedPixelSize }) != false {
+    if loadedRequest != id || currentLoadedEntry.map({ $0.decodedPixelSize < entry.decodedPixelSize }) != false {
       loadedEntry = entry
     }
     loadedRequest = id
-    if let loadedEntry {
+    if let loadedEntry = currentLoadedEntry {
       phase = .success(loadedEntry.image)
       onResource?(loadedEntry)
     }
@@ -309,6 +346,17 @@ struct NativeRemoteImage: View {
   @ViewBuilder private func canvas<Content: View>(sourceSize: CGSize? = nil,
     @ViewBuilder _ content: () -> Content) -> some View {
     let surface = Color.clear.overlay { content().accessibilityHidden(true) }.clipped().contentShape(Rectangle())
+      .background {
+        GeometryReader { geometry in
+          Color.clear
+            .onAppear { recordDisplaySize(geometry.size) }
+            .onChange(of: geometry.size) { recordDisplaySize($0) }
+            .onChange(of: displayScale) { _ in recordDisplaySize(geometry.size) }
+            .onChange(of: displayMode) { _ in recordDisplaySize(geometry.size) }
+            .onChange(of: requestedPixelSize) { _ in recordDisplaySize(geometry.size) }
+            .onChange(of: needsResolvedWidth) { _ in recordDisplaySize(geometry.size) }
+        }
+      }
     switch layout {
     case .cover:
       surface.aspectRatio(nativePresentation.coverAspectRatio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)

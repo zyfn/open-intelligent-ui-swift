@@ -1,5 +1,6 @@
 import SwiftLang
 import Combine
+import MarkdownUI
 import XCTest
 @testable import SwiftOpenUI
 
@@ -177,6 +178,243 @@ final class StreamingTextPresentationTests: XCTestCase {
     buffer.receive("AB", streaming: true)
     await fulfillment(of: [delivered], timeout: 3)
     XCTAssertEqual(buffer.displayed, "AB")
+  }
+}
+
+extension StreamingTextPresentationTests {
+  @MainActor func testPendingFirstMarkdownPreparationReusesFallbackAndPublishesIntermediateProgress() async {
+    let worker = ControlledMarkdownPreparation()
+    let document = NativeMarkdownDocument(prepare: worker.prepare)
+    defer { document.cancel(); worker.cancelRemaining() }
+    let initial = markdownRequest("Start")
+    XCTAssertEqual(document.content(for: initial).renderPlainText(), "Start")
+    document.receive(initial)
+    await waitForMarkdownWork(worker, started: 1)
+
+    var latest = initial
+    for count in 1...100 {
+      latest = markdownRequest("Start " + String(repeating: "x", count: count))
+      XCTAssertEqual(document.content(for: latest).renderPlainText(), "Start")
+      document.receive(latest)
+    }
+    XCTAssertEqual(document.fallbackParseCount, 1)
+    XCTAssertEqual(document.preparationCount, 1)
+    XCTAssertEqual(worker.requests, [initial])
+
+    // The first useful result is visible while a newer prefix is still pending.
+    // A producer never needs to complete the language stream to make progress.
+    worker.finish(0, markdown: "**Prepared start**")
+    await waitForMarkdownWork(worker, started: 2)
+    XCTAssertEqual(document.currentSource, initial.source)
+    XCTAssertEqual(document.content(for: latest).renderPlainText(), "Prepared start")
+    XCTAssertEqual(worker.requests, [initial, latest])
+
+    let intermediate = latest
+    latest = markdownRequest(latest.source.displayString + " final")
+    document.receive(latest)
+    worker.finish(1)
+    await waitForMarkdownWork(worker, started: 3)
+    XCTAssertEqual(document.currentSource, intermediate.source)
+    XCTAssertEqual(document.content(for: latest).renderPlainText(), intermediate.source.displayString)
+    worker.finish(2)
+    await waitForMarkdownResult(document, source: latest.source)
+    XCTAssertEqual(document.content(for: latest).renderPlainText(), latest.source.displayString)
+    XCTAssertEqual(document.fallbackParseCount, 1)
+  }
+
+  @MainActor func testMarkdownSharedPrefixCorrectionIsImmediateBeforeAndAfterDelivery() async {
+    // A -> AB -> AC is not append-only, including when A has already been prepared.
+    for prepareInitial in [false, true] {
+      let worker = ControlledMarkdownPreparation()
+      let document = NativeMarkdownDocument(prepare: worker.prepare)
+      defer { document.cancel(); worker.cancelRemaining() }
+      let initial = markdownRequest("A"), pending = markdownRequest("AB"), corrected = markdownRequest("AC")
+      _ = document.content(for: initial)
+      document.receive(initial)
+      await waitForMarkdownWork(worker, started: 1)
+      if prepareInitial {
+        worker.finish(0)
+        await waitForMarkdownResult(document, source: initial.source)
+      }
+      _ = document.content(for: pending)
+      document.receive(pending)
+      if prepareInitial { await waitForMarkdownWork(worker, started: 2) }
+      XCTAssertEqual(document.content(for: corrected).renderPlainText(), "AC",
+        "A corrected suffix must be readable before onChange delivers its request")
+      let fallbacks = document.fallbackParseCount
+      document.receive(corrected)
+      await waitForMarkdownWork(worker, started: prepareInitial ? 3 : 2)
+      XCTAssertEqual(document.content(for: corrected).renderPlainText(), "AC")
+      XCTAssertEqual(document.fallbackParseCount, fallbacks,
+        "Delivery must preserve the replacement fallback already produced by the body")
+
+      worker.finish(prepareInitial ? 1 : 0, markdown: "Obsolete input")
+      await waitForMarkdownReturns(worker, count: prepareInitial ? 2 : 1)
+      XCTAssertNil(document.currentSource)
+      XCTAssertEqual(document.content(for: corrected).renderPlainText(), "AC")
+      worker.finish(prepareInitial ? 2 : 1)
+      await waitForMarkdownResult(document, source: corrected.source)
+      XCTAssertEqual(document.content(for: corrected).renderPlainText(), "AC")
+    }
+  }
+
+  @MainActor func testMarkdownConfigurationChangeRetiresPreparedAndPendingContent() async {
+    let initial = markdownRequest("Body"), pending = markdownRequest("Body extended")
+    let changed = [
+      markdownRequest("Body extended", mode: .inline),
+      markdownRequest("Body extended", fontSize: 24),
+      markdownRequest("Body extended", color: "#ffffff"),
+    ]
+    for replacement in changed {
+      let worker = ControlledMarkdownPreparation()
+      let document = NativeMarkdownDocument(prepare: worker.prepare)
+      defer { document.cancel(); worker.cancelRemaining() }
+      _ = document.content(for: initial)
+      document.receive(initial)
+      await waitForMarkdownWork(worker, started: 1)
+      worker.finish(0, markdown: "Old math or citation presentation")
+      await waitForMarkdownResult(document, source: initial.source)
+      document.receive(pending)
+      await waitForMarkdownWork(worker, started: 2)
+
+      XCTAssertEqual(document.content(for: replacement).renderPlainText(), "Body extended")
+      let fallbacks = document.fallbackParseCount
+      document.receive(replacement)
+      await waitForMarkdownWork(worker, started: 3)
+      worker.finish(1, markdown: "Obsolete configuration")
+      await waitForMarkdownReturns(worker, count: 2)
+      XCTAssertNil(document.currentSource)
+      XCTAssertEqual(document.content(for: replacement).renderPlainText(), "Body extended")
+      XCTAssertEqual(document.fallbackParseCount, fallbacks)
+      worker.finish(2, markdown: "Current configuration")
+      await waitForMarkdownResult(document, source: replacement.source)
+      XCTAssertEqual(document.content(for: replacement).renderPlainText(), "Current configuration")
+    }
+  }
+
+  @MainActor func testRetiredMarkdownWorkCannotReplaceContentOrClearNewPendingWork() async {
+    let worker = ControlledMarkdownPreparation()
+    let document = NativeMarkdownDocument(prepare: worker.prepare)
+    defer { document.cancel(); worker.cancelRemaining() }
+    let initial = markdownRequest("A"), remounted = markdownRequest("AB"), appended = markdownRequest("ABC")
+    _ = document.content(for: initial)
+    document.receive(initial)
+    await waitForMarkdownWork(worker, started: 1)
+    document.cancel()
+    XCTAssertEqual(document.content(for: remounted).renderPlainText(), "AB",
+      "Without active preparation a size-only read must not freeze an old prefix")
+    document.receive(remounted)
+    await waitForMarkdownWork(worker, started: 2)
+
+    // This preparer deliberately returns after cancellation, like work that
+    // already crossed a noncancellable native parsing boundary.
+    worker.finish(0, markdown: "Retired content")
+    await waitForMarkdownReturns(worker, count: 1)
+    XCTAssertNil(document.currentSource)
+    XCTAssertEqual(document.content(for: appended).renderPlainText(), "AB")
+    XCTAssertEqual(document.fallbackParseCount, 2,
+      "A retired result must not clear the current job and reenable repeated fallback parsing")
+    document.receive(appended)
+    worker.finish(1)
+    await waitForMarkdownWork(worker, started: 3)
+    XCTAssertEqual(document.currentSource, remounted.source)
+    worker.finish(2)
+    await waitForMarkdownResult(document, source: appended.source)
+    XCTAssertEqual(document.content(for: appended).renderPlainText(), "ABC")
+  }
+
+  @MainActor func testMarkdownSizingReadsWithoutPreparationKeepTheirExactSource() {
+    let document = NativeMarkdownDocument()
+    for source in ["A", "AB", "AC", "AC final"] {
+      XCTAssertEqual(document.content(for: markdownRequest(source)).renderPlainText(), source)
+    }
+    XCTAssertEqual(document.fallbackParseCount, 4)
+    XCTAssertEqual(document.preparationCount, 0)
+  }
+
+  @MainActor func testCancelledMarkdownRetainsPreparedPrefixUntilRemountedPreparationAdvances() async {
+    let worker = ControlledMarkdownPreparation()
+    let document = NativeMarkdownDocument(prepare: worker.prepare)
+    defer { document.cancel(); worker.cancelRemaining() }
+    let initial = markdownRequest("A"), appended = markdownRequest("AB")
+    _ = document.content(for: initial)
+    document.receive(initial)
+    await waitForMarkdownWork(worker, started: 1)
+    worker.finish(0)
+    await waitForMarkdownResult(document, source: initial.source)
+    document.cancel()
+
+    let fallbacks = document.fallbackParseCount, preparations = document.preparationCount
+    for _ in 0..<20 {
+      XCTAssertEqual(document.content(for: appended).renderPlainText(), "A",
+        "A size-only read can reuse a compatible prepared prefix without reparsing or scheduling work")
+    }
+    XCTAssertEqual(document.fallbackParseCount, fallbacks)
+    XCTAssertEqual(document.preparationCount, preparations)
+    XCTAssertEqual(worker.requests, [initial])
+    document.receive(appended)
+    await waitForMarkdownWork(worker, started: 2)
+    XCTAssertEqual(document.content(for: appended).renderPlainText(), "A")
+    worker.finish(1)
+    await waitForMarkdownResult(document, source: appended.source)
+    XCTAssertEqual(document.content(for: appended).renderPlainText(), "AB")
+    XCTAssertEqual(document.fallbackParseCount, fallbacks)
+    XCTAssertEqual(worker.requests, [initial, appended])
+  }
+
+  private func markdownRequest(_ source: String, mode: NativeRichTextMode = .markdown,
+    fontSize: Double = 16, color: String = "#202124") -> NativeRichTextRequest {
+    .init(source: OpenUIString(source), mode: mode, sources: [], fontSize: fontSize, color: color)
+  }
+
+  @MainActor private func waitForMarkdownWork(_ worker: ControlledMarkdownPreparation, started count: Int) async {
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in worker.requests.count >= count }, object: nil)
+    await fulfillment(of: [ready], timeout: 3)
+  }
+
+  @MainActor private func waitForMarkdownReturns(_ worker: ControlledMarkdownPreparation, count: Int) async {
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in worker.returnedCount >= count }, object: nil)
+    await fulfillment(of: [ready], timeout: 3)
+  }
+
+  @MainActor private func waitForMarkdownResult(_ document: NativeMarkdownDocument, source: OpenUIString) async {
+    let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in document.currentSource == source }, object: nil)
+    await fulfillment(of: [ready], timeout: 3)
+  }
+}
+
+/// Starts only when the document launches work. Tests choose exactly which
+/// result returns, including stale work that ignores cancellation after entry.
+@MainActor private final class ControlledMarkdownPreparation {
+  private(set) var requests: [NativeRichTextRequest] = []
+  private(set) var returnedCount = 0
+  private var continuations: [Int: CheckedContinuation<NativePreparedMarkdown, Error>] = [:]
+
+  func prepare(_ request: NativeRichTextRequest) async throws -> NativePreparedMarkdown {
+    try Task.checkCancellation()
+    let index = requests.count
+    requests.append(request)
+    let result: NativePreparedMarkdown = try await withCheckedThrowingContinuation { continuation in
+      continuations[index] = continuation
+    }
+    returnedCount += 1
+    return result
+  }
+
+  func finish(_ index: Int, markdown: String? = nil) {
+    guard requests.indices.contains(index), let continuation = continuations.removeValue(forKey: index) else {
+      XCTFail("No pending Markdown preparation at index \(index)")
+      return
+    }
+    let request = requests[index]
+    continuation.resume(returning: NativePreparedMarkdown(request: request,
+      content: MarkdownContent(markdown ?? request.source.displayString)))
+  }
+
+  func cancelRemaining() {
+    let pending = Array(continuations.values)
+    continuations.removeAll()
+    for continuation in pending { continuation.resume(throwing: CancellationError()) }
   }
 }
 

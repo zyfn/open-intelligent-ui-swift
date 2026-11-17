@@ -141,7 +141,7 @@ struct NativeMarkdownText: View {
 /// Immutable parsed content crosses the serialized worker once. MarkdownUI's
 /// content is a value tree; it is not mutated after construction or shared with
 /// an active parser. No views or native UI objects cross this boundary.
-private struct NativePreparedMarkdown: @unchecked Sendable {
+struct NativePreparedMarkdown: @unchecked Sendable {
   let request: NativeRichTextRequest
   let content: MarkdownContent
 }
@@ -149,17 +149,19 @@ private struct NativePreparedMarkdown: @unchecked Sendable {
 private actor NativeMarkdownWorker {
   static let shared = NativeMarkdownWorker()
   func prepare(_ request: NativeRichTextRequest) throws -> NativePreparedMarkdown {
-    try Task.checkCancellation()
-    let source: String
-    do {
-      source = try NativeRichTextEngine.shared.prepare(request.source.displayString,
-        mode: request.mode, sources: request.sources, fontSize: request.fontSize, color: request.color)
-    } catch is CancellationError { throw CancellationError() }
-    catch { source = request.source.displayString }
-    try Task.checkCancellation()
-    let result = NativePreparedMarkdown(request: request, content: MarkdownContent(source))
-    try Task.checkCancellation()
-    return result
+    try NativeRuntimeTrace.measure("Markdown preparation") {
+      try Task.checkCancellation()
+      let source: String
+      do {
+        source = try NativeRichTextEngine.shared.prepare(request.source.displayString,
+          mode: request.mode, sources: request.sources, fontSize: request.fontSize, color: request.color)
+      } catch is CancellationError { throw CancellationError() }
+      catch { source = request.source.displayString }
+      try Task.checkCancellation()
+      let result = NativePreparedMarkdown(request: request, content: MarkdownContent(source))
+      try Task.checkCancellation()
+      return result
+    }
   }
 }
 
@@ -167,29 +169,49 @@ private actor NativeMarkdownWorker {
 /// cancel already useful work; source corrections, configuration changes and
 /// unmounts reject old results. A fit reads this projection without publishing.
 @MainActor final class NativeMarkdownDocument: ObservableObject {
+  typealias Preparation = @MainActor (NativeRichTextRequest) async throws -> NativePreparedMarkdown
+
   @Published private var prepared: NativePreparedMarkdown?
   private var latest: NativeRichTextRequest?
   private var work: Task<Void, Never>?
+  private let prepare: Preparation
   private var generation: UInt64 = 0
-  private var fallbackSource: OpenUIString?
+  private var fallbackRequest: NativeRichTextRequest?
   private var fallback = MarkdownContent("")
   private(set) var fallbackParseCount = 0
   private(set) var preparationCount = 0
   var currentSource: OpenUIString? { prepared?.request.source }
 
+  init(prepare: Preparation? = nil) {
+    self.prepare = prepare ?? { try await NativeMarkdownWorker.shared.prepare($0) }
+  }
+
   private func compatible(_ old: NativeRichTextRequest, _ next: NativeRichTextRequest) -> Bool {
     old.mode == next.mode && old.sources == next.sources
       && old.fontSize == next.fontSize && old.color == next.color
-      && next.source.displayString.utf16.starts(with: old.source.displayString.utf16)
+      && next.source.codeUnits.starts(with: old.source.codeUnits)
   }
 
   func content(for request: NativeRichTextRequest) -> MarkdownContent {
-    if let prepared, compatible(prepared.request, request) { return prepared.content }
+    let appending = latest.map { compatible($0, request) } ?? false
+    if let prepared, (latest == nil || appending), compatible(prepared.request, request) {
+      return prepared.content
+    }
+    // Until the first worker result arrives, growing inputs keep the readable
+    // prefix already parsed on this actor. A busy worker must not cause one
+    // synchronous Markdown parse per append as well as its background work.
+    // Compare with the last input too: A -> AB -> AC is a correction even
+    // though AC still extends the displayed fallback A.
+    if work != nil, appending, let fallbackRequest, compatible(fallbackRequest, request) {
+      return fallback
+    }
     // Synchronous snapshot/size-only hosts still receive readable content on
-    // first render. Cache that one prefix rather than parsing in every body/fit.
-    if fallbackSource != request.source {
-      fallbackSource = request.source
-      fallback = MarkdownContent(request.source.displayString)
+    // first render and after corrections, without scheduling preparation.
+    if fallbackRequest != request {
+      fallbackRequest = request
+      fallback = NativeRuntimeTrace.measure("Markdown fallback") {
+        MarkdownContent(request.source.displayString)
+      }
       fallbackParseCount += 1
     }
     return fallback
@@ -202,6 +224,11 @@ private actor NativeMarkdownWorker {
     if let previous, !compatible(previous, request) {
       generation &+= 1
       work?.cancel(); work = nil
+      // An older prepared prefix must not mask a corrected suffix or retain
+      // the old math/citation configuration. A body may already have made the
+      // replacement fallback before onChange delivers this same request.
+      if let prepared, prepared.request != request { self.prepared = nil }
+      if fallbackRequest != request { fallbackRequest = nil }
     }
     guard work == nil, prepared?.request != request else { return }
     start(request)
@@ -210,8 +237,9 @@ private actor NativeMarkdownWorker {
   private func start(_ request: NativeRichTextRequest) {
     preparationCount += 1
     let epoch = generation
+    let prepare = self.prepare
     work = Task { @MainActor [weak self] in
-      let result = try? await NativeMarkdownWorker.shared.prepare(request)
+      let result = try? await prepare(request)
       guard !Task.isCancelled, let self, self.generation == epoch else { return }
       self.work = nil
       if let result, let latest = self.latest, self.compatible(request, latest) {

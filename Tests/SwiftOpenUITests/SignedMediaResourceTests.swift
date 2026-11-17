@@ -8,6 +8,37 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class SignedMediaResourceTests: XCTestCase {
+  @MainActor func testMountedImageRecoversTransientFailureWithoutATapOrNewSignature() async throws {
+    let loader = SignedImageLoader(data: try png(.red), transientFailures: 1)
+    let log = SignedImageStatusLog()
+    let (host, window) = mount(image("https://signed.test/transient.png", loader: loader, log: log))
+    defer { window.close() }
+    await settleAsync(host, until: { log.statuses.last == .loaded && self.hasPixels(.red, in: host) })
+    XCTAssertEqual(loader.requests.count, 2, "One temporary transport failure receives one automatic retry")
+    XCTAssertEqual(loader.signingCount, 1, "Automatic transport recovery keeps the frozen request")
+    XCTAssertEqual(loader.requests.first, loader.requests.last)
+    XCTAssertFalse(log.statuses.contains(.unavailable), "The retry wait should keep the loading surface")
+    XCTAssertTrue(hasPixels(.red, in: host), "The recovered photograph is visible without clicking")
+  }
+
+  @MainActor func testMountedPersistentFailureStopsThenManualRetryRefreshesSignature() async throws {
+    let loader = SignedImageLoader(data: try png(.red), transientFailures: 2)
+    let log = SignedImageStatusLog()
+    let (host, window) = mount(image("https://signed.test/persistent.png", loader: loader, log: log))
+    defer { window.close() }
+    await settleAsync(host, until: { log.statuses.last == .unavailable })
+    XCTAssertEqual(loader.requests.count, 2)
+    XCTAssertEqual(loader.signingCount, 1)
+    let size = host.fittingSize
+    try clickCenter(host, window: window)
+    await settleAsync(host, until: { log.statuses.last == .loaded && self.hasPixels(.red, in: host) })
+    XCTAssertEqual(loader.requests.count, 3)
+    XCTAssertEqual(loader.signingCount, 2, "The existing explicit retry still asks the host for a fresh request")
+    XCTAssertNotEqual(loader.requests.first?.url, loader.requests.last?.url)
+    XCTAssertEqual(loader.requests.last?.cachePolicy, .reloadIgnoringLocalCacheData)
+    XCTAssertEqual(host.fittingSize, size)
+  }
+
   @MainActor func testPreviewUpgradesAThumbnailWithoutChangingItsSignedRequest() async throws {
     let data = try largePNG(side: 512)
     let loader = SignedImageLoader(data: data, heldPaths: ["detail.png"])
@@ -326,6 +357,7 @@ private final class SignedImageLoader: OpenUIResourceLoading {
   private let pathData: [String: Data]
   private let scopeData: [String: Data]
   private let failsFirstRequest: Bool
+  private let transientFailures: Int
   private let heldPaths: Set<String>
   private var scope = "account-a"
   private var signed = 0
@@ -335,9 +367,10 @@ private final class SignedImageLoader: OpenUIResourceLoading {
   private var holdReleased = false
 
   init(data: Data, pathData: [String: Data] = [:], scopeData: [String: Data] = [:],
-    failsFirstRequest: Bool = false, heldPaths: Set<String> = []) {
+    failsFirstRequest: Bool = false, heldPaths: Set<String> = [], transientFailures: Int = 0) {
     self.data = data; self.pathData = pathData; self.scopeData = scopeData
     self.failsFirstRequest = failsFirstRequest; self.heldPaths = heldPaths
+    self.transientFailures = transientFailures
   }
   var authorizationScopeID: String { lock.lock(); defer { lock.unlock() }; return scope }
   var signingCount: Int { lock.lock(); defer { lock.unlock() }; return signed }
@@ -378,6 +411,7 @@ private final class SignedImageLoader: OpenUIResourceLoading {
   func data(for request: URLRequest) async throws -> Data {
     let attempt = record(request)
     defer { finish() }
+    if attempt <= transientFailures { throw URLError(.networkConnectionLost) }
     if failsFirstRequest && attempt == 1 { throw URLError(.cannotLoadFromNetwork) }
     let value = scopeData[request.value(forHTTPHeaderField: "X-Test-Scope") ?? ""]
       ?? pathData[request.url?.lastPathComponent ?? ""] ?? data

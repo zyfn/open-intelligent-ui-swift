@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.13 · 更新日期：2026-11-17
+文档版本：1.14 · 更新日期：2026-11-17
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -379,6 +379,23 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 新原生用例中，40 个由真实 `OpenUIState.push` 产生的稳定标量叶子在 4 次尾部追加中要求零订阅通知，并检查其呈现 delta 可跳过 capture；该用例尚待原生执行。即使通过，也不等于全部 SwiftUI body、布局或主线程工作为零。源码交叉复核修正了定义缓存可能复用对象默认值、旧 child Context 续期、表格 wrapper 提前创建编辑记录三处风险；这些审查不代替原生测试。
 
 执行证据保存在忽略的 `outputs/streaming-work-reduction/`，包括精确基线资源、完整测试日志、正常重建比对及前后处理计数。现有客户端约 92.8% CPU、79.89–102.35ms 最大 push 仍未重新验收；本轮没有 Apple App CPU、帧率或最长同步调用的新结果，也没有 RC20 同环境性能对照。接下来按同一真实 App、输入、分片、动画及 Release 环境复测解析/桥接/呈现、主线程 p95/max、布局与滚动响应。
+
+### OpenUI 图片与首次正文准备
+
+本轮从 `ceb90cdf` 创建独立候选，只处理 OpenUI 图片与原生 Markdown 的重复工作和恢复路径，必要的资源/诊断基础设施仍归 SwiftLang。SwiftIntelligentUI、语言输入契约、固定 JS、来源 fixture 与既有断言保持；没有把此前未合入的文档资源生命周期分支整体带入。
+
+| 路径 | 本轮实现 | 验证目标 |
+| --- | --- | --- |
+| 显示像素 | 普通卡片实测宽高/倍率，解码时结合源比例及 EXIF 计算 fit/fill；未就绪不先做默认尺寸解码；原比例图片按宽度，已加载高分辨率继续复用 | 16:9、2×/3×、竖图填横卡、EXIF、fit→fill、显式→自动尺寸、变宽/变窄、同源新预算及取消 |
+| 失败恢复 | 同一 pending decode 内共享最多一次暂时失败重试；每次传输/解码单独持有准入，等待时释放；冻结签名、scope 与预算 | 多消费者、取消一个/全部、退休/换账号/改限额、旧结果回填、HTTP 状态与 Retry-After、真实挂载自动成功及手动重试 |
+| 失败归因 | 保留原 URLError 类型/代码，附加 HTTP 状态与预算阶段；调试日志只输出固定阶段及数值 | 区分响应字节、源像素、解码缓冲及 HTTP；无地址/凭据/任意错误文本进入日志 |
+| 首次 Markdown | 后台首次 pending 时，同配置追加复用可读 fallback；中间结果照常交付，纠正与配置变化退休旧任务 | 受控 worker 的连续追加、中间进展、共享前缀纠正、配置切换、取消/重新进入；没有 prepared 的首次读取及已有 prepared 的兼容前缀读取 |
+
+对应原生入口为 `NativeImageSizingTests`、`NativeMediaRetryTests`、`NativeMediaResourceTests`、`SignedMediaResourceTests`、`ResourceStoreTests`、`StreamingTextPresentationTests`，并保留 `MountedStreamingTextProgressTests`、`StreamingMediaRetentionTests`、`HostSizingIsolationTests` 和 `RuntimeHostIsolationTests`。本轮新增的定向入口并入现有 Release 回归筛选，不删除旧类别；全量 `swift test` 继续是独立门禁。
+
+本轮在 Linux 上实际尝试原生命令，但环境没有 Swift/Xcode；新增与既有 XCTest 尚未编译或执行。检查命令、退出码与日志在忽略的 `outputs/verification/openui-media-responsiveness/`。源码审查、格式/所有权检查及新测试 PNG 的 CRC/解压行检查不构成 ImageIO、SwiftUI 或设备流畅度验收。默认仍下载原 src，不能把像素缓冲估算写成网络流量或 App CPU 的实测下降；首次图片失败的客户端根因仍须由具体 HTTP/错误与实际限制判定。
+
+最小客户端对照使用同一 Release App、设备、源码、节点数与图片，分别回放一次性静态和既有 24 units / 80ms 流式输入；图片再分同几何静态占位、已完成的缓存图片、冷加载三组。该控制实验保持原始 Lang，不改历史 fixture 以压低负载。各组记录被动展示和相同滚动过程的主线程占用、帧停顿、峰值内存及图片请求/解码次数。Instruments `org.openui.swiftlang` / `Runtime` 的 `Image decode`、`Markdown preparation`、`Markdown fallback` 与既有 Parse/Root evaluation/Native projection/Live index/Bridge cleanup 对照，可区分图片、正文准备和同步内核成本。没有设备 trace 时不把剩余整 root 工作、周期桥接清理或屏外 shimmer 指定为当前 App 唯一根因。
 
 ### 客户端仍未关闭的验收
 

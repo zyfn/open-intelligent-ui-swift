@@ -93,7 +93,11 @@ final class ResourceStoreTests: XCTestCase {
     let request = try XCTUnwrap(scope.request(for: "https://resource.example/private"))
     for _ in 0..<2 {
       do { _ = try await scope.loader.data(for: request); XCTFail("Oversize custom results must not enter cache") }
-      catch { XCTAssertEqual((error as? URLError)?.code, .dataLengthExceedsMaximum) }
+      catch {
+        XCTAssertEqual((error as? URLError)?.code, .dataLengthExceedsMaximum)
+        XCTAssertEqual((error as NSError).userInfo[NativeResourceError.stageKey] as? String, "responseBytes")
+        XCTAssertEqual((error as NSError).userInfo[NativeResourceError.limitKey] as? Double, 2)
+      }
     }
     XCTAssertEqual(owner.calls, 2)
   }
@@ -108,14 +112,42 @@ final class ResourceStoreTests: XCTestCase {
     for path in ["advertised", "unknown-length"] {
       let request = try XCTUnwrap(loader.request(for: "https://resource.test/" + path, relativeTo: nil))
       do { _ = try await loader.data(for: request); XCTFail("Bytes must be bounded for " + path) }
-      catch { XCTAssertEqual((error as? URLError)?.code, .dataLengthExceedsMaximum) }
+      catch {
+        XCTAssertEqual((error as? URLError)?.code, .dataLengthExceedsMaximum)
+        XCTAssertEqual((error as NSError).userInfo[NativeResourceError.stageKey] as? String, "responseBytes")
+        XCTAssertEqual((error as NSError).userInfo[NativeResourceError.limitKey] as? Double, 32)
+        XCTAssertGreaterThan((error as NSError).userInfo[NativeResourceError.actualKey] as? Double ?? 0, 32)
+      }
     }
     let exact = try XCTUnwrap(loader.request(for: "https://resource.test/exact", relativeTo: nil))
     let bytes = try await loader.data(for: exact)
     XCTAssertEqual(bytes.count, 32, "The maximum itself is accepted")
     let failure = try XCTUnwrap(loader.request(for: "https://resource.test/error", relativeTo: nil))
     do { _ = try await loader.data(for: failure); XCTFail("HTTP errors cannot become image bytes") }
-    catch { XCTAssertEqual((error as? URLError)?.code, .badServerResponse) }
+    catch {
+      XCTAssertEqual((error as? URLError)?.code, .badServerResponse)
+      XCTAssertEqual(NativeResourceError.httpStatus(for: error), 503,
+        "The existing URLError must retain the HTTP status needed to classify a retry")
+    }
+  }
+
+  func testHTTPFailureMetadataPreservesRetryAfterWithoutRetainingSignedResponse() throws {
+    let now = Date(timeIntervalSince1970: 0)
+    let url = try XCTUnwrap(URL(string: "https://resource.test/private?signature=secret"))
+    func failure(_ header: String) throws -> URLError {
+      NativeResourceError.httpFailure(try XCTUnwrap(HTTPURLResponse(url: url, statusCode: 503,
+        httpVersion: nil, headerFields: ["Retry-After": header, "Set-Cookie": "private"])), now: now)
+    }
+    XCTAssertEqual(NativeResourceError.retryAfter(for: try failure("2")), 2)
+    XCTAssertEqual(NativeResourceError.retryAfter(for: try failure("Thu, 01 Jan 1970 00:00:01 GMT")), 1)
+    let malformed = try XCTUnwrap(NativeResourceError.retryAfter(for: try failure("invalid")))
+    XCTAssertFalse(malformed.isFinite, "An unparsed server delay must not become an immediate retry")
+    let error = try failure("2")
+    XCTAssertEqual(error.code, .badServerResponse)
+    XCTAssertEqual(NativeResourceError.httpStatus(for: error), 503)
+    let info = (error as NSError).userInfo
+    XCTAssertEqual(Set(info.keys), Set([NativeResourceError.stageKey, NativeResourceError.statusKey,
+      NativeResourceError.retryAfterKey]), "Diagnostics must not retain URLs, headers, cookies or response objects")
   }
 
   func testRedirectPolicyRejectsDowngradesCredentialsAndUnexpectedOrigins() {

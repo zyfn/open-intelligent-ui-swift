@@ -120,6 +120,27 @@ final class NativeMediaResourceTests: XCTestCase {
     XCTAssertEqual(loader.signingCount, 33)
   }
 
+  @MainActor func testTransientFailureRetriesTheFrozenRequestOnceWithoutResigning() async throws {
+    let loader = NonceMediaResourceLoader()
+    let cache = NativeMediaCache()
+    defer { cache.removeAll() }
+    let target = NativeMediaResourceTarget(source: "https://assets.test/photo.png",
+      resources: .init(loader: loader))
+    let snapshot = NativeMediaRequestSnapshot(target: target, cache: cache)
+    var requests: [URLRequest] = []
+    loader.response = { request in
+      requests.append(request)
+      if requests.count == 1 { throw URLError(.networkConnectionLost) }
+      return Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==")!
+    }
+    let image = try await cache.resource(snapshot.request, loader: loader)
+    XCTAssertGreaterThan(image.cost, 0)
+    XCTAssertEqual(requests.count, 2)
+    XCTAssertTrue(requests.allSatisfy { $0 == snapshot.request.request })
+    XCTAssertEqual(loader.signingCount, 1, "Automatic recovery preserves the frozen host signature")
+    XCTAssertEqual(target.cachedRequest(in: cache), snapshot.request)
+  }
+
   #if os(macOS)
   @MainActor func testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback() throws {
     _ = NSApplication.shared
@@ -161,6 +182,7 @@ private final class NonceMediaResourceLoader: OpenUIResourceLoading {
   private(set) var signingCount = 0
   private(set) var sources: [OpenUIString] = []
   var authorizationScopeID: String { scope }
+  var response: ((URLRequest) async throws -> Data)?
 
   func request(for source: String, relativeTo baseURL: URL?) -> URLRequest? {
     signingCount += 1
@@ -174,5 +196,8 @@ private final class NonceMediaResourceLoader: OpenUIResourceLoading {
     request.setValue(scope, forHTTPHeaderField: "X-Scope")
     return request
   }
-  func data(for request: URLRequest) async throws -> Data { Data() }
+  func data(for request: URLRequest) async throws -> Data {
+    if let response { return try await response(request) }
+    return Data()
+  }
 }

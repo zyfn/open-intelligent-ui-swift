@@ -41,6 +41,53 @@ extension OpenUIResourceLoading {
     public var authorizationScopeID: String { "" }
 }
 
+/// Preserve the existing URLError contract while keeping enough non-secret
+/// context to distinguish HTTP failures from resource budgets. Consumers must
+/// not retain a response or signed URL merely to diagnose an image failure.
+package enum NativeResourceError {
+    package static let stageKey = "OpenUIResourceStage"
+    package static let actualKey = "OpenUIResourceActual"
+    package static let limitKey = "OpenUIResourceLimit"
+    package static let statusKey = "OpenUIHTTPStatusCode"
+    package static let retryAfterKey = "OpenUIRetryAfterSeconds"
+
+    package static func limitExceeded(stage: String, actual: Double, limit: Double,
+                                      code: URLError.Code = .dataLengthExceedsMaximum) -> URLError {
+        URLError(code, userInfo: [stageKey: stage, actualKey: actual, limitKey: limit])
+    }
+
+    package static func httpFailure(_ response: HTTPURLResponse, now: Date = Date()) -> URLError {
+        var info: [String: Any] = [stageKey: "httpStatus", statusKey: response.statusCode]
+        if let header = response.value(forHTTPHeaderField: "Retry-After") {
+            // Invalid or unsupported Retry-After values disable an automatic
+            // retry instead of retrying sooner than the server requested.
+            let value = header.trimmingCharacters(in: .whitespacesAndNewlines)
+            let seconds: Double
+            if !value.isEmpty, value.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
+               let delay = Double(value), delay.isFinite {
+                seconds = delay
+            } else {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = TimeZone(secondsFromGMT: 0)
+                formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+                formatter.isLenient = false
+                seconds = formatter.date(from: value).map { max(0, $0.timeIntervalSince(now)) } ?? .infinity
+            }
+            info[retryAfterKey] = seconds
+        }
+        return URLError(.badServerResponse, userInfo: info)
+    }
+
+    package static func httpStatus(for error: Error) -> Int? {
+        (error as NSError).userInfo[statusKey] as? Int
+    }
+
+    package static func retryAfter(for error: Error) -> Double? {
+        (error as NSError).userInfo[retryAfterKey] as? Double
+    }
+}
+
 /// FIFO admission with cancellation. No sleeping thread or global network queue.
 package actor NativeResourceAdmission {
     private let maximum: Int
@@ -136,17 +183,21 @@ public final class OpenUIURLSessionResourceLoader: OpenUIResourceLoading {
             throw URLError(.appTransportSecurityRequiresSecureConnection)
         }
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw URLError(.badServerResponse)
+            throw NativeResourceError.httpFailure(http)
         }
         let limit = max(1, resourceLimits.maximumResponseBytes)
         guard response.expectedContentLength <= Int64(limit) else {
-            throw URLError(.dataLengthExceedsMaximum)
+            throw NativeResourceError.limitExceeded(stage: "responseBytes",
+                actual: Double(response.expectedContentLength), limit: Double(limit))
         }
         return try await withTaskCancellationHandler(operation: {
             var data = Data()
             var chunk: [UInt8] = []; chunk.reserveCapacity(16_384)
             for try await byte in bytes {
-                guard data.count < limit - chunk.count else { throw URLError(.dataLengthExceedsMaximum) }
+                guard data.count < limit - chunk.count else {
+                    throw NativeResourceError.limitExceeded(stage: "responseBytes",
+                        actual: Double(data.count) + Double(chunk.count) + 1, limit: Double(limit))
+                }
                 chunk.append(byte)
                 if chunk.count == 16_384 {
                     try Task.checkCancellation()
@@ -258,7 +309,8 @@ public struct OpenUIResourceContext {
                         try Task.checkCancellation()
                         guard owner.authorizationScopeID == scope else { throw CancellationError() }
                         guard data.count <= max(1, owner.resourceLimits.maximumResponseBytes) else {
-                            throw URLError(.dataLengthExceedsMaximum)
+                            throw NativeResourceError.limitExceeded(stage: "responseBytes", actual: Double(data.count),
+                                limit: Double(max(1, owner.resourceLimits.maximumResponseBytes)))
                         }
                         result = .success(data)
                     } catch { result = .failure(error) }
