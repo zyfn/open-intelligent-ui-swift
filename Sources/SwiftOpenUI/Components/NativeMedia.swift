@@ -109,7 +109,7 @@ struct NativeRemoteImage: View {
   @Environment(\.openUIMediaCache) private var mediaCache
 
   var body: some View {
-    Group {
+    ZStack {
       // Each media role owns its frame before pixels arrive. A later parent
       // layout argument must not temporarily replace it with a small thumbnail.
       if !widthReady && needsResolvedWidth {
@@ -128,6 +128,19 @@ struct NativeRemoteImage: View {
           .onAppear(perform: reportPlaceholder)
           .onChange(of: waitingForImage) { _ in reportPlaceholder() }
           .onChange(of: requestID) { _ in reportPlaceholder() }
+      }
+    }
+    // Measurement belongs to the mounted image, not to either resource phase.
+    // A loading canvas retiring while its replacement appears must not write
+    // an old viewport over a newer width received by the same mounted image.
+    .background {
+      GeometryReader { geometry in
+        let target: NativeImageDisplaySize? = widthReady && requestedPixelSize == nil && needsResolvedWidth
+          ? NativeMediaPreview.displaySize(viewport: geometry.size, scale: displayScale, mode: displayMode)
+          : nil
+        Color.clear
+          .onAppear { recordDisplaySize(target) }
+          .onChange(of: target) { recordDisplaySize($0) }
       }
     }
     .modifier(NativeImageInteraction(source: src, image: displayedImage, alt: alt,
@@ -163,9 +176,6 @@ struct NativeRemoteImage: View {
         return
       }
       if snapshot.request.request == nil { onStatus?(.unavailable, nil) } else { await load(snapshot) }
-    }
-    .onChange(of: widthReady) { ready in
-      if !ready && needsResolvedWidth { measuredDisplaySize = nil }
     }
     .onAppear { visible = true }
     .onDisappear {
@@ -344,16 +354,6 @@ struct NativeRemoteImage: View {
   @ViewBuilder private func canvas<Content: View>(sourceSize: CGSize? = nil,
     @ViewBuilder _ content: () -> Content) -> some View {
     let surface = Color.clear.overlay { content().accessibilityHidden(true) }.clipped().contentShape(Rectangle())
-      .background {
-        GeometryReader { geometry in
-          let target: NativeImageDisplaySize? = requestedPixelSize == nil && needsResolvedWidth
-            ? NativeMediaPreview.displaySize(viewport: geometry.size, scale: displayScale, mode: displayMode)
-            : nil
-          Color.clear
-            .onAppear { recordDisplaySize(target) }
-            .onChange(of: target) { recordDisplaySize($0) }
-        }
-      }
     switch layout {
     case .cover:
       surface.aspectRatio(nativePresentation.coverAspectRatio, contentMode: .fit).fixedSize(horizontal: false, vertical: true)

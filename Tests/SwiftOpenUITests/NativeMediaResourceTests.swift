@@ -158,9 +158,26 @@ final class NativeMediaResourceTests: XCTestCase {
     window.isReleasedWhenClosed = false; window.contentView = host
     window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
     defer { window.close() }
+    func graphicAccessibility() -> (label: String, value: String)? {
+      var pending: [Any] = [host]
+      var visited = Set<ObjectIdentifier>()
+      while let next = pending.popLast() {
+        guard let element = next as? NSAccessibilityProtocol,
+          visited.insert(ObjectIdentifier(element)).inserted else { continue }
+        if element.accessibilityLabel() == alternative {
+          return (alternative, element.accessibilityValue() as? String ?? "")
+        }
+        pending.append(contentsOf: element.accessibilityChildren() ?? [])
+      }
+      return nil
+    }
+    let loading = NSLocalizedString("Loading", bundle: NativeControlResources.bundle, comment: "")
+    let unavailable = NSLocalizedString("Unable to load graphic", bundle: NativeControlResources.bundle, comment: "")
     host.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
     let loadingHeight = host.fittingSize.height
+    XCTAssertEqual(graphicAccessibility()?.label, alternative)
+    XCTAssertEqual(graphicAccessibility()?.value, loading)
     XCTAssertEqual(loader.signingCount, 0, "An unclosed source cannot start an SVG resource request")
 
     state.interrupt()
@@ -168,10 +185,17 @@ final class NativeMediaResourceTests: XCTestCase {
     repeat {
       host.layoutSubtreeIfNeeded()
       RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-    } while host.fittingSize.height <= loadingHeight + 50 && Date() < deadline
+    } while graphicAccessibility()?.value != unavailable && Date() < deadline
     XCTAssertTrue(state.isInterrupted)
-    XCTAssertGreaterThan(host.fittingSize.height, loadingHeight + 50,
-      "The mounted SVG must replace its compact spinner with the unavailable explanation and multiline alternative text")
+    // The quiet-placeholder contract restored by 433c2ed keeps the
+    // graphic's frame and exposes its complete alternative through accessibility.
+    // Visible multiline failure copy is no longer part of this presentation.
+    XCTAssertEqual(host.fittingSize.height, loadingHeight, accuracy: 1,
+      "A terminal graphic state must preserve its reserved frame")
+    XCTAssertEqual(graphicAccessibility()?.label, alternative,
+      "The complete authored alternative remains readable after interruption")
+    XCTAssertEqual(graphicAccessibility()?.value, unavailable,
+      "The mounted graphic must stop announcing a load after its stream is interrupted")
     XCTAssertEqual(loader.signingCount, 0, "Stopping an incomplete stream must not submit its partial address")
   }
   #endif

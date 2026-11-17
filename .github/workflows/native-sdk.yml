@@ -148,13 +148,28 @@ jobs:
           mkdir -p outputs/verification
           { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
             2>&1 | tee outputs/verification/provenance.log
+      - name: Native deep-data and state regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --filter 'QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests' \
+            2>&1 | tee outputs/verification/native-deep-data.log
+      - name: Retain deep-data diagnostics immediately
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-deep-data-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/native-deep-data.log
+          if-no-files-found: warn
+          retention-days: 7
       - name: OpenUI media and text regressions
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
           failed=0
           for configuration in debug release; do
-            if swift test --configuration "$configuration" --filter 'NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests' \
+            if swift test --configuration "$configuration" --filter 'NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests|AdaptivePresentationTests|PhotoCardGeometryTests|ReadingControlPresentationTests|ObjectCardCompositionTests|StreamingLayoutContractTests|ButtonLayoutContractTests|ChartInspectionTests|NativeComponentsTests|BoundaryIdentityTests|NativeComponentSubscriptionTests|StreamingRenderIsolationTests' \
                 2>&1 | tee "outputs/verification/openui-media-text-$configuration.log"; then
               :
             else
@@ -162,8 +177,8 @@ jobs:
             fi
           done
           for attempt in 1 2 3; do
-            if swift test --skip-build --configuration debug --filter 'testMountedImageCanSwitchFromExplicitPixelsToMeasuredPixels' \
-                2>&1 | tee "outputs/verification/openui-media-text-size-switch-$attempt.log"; then
+            if swift test --skip-build --configuration debug --filter 'testMountedImageCanSwitchFromExplicitPixelsToMeasuredPixels|testMountedCardWaitsForResolvedWidthThenUpgradesOnlyWhenNeeded' \
+                2>&1 | tee "outputs/verification/openui-media-text-size-transitions-$attempt.log"; then
               :
             else
               failed=1
@@ -230,7 +245,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift test -c release --filter 'StreamingRenderIsolationTests|MountedStreamingTextProgressTests|ComponentRenderInputTests|NativeComponentSubscriptionTests|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|ActionWorkBudgetTests|RuntimeReentrancyTests|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceStoreTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|BoundaryIdentityTests|NativeActionRenderingTests|FieldSelectionRenderingTests|TableMountedViewTests|NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|StreamingTextPresentationTests' \
+          swift test -c release --filter 'StreamingRenderIsolationTests|MountedStreamingTextProgressTests|ComponentRenderInputTests|NativeComponentSubscriptionTests|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests|ActionWorkBudgetTests|RuntimeReentrancyTests|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceStoreTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|BoundaryIdentityTests|NativeActionRenderingTests|FieldSelectionRenderingTests|TableMountedViewTests|NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|StreamingTextPresentationTests' \
             2>&1 | tee outputs/verification/release-streaming.log
       - name: Standalone Gallery tests
         if: ${{ !cancelled() }}
@@ -284,6 +299,22 @@ jobs:
               --output "outputs/verification/language-stream-$chunk.json" \
               2>&1 | tee "outputs/verification/language-stream-$chunk.log"
           done
+      - name: Retain native crash reports
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, shutil
+          start = pathlib.Path('outputs/verification/provenance.log')
+          reports = pathlib.Path.home() / 'Library/Logs/DiagnosticReports'
+          destination = pathlib.Path('outputs/verification/crash-reports')
+          if start.exists() and reports.is_dir():
+              for report in reports.iterdir():
+                  if ('PackageTests' in report.name or report.name.startswith('xctest')) \
+                      and report.suffix in {'.ips', '.crash'} and report.stat().st_mtime >= start.stat().st_mtime:
+                      destination.mkdir(parents=True, exist_ok=True)
+                      shutil.copy2(report, destination / report.name)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

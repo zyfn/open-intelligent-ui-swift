@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const script = readFileSync(new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
+const script = readFileSync(process.env.OPENUI_NATIVE_CORE_JS ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
 const schema = {
   $defs: {
     Box: { type: 'object', properties: { value: {} }, required: ['value'] },
@@ -24,6 +24,61 @@ function runtime() {
   const core = realm.SwiftCore;
   return { core, parser: core.api.createStreamingParser(schema) };
 }
+
+test('a final component becomes ready when its own delimiter arrives before stream completion', () => {
+  const { core, parser } = runtime();
+  const pending = parser.push('root=Box("stable').root;
+  assert.equal(core.sourceComplete(pending), false);
+  const result = parser.push('")');
+  assert.equal(result.meta.incomplete, false);
+  assert.equal(result.root.props.value, 'stable');
+  assert.equal(core.sourceComplete(result.root), true);
+  assert.equal(core.sourcePresentation(result.root).closed, true);
+  assert.equal(core.sourceComplete(pending), false, 'the earlier preview remains immutable');
+});
+
+test('a pending final statement retains its unfinished token and nested action gates', () => {
+  for (const input of ['root=Box("text', 'root=Box(1', 'root=Box(true', 'root=Box([1,2',
+    'root=Button("Go",@OpenUrl("https://example.test/path']) {
+    const { core, parser } = runtime();
+    const result = parser.push(input);
+    assert.equal(core.sourceComplete(result.root), false, input);
+  }
+  const { core, parser } = runtime();
+  const pending = parser.push('root=Button("Go",@OpenUrl("https://example.test/path').root;
+  const result = parser.push('"))');
+  assert.equal(core.sourceComplete(result.root), true);
+  assert.equal(core.sourcePresentation(result.root).closed, true);
+  assert.equal(core.sourceComplete(pending), false);
+});
+
+test('a final closed chart data declaration is ready and survives an open replacement', () => {
+  const catalog = JSON.parse(readFileSync(new URL('../../Sources/SwiftOpenUI/Resources/upstream-catalog.json', import.meta.url), 'utf8'));
+  const definition = catalog.components.find(component => component.name === 'PieChart');
+  const chartSchema = {
+    $defs: { PieChart: { type: 'object',
+      properties: Object.fromEntries(definition.params.map(parameter => [parameter.name, parameter.schema])),
+      required: definition.params.filter(parameter => parameter.required).map(parameter => parameter.name),
+    } },
+    properties: { PieChart: { $ref: '#/$defs/PieChart' } },
+  };
+  const { core } = runtime();
+  const parser = core.api.createStreamingParser(chartSchema), library = core.library(chartSchema, {});
+  const context = { getState: () => undefined, resolveRef: () => undefined };
+  for (const [chunk, expected] of [
+    ['root=PieChart(["A","B"],values)\nvalues=[1,3]\n', [1, 3]],
+    ['values=[3', [1, 3]],
+    [',1]\n', [3, 1]],
+  ]) {
+    const result = parser.push(chunk), errors = [];
+    const evaluated = core.boundedRoot(result, context, library, null, errors);
+    assert.equal(evaluated.limitExceeded, false);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(Array.from(evaluated.value.props.values), expected);
+    assert.equal(core.sourceComplete(evaluated.value, evaluated.sourceSnapshot), true, chunk);
+    assert.equal(core.sourcePresentation(evaluated.value, evaluated.sourceSnapshot).complete, true, chunk);
+  }
+});
 
 test('a closed aliased root remains ready while an unrelated statement streams', () => {
   const { core, parser } = runtime();

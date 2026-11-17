@@ -28,10 +28,11 @@ final class ButtonLayoutContractTests: XCTestCase {
       // This probe replaces the standard factory, so retain its host boundary
       // when constructing the internal button implementation directly.
       return NativeComponentHost(context: context) { context in
-        OpenUINativeButton(context: context).background(GeometryReader { geometry in
+        OpenUINativeButton(context: context)
+          .modifier(ButtonMountIdentity(key: key, frames: frames))
+          .background(GeometryReader { geometry in
           Color.clear.onAppear {
             frames.rects[key] = geometry.frame(in: .global)
-            frames.mounts[key, default: 0] += 1
           }.onChange(of: geometry.frame(in: .global)) { frames.rects[key] = $0 }
         })
       }
@@ -164,5 +165,25 @@ private final class ButtonFrames {
   var rects: [String: CGRect] = [:]
   var mounts: [String: Int] = [:]
   var field: CGRect?
+  var lifetimes: [String: Set<UUID>] = [:]
+}
+
+private final class ButtonLifetime: ObservableObject { let id = UUID() }
+
+/// GeometryReader's background can appear again after a label/layout change
+/// while its button stays mounted. Count the component's persistent StateObject
+/// lifetime instead, so the identity assertions measure actual replacements.
+private struct ButtonMountIdentity: ViewModifier {
+  let key: String
+  let frames: ButtonFrames
+  @StateObject private var lifetime = ButtonLifetime()
+
+  func body(content: Content) -> some View {
+    content.onAppear {
+      if frames.lifetimes[key, default: []].insert(lifetime.id).inserted {
+        frames.mounts[key, default: 0] += 1
+      }
+    }
+  }
 }
 #endif

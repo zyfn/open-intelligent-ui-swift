@@ -60,7 +60,8 @@ final class BoundaryIdentityTests: XCTestCase {
     XCTAssertTrue(mounted.element === pending)
     input.element = ready
     settle()
-    XCTAssertTrue(mounted.element === ready)
+    XCTAssertTrue(mounted.element === ready,
+      "surface received ready: \(input.surfaceElement === ready); boundary built ready: \(input.builtElement === ready); boundary builds: \(input.builds); marker updates: \(mounted.updates)")
     // Let the new input finish onChange before testing its retained fallback.
     settle()
     input.element = nil
@@ -72,6 +73,10 @@ final class BoundaryIdentityTests: XCTestCase {
 }
 @MainActor private final class BoundaryInput: ObservableObject {
   @Published var element: EvaluatedElement? = EvaluatedElement(typeName: "TextContent")
+  var surfaceElement: EvaluatedElement?
+  var builtElement: EvaluatedElement?
+  var builds = 0
+  func recordBuild(_ element: EvaluatedElement) { builtElement = element; builds += 1 }
 }
 private struct BoundaryTestSurface: View {
   @ObservedObject var input: BoundaryInput
@@ -87,15 +92,21 @@ private struct BoundaryMarker: NSViewRepresentable {
 private struct BoundaryReadinessSurface: View {
   @ObservedObject var input: BoundaryInput
   var body: some View {
-    ElementErrorBoundary(element: input.element) { BoundaryReadinessMarker(element: $0) }
+    let element = input.element
+    let _ = input.surfaceElement = element
+    return ElementErrorBoundary(element: element) { shown in
+      let _ = input.recordBuild(shown)
+      BoundaryReadinessMarker(element: shown)
+    }
   }
 }
 private final class BoundaryReadinessView: NSView {
   var element: EvaluatedElement?
+  var updates = 0
 }
 private struct BoundaryReadinessMarker: NSViewRepresentable {
   let element: EvaluatedElement
   func makeNSView(context: Context) -> BoundaryReadinessView { BoundaryReadinessView() }
-  func updateNSView(_ view: BoundaryReadinessView, context: Context) { view.element = element }
+  func updateNSView(_ view: BoundaryReadinessView, context: Context) { view.element = element; view.updates += 1 }
 }
 #endif
