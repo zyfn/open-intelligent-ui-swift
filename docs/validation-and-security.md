@@ -1,8 +1,10 @@
 # 验证与依赖安全
 
-文档版本：1.34 · 更新日期：2026-11-18
+文档版本：1.35 · 更新日期：2026-11-18
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
+
+历次性能改动及效果的简表见 [性能优化记录](performance.md)；本页保留详细测量方法、验收结果与限制。
 
 历史定向记录：中文强调与正文尾部反馈的修复基于 `c20081d`，原始中文标点案例和终态未闭合 Stack 的新增检查先复现失败，修复后 Markdown、流式文本准备、布局与 readiness 相关 55 项 Debug 检查通过。该次 Release 使用忽略目录中的精简测试包，只复制原有目标 XCTest 文件并直接链接当前 Sources/资源，11 项中文强调、正文前缀、诊断隐藏及 Host 拟合检查通过；该次标准整包 Release 测试构建被 Xcode 26.6 的 SwiftLangTests `NativeValueBudgetTests.testSyntheticMetadataAndActionLeavesShareTheInspectionAllowance` 优化器崩溃阻断，不能记为通过。另一次较宽的定向运行发现 `FullLibraryParityTests.testModalPresentationWritesDuringStreamingButRejectsReplacedSources` 失败，未修改的 `c20081d` 独立 checkout 也复现同一断言，原断言保留。该次未执行全量测试，日志保存在 `outputs/targeted-chinese-markdown/`。下文 Xcode 26.3 的完整验收不代表该 Xcode 26.6 优化器问题已修复。
 
@@ -144,6 +146,8 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 源码所有权检查和当前随包 JS 的 172 项回归在本地通过；本地没有 Apple/Swift 编译环境，新增原生用例、完整 XCTest、Release fitting 与 iOS 编译的实际状态以该候选 CI 为准。现有 Debug/Release 子集加入 facade 与 Intelligent UI 挂载用例，没有另建测试流水线。执行证据在忽略的 `outputs/sdk-runtime-performance-review/`。
 
 最终候选 `807d0161f3e3bdf61e8360274ae22c8e6a7562a9` 已通过 [CI 44156376266](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44156376266)，随后按原提交 fast-forward 合入 main。完整原生套件 1,251 项、OpenUI Debug / Release 各 356 项、Release fitting 5 项、SwiftLang ASan 451 项均零失败；这些组有重叠，不累加计数。iOS 16 Simulator 产品与 Gallery 构建、三个独立产品消费者及资源重建门禁通过。该版本的 Release 公开流式基准中，`--rows 200` 的 24 / 128 单位分片单次 push p95 分别为 33.89 / 31.58 ms，最大为 101.12 / 65.44 ms；它没有挂载 SwiftUI，不能据这些数字判断完成文档的滚动，也不能把全部通过等同于设备性能验收。
+
+同一 `807d016` 验收中的 reader 准备对照沿用前述方法：88 个组件、同进程交替执行、预热两轮、每条路径 12 次，计时在解析源码前结束。重复创建文档的 p50，Debug 从逐次准备的 109.38 ms 变为复用后的 13.16 ms，Release 从 137.74 ms 变为 14.03 ms；Release 首次文档仍含准备成本，为 141.55 ms。原始文件为上述 CI artifact 的 `visual/library-document-creation-debug.json` 与 `visual/library-document-creation-release.json`，本地保存在 `outputs/sdk-runtime-performance-review/ci-44156376266/acceptance/`。这些数值属于正式候选的同进程对照，不与前面 `fc45e0a9` 的不同 CI 运行混算，也不代表 App 加载或滚动耗时。
 
 整体审查没有发现滚动/尺寸拟合主动重建 State 或提交源码的路径；已有完整呈现提交、节点比较与弱订阅不能再当作待实现功能。真实 push、字段和 Query 更新仍可能整 root 求值/投影、索引并检查全部挂载订阅；当前没有设备 trace 可以把它们认定为已完成文档滚动的根因。引用弹窗等待 Markdown 引擎共享锁、行内 Markdown 图片的解码复用，以及远程 SVG 的首次重复解析保留为可定位的测量入口，不据代码出现位置宣称它们解释整次卡顿。仍需相同 App 输入与设备的滚动前后对照，以及同进程进入/离开时的对象持有链；本轮不宣称解决所有卡顿、证明无泄漏或提供长文档分段回收。
 

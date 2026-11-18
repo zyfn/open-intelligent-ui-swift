@@ -1,6 +1,6 @@
 # OpenUI Swift SDK
 
-文档版本：1.1 · 更新日期：2026-11-17
+文档版本：1.2 · 更新日期：2026-11-18
 
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择OpenUI 或 OpenIntelligentUI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
@@ -214,4 +214,4 @@ python3 Tools/check_lang_compatibility.py
 
 ## 维护入口
 
-包、目录与职责只维护在 [架构](docs/architecture.md)。组件用法见 [OpenUI](docs/openui.md) 与 [OpenIntelligentUI](docs/openintelligentui.md)，构建及验收见 [验证说明](docs/validation-and-security.md)。
+包、目录与职责只维护在 [架构](docs/architecture.md)。组件用法见 [OpenUI](docs/openui.md) 与 [OpenIntelligentUI](docs/openintelligentui.md)，构建及验收见 [验证说明](docs/validation-and-security.md)，历次改动及效果见 [性能优化记录](docs/performance.md)。
