@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.36 · 更新日期：2026-11-18
+文档版本：1.37 · 更新日期：2026-11-18
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -107,12 +107,20 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 | 范围 | 已核对状态 |
 | --- | --- |
 | 清理前产品基线 | `e11f23b` 通过 [CI 44240941058](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44240941058)：全量 XCTest 1,251 项、Release fitting 5 项、SwiftLang ASan 451 项零失败；资源、安全、独立消费者、Gallery 与 iOS 16 Simulator 构建通过。各测试组有重叠，不累加。main `15ffd03` 只在其后更新文档，产品源码相同 |
-| 本轮代码与验证整理 | 基于 `15ffd03` 移除无消费者的 lookup 变化集合、无效组件输入及测试薄包装；按既有职责归位组件和桥接代码，收拢测试辅助与 CI 重复。原生验收尚待本轮候选 CI，不能沿用上一行作为通过证据 |
+| 本轮代码与验证整理 | 基于 `15ffd03` 移除无消费者的 lookup 变化集合、无效组件输入及测试薄包装；按既有职责归位组件和桥接代码，收拢测试辅助与 CI 重复。源码 `4e57814` 已通过 [CI 44255160097](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44255160097) 的全部任务和最终验收，实际计数见下文 |
 | 实际客户端性能 | Muse 完成长会话滚动、真机 Release 与同进程重复进入/退出的内存验收仍未关闭；SDK 功能测试、JS 计数和无 UI 基准不能替代 |
 
 ### 本轮清理验证
 
-生产节点索引只保留当前 membership、候选和呈现变化；相关测试继续验证旧/新对象身份、readiness 歧义、候选顺序、深度边界、释放及真实流式订阅。组件和 Schema 代码按现有职责移动；Query 生命周期转换与预算转换分开，生成资源必须逐字一致。测试清理保留独有输入与断言，待测 bundle 统一从 `OPENUI_NATIVE_CORE_JS` 选择；参考向量格式错误明确失败。执行证据保存于忽略的 `outputs/sdk-cleanup/`。已核对 Query 转换后源码、867,575 bytes 的 `lang-core.js` 及许可文本均与基线逐字一致；manifest 只更新构建来源哈希和两处来源路径。54 个移动声明逐块核对，公开声明行集合保持；这不替代原生编译。现有 Node native 套件 173 项通过；显式 bundle 覆盖入口的 14 项及 realm/UTF-8/计时器检查通过。测试方法静态映射没有未解释删除：1 个完全重复用例去重、2 个架构约束归入既有必过模块检查，其余迁移和重命名逐项对应。Release 原筛选覆盖全部保留，ASan 选择不变；条件编译下的实际用例清单与执行以 Apple CI 为准。原生候选 CI 待执行。
+生产节点索引只保留当前 membership、候选和呈现变化；相关测试继续验证旧/新对象身份、readiness 歧义、候选顺序、深度边界、释放及真实流式订阅。组件和 Schema 代码按现有职责移动；Query 生命周期转换与预算转换分开。
+
+Query 转换后源码、867,575 bytes 的 `lang-core.js` 及许可文本均与基线逐字一致；manifest 只更新构建来源哈希和两处来源路径。54 个移动声明逐块核对，公开声明行集合保持。执行证据保存于忽略的 `outputs/sdk-cleanup/`。
+
+14 个探针用例归入既有职责测试，独有输入与断言保留；1 个完全重复用例去重，2 个架构约束归入必过模块检查，其余迁移和重命名逐项对应。待测 bundle 统一从 `OPENUI_NATIVE_CORE_JS` 选择，参考向量格式错误明确失败。Node native 套件 173 项、显式 bundle 覆盖入口 14 项及 realm/UTF-8/计时器检查通过。Release 合并保留原筛选的独有覆盖，ASan 选择不变；两项图片尺寸用例移除额外三轮重复采样，仍在完整 Debug 和 Release 中执行。
+
+源码 `4e57814` 的 [CI 44255160097](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44255160097) 全部通过：Debug preflight 128 项、完整 Debug 1,248 项、合并 Release 585 项、Release fitting 5 项、SwiftLang ASan 451 项均零失败。Debug/Release 的发现、筛选和执行标识已逐项核对；源码静态计数比 macOS 发现数多 2 项，来自既有 `#if os(iOS)` 用例，不计入本次 macOS 通过数。各测试组有重叠，不累加。环境为 macOS 15.8.2、Xcode 26.3、Swift 6.2.4。
+
+资源重建、安全与模块检查、三个独立消费者、iOS 16 Simulator 产品与 Gallery 构建均通过。Gallery 测试 16 项、184 个变体的批量与流式验证、61 个历史组件的位置签名及完整 schema 检查通过；独立工具与两种分片的既定 Release 基准完成。最终验收的 checkout 与产物 provenance 均为 `4e57814`。随后的收尾只更新本文和性能记录，源码、测试及工作流与该受测版本一致；基准完成不等于本轮已有设备性能增益对照。
 
 ### Query 反馈去重与终态引号回归
 

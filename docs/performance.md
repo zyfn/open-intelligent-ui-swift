@@ -1,6 +1,6 @@
 # 性能优化记录
 
-文档版本：1.1 · 更新日期：2026-11-18
+文档版本：1.2 · 更新日期：2026-11-18
 
 记录已合入的性能改动，相关修正归入同一主题。每次优化补充“优化了什么、实际效果、版本与证据”，后续复测更新原条目。日期按 Asia/Shanghai；耗时只适用于所列负载，工作量和缓存上限不等于设备提速；没有同条件耗时或内存对照的项目标为“未量化”。
 
@@ -8,7 +8,7 @@
 
 | 日期 / 版本 | 优化了什么 | 实际效果 | 证据 |
 | --- | --- | --- | --- |
-| 11-18 · 本轮清理（基于 `15ffd03`） | 删除每轮无人消费的 lookup 变化集合，仅保留当前身份/候选与呈现变化；移除两处无用组件环境输入。 | 不再插入、合并和持有该变化集合；节点查找、readiness、呈现与交互回归保留。设备耗时、内存及滚动效果**未量化**。 | [清理验证](validation-and-security.md#本轮清理验证) |
+| 11-18 · [4e57814](https://github.com/zyfn/open-intelligent-ui-swift/commit/4e57814a3c8dac534400e7304a88d350fd41a8a2) | 删除每轮无人消费的 lookup 变化集合，仅保留当前身份/候选与呈现变化；移除两处无用组件环境输入。 | 不再插入、合并和持有该变化集合；节点查找、readiness、呈现与交互回归保留。设备耗时、内存及滚动效果**未量化**。 | [清理验证](validation-and-security.md#本轮清理验证) |
 | 11-18 · [e11f23b](https://github.com/zyfn/open-intelligent-ui-swift/commit/e11f23b) | 查询依赖递归复用已闭合、无引用的语法判断，跳过重复扫描。 | 固定探针枚举 **606→6 次**；同机 Mac Release、128 单位分片的 push p95 范围 **34.64–43.93→24.60–31.59 ms**。24 单位仍波动，候选最大 push **111.99 ms**。 | [同机对照](validation-and-security.md#同机对照与阶段证据) |
 | 11-18 · [fc45e0a](https://github.com/zyfn/open-intelligent-ui-swift/commit/fc45e0a) → [807d016](https://github.com/zyfn/open-intelligent-ui-swift/commit/807d016) | 同一组件目录复用 reader 元数据，每份文档仍保持独立运行状态。 | `807d016` 同进程重复创建文档，Release p50 **137.74→14.03 ms**，Debug **109.38→13.16 ms**；各路径 12 次。Release 首次准备仍为 **141.55 ms**。 | [文档创建测量](validation-and-security.md#sdk-正常接入与生命周期审查) |
 | 11-16～18 · [fe81f25](https://github.com/zyfn/open-intelligent-ui-swift/commit/fe81f25) → [fc45e0a](https://github.com/zyfn/open-intelligent-ui-swift/commit/fc45e0a) | 按节点及实际字段订阅，稳定呈现跳过重复处理；分离输入比较和挂载观察，移除 11 处无用 State 订阅。 | 原生订阅回归：**40 个稳定标量叶子、4 次真实尾部 push，通知为 0**。这不是全部 SwiftUI body/布局计数；滚动收益未量化。 | [更新收敛](validation-and-security.md#流式重复工作收敛)、[挂载修正](validation-and-security.md#客户端复测收尾候选) |
