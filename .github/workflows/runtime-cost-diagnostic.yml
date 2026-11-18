@@ -1,244 +1,37 @@
-name: Runtime cost diagnostic
+name: Runtime trace export diagnostic
 
 on:
   push:
     branches: [diagnostics/runtime-cost-capture]
-  workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: runtime-cost-diagnostic-${{ github.ref }}
-  cancel-in-progress: true
+  actions: read
 
 jobs:
-  profile:
+  export:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 10
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
-      BASELINE: 807d0161f3e3bdf61e8360274ae22c8e6a7562a9
-      CANDIDATE: e11f23bfc335c6f07b30f159b875f62b3d9a5d3b
-      PROFILE_OUT: ${{ github.workspace }}/outputs/runtime-cost-profile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          ref: e11f23bfc335c6f07b30f159b875f62b3d9a5d3b
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Record exact inputs and toolchain
+          name: runtime-cost-profile-44241757025
+          run-id: 44241757025
+          github-token: ${{ github.token }}
+          path: capture
+      - name: Export the CPU table observed in the captured TOC
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$PROFILE_OUT"
-          { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } > "$PROFILE_OUT/provenance.log" 2>&1
-          test "$(git rev-parse HEAD)" = "$CANDIDATE"
-          git diff --exit-code "$BASELINE" "$CANDIDATE" -- Sources/SwiftLang/Language Sources/SwiftLang/Runtime Package.swift > "$PROFILE_OUT/swift-product-diff.patch"
-          git diff "$BASELINE" "$CANDIDATE" -- Benchmarks/LanguageRuntime/Sources > "$PROFILE_OUT/benchmark-diff.patch"
-          git diff "$BASELINE" "$CANDIDATE" -- Tools/Core/readiness.ts > "$PROFILE_OUT/readiness-diff.patch"
-          git show "$BASELINE:Sources/SwiftLang/Resources/core-manifest.json" > "$PROFILE_OUT/baseline-manifest.json"
-          git show "$CANDIDATE:Sources/SwiftLang/Resources/core-manifest.json" > "$PROFILE_OUT/candidate-manifest.json"
-      - name: Uninstrumented Release ABBA comparison
-        shell: bash
-        run: |
-          set -euo pipefail
-          failed=0
-          for round in 1 2; do
-            slot=0
-            for variant in baseline candidate candidate baseline; do
-              slot=$((slot + 1))
-              profile_ref="$BASELINE"
-              if [ "$variant" = candidate ]; then profile_ref="$CANDIDATE"; fi
-              label="round-$round-slot-$slot-$variant"
-              for resource in lang-core.js core-manifest.json; do
-                git show "$profile_ref:Sources/SwiftLang/Resources/$resource" > "Sources/SwiftLang/Resources/$resource"
-              done
-              set +e
-              swift build -c release --package-path Benchmarks/LanguageRuntime > "$PROFILE_OUT/$label-build.log" 2>&1
-              build_status=$?
-              set -e
-              printf '%s\n' "$build_status" > "$PROFILE_OUT/$label-build.exit"
-              if [ "$build_status" -ne 0 ]; then exit "$build_status"; fi
-              profile_bin_dir="$(swift build -c release --package-path Benchmarks/LanguageRuntime --show-bin-path)"
-              python3 - "$profile_bin_dir" "$profile_ref" > "$PROFILE_OUT/$label-resources.json" <<'PY'
-          import hashlib, json, pathlib, sys
-          source = pathlib.Path('Sources/SwiftLang/Resources/lang-core.js').read_bytes()
-          digest = hashlib.sha256(source).hexdigest()
-          matches = list(pathlib.Path(sys.argv[1]).rglob('lang-core.js'))
-          hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in matches}
-          assert hashes and all(value == digest for value in hashes.values()), hashes
-          print(json.dumps({'revision': sys.argv[2], 'sourceSHA256': digest, 'copiedResources': hashes}, indent=2))
-          PY
-              for chunk in 24 128; do
-                run_label="$label-chunk-$chunk"
-                set +e
-                "$profile_bin_dir/LanguageBenchmark" --iterations 1 --warmup 1 --rows 200 --stream-iterations 3 --chunk-units "$chunk" --output "$PROFILE_OUT/$run_label.json" > "$PROFILE_OUT/$run_label.log" 2>&1
-                run_status=$?
-                set -e
-                printf '%s\n' "$run_status" > "$PROFILE_OUT/$run_label.exit"
-                if [ "$run_status" -ne 0 ]; then failed=1; fi
-              done
-            done
-          done
-          exit "$failed"
-      - name: Attempt one Time Profiler capture
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for resource in lang-core.js core-manifest.json; do
-            git show "$CANDIDATE:Sources/SwiftLang/Resources/$resource" > "Sources/SwiftLang/Resources/$resource"
-          done
-          swift build -c release --package-path Benchmarks/LanguageRuntime > "$PROFILE_OUT/profiler-build.log" 2>&1
-          profile_bin_dir="$(swift build -c release --package-path Benchmarks/LanguageRuntime --show-bin-path)"
-          set +e
-          xcrun xctrace help record > "$PROFILE_OUT/xctrace-record-help.txt" 2>&1
-          printf '%s\n' "$?" > "$PROFILE_OUT/xctrace-record-help.exit"
-          xcrun xctrace help export > "$PROFILE_OUT/xctrace-export-help.txt" 2>&1
-          printf '%s\n' "$?" > "$PROFILE_OUT/xctrace-export-help.exit"
-          xcrun xctrace list templates > "$PROFILE_OUT/xctrace-templates.txt" 2>&1
-          printf '%s\n' "$?" > "$PROFILE_OUT/xctrace-templates.exit"
-          profile_flags=()
-          if /usr/bin/grep -q -- '--no-prompt' "$PROFILE_OUT/xctrace-record-help.txt"; then profile_flags+=(--no-prompt); fi
-          xcrun xctrace record --template 'Time Profiler' --output "$PROFILE_OUT/candidate.trace" --time-limit 120s "${profile_flags[@]}" --target-stdout "$PROFILE_OUT/xctrace-target.log" --launch -- "$profile_bin_dir/LanguageBenchmark" --iterations 1 --warmup 1 --rows 200 --stream-iterations 2 --chunk-units 24 --output "$PROFILE_OUT/profiled-candidate.json" > "$PROFILE_OUT/xctrace-record.log" 2>&1
-          printf '%s\n' "$?" > "$PROFILE_OUT/xctrace-record.exit"
-          if [ -d "$PROFILE_OUT/candidate.trace" ]; then
-            xcrun xctrace export --input "$PROFILE_OUT/candidate.trace" --toc --output "$PROFILE_OUT/xctrace-toc.xml" > "$PROFILE_OUT/xctrace-export.log" 2>&1
-            printf '%s\n' "$?" > "$PROFILE_OUT/xctrace-export.exit"
-          fi
-          exit 0
-      - name: Capture nested stages in a diagnostic-only build
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for resource in lang-core.js core-manifest.json; do
-            git show "$CANDIDATE:Sources/SwiftLang/Resources/$resource" > "Sources/SwiftLang/Resources/$resource"
-          done
-          python3 - <<'PY'
-          import pathlib, subprocess
-          trace = pathlib.Path('Sources/SwiftLang/Language/NativeRuntimeTrace.swift')
-          state = pathlib.Path('Sources/SwiftLang/Runtime/OpenUIState.swift')
-          for path in (trace, state):
-              assert path.read_bytes() == subprocess.check_output(['git', 'show', 'HEAD:' + str(path)]), str(path)
-          expected = '    public func push(_ chunk: String) {\n        guard !chunk.isEmpty else { return }\n        if queuedMutations.isEmpty && latestResult?.nativeFailure != nil { return }\n        mutate { self.pushNow(chunk) }\n    }'
-          content = state.read_text()
-          assert content.count(expected) == 1, 'public push no longer matches the reviewed body'
-          replacement = '    public func push(_ chunk: String) {\n        NativeRuntimeTrace.measure("Public push") {\n            guard !chunk.isEmpty else { return }\n            if queuedMutations.isEmpty && latestResult?.nativeFailure != nil { return }\n            mutate { self.pushNow(chunk) }\n        }\n    }'
-          state.write_text(content.replace(expected, replacement))
-          trace.write_text('''import Foundation
-          import Darwin
-          import Dispatch
-
-          // Diagnostic checkout only. No user values or reference objects are retained.
-          package enum NativeRuntimeTrace {
-              private struct Interval: Codable {
-                  let name: String
-                  let start: UInt64
-                  let end: UInt64
-                  let thread: UInt64
-              }
-              private static let lock = NSLock()
-              private static var intervals: [Interval] = []
-              private static let installed: Void = {
-                  intervals.reserveCapacity(65536)
-                  precondition(atexit({ NativeRuntimeTrace.flush() }) == 0)
-              }()
-              private static func flush() {
-                  guard let path = ProcessInfo.processInfo.environment["OPENUI_DIAGNOSTIC_TRACE_PATH"] else { return }
-                  lock.lock()
-                  let snapshot = intervals
-                  lock.unlock()
-                  do {
-                      let data = try JSONEncoder().encode(snapshot)
-                      try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-                  } catch {
-                      FileHandle.standardError.write(Data("Diagnostic trace write failed: \\(error)\\n".utf8))
-                  }
-              }
-              package static func measure<T>(_ name: StaticString, _ body: () throws -> T) rethrows -> T {
-                  _ = installed
-                  let thread = UInt64(pthread_mach_thread_np(pthread_self()))
-                  let start = DispatchTime.now().uptimeNanoseconds
-                  defer {
-                      let end = DispatchTime.now().uptimeNanoseconds
-                      let interval = Interval(name: String(describing: name), start: start, end: end, thread: thread)
-                      lock.lock()
-                      intervals.append(interval)
-                      lock.unlock()
-                  }
-                  return try body()
-              }
-          }
-          ''')
-          PY
-          git diff --check
-          git diff -- Sources > "$PROFILE_OUT/diagnostic-source.patch"
-          set +e
-          swift build -c release --package-path Benchmarks/LanguageRuntime --scratch-path "$RUNNER_TEMP/runtime-stage-build" > "$PROFILE_OUT/stage-build.log" 2>&1
-          build_status=$?
-          set -e
-          printf '%s\n' "$build_status" > "$PROFILE_OUT/stage-build.exit"
-          if [ "$build_status" -ne 0 ]; then exit "$build_status"; fi
-          profile_bin_dir="$(swift build -c release --package-path Benchmarks/LanguageRuntime --scratch-path "$RUNNER_TEMP/runtime-stage-build" --show-bin-path)"
-          failed=0
-          for repetition in 1 2; do
-            set +e
-            OPENUI_DIAGNOSTIC_TRACE_PATH="$PROFILE_OUT/stages-$repetition.json" "$profile_bin_dir/LanguageBenchmark" --iterations 1 --warmup 1 --rows 200 --stream-iterations 2 --chunk-units 24 --output "$PROFILE_OUT/stage-benchmark-$repetition.json" > "$PROFILE_OUT/stage-benchmark-$repetition.log" 2>&1
-            run_status=$?
-            set -e
-            printf '%s\n' "$run_status" > "$PROFILE_OUT/stage-benchmark-$repetition.exit"
-            if [ "$run_status" -ne 0 ]; then failed=1; fi
-          done
-          exit "$failed"
-      - name: Validate collected evidence without a performance threshold
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import collections, json, os, pathlib
-          root = pathlib.Path(os.environ['PROFILE_OUT'])
-          failures = []
-          results = {'limits': 'Synthetic macOS Release runs. Stage recording and profiler timings are instrumented; neither measures SwiftUI layout or device scrolling.', 'uninstrumented': [], 'stages': []}
-          for round in (1, 2):
-              for slot, variant in enumerate(('baseline', 'candidate', 'candidate', 'baseline'), 1):
-                  for chunk in (24, 128):
-                      label = f'round-{round}-slot-{slot}-{variant}-chunk-{chunk}'
-                      try:
-                          assert (root / f'{label}.exit').read_text().strip() == '0'
-                          report = json.loads((root / f'{label}.json').read_text())
-                          results['uninstrumented'].append({'run': label, 'push': report['streaming']['push'], 'complete': report['streaming']['complete'], 'wholeStream': report['streaming']['wholeStream']})
-                      except Exception as error:
-                          failures.append(f'{label}: {type(error).__name__}: {error}')
-          for repetition in (1, 2):
-              try:
-                  assert (root / f'stage-benchmark-{repetition}.exit').read_text().strip() == '0'
-                  intervals = json.loads((root / f'stages-{repetition}.json').read_text())
-                  counts = collections.Counter(item['name'] for item in intervals)
-                  report = json.loads((root / f'stage-benchmark-{repetition}.json').read_text())
-                  expected = 3 * report['streaming']['chunksPerIteration']
-                  assert counts['Public push'] == expected, (counts['Public push'], expected)
-                  assert all(item['end'] >= item['start'] for item in intervals)
-                  assert all(counts[name] > 0 for name in ('Parse', 'Parse projection', 'Root evaluation', 'Native projection', 'Live index', 'Presentation commit', 'Bridge operation'))
-                  results['stages'].append({'repetition': repetition, 'intervalCounts': dict(counts)})
-              except Exception as error:
-                  failures.append(f'stages-{repetition}: {type(error).__name__}: {error}')
-          status = root / 'xctrace-record.exit'
-          results['timeProfilerExit'] = status.read_text().strip() if status.exists() else 'not executed'
-          results['timeProfilerTOCPresent'] = (root / 'xctrace-toc.xml').exists()
-          results['failures'] = failures
-          (root / 'capture-summary.json').write_text(json.dumps(results, indent=2))
-          print(json.dumps(results, indent=2))
-          raise SystemExit(1 if failures else 0)
-          PY
+          mkdir -p exported
+          cp capture/provenance.log capture/xctrace-toc.xml exported/
+          xcrun xctrace export --input capture/candidate.trace --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' --output exported/time-profile.xml > exported/export.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: runtime-cost-profile-${{ github.run_id }}
-          path: outputs/runtime-cost-profile/
-          include-hidden-files: true
+          name: runtime-cpu-export-${{ github.run_id }}
+          path: exported/
           if-no-files-found: error
           retention-days: 7
