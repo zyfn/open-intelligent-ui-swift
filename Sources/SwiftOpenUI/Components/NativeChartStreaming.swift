@@ -83,7 +83,7 @@ enum NativeChartStreamingPresentation {
     let colors = NativeChartData.sourceColorIndices(pairs.map(\.key))
     result.colorIndices = keyed.map { colors[$0.key] ?? 0 }
     result.series = keyed.map {
-      .init(name: $0.key.displayString, values: NativeChartData.numbers($0.value))
+      .init(name: $0.key.displayString, values: NativeValue.numbers($0.value))
     }
     result.isProgressive = true
     return result.series.isEmpty ? nil : result.prepared(for: name)

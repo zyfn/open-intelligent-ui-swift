@@ -25,4 +25,17 @@ final class NativeValidationBridgeTests: XCTestCase {
         XCTAssertEqual(validate(.string(""), rules: [ParsedRule(type: "required")]), "This field is required")
         XCTAssertNil(validate(.string("ok"), rules: [ParsedRule(type: "required")]))
     }
+
+    func testResourceExhaustionIsDistinctFromOrdinaryPatternMismatch() throws {
+        let text = String(repeating: "a", count: 1_048_577)
+        XCTAssertEqual(testRegExp("^a+$", value: OpenUIString(text)), .resourceError)
+        let rules = parseStructuredRules(try parseJSONPreservingOrder(#"{"pattern":"^a+$"}"#))
+        let exhausted = validate(.string(OpenUIString(text)), rules: rules)
+        let ordinary = validate(.string("b"), rules: rules)
+        XCTAssertNotEqual(exhausted, ordinary, "Resource exhaustion must not be indistinguishable from a nonmatching value")
+    }
+    func testInvalidPatternKeepsOfficialLenientBehavior() throws {
+        let rules = parseStructuredRules(try parseJSONPreservingOrder(#"{"pattern":"["}"#))
+        XCTAssertNil(validate(.string("abc"), rules: rules))
+    }
 }

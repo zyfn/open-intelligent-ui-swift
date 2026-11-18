@@ -44,7 +44,6 @@ struct NativePager<ID: Hashable, Content: View>: View {
   @State private var previousSelection: ID?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.layoutDirection) private var direction
-  @Environment(\.openUITheme) private var theme
   #if os(macOS)
   @FocusState private var keyboardFocused: Bool
   #endif
@@ -231,7 +230,7 @@ struct NativePagerGeometry {
 }
 
 enum NativePagerContentHeight {
-  static func measure(_ heights: [CGFloat], selected: Int, translation: CGFloat = 0, stride: CGFloat = 1) -> CGFloat {
+  static func measure(_ heights: [CGFloat]) -> CGFloat {
     // One natural cross-axis extent for the mounted track. Selection and drag
     // affect horizontal placement, never the following document's position.
     var height: CGFloat = 0
@@ -279,8 +278,7 @@ private struct NativePagerLayout: Layout {
       return CGSize(width: layout.width, height: frames.map(\.maxY).max() ?? 0)
     }
     let heights = subviews.map { $0.sizeThatFits(ProposedViewSize(width: layout.pageWidth, height: nil)).height }
-    let height = NativePagerContentHeight.measure(heights, selected: selected,
-      translation: rightToLeft ? -translation : translation, stride: layout.stride)
+    let height = NativePagerContentHeight.measure(heights)
     return CGSize(width: layout.width, height: height)
   }
   func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
@@ -295,7 +293,7 @@ private struct NativePagerLayout: Layout {
       return
     }
     let heights = subviews.map { $0.sizeThatFits(ProposedViewSize(width: layout.pageWidth, height: nil)).height }
-    let trackHeight = NativePagerContentHeight.measure(heights, selected: selected)
+    let trackHeight = NativePagerContentHeight.measure(heights)
     for (index, view) in subviews.enumerated() {
       let position = CGFloat(index + firstPageIndex) * layout.stride - layout.offset + translation
       let x = rightToLeft ? bounds.width - layout.pageWidth - position : position
@@ -367,5 +365,19 @@ private struct NativePagerSizes: PreferenceKey {
   static let defaultValue: [Namespace.ID: CGSize] = [:]
   static func reduce(value: inout [Namespace.ID: CGSize], nextValue: () -> [Namespace.ID: CGSize]) {
     value.merge(nextValue(), uniquingKeysWith: { _, next in next })
+  }
+}
+
+struct NativeCarousel: View {
+  let context: OpenUIComponentContext
+  @State private var page = 0
+  // Carousel's outer array contains pages; each inner array is one page.
+  // Rendering-child flattening is appropriate inside a page, never between pages.
+  private var pages: [Value] { NativeValue.array(context.value("children")) }
+  var body: some View {
+    NativePager(ids: Array(pages.indices), selection: $page, enabled: true, identifier: "openui.carousel") { index in
+      VStack(alignment: .leading, spacing: context.theme.spacing("s")) { context.render(pages[index]) }
+        .modifier(OpenUICardSurface(theme: context.theme, variant: context.string("variant")))
+    }
   }
 }

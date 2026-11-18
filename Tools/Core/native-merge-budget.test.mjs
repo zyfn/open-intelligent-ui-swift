@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { createNativeRuntime } from './native-test-runtime.mjs';
 import vm from 'node:vm';
 
-const script = readFileSync(process.env.OPENUI_NATIVE_CORE_JS
-  ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
 const maximumSource = 1_048_576;
 const schema = {
   $defs: { Box: { type: 'object', properties: { value: {} }, required: ['value'] } },
@@ -12,10 +10,7 @@ const schema = {
 };
 const plain = value => JSON.parse(JSON.stringify(value));
 function runtime() {
-  const realm = vm.createContext({ setInterval, clearInterval,
-    __utf8Encode: value => [...Buffer.from(value)],
-    __utf8Decode: value => Buffer.from(value).toString('utf8') });
-  vm.runInContext(script, realm, { timeout: 5_000 });
+  const realm = createNativeRuntime({ setInterval, clearInterval });
   const bridge = realm.SwiftCore, core = bridge.api;
   function merge(existing, patch, rootId = 'root') {
     realm.mergeArguments = [existing, patch, rootId];

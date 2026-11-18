@@ -5,13 +5,12 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
-import vm from 'node:vm';
+import { createNativeRuntime } from './native-test-runtime.mjs';
 import {transform} from 'esbuild';
 
 const compiled = await transform(readFileSync(new URL('./source-preprocess.ts', import.meta.url), 'utf8'), {loader:'ts',format:'esm'});
 const candidate = await import('data:text/javascript;base64,' + Buffer.from(compiled.code).toString('base64'));
-const realm = vm.createContext({__utf8Encode:value=>[...Buffer.from(value)],__utf8Decode:value=>Buffer.from(value).toString('utf8')});
-vm.runInContext(readFileSync(process.env.OPENUI_NATIVE_CORE_JS ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8'), realm);
+const realm = createNativeRuntime({}, {});
 const bridge = realm.SwiftCore;
 
 const STATEMENT_START = /^\s*\$?[A-Za-z_]\w*\s*=(?!=)/;

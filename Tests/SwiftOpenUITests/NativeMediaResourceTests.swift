@@ -183,7 +183,6 @@ final class NativeMediaResourceTests: XCTestCase {
     try await Task.sleep(nanoseconds: 50_000_000)
     let loadingHeight = host.fittingSize.height
     let loadingAccessibility = graphicAccessibility()
-    print("SVG loading accessibility: \(graphicCandidates)")
     XCTAssertEqual(loadingAccessibility?.label, alternative, "\(graphicCandidates)")
     XCTAssertEqual(loadingAccessibility?.value, loading, "\(graphicCandidates)")
     XCTAssertEqual(loader.signingCount, 0, "An unclosed source cannot start an SVG resource request")
@@ -201,7 +200,6 @@ final class NativeMediaResourceTests: XCTestCase {
     XCTAssertEqual(host.fittingSize.height, loadingHeight, accuracy: 1,
       "A terminal graphic state must preserve its reserved frame")
     let unavailableAccessibility = graphicAccessibility()
-    print("SVG interrupted accessibility: \(graphicCandidates)")
     XCTAssertEqual(unavailableAccessibility?.label, alternative,
       "The complete authored alternative remains readable after interruption; \(graphicCandidates)")
     XCTAssertEqual(unavailableAccessibility?.value, unavailable,

@@ -105,7 +105,6 @@ struct NativeRemoteImage: View {
   @State private var measuredDisplaySize: NativeImageDisplaySize?
   @Environment(\.openUIResourceContext) private var resources
   @Environment(\.openUITheme) private var theme
-  @Environment(\.openUICardIsAction) private var cardIsAction
   @Environment(\.openUIMediaCache) private var mediaCache
 
   var body: some View {
@@ -649,5 +648,14 @@ struct NativeImageRetryState {
   mutating func retry(_ request: AnyHashable) {
     if key != request { key = request; count = 0 }
     count += 1
+  }
+}
+
+struct NativeImageBlock: View {
+  let context: OpenUIComponentContext
+  var body: some View {
+    NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
+      layout: .aspect(context.presentation.coverAspectRatio), role: .content)
+      .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
   }
 }

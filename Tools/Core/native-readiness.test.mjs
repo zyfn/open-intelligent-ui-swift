@@ -3,9 +3,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import vm from 'node:vm';
+import { createNativeRuntime } from './native-test-runtime.mjs';
 
-const script = readFileSync(process.env.OPENUI_NATIVE_CORE_JS ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
 const schema = {
   $defs: {
     Box: { type: 'object', properties: { value: {} }, required: ['value'] },
@@ -16,11 +15,7 @@ const schema = {
 };
 
 function runtime() {
-  const realm = vm.createContext({
-    __utf8Encode: value => [...Buffer.from(value)],
-    __utf8Decode: value => Buffer.from(value).toString('utf8'),
-  });
-  vm.runInContext(script, realm, { timeout: 5000 });
+  const realm = createNativeRuntime();
   const core = realm.SwiftCore;
   return { core, parser: core.api.createStreamingParser(schema) };
 }

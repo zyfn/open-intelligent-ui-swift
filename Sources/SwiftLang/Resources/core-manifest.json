@@ -19,7 +19,7 @@
   "sha256": "f92baf80aec760ea3ff6213870a33d7330f2051a0dddc510c93260f3ca6d605f",
   "bytes": 867575,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "4329a7dc19d710ccc9163bd3824359f345a938fa6559fa1e5bc57f356b13a450",
+  "adapterSha256": "6fdb682119aa658c9e88959ec4af6ae5442b7a37d2ddacc9bf0eec96200d639d",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -350,7 +350,7 @@
       "id": "timers-tools",
       "category": "platform-bridge",
       "locations": [
-        "Tools/Core/compat.mjs",
+        "Tools/Core/bridge-compat.mjs",
         "Sources/SwiftLang/Language/SharedCore.swift",
         "Sources/SwiftLang/Language/QueryManager.swift"
       ],
@@ -363,7 +363,7 @@
       "id": "query-request-lifecycle",
       "category": "upstream-defect-fix",
       "locations": [
-        "Tools/Core/compat.mjs",
+        "Tools/Core/bridge-compat.mjs",
         "Tools/Core/native-query-dispatch.test.mjs"
       ],
       "reason": "A retired query's completion must not change a replacement with the same statement id and key; shared requests must continue when another query still consumes their cache entry",

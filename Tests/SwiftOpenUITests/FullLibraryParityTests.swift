@@ -161,4 +161,32 @@ final class FullLibraryParityTests: XCTestCase {
     XCTAssertNil(NativeRichTextEngine.shared.sourceURL("java\tscript:alert(1)"))
     XCTAssertEqual(NativeRichTextEngine.shared.sourceURL(" https://example.com/path "), "https://example.com/path")
   }
+
+  func testFractionalOriginRetainsStepLatticeAndRange() {
+      let config = NativeSliderConfiguration(minimum: 0.5, maximum: 3.5, step: 1, discrete: true)
+      let actual = [0.5, 1.5, 2.5, 3.5].map(config.snapped)
+      XCTAssertEqual(actual, [0.5, 1.5, 2.5, 3.5])
+      XCTAssertLessThanOrEqual(config.snapped(3.5), config.maximum)
+  }
+  func testNegativeFractionalOriginRetainsLattice() {
+      let config = NativeSliderConfiguration(minimum: -2.5, maximum: 0.5, step: 1, discrete: true)
+      XCTAssertEqual([-2.5, -1.5, -0.5, 0.5].map(config.snapped), [-2.5, -1.5, -0.5, 0.5])
+  }
+  func testNonDivisibleRangeStaysWithinBounds() {
+      let config = NativeSliderConfiguration(minimum: 0, maximum: 3.6, step: 1, discrete: true)
+      XCTAssertLessThanOrEqual(config.snapped(3.6), config.maximum, "Endpoint policy requires an official comparison; escaping the declared range is independently invalid")
+  }
+  func testFractionalStepsChoicesAndTrackUseTheSameValues() {
+      let config = NativeSliderConfiguration(minimum:0.05,maximum:0.55,step:0.1,discrete:true)
+      XCTAssertEqual(config.value(at:1),0.15)
+      XCTAssertEqual(config.snapped(0.15),0.15)
+      XCTAssertEqual(config.value(at:5),0.55)
+  }
+  func testTinyStepsAndNonDivisibleEndpointsKeepTheirPrecision() {
+      let tiny = NativeSliderConfiguration(minimum:1e-200,maximum:9e-200,step:2e-200,discrete:true)
+      XCTAssertEqual(tiny.snapped(5e-200)/1e-200,5,accuracy:1e-12)
+      let endpoint = NativeSliderConfiguration(minimum:0.5,maximum:4.14,step:1,discrete:true)
+      XCTAssertEqual(endpoint.snapped(4.14),4.14)
+      XCTAssertEqual(endpoint.value(at:endpoint.lastIndex),3.5)
+  }
 }

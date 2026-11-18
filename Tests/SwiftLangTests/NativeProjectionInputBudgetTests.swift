@@ -79,7 +79,7 @@ final class NativeProjectionInputBudgetTests: XCTestCase {
 
     func testQueryBatchAggregateIsCheckedBeforeAnyNodeEncoding() {
         let part = ASTNode.arr(Array(repeating: .num(1), count: 20_000))
-        XCTAssertFalse(nativeASTExceedsLimits(part))
+        XCTAssertFalse(nativeASTCost(part).exceeds)
         let manager = QueryManager(provider: nil)
         let evaluator = evaluator(LibrarySchema())
         defer { manager.dispose() }

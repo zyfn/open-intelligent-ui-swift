@@ -451,3 +451,12 @@ struct NativeLabelValueLayout: Layout {
         }
     }
 }
+
+struct NativeWrappingRow<Content: View>: View {
+  var gap: CGFloat = 12
+  var rowGap: CGFloat? = nil
+  @ViewBuilder let content: Content
+  var body: some View {
+    OpenUIFlexLayout(direction: "row", gap: gap, align: "start", justify: "start", wrap: true, rowGap: rowGap) { content }
+  }
+}

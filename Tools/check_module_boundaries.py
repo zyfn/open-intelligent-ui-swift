@@ -37,22 +37,36 @@ def dependencies(target: dict) -> set[str]:
 def check(manifest: dict, root: Path) -> dict:
     problems = []
     targets = {target["name"]: target for target in manifest["targets"]}
-    products = {product["name"]: product for product in manifest["products"]
-                if "library" in product["type"]}
+    products = {product["name"]: product for product in manifest["products"]}
+    if len(targets) != len(manifest["targets"]) or len(products) != len(manifest["products"]):
+        problems.append("Targets and products must each have one declaration")
     native_targets = {target["name"] for target in manifest["targets"] if target["type"] != "test"}
     if native_targets != set(ALLOWED):
         problems.append(f"Expected only canonical modules and the internal regex backend, found {sorted(native_targets)}")
     if set(products) != set(PRODUCTS):
         problems.append(f"Expected exactly three library products, found {sorted(products)}")
+    if any("library" not in product["type"] for product in products.values()):
+        problems.append("Development executables must not be products of the client SDK package")
     for name, module in PRODUCTS.items():
         if products.get(name, {}).get("targets") != [module]:
             problems.append(f"Product {name} must export its single owning target")
 
     graph = {name: dependencies(target) for name, target in targets.items()}
+    dependency_names = {name for names in graph.values() for name in names}
+    # dump-package encodes each package dependency as a one-element case array.
+    for dependency in manifest.get("dependencies", []):
+        for kind in ("sourceControl", "fileSystem", "registry"):
+            dependency_names.update(settings["identity"] for settings in dependency.get(kind, []))
+    forbidden_dependencies = sorted(name for name in dependency_names
+                                    if name.lower().rsplit(".", 1)[-1] in {"react-ui", "react-headless"})
+    if forbidden_dependencies:
+        problems.append(f"Native SDK must not depend on web UI packages/products: {forbidden_dependencies}")
     for name, allowed in ALLOWED.items():
         if name not in targets:
             problems.append(f"Missing native module: {name}")
             continue
+        if targets[name]["type"] != "regular":
+            problems.append(f"{name} must remain a regular library target")
         declared_path = root / (targets[name].get("path") or f"Sources/{name}")
         if declared_path.resolve() != (root / "Sources" / name).resolve() or not declared_path.is_dir():
             problems.append(f"{name} must be owned by its existing Sources/{name} directory")
@@ -92,8 +106,8 @@ def check(manifest: dict, root: Path) -> dict:
             if leaked:
                 problems.append(f"{path.relative_to(root)} imports forbidden modules {sorted(leaked)}")
             if name == "SwiftLang" and "Language" in path.relative_to(root / "Sources" / name).parts:
-                if set(IMPORT.findall(source)) & {"SwiftUI", "UIKit", "AppKit"}:
-                    problems.append(f"{path.relative_to(root)} mixes the language bridge with native presentation")
+                if set(IMPORT.findall(source)) & ({"SwiftUI", "UIKit", "AppKit"} | MODULES):
+                    problems.append(f"{path.relative_to(root)} imports presentation or an SDK facade into the language bridge")
             if name == "SwiftLang" and re.search(
                 r"\b(OpenUIComponents|OpenUIThemeValues|OpenIntelligentUITheme)\b", source
             ):

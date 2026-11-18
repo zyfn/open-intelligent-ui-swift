@@ -1,12 +1,10 @@
 // Count the actual metadata identities crossing the shipped-core boundary.
 // This is a work/allocation regression, not an Apple timing or FPS benchmark.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { createNativeRuntime } from './native-test-runtime.mjs';
 import vm from 'node:vm';
 
-const script = readFileSync(process.env.OPENUI_NATIVE_CORE_JS
-  ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
 const schema = {
   $defs: {
     Text: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },
@@ -18,11 +16,7 @@ const schema = {
 };
 const plain = value => JSON.parse(JSON.stringify(value));
 function runtime() {
-  const realm = vm.createContext({
-    __utf8Encode: value => [...Buffer.from(value)],
-    __utf8Decode: value => Buffer.from(value).toString('utf8'),
-  });
-  vm.runInContext(script, realm, { timeout: 5000 });
+  const realm = createNativeRuntime();
   const bridge = realm.SwiftCore;
   return { bridge, library: bridge.library(schema, {}), realm };
 }

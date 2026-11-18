@@ -1,15 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import vm from 'node:vm';
+import { createNativeRuntime } from './native-test-runtime.mjs';
 
-const realm = vm.createContext({
-  __utf8Encode: value => [...Buffer.from(value)],
-  __utf8Decode: value => Buffer.from(value).toString('utf8'),
-  setInterval, clearInterval,
-});
-vm.runInContext(readFileSync(process.env.OPENUI_NATIVE_CORE_JS ??
-  new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8'), realm, { timeout: 5000 });
+const realm = createNativeRuntime({ setInterval, clearInterval });
 const bridge = realm.SwiftCore;
 const textResult = text => ({ content: [{ type: 'text', text }] });
 const plain = value => JSON.parse(JSON.stringify(value));

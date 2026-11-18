@@ -3,7 +3,7 @@ import XCTest
 @testable import SwiftLang
 
 final class NativeLiveElementUpdateTests: XCTestCase {
-  func testChangingTailPreservesCurrentMembershipAndUnchangedCandidateKeys() {
+  func testChangingTailPreservesCurrentMembershipAndStablePresentations() {
     let stableChildren = (0..<600).map { text("stable-\($0)", "Same") }
     let stable = container(stableChildren, id: "stable")
     let before = text("tail", "Before")
@@ -20,10 +20,14 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     XCTAssertFalse(index.contains(before))
     for child in stableChildren {
       XCTAssertTrue(index.contains(child))
-      XCTAssertFalse(update.affectsLookup(for: child))
+      XCTAssertFalse(update.affectsPresentation(for: child))
+      XCTAssertTrue(nativeResolveLiveElement(child, in: index) === child)
     }
-    XCTAssertTrue(update.affectsLookup(for: before))
-    XCTAssertTrue(update.affectsLookup(for: after))
+    XCTAssertTrue(update.affectsPresentation(for: before))
+    XCTAssertTrue(update.affectsPresentation(for: after))
+    assertIdentities(index.candidates(for: before), [after])
+    XCTAssertTrue(nativeResolveLiveElement(before, in: index) === before,
+      "A changed value must not borrow the new candidate's identity")
   }
 
   func testIdenticalRootDoesNoIndexWork() {
@@ -33,7 +37,8 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     let update = index.replaceRoot(root)
     XCTAssertEqual(update.indexedContainers, 0)
     XCTAssertEqual(update.comparedCandidates, 0)
-    XCTAssertFalse(update.affectsLookup(for: root))
+    XCTAssertFalse(update.affectsPresentation(for: root))
+    XCTAssertTrue(nativeResolveLiveElement(root, in: index) === root)
   }
 
   func testSharedSubtreeSurvivesRemovingOnlyOneParent() {
@@ -49,7 +54,7 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     XCTAssertTrue(index.contains(right))
     XCTAssertTrue(index.contains(shared))
     XCTAssertTrue(index.contains(leaf))
-    XCTAssertFalse(update.affectsLookup(for: leaf))
+    XCTAssertFalse(update.affectsPresentation(for: leaf))
     assertIdentities(index.candidates(for: leaf), [leaf])
     index.replaceRoot(nil)
     XCTAssertFalse(index.contains(leaf))
@@ -80,7 +85,7 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     XCTAssertFalse(index.contains(pending))
     XCTAssertTrue(index.contains(ready))
     assertIdentities(index.candidates(for: pending), [ready])
-    XCTAssertTrue(update.affectsLookup(for: pending))
+    XCTAssertTrue(nativeResolveLiveElement(pending, in: index) === ready)
     XCTAssertTrue(update.affectsPresentation(for: pending))
     XCTAssertFalse(pending.isSourceComplete, "Indexing must not mutate an older readiness snapshot")
   }
@@ -95,8 +100,10 @@ final class NativeLiveElementUpdateTests: XCTestCase {
 
     let update = index.replaceRoot(container([ready, pending], id: "root"))
     assertIdentities(index.candidates(for: stale), [ready, pending])
-    XCTAssertTrue(update.affectsLookup(for: stale),
+    XCTAssertTrue(update.affectsPresentation(for: stale),
       "Surviving identities alone do not prove the same first-match order")
+    XCTAssertTrue(nativeResolveLiveElement(stale, in: index) === stale,
+      "Different readiness snapshots must remain ambiguous after reordering")
     XCTAssertTrue(index.contains(pending))
     XCTAssertTrue(index.contains(ready))
   }
@@ -114,7 +121,7 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     assertIdentities(index.candidates(for: first), [second])
   }
 
-  func testRecreatedEqualCandidatesProduceChangesWithoutMergingTheirIdentities() {
+  func testRecreatedEqualCandidatesKeepPresentationAndReplaceMembership() {
     let previous = (0..<200).map { text("row-\($0)", "Same") }
     let current = (0..<200).map { text("row-\($0)", "Same") }
     var index = NativeLiveElementIndex()
@@ -126,7 +133,7 @@ final class NativeLiveElementUpdateTests: XCTestCase {
       XCTAssertEqual(old, new)
       XCTAssertFalse(index.contains(old))
       XCTAssertTrue(index.contains(new))
-      XCTAssertTrue(update.affectsLookup(for: old))
+      XCTAssertTrue(nativeResolveLiveElement(old, in: index) === new)
       XCTAssertFalse(update.affectsPresentation(for: old),
         "A unique scalar leaf can keep its presentation while membership follows the new object")
       assertIdentities(index.candidates(for: old), [new])
@@ -154,7 +161,7 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     var index = NativeLiveElementIndex()
     index.replaceRoot(previous)
     let update = index.replaceRoot(current)
-    XCTAssertTrue(update.affectsLookup(for: previous))
+    XCTAssertTrue(nativeResolveLiveElement(previous, in: index) === current)
     XCTAssertTrue(update.affectsPresentation(for: previous),
       "Reference values retain the existing structural/depth and readiness resolution")
   }
@@ -205,9 +212,9 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     accumulated.formUnion(index.replaceRoot(container([nextFirst, second, stable], id: "root")))
     accumulated.formUnion(index.replaceRoot(container([nextFirst, nextSecond, stable], id: "root")))
 
-    XCTAssertTrue(accumulated.affectsLookup(for: first))
-    XCTAssertTrue(accumulated.affectsLookup(for: second))
-    XCTAssertFalse(accumulated.affectsLookup(for: stable))
+    assertIdentities(index.candidates(for: first), [nextFirst])
+    assertIdentities(index.candidates(for: second), [nextSecond])
+    assertIdentities(index.candidates(for: stable), [stable])
     XCTAssertTrue(accumulated.affectsPresentation(for: first))
     XCTAssertTrue(accumulated.affectsPresentation(for: second))
     XCTAssertFalse(accumulated.affectsPresentation(for: stable))
@@ -228,7 +235,7 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     XCTAssertNotNil(retired)
     let update = index.replaceRoot(nil)
     XCTAssertNil(retired)
-    XCTAssertTrue(update.affectsLookup(for: container([], id: "old")))
+    XCTAssertTrue(update.affectsPresentation(for: container([], id: "old")))
   }
 
   func testMovingAStableSubtreeAcrossDepthLimitRecomputesItsReachability() {
@@ -241,11 +248,13 @@ final class NativeLiveElementUpdateTests: XCTestCase {
     let deeper = index.replaceRoot(wrapping(subtree, count: 255))
     XCTAssertTrue(index.contains(subtree), "Depth 255 remains inside the index boundary")
     XCTAssertFalse(index.contains(leaf), "Depth 256 must not reuse shallower cached membership")
-    XCTAssertTrue(deeper.affectsLookup(for: leaf))
+    XCTAssertTrue(deeper.affectsPresentation(for: leaf))
+    XCTAssertTrue(index.candidates(for: leaf).isEmpty)
 
     let shallower = index.replaceRoot(subtree)
     XCTAssertTrue(index.contains(leaf))
-    XCTAssertTrue(shallower.affectsLookup(for: leaf))
+    XCTAssertTrue(shallower.affectsPresentation(for: leaf))
+    assertIdentities(index.candidates(for: leaf), [leaf])
   }
 
   func testDeepFirstAliasDoesNotHideDescendantsOfAShallowerOccurrence() {

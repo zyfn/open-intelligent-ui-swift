@@ -94,4 +94,32 @@ final class LibraryAuthoringBridgeTests: XCTestCase {
         XCTAssertNotNil(body?.field("properties")?.field("title"))
         XCTAssertNil(body?.field("anyOf"))
     }
+
+    func testOfficialComponentAdditionAndRemovalReachCompiledSnapshots() throws {
+        let base = try boxLibrary()
+        let added = try base.extend(LibraryExtension(addComponents: [defineComponent(name: "Extra", description: "",
+            params: [ParamDef(name: "value", required: true)])]))
+        XCTAssertEqual(createParser(schema: added.toSchema()).parse("root=Extra(7)").root?.typeName, "Extra")
+        XCTAssertNil(base.toSchema().components["Extra"])
+        let removed = try added.extend(LibraryExtension(removeComponents: ["Box"]))
+        XCTAssertTrue(createParser(schema: removed.toSchema()).parse("root=Box(\"old\")").meta.errors.contains { $0.code == .unknownComponent })
+    }
+    func testOfficialOverrideAndCompileEntryKeepTheOriginalIndependent() throws {
+        let base = try boxLibrary()
+        let changed = try base.extend(LibraryExtension(overrideComponents: [defineComponent(name: "Box", description: "",
+            params: [ParamDef(name: "renamed", required: true)])]))
+        XCTAssertEqual(createParser(schema: compileLibrarySchema(changed.toSpec())).parse("root=Box(7)").root?.props.first?.key, "renamed")
+        XCTAssertEqual(createParser(schema: base.toSchema()).parse("root=Box(\"old\")").root?.props.first?.key, "text")
+    }
+    func testOfficialFunctionAdditionIsVisibleToParser() throws {
+        let base = try boxLibrary()
+        let changed = try base.extend(LibraryExtension(addFunctions: [defineFunction(name: "Upper", description: "",
+            params: [ParamDef(name: "text", required: true)]) { $0["text"] ?? .null }]))
+        XCTAssertFalse(createParser(schema: changed.toSchema()).parse("root=Box(@Upper(\"hello\"))").meta.errors.contains { $0.code == .unknownFunction })
+    }
+
+    private func boxLibrary() throws -> Library {
+        try createLibrary(components: [defineComponent(name: "Box", description: "",
+            params: [ParamDef(name: "text", required: true)])])
+    }
 }

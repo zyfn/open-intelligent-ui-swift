@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.15 · 更新日期：2026-11-18
+文档版本：1.16 · 更新日期：2026-11-18
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -79,12 +79,14 @@ flowchart TB
 
 源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport、LanguageRuntime 各自持有开发包，通过根 SDK 的公开产品接入。
 
+OpenUI 的文字实现在 `Components/Text`，列表、卡片、Modal 按组件族归位；图表组合、数据解释、几何计算和绘制分别维护，继续共享原组件状态与注册入口。`Internal/NativeValue` 只做通用值读取，控件不借用图表辅助类型。组件拆文件不新增模块或状态所有者。
+
 ### Swift 适配层的内部职责
 
 Language 中的文件按调用职责组织，语言语义由单一内核维护：
 
 - ProtocolTypes、OpenUIString、ReferenceValues、ValueConversion、JSSemantics：公开数据契约、顺序、UTF-16、引用身份与类型投影。
-- SharedCore、LibraryBridge：串行 JavaScriptCore 环境、JS 对象/回调、资源加载与 authoring 传输。
+- SharedCore：串行 JavaScriptCore 环境、JS 对象/回调、资源加载与值投影；LibraryBridge：authoring、Schema 传输及每份 LibrarySchema 的 JS library 准备。
 - Parser、StreamingParser：批量与增量入口，各自的公开工厂与实现在同一文件；Message 只负责传输帧选择，普通 Lang 不进入选帧分支。原始输入与选中内容分别检查，流式适配只保留原始输入、增量包络及是否需要恢复全文的标志。
 - Lexer、Evaluator、Store、Library、Prompt、Serialize、Merge、Forms、MCP：对内核实现的类型化调用。运行主线的错误与预算沿所属入口交付；低层工具保留各自公开返回合同，其覆盖边界见验证说明，不将所有公开 helper 都描述为受限执行事务。
 - QueryManager、Actions：Swift async 工具、取消与原生动作步骤执行；依赖调度与状态语义由内核管理器负责。
@@ -190,7 +192,7 @@ Context 的 element 和状态标志是构造时快照；字段与 Binding getter
 
 OpenUI 原生字段的初始化、焦点和校验注册归属于同一个完整的 form/name 身份；换字段时切换字段内容 owner，普通值更新不重建控件。字段的生命周期观察同时交付当前 Context、enabled 与交互就绪快照，初始化和注册使用回调收到的输入，避免沿用上一帧的属性；字段值变化仍由既有验证/镜像路径处理。EditableTable / Slider 按字段身份选择文档已有草稿，未闭合的名字仅有挂载期临时草稿。此边界不修改外层 Context 订阅、RenderNode 或文档身份。Slider 通过弱 Context 使用现有写入路径的内部完成回调：实际 Store 写入通过预算后、公开更新前确认接受值，排队写入仍在执行时复查目标，拒绝明确结束。草稿先更新已提交基线，再仅清理对应编辑，保留绑定转换和同步重入的新输入；原有字段镜像及公开通知顺序不变。字段初始化仍由现有 Store 的缺失检查决定。组件行为与验收见 [OpenUI](openui.md#状态字段与动作) 和[验证说明](validation-and-security.md#sdk-正常接入与生命周期审查)。
 
-live index 继续遍历当前 root，建立 membership 和按当前深度优先顺序排列的候选；相同 root 引用可跳过重复索引。匿名且仅含标量属性的旧节点按属性分桶，具名/复杂节点保留原分组及语义/readiness 歧义检查。索引更新分别记录 membership 变化与呈现输入变化：仅当同键候选唯一、属性全为标量且完整呈现输入相同时，重建的元素包装可以保持呈现不变并跳过该订阅的 lookup/readiness capture。membership 仍立即换成实际新对象；字段、Query、执行资格及文档变化独立触发复核。引用属性和歧义候选继续保守检查，不递归比较业务值，也不保留历史图的引用账本。旧快照查找单次遍历候选并检查语义及歧义，不再创建匹配数组或把首候选的 readiness 与自身递归比较；属性遍历仍保留原深度边界。当前内核在普通文字流中仍重建内容稳定的 JS 节点，不能假设存在可复用的原生子树；没有保留依赖该假设的容器 DAG 缓存。真实流仍可能全量索引和检查全部挂载订阅。全局 partial、引用属性及真实 Store/Query 变化仍可更新多个组件，收益须以原生工作计数和实际挂载结果验证。
+live index 继续遍历当前 root，建立 membership 和按当前深度优先顺序排列的候选；相同 root 引用可跳过重复索引。匿名且仅含标量属性的旧节点按属性分桶，具名/复杂节点保留原分组及语义/readiness 歧义检查。索引直接替换当前 membership 和候选，仅累计生产刷新使用的呈现变化键，不维护另一份无人消费的 lookup 变化集合：仅当同键候选唯一、属性全为标量且完整呈现输入相同时，重建的元素包装可以保持呈现不变并跳过该订阅的 lookup/readiness capture。membership 仍立即换成实际新对象；字段、Query、执行资格及文档变化独立触发复核。引用属性和歧义候选继续保守检查，不递归比较业务值，也不保留历史图的引用账本。旧快照查找单次遍历候选并检查语义及歧义，不再创建匹配数组或把首候选的 readiness 与自身递归比较；属性遍历仍保留原深度边界。当前内核在普通文字流中仍重建内容稳定的 JS 节点，不能假设存在可复用的原生子树；没有保留依赖该假设的容器 DAG 缓存。真实流仍可能全量索引和检查全部挂载订阅。全局 partial、引用属性及真实 Store/Query 变化仍可更新多个组件，收益须以原生工作计数和实际挂载结果验证。
 
 原始输入先受 UTF-16 上限约束。语句/token/嵌套/操作符检查直接使用同一解析器已产生的 token，在 Pratt 递归前执行；流式已完成语句持有累计账目，重复声明也计入，pending 只检查当前尾部。前缀失效、set 或 reset 按解析器自身的缓存生命周期清账。旧的整份源码二次 preprocess/tokenize/split 预检已删除，没有保留并行保护路径或放宽额度。多行三元式的换行前瞻在同次 split 内复用终点。
 
@@ -252,7 +254,7 @@ reader 提供读取契约，writer 提供当前生成范围。两者从同一注
 
 实际来源以 [Tools/upstream.json](../Tools/upstream.json)、[资源 manifest](../Sources/SwiftLang/Resources/core-manifest.json) 和 [适配清单](../Tools/Core/adaptations.json) 为准。构建提取锁定来源的源码，核对原始源码树、显式补丁及生成指纹；客户端不安装 npm 包或追踪 latest。
 
-Swift 负责 lossless 数据传输、原生 async 与动作执行。当前还保留有来源记录的 readiness 注入、serializer 修复、依赖 schema 表示适配与执行预算。这些 Apple 适配随依赖升级逐项复核，使用固定回归和独立语义检查验证兼容性。
+Swift 负责 lossless 数据传输、原生 async 与动作执行。当前还保留有来源记录的 readiness 注入、serializer 修复、依赖 schema 表示适配与执行预算。这些 Apple 适配随依赖升级逐项复核，使用固定回归和独立语义检查验证兼容性。Query 请求身份、共享消费者和退休清理的构建转换归 `bridge-compat.mjs`，预算转换归 `compat.mjs`；`build.mjs` 明确执行顺序。
 
 ### 语言版本与参考规范
 

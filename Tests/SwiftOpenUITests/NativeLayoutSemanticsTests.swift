@@ -37,14 +37,9 @@ final class NativeLayoutSemanticsTests: XCTestCase {
     XCTAssertEqual(bounded[0].map(\.width), [220, 118])
   }
 
-  func testPagerHeightDoesNotDependOnSelectionOrDragDirection() {
-    for selected in 0..<3 {
-      for drag in [CGFloat(-200), 0, 200] {
-        XCTAssertEqual(NativePagerContentHeight.measure([40, 240, 80], selected: selected,
-          translation: drag, stride: 300), 240)
-      }
-    }
-    XCTAssertEqual(NativePagerContentHeight.measure([.nan, -2, .infinity], selected: 0), 0)
+  func testPagerHeightUsesTheTallestFinitePage() {
+    XCTAssertEqual(NativePagerContentHeight.measure([40, 240, 80]), 240)
+    XCTAssertEqual(NativePagerContentHeight.measure([.nan, -2, .infinity]), 0)
   }
 
   #if os(macOS)

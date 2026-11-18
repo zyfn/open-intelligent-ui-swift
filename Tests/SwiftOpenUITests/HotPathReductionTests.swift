@@ -4,15 +4,12 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class HotPathReductionTests: XCTestCase {
-  func testPagerHeightMatchesReferenceForDegenerateInputsAndSelection() {
+  func testPagerHeightMatchesReferenceForDegenerateInputs() {
     let cases: [[CGFloat]] = [[], [0], [-1, -100], [.nan, .infinity, -.infinity],
       [.nan, -2, 12, 48, .infinity], [0, 100, 50], [.greatestFiniteMagnitude, 2]]
     for heights in cases {
       let expected = heights.filter(\.isFinite).map { max(0, $0) }.max() ?? 0
-      for selected in [-1, 0, 1, 100] {
-        XCTAssertEqual(NativePagerContentHeight.measure(heights, selected: selected,
-          translation: 25, stride: 300), expected)
-      }
+      XCTAssertEqual(NativePagerContentHeight.measure(heights), expected)
     }
   }
 
@@ -25,7 +22,7 @@ final class HotPathReductionTests: XCTestCase {
         heights.append(CGFloat(Int(seed % 2001) - 1000) / 4)
       }
       let expected = heights.filter(\.isFinite).map { max(0, $0) }.max() ?? 0
-      XCTAssertEqual(NativePagerContentHeight.measure(heights, selected: length / 2), expected)
+      XCTAssertEqual(NativePagerContentHeight.measure(heights), expected)
     }
   }
 

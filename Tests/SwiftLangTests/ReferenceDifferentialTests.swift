@@ -14,31 +14,36 @@ extension ConformanceTests {
         }
         var failures: [String] = []
         XCTAssertEqual(vectors.count, 306, "Keep every original reference input case")
-        for vector in vectors {
-            guard case .object(let entries) = vector else { continue }
-            let data = Dictionary(uniqueKeysWithValues: entries.map { ($0.key.displayString, $0.value) })
-            func string(_ key: String) -> String {
-                if case .string(let value) = data[key] { return value.displayString }; return ""
+        for (index, vector) in vectors.enumerated() {
+            guard case .object(let entries) = vector else {
+                return XCTFail("Reference vector \(index) must be an object")
             }
-            let id = string("id")
+            let data = Dictionary(uniqueKeysWithValues: entries.map { ($0.key.displayString, $0.value) })
+            func string(_ key: String) throws -> String {
+                try XCTUnwrap(data[key]?.stringValue, "Reference vector \(index) requires string field '\(key)'")
+            }
+            let id = try string("id")
+            let kind = try string("kind")
             let expectedRef = data["expectedRef"]?.stringValue.flatMap { object.field("promptExpectations")?.field($0) }
             let expectedValue = try XCTUnwrap(data["expected"] ?? expectedRef, id)
             let expected = jsonValueToAny(expectedValue)
             let actual: Any
-            switch string("kind") {
+            switch kind {
             case "prompt":
                 let library = data["library"]?.stringValue.flatMap { object.field("libraries")?.field($0) } ?? data["library"]
                 actual = generateSystemPrompt(library: LibrarySpec(json: try XCTUnwrap(library)),
                                               promptOptions: PromptOptions(fixture: data["options"] ?? .object([])))
             case "program":
-                guard case .object(let expectedFields) = data["expected"] else { continue }
-                let result = createParser(schema: schema).parse(string("source"))
+                guard case .object(let expectedFields) = data["expected"] else {
+                    return XCTFail("Program reference vector \(id) requires an object expectation")
+                }
+                let result = createParser(schema: schema).parse(try string("source"))
                 if !checkResult(result: result, expectedFields: expectedFields, label: id) { failures.append(id) }
                 continue
             case "expression":
                 let result = createParser(schema: schema).parse("root = Stack([])")
                 let evaluator = makeEvaluator(result: result)
-                let expression = parseExpression(tokenize(string("expression")))
+                let expression = parseExpression(tokenize(try string("expression")))
                 actual = referenceValue(evaluator.evaluate(expression), evaluator: evaluator)
             case "validation":
                 let rules = parseStructuredRules(data["rules"] ?? .object([]))
@@ -48,10 +53,10 @@ extension ConformanceTests {
             case "message":
                 let streaming: Bool
                 if case .boolean(let value) = data["streaming"] { streaming = value } else { streaming = false }
-                let message = parseMessage(string("raw"), streaming: streaming)
+                let message = parseMessage(try string("raw"), streaming: streaming)
                 actual = ["content": message.content, "context": jsonValueToAny(message.context),
                           "attributes": message.attributes, "end": message.end] as [String: Any]
-            default: XCTFail("Unknown reference vector kind: " + string("kind")); failures.append(id); continue
+            default: XCTFail("Unknown reference vector kind: " + kind); failures.append(id); continue
             }
             if !jsonEqual(expected, actual) {
                 print("  \(id): expected \(expected), got \(actual)")

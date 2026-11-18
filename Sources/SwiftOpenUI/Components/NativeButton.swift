@@ -45,3 +45,72 @@ struct OpenUINativeButton: View {
         .conversationAccessoryProgress(continuesConversation)
     }
 }
+
+struct NativeIconButton: View {
+  let context: OpenUIComponentContext
+  var body: some View {
+    OpenUIActionSurface(
+      context: context, message: context.string("name") ?? "", action: context.value("action"),
+      useNativeStyle: true, validateForm: context.string("variant") == "primary",
+      showsProgress: true
+    ) {
+      context.slot("icon").frame(minWidth: 20, minHeight: 20)
+    }.buttonStyle(
+      NativeActionButtonStyle(
+        theme: context.theme, variant: context.string("variant") ?? "secondary",
+        size: context.string("size"), destructive: false,
+        iconOnly: true, circular: context.string("shape") == "circle")
+    )
+    .accessibilityLabel(context.string("name") ?? "")
+  }
+}
+
+struct NativeFollowUpBlock: View {
+  let context: OpenUIComponentContext
+  var body: some View {
+    NativeWrappingRow(gap: context.theme.spaceS) {
+      ForEach(context.children("items")) { item in
+        context.render(item.value)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+struct NativeFollowUpItem: View {
+  let context: OpenUIComponentContext
+  @Environment(\.isEnabled) private var enabled
+  private var text: String { context.string("text") ?? "" }
+  private var cornerRadius: CGFloat {
+    NativeButtonShape.readableRadius(horizontal: context.theme.spaceM, vertical: context.theme.spaceS)
+  }
+  private var shape: NativeButtonShape {
+    NativeButtonShape(radius: nil, maximumRadius: cornerRadius)
+  }
+  var body: some View {
+    OpenUIActionSurface(context: context, message: text, action: Self.action(for: text),
+      useNativeStyle: true) {
+      Text(text)
+        .fixedSize(horizontal: false, vertical: true)
+        .multilineTextAlignment(.leading)
+        .nativeTextStyle(context.theme.textStyle(.compactAction),
+          color: enabled ? context.theme.textNeutralPrimary : context.theme.textNeutralTertiary)
+        .padding(.horizontal, context.theme.spaceM)
+        .padding(.vertical, context.theme.spaceS)
+        .background(context.theme.sunk, in: shape)
+        .overlay(shape.strokeBorder(context.theme.borderDefault,
+          lineWidth: context.presentation.borderWidth).allowsHitTesting(false))
+        .openUIControlTarget(alignment: .leading)
+    }
+    .buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: cornerRadius))
+    .accessibilityLabel(text)
+    .accessibilityHint(Text("Send this question to continue", bundle: NativeControlResources.bundle))
+    .accessibilityIdentifier("openui.followup")
+  }
+  static func action(for text: String) -> Value {
+    .object(OpenUIObject([
+      ObjectField(key: OpenUIString("type"), value: .string(OpenUIString("continue_conversation"))),
+      ObjectField(key: OpenUIString("message"), value: .string(OpenUIString(text))),
+    ]))
+  }
+}

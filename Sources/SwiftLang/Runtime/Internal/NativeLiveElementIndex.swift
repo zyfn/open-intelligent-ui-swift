@@ -44,26 +44,20 @@ struct NativeLiveElementIndex {
     }
   }
 
-  /// Changes contain keys only, so accumulating several updates cannot retain
+  /// Presentation changes contain keys only, so accumulating updates cannot retain
   /// retired element graphs. Counts describe index work, never frame timing.
   struct Update: Sendable {
-    fileprivate var affectedKeys: Set<Key> = []
     fileprivate var presentationKeys: Set<Key> = []
     fileprivate(set) var indexedContainers = 0
     fileprivate(set) var comparedCandidates = 0
 
     init() {}
 
-    func affectsLookup(for snapshot: EvaluatedElement) -> Bool {
-      affectedKeys.contains(Key(snapshot))
-    }
-
     func affectsPresentation(for snapshot: EvaluatedElement) -> Bool {
       presentationKeys.contains(Key(snapshot))
     }
 
     mutating func formUnion(_ other: Self) {
-      affectedKeys.formUnion(other.affectedKeys)
       presentationKeys.formUnion(other.presentationKeys)
       indexedContainers += other.indexedContainers
       comparedCandidates += other.comparedCandidates
@@ -116,14 +110,12 @@ struct NativeLiveElementIndex {
     // losing exact membership can change an old snapshot's resolution there.
     for (key, current) in nextBuckets {
       guard let previous = buckets[key], previous.count == current.count else {
-        update.affectedKeys.insert(key)
         update.presentationKeys.insert(key)
         continue
       }
       for (left, right) in zip(previous, current) {
         update.comparedCandidates += 1
         if left !== right {
-          update.affectedKeys.insert(key)
           if current.count != 1 || !left.props.allSatisfy({ Scalar($0.1) != nil })
               || !nativePresentationInputsEqual(left, right) {
             update.presentationKeys.insert(key)
@@ -133,7 +125,6 @@ struct NativeLiveElementIndex {
       }
     }
     for key in buckets.keys where nextBuckets[key] == nil {
-      update.affectedKeys.insert(key)
       update.presentationKeys.insert(key)
     }
     root = element

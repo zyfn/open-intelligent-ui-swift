@@ -45,10 +45,6 @@ func nativeStateExceedsLimits(_ values: [OpenUIString: Value]) -> Bool {
 /// Public native ASTs, including opaque runtime captures, also allocate before
 /// JS evaluation starts. Measure their transport graph without a wrapper value
 /// or a second parser; AST/container overhead is part of this native boundary.
-func nativeASTExceedsLimits(_ node: ASTNode) -> Bool {
-    nativeASTCost(node).exceeds
-}
-
 func nativeASTCost(_ node: ASTNode) -> NativeValueCost { NativeValueBudget().expression(node) }
 func nativeMaterializedCost(_ value: Materialized) -> NativeValueCost {
     NativeValueBudget().materialized(value, at: 0)

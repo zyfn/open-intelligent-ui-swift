@@ -90,4 +90,44 @@ final class TableDispatchBoundaryTests: XCTestCase {
     XCTAssertEqual(state.stateValue("orders"), .null)
     XCTAssertEqual(state.root?.typeName, "TextContent")
   }
+
+  @MainActor func testOnActionReceivesOneEventInStreamingAndCompletedStates() async throws {
+      for streaming in [true, false] {
+          let (state, context) = try fixture(streaming: streaming)
+          var received: [ActionEvent] = []
+          state.onAction = { received.append($0) }
+          let events = await context.commitFieldAndTrigger("Save Changes", form: "orders", name: "orders", value: .array([]), componentType: "EditableTable")
+          XCTAssertEqual(received.count, 1)
+          XCTAssertEqual(events.count, 1, "onAction does not consume the returned event")
+          XCTAssertEqual(received.first?.formName, "orders")
+      }
+  }
+  @MainActor func testPublishedRc4SourceLessDispatchDropsReadyStreamingTable() async throws {
+      let (state, context) = try fixture(streaming: true)
+      XCTAssertTrue(context.canInteract)
+      state.setFieldValue(form: "orders", name: "orders", value: .array([]), componentType: "EditableTable")
+      let oldRoute = await state.triggerAction("Save Changes", formName: "orders")
+      XCTAssertTrue(oldRoute.isEmpty, "Replays the source-less dispatch used by published rc.4")
+      let currentRoute = await context.commitFieldAndTrigger("Save Changes", form: "orders", name: "orders", value: .array([]), componentType: "EditableTable")
+      XCTAssertEqual(currentRoute.count, 1)
+  }
+  @MainActor func testRejectedDispatchDoesNotWriteAndRetrySucceeds() async throws {
+      let (state, original) = try fixture(streaming: true)
+      var context = original
+      context.interactionScopeReady = false
+      let rejected = await context.commitFieldAndTrigger("Save Changes", form: "orders", name: "orders", value: .array([]), componentType: "EditableTable")
+      XCTAssertTrue(rejected.isEmpty)
+      XCTAssertEqual(state.stateValue("orders"), .null)
+      let retried = await original.commitFieldAndTrigger("Save Changes", form: "orders", name: "orders", value: .array([]), componentType: "EditableTable")
+      XCTAssertEqual(retried.count, 1)
+  }
+  @MainActor func testReentrantOnActionCanReceiveEventEvenIfReturnIsEmpty() async throws {
+      let (state, context) = try fixture(streaming: false)
+      var received = 0
+      state.onAction = { _ in received += 1; state.reset(); state.setSource("root=TextContent(\"next\")") }
+      let events = await context.commitFieldAndTrigger("Save Changes", form: "orders", name: "orders", value: .array([]), componentType: "EditableTable")
+      XCTAssertEqual(received, 1)
+      XCTAssertTrue(events.isEmpty)
+      XCTAssertFalse(context.isCurrentPresentation)
+  }
 }

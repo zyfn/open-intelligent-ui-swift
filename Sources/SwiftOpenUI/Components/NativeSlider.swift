@@ -192,7 +192,7 @@ struct NativeSliderField: View {
       step: context.presentationNumber("step"), discrete: context.presentationString("variant") == "discrete")
   }
   private var external: [Double] {
-    let values = NativeChartData.numbers(field.value)
+    let values = NativeValue.numbers(field.value)
     return values.isEmpty ? [configuration.minimum] : values
   }
   private var target: NativeSliderTarget { .init(context: context) }
@@ -288,7 +288,7 @@ struct NativeSliderField: View {
       (context: OpenUIComponentContext, request: ([Double], ([Double]?) -> Void)) in
       NativeFieldState(context: context).write(.array(request.0.map(Value.number))) { accepted in
         request.1(accepted.map { value in
-          let values = NativeChartData.numbers(value)
+          let values = NativeValue.numbers(value)
           return values.isEmpty ? [minimum] : values
         })
       }

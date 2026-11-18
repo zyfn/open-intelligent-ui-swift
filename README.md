@@ -1,6 +1,6 @@
 # OpenUI Swift SDK
 
-文档版本：1.2 · 更新日期：2026-11-18
+文档版本：1.3 · 更新日期：2026-11-18
 
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择OpenUI 或 OpenIntelligentUI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
@@ -204,7 +204,7 @@ python3 Tools/check_localization.py
 python3 Tools/check_lang_compatibility.py
 ~~~
 
-日常调试使用独立的 [OpenUI Gallery](Examples/Gallery/README.md)，在同一入口浏览两套 UI 的精选案例、调整预览尺寸和倍率、编辑源码与回放流式内容。macOS 启动命令为 `swift run --package-path Examples/Gallery OpenUIGallery`；iOS 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 `OpenUIGallery`。Gallery 依赖本地根 SDK，根包仅导出四个库产品。
+日常调试使用独立的 [OpenUI Gallery](Examples/Gallery/README.md)，在同一入口浏览两套 UI 的精选案例、调整预览尺寸和倍率、编辑源码与回放流式内容。macOS 启动命令为 `swift run --package-path Examples/Gallery OpenUIGallery`；iOS 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 `OpenUIGallery`。Gallery 依赖本地根 SDK，根包仅导出三个库产品。
 
 独立消费者检查为 SwiftLang、OpenUI、OpenIntelligentUI 分别创建并运行一个单产品外部包，验证解析、流式、生成契约、原生宿主和状态读写。适配层消费者不链接两套组件库，两套 UI 也不链接对方。该检查不启动窗口，不能代替 UI 视觉验收。内部 Language 目录与 Runtime 目录的职责边界由源码检查验证，详见架构。
 

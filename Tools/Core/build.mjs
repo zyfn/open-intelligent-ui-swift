@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 import { prepareCoreSource, lock } from '../upstream.mjs';
 import { readiness } from './readiness-compat.mjs';
-import { actionProvenance, propActionProvenance, validationOwnKeys, messageBoundary } from './bridge-compat.mjs';
+import { actionProvenance, propActionProvenance, validationOwnKeys, messageBoundary, queryLifecycle } from './bridge-compat.mjs';
 import {
   serializer,
   replaceOnce,
@@ -122,7 +122,9 @@ const result = await build({
           ['evaluate-prop', /\/runtime\/evaluate-prop\.ts$/],
           ['query-manager', /\/runtime\/queryManager\.ts$/],
         ]) b.onLoad({filter}, args => {
-          let source = evaluationBudget(readFileSync(args.path, 'utf8'), kind, join(bridge, 'budget.ts'));
+          let source = readFileSync(args.path, 'utf8');
+          if (kind === 'query-manager') source = queryLifecycle(source);
+          source = evaluationBudget(source, kind, join(bridge, 'budget.ts'));
           if (kind === 'evaluate-prop') {
             source = propActionProvenance(source, join(bridge, 'captures.ts'));
             source = readiness(source, kind, join(bridge, 'readiness.ts'));

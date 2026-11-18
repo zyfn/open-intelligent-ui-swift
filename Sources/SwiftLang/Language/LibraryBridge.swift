@@ -87,4 +87,41 @@ extension SharedCore {
             callDefs: callDefinitions(value.forProperty("calls")), rootComponent: spec?.root ?? schema.field("root")?.stringValue,
             wireSchema: schema)
     }
+
+    func parameters(_ params: [ParamDef]) -> JSONValue {
+        .object([
+            .init(key: "type", value: .string("object")),
+            .init(key: "properties", value: .object(params.map { p in
+                var fields = p.schema?.objectFields?.map { JSONField(key: $0.0, value: $0.1) } ?? []
+                if p.hasDefault, !fields.contains(where: { $0.key == "default" }) { fields.append(.init(key: "default", value: plainValueJSON(p.defaultValue))) }
+                return .init(key: p.name, value: .object(fields))
+            })),
+            .init(key: "required", value: .array(params.filter(\.required).map { .string($0.name) }))
+        ])
+    }
+    func schemaJSON(_ schema: LibrarySchema) -> JSONValue {
+        if let wire = schema.wireSchema { return wire }
+        var fields: [JSONField] = [
+            .init(key: "$defs", value: .object(schema.components.keys.sorted().map { .init(key: $0, value: parameters(schema.components[$0]!)) })),
+            .init(key: "properties", value: .object(schema.components.keys.sorted().map { .init(key: $0, value: .object([.init(key: "$ref", value: .string("#/$defs/" + $0))])) }))
+        ]
+        for (key, kind) in [("functions", CallDef.Kind.function), ("actions", .action)] {
+            fields.append(.init(key: key, value: .object(schema.callDefs.keys.sorted().compactMap { name in
+                let def = schema.callDefs[name]!
+                guard !def.isBuiltin, def.kind == kind else { return nil }
+                return .init(key: name, value: .object([.init(key: "params", value: parameters(def.params))]))
+            })))
+        }
+        if let root = schema.rootComponent { fields.append(.init(key: "root", value: .string(root))) }
+        return .object(fields)
+    }
+    func library(_ schema: LibrarySchema) -> JSValue {
+        if let prepared = schema.coreLibraryCache.value { return prepared }
+        let bindings = object(schema.components.map { name, params in
+            (OpenUIString(name), array(params.filter(\.isBindable).map { string(OpenUIString($0.name)) }))
+        })
+        let prepared = call("library", [json(schemaJSON(schema)), bindings])
+        schema.coreLibraryCache.value = prepared
+        return prepared
+    }
 }

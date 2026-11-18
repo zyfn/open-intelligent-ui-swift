@@ -5,7 +5,6 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-import re
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,11 +20,6 @@ def main() -> None:
     package = (ROOT / "Package.swift").read_text()
     if "https://github.com/zyfn/openui.git" in package:
         problems.append("Old fork SwiftPM dependency remains")
-    for name in ["SwiftLang", "SwiftOpenUI", "SwiftIntelligentUI"]:
-        if len(re.findall(r'\.target\(name:\s*"' + name + r'"', package)) != 1:
-            problems.append(f"Target must have exactly one owner: {name}")
-    if ".executable(" in package or ".executableTarget(" in package:
-        problems.append("Development apps/tools must not be products or targets of the client SDK package")
     for relative in ["Package.resolved", "Examples/Gallery/Package.resolved",
                      "Examples/Gallery/OpenUIGallery.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
                      "Tools/ContractExport/Package.resolved", "Benchmarks/LanguageRuntime/Package.resolved"]:

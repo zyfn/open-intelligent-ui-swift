@@ -2,9 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import vm from 'node:vm';
-const realm=vm.createContext({__utf8Encode:v=>[...Buffer.from(v)],__utf8Decode:v=>Buffer.from(v).toString('utf8'),setInterval,clearInterval});
-vm.runInContext(readFileSync(process.env.OPENUI_NATIVE_CORE_JS ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url),'utf8'),realm,{timeout:5000});
+import { createNativeRuntime } from './native-test-runtime.mjs';
+const realm = createNativeRuntime({ setInterval, clearInterval });
 const bridge = realm.SwiftCore, core = bridge.api;
 const defs={Box:{value:{}},Stack:{children:{}},Image:{alt:{type:'string'},src:{type:'string'}},Button:{label:{type:'string'},action:{}},Input:{value:{},hint:{type:'string'}}};
 const schema={$defs:Object.fromEntries(Object.entries(defs).map(([k,properties])=>[k,{type:'object',properties,required:[Object.keys(properties)[0]]}])),properties:Object.fromEntries(Object.keys(defs).map(k=>[k,{$ref:'#/$defs/'+k}]))};

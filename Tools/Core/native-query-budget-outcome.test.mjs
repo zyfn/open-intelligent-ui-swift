@@ -1,12 +1,9 @@
 // Private bridge budget outcomes. Public Lang query values and callbacks keep
 // their existing semantics; Swift uses these counters inside its dispatch gate.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import vm from 'node:vm';
+import { createNativeRuntime } from './native-test-runtime.mjs';
 
-const script = readFileSync(process.env.OPENUI_NATIVE_CORE_JS
-  ?? new URL('../../Sources/SwiftLang/Resources/lang-core.js', import.meta.url), 'utf8');
 const schema = {
   $defs: { Box: { type: 'object', properties: { value: {} }, required: ['value'] } },
   properties: { Box: { $ref: '#/$defs/Box' } },
@@ -19,12 +16,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 function runtime(t) {
-  const realm = vm.createContext({
-    __utf8Encode: value => [...Buffer.from(value)],
-    __utf8Decode: value => Buffer.from(value).toString('utf8'),
-    setInterval, clearInterval,
-  });
-  vm.runInContext(script, realm, { timeout: 5000 });
+  const realm = createNativeRuntime({ setInterval, clearInterval });
   const bridge = realm.SwiftCore, core = bridge.api, library = bridge.library(schema, {});
   const parse = source => {
     const result = core.createParser(schema).parse(source);

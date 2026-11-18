@@ -297,7 +297,7 @@
     "id": "timers-tools",
     "category": "platform-bridge",
     "locations": [
-      "Tools/Core/compat.mjs",
+      "Tools/Core/bridge-compat.mjs",
       "Sources/SwiftLang/Language/SharedCore.swift",
       "Sources/SwiftLang/Language/QueryManager.swift"
     ],
@@ -310,7 +310,7 @@
     "id": "query-request-lifecycle",
     "category": "upstream-defect-fix",
     "locations": [
-      "Tools/Core/compat.mjs",
+      "Tools/Core/bridge-compat.mjs",
       "Tools/Core/native-query-dispatch.test.mjs"
     ],
     "reason": "A retired query's completion must not change a replacement with the same statement id and key; shared requests must continue when another query still consumes their cache entry",

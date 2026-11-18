@@ -78,3 +78,138 @@ export function validationOwnKeys(source) {
     const validator = custom ?? (Object.prototype.hasOwnProperty.call(builtInValidators, rule.type)
       ? builtInValidators[rule.type] : undefined);`);
 }
+
+// Request ownership and shared-consumer retirement are independent of budgets.
+export function queryLifecycle(source) {
+  // A request belongs to its existing cache entry. Its first statement can
+  // disappear while another statement still consumes the same request; a
+  // newly created entry with the same key must never receive old completion.
+  source = replaceOnce(source, '    q.loading = true;\n    rebuildSnapshot();', `    const isCurrent = () => {
+      if (disposed || cache.get(fetchKey) !== entry) return false;
+      if (queries.get(statementId) === q && q.cacheKey === fetchKey) return true;
+      for (const current of queries.values()) if (current.cacheKey === fetchKey) return true;
+      return false;
+    };
+    for (const current of queries.values()) if (current.cacheKey === fetchKey) current.loading = true;
+    rebuildSnapshot();`);
+  source = replaceOnce(source,
+    'const data = await toolProvider.callTool(toolName, (args as Record<string, unknown>) ?? {});',
+    `const data = await (toolProvider.callTool as any)(toolName, (args as Record<string, unknown>) ?? {},
+        isCurrent);`);
+  source = replaceOnce(source, `      if (disposed) return;
+      // Stale: the query was removed or its key changed
+      const current = queries.get(statementId);
+      if (!current || current.cacheKey !== fetchKey) {
+        entry.inFlight = false;
+        return;
+      }
+
+      entry.data = data ?? null;
+      entry.failed = false;
+      current.everFetched = true;
+      for (const q of queries.values()) if (q.cacheKey === fetchKey) q.error = undefined;
+
+      // Clear prevCacheKey first so cleanup does not see it as in use
+      if (current.prevCacheKey && current.prevCacheKey !== fetchKey) {
+        const prevKey = current.prevCacheKey;
+        current.prevCacheKey = undefined;
+        cleanupCacheEntry(prevKey);
+      }`, `      if (!isCurrent()) return;
+      entry.data = data ?? null;
+      entry.failed = false;
+      const previousKeys = new Set<string>();
+      for (const current of queries.values()) {
+        if (current.cacheKey !== fetchKey) continue;
+        const previousKey = acceptCacheResult(current);
+        if (previousKey) previousKeys.add(previousKey);
+      }
+      for (const key of previousKeys) cleanupCacheEntry(key);`);
+  source = replaceOnce(source, '    } catch (err) {\n      const failure =',
+    '    } catch (err) {\n      if (!isCurrent()) return;\n      const failure =');
+  source = replaceOnce(source, `    } finally {
+      entry.inFlight = false;
+      const current = queries.get(statementId);
+      if (current && current.cacheKey === fetchKey) {
+        current.loading = false;
+        if (rebuildSnapshot()) notify();
+        if (current.needsRefetch) {
+          current.needsRefetch = false;
+          executeFetch(current.cacheKey, statementId);
+        }
+      } else {
+        if (rebuildSnapshot()) notify();
+      }
+      reevaluateReaders();
+    }`, `    } finally {
+      entry.inFlight = false;
+      if (!isCurrent()) return;
+      let refetch = false;
+      for (const current of queries.values()) {
+        if (current.cacheKey !== fetchKey) continue;
+        current.loading = false;
+        refetch ||= current.needsRefetch;
+        current.needsRefetch = false;
+      }
+      if (rebuildSnapshot()) notify();
+      // A synchronous listener can retire this entry or start its refresh.
+      if (!isCurrent()) return;
+      if (refetch && !entry.inFlight) {
+        for (const [sid, current] of queries) {
+          if (current.cacheKey !== fetchKey) continue;
+          executeFetch(fetchKey, sid);
+          break;
+        }
+      }
+      reevaluateReaders();
+    }`);
+  source = replaceOnce(source, '  /** Remove a cache entry if no query references it. */', `  /** Accept current data, whether a request just finished or the key was cached. */
+  function acceptCacheResult(q: QueryEntry): string | undefined {
+    q.everFetched = true;
+    q.error = undefined;
+    const previousKey = q.prevCacheKey;
+    q.prevCacheKey = undefined;
+    return previousKey && previousKey !== q.cacheKey ? previousKey : undefined;
+  }
+
+  /** Remove a cache entry if no query references it. */`);
+  // A later node in the same patch can adopt a released key. Decide whether
+  // it is unused only after all current/previous key references are updated.
+  source = replaceOnce(source,
+    '    const activeIds = new Set(queryNodes.map((n) => n.statementId));',
+    '    const activeIds = new Set(queryNodes.map((n) => n.statementId));\n    const cacheKeysToClean = new Set<string>();');
+  source = replaceOnce(source, `        queries.delete(sid);
+        cleanupCacheEntry(q.cacheKey);
+        if (q.prevCacheKey) cleanupCacheEntry(q.prevCacheKey);`, `        queries.delete(sid);
+        cacheKeysToClean.add(q.cacheKey);
+        if (q.prevCacheKey) cacheKeysToClean.add(q.prevCacheKey);`);
+  source = replaceOnce(source, `        if (existing.cacheKey !== cacheKey) {
+          existing.prevCacheKey = existing.cacheKey;`, `        if (existing.cacheKey !== cacheKey) {
+          if (existing.prevCacheKey) cacheKeysToClean.add(existing.prevCacheKey);
+          existing.prevCacheKey = existing.cacheKey;`);
+  source = replaceOnce(source, `      q.waiting = node.waitFor?.some((dep) => getData(dep) === undefined) ?? false;
+      if (q.waiting) continue;
+
+      const entry = cache.get(cacheKey);`, `      q.waiting = node.waitFor?.some((dep) => getData(dep) === undefined) ?? false;
+      const entry = cache.get(cacheKey);
+      q.loading = entry?.inFlight ?? false;
+      if (entry?.data !== undefined && !entry.failed) {
+        const previousKey = acceptCacheResult(q);
+        if (previousKey) cacheKeysToClean.add(previousKey);
+      }
+      if (q.waiting) continue;`);
+  source = replaceOnce(source, `        q.refreshInterval = newInterval;
+      }
+    }
+
+    if (rebuildSnapshot()) notify();`, `        q.refreshInterval = newInterval;
+      }
+    }
+
+    for (const key of cacheKeysToClean) cleanupCacheEntry(key);
+    if (rebuildSnapshot()) notify();`);
+  // dispose owns its terminal snapshot; it must not rely on a retired
+  // request's finally to make getSnapshot agree with isLoading.
+  source = replaceOnce(source, '    mutations.clear();\n  }\n\n  return {',
+    '    mutations.clear();\n    rebuildSnapshot();\n  }\n\n  return {');
+  return source;
+}
