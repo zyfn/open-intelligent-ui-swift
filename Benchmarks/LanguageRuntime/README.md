@@ -1,6 +1,6 @@
 # Language runtime benchmark
 
-文档版本：1.4 · 更新日期：2026-11-18
+文档版本：1.5 · 更新日期：2026-11-18
 
 独立 SwiftPM 消费者，仅依赖公开 `SwiftLang` 产品。要求 macOS 13+ 与 Swift 6 工具链。
 
@@ -38,7 +38,7 @@ for chunk in 24 128; do
 done
 ```
 
-61 节点对照使用 `--rows 60 --warmup 2 --iterations 30 --stream-iterations 3`，同样分别使用 24/128 units。CI 使用 200 rows 和这两种分片宽度，增加预热及重复次数；结果要注明不同样本量，不与客户端单次测量混合统计。`StreamingPublicationTests` 另验证每次普通 push 的一次 root 通知、即时文字和仅闭合符号时的 readiness 更新；测试执行仍以原生运行日志为准。
+较小规模对照使用 `--rows 60 --warmup 2 --iterations 30 --stream-iterations 3`，同样分别使用 24/128 units。CI 使用 200 rows 和这两种分片宽度，增加预热及重复次数；结果要注明不同样本量，不与客户端单次测量混合统计。`StreamingPublicationTests` 另验证每次普通 push 的一次 root 通知、即时文字和仅闭合符号时的 readiness 更新；测试执行仍以原生运行日志为准。
 
 宽对象工作负载构造包含 10,000 个不同字段及一次重复写入的 `OpenUIObject`，检查原始位置与最后写入值，并记录构造耗时。它覆盖工具/状态对象在 JS 求值预算之外的原生字段整理成本，测量次数沿用 `--stream-iterations`。
 

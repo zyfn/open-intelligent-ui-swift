@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.33 · 更新日期：2026-11-18
+文档版本：1.34 · 更新日期：2026-11-18
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -153,9 +153,38 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 调用栈计数把 1,011 次 `Object.values` 中的 606 次定位到原生 readiness 的 Query 依赖收集。入口原本会跳过已完成、无引用的语法，但递归通过符号访问同样语法时没有复用该事实。修复仅在内部递归复用已有 `closedLocalDepth`；同一对照的该项枚举由 606 次降至 6 次，总枚举由 1,011 次降至 411 次。解析结果、诊断和 presentation 相同，元素与字面容器仍按原语义创建；没有缓存业务值或增加状态所有者。
 
-新增实际遍历回归在原 bundle 上失败、正式重建后的候选通过；本地随包核心 173 项、Validation 与目录兼容合计 13 项通过，固定官方独立对照无未解释差异。原生耗时、完整 Swift 回归与客户端滚动仍须分别验证，不能把枚举数量下降换算为帧率收益。执行材料保存在忽略的 `outputs/runtime-cost-followup/`。
+新增实际遍历回归在原 bundle 上失败、正式重建后的候选通过；本地随包核心 173 项、Validation 与目录兼容合计 13 项通过，固定官方独立对照无未解释差异。原生耗时对照见下文，不能把枚举数量下降换算为帧率收益。执行材料保存在忽略的 `outputs/runtime-cost-followup/`。
+
+本节的 SDK 源码候选 [`e11f23b`](https://github.com/zyfn/open-intelligent-ui-swift/commit/e11f23bfc335c6f07b30f159b875f62b3d9a5d3b) 已通过 [CI 44240941058](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44240941058) 的全部任务及最终验收：完整原生套件 1,251 项、OpenUI Debug / Release 各 356 项、Release fitting 5 项、SwiftLang ASan 451 项均零失败；这些组有重叠，不累加计数。iOS 16 Simulator 产品与 Gallery 构建、三个独立消费者、Gallery 测试与 fixtures、历史组件契约、资源重建、安全检查及两种分片的 Release 基准均通过。原始验收材料位于 `outputs/runtime-cost-followup/ci-44240941058/`；这不替代实际客户端滚动、真机或泄漏验收。
 
 现有 LanguageRuntime 基准增加单次 push 外层 signpost，以 iteration / chunk 关联运行时区间，并分别记录两组负载的元素数。`--rows 200` 的流式末态实际为 202 个元素；此前顶层 `components=201` 属于另一组语言负载，不能直接套用于流式输入。源码、分片和完成断言不变。采样开关与诊断开销的解释见 [基准说明](../Benchmarks/LanguageRuntime/README.md)。
+
+#### 同机对照与阶段证据
+
+[诊断执行 44241757025](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44241757025) 在同一 macOS 15.8.2 / Xcode 26.3 runner 比较 main `807d016` 与源码候选 `e11f23b`。两者使用同一份候选基准和 Swift 源码，只切换核心 bundle 与 manifest；每次重建后核对实际复制的资源哈希。执行两轮“基线 → 候选 → 候选 → 基线”，每个版本、每种分片得到 4 份报告，每份测量 3 条流；均使用 `--rows 200 --warmup 1 --iterations 1`。所有报告的 `pushSignpostsEnabled` 都为 true；材料中的 `uninstrumented` 仅表示未额外启用 Time Profiler 或阶段缓冲记录，不能解释为完全没有诊断开销。
+
+| UTF-16 分片宽度 | 基线单次 push p95 范围 | 候选单次 push p95 范围 |
+| --- | ---: | ---: |
+| 24 | 31.88–38.10 ms | 26.30–35.43 ms |
+| 128 | 34.64–43.93 ms | 24.60–31.59 ms |
+
+范围由各组 4 份报告的 p95 构成，不是合并样本后的 p95。128 单位组在本次执行中方向一致；24 单位组有重叠和波动，候选最大单次 push 仍为 111.99 ms。数据支持保留这处减少重复遍历的修复，不支持统一提速百分比、长尾消失或 Muse 滚动改善的结论。
+
+同一诊断执行另运行两次阶段记录，均使用候选 `e11f23b`：只在临时 checkout 内为现有运行时区间加入标量缓冲和外层 push 区间，退出时一次写出，补丁随 artifact 保留，不进入 SDK。每次排除 452 次预热，分析 904 次测量 push；按同线程包含关系构造区间树，以父区间减去直接子区间的并集求独占时间，检查无交叉及总量守恒。下表是各阶段独占时间占全部测量 push 总时间的比例：
+
+| 阶段 | 记录 1 | 记录 2 |
+| --- | ---: | ---: |
+| Parse | 71.44% | 68.97% |
+| Native projection | 19.06% | 20.70% |
+| Parse projection | 3.05% | 3.47% |
+| Live index | 2.55% | 2.67% |
+| Root evaluation | 0.284% | 0.281% |
+
+其余为桥接自身、提交、上下文和区间外工作，不能再把包含上述阶段的 `Bridge operation` 总时长相加。两次最慢 push 分别为 165.13 / 69.19 ms，其中 Parse 为 154.01 / 60.61 ms；另一次较慢调用的 Native projection 也占明显份额。阶段记录有额外开销，绝对值不与上面的普通对照直接比较。Parse 包含官方解析/物化及本库适配，不能称为“官方词法耗时”；Root evaluation 的低占比只适用于本次稳定字面值负载，不代表 Query、动态表达式或表单更新的成本。
+
+同次捕获的 Time Profiler 已通过[只读导出执行 44243615962](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44243615962) 取得实际 `time-profile` 数据。16,136 个采样的 XML 引用均可解析，权重均为 1 ms；它包含预热，与阶段统计的样本范围不同。主线程可识别的 `OpenUIState.push` 栈共 13,554 ms 采样权重，其中带 `CoreStreamParser` 的为 9,504 ms，带 `SharedCore.decode` 的为 2,993 ms，两组不重叠。解析栈内可见分配慢路径与 `JSC::Heap::collectInMutatorThread()`；后者为 2,444 ms 采样权重。分配慢路径包含其触发的 GC，二者不能相加，也不能将采样权重写成精确函数耗时。投影栈可见 `JSContext` / `JSWrapperMap` 包装和逐项 `JSValue` 读取。
+
+这些证据把后续工作缩到解析阶段的临时对象构造及原生投影的桥接访问，但没有足够 JS 源码符号把成本进一步分到官方物化、readiness 或预算逻辑。原生投影可从 [SharedCore](../Sources/SwiftLang/Language/SharedCore.swift) 中 `entries` 每个字段的两次 `atIndex`，以及 `items` 的逐项读取开始测量；JS 已批量整理字段，单次投影也已按 JS 身份与呈现 scope 复用结果，不能再把这些机制描述为缺失，或按相同显示文字跨轮缓存业务值。GC 所回收的对象也不一定都在该阶段分配；本次未取得分配字节、对象持有链或与阶段记录中单次长调用的精确关联，不能据此诊断泄漏或声称 GC 解释某一次停顿。材料在 `outputs/runtime-cost-followup/ci-44241757025/` 与 `ci-44243615962/`；真实客户端完成文档的滚动和同进程内存复测仍未验收。
 
 ### 完成长文档的滚动与布局
 
