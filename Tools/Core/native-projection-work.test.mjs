@@ -24,8 +24,42 @@ function runtime() {
   });
   vm.runInContext(script, realm, { timeout: 5000 });
   const bridge = realm.SwiftCore;
-  return { bridge, library: bridge.library(schema, {}) };
+  return { bridge, library: bridge.library(schema, {}), realm };
 }
+
+test('a changing tail does not rescan settled literal descendants for query dependencies', () => {
+  const { bridge, realm } = runtime();
+  const names = Array.from({ length: 200 }, (_, i) => 'row' + i);
+  const parser = bridge.api.createStreamingParser(schema);
+  let previous = parser.push(['root=Stack([' + [...names, 'tail'].join(',') + '])',
+    ...names.map((name, i) => `${name}=Box({title:"settled literal ${i}",items:[1,2,3]})`),
+    'tail=Text("'].join('\n'));
+  // Count actual AST-child enumeration after the declarations have settled.
+  // This observes traversal work without depending on WeakMap internals or a
+  // machine-specific timing threshold.
+  vm.runInContext(`
+    globalThis.settledLiteralVisits = 0;
+    const originalValues = Object.values;
+    Object.values = value => {
+      if (value?.k === 'Str' && value.v.startsWith('settled literal ')) settledLiteralVisits++;
+      return originalValues(value);
+    };
+  `, realm);
+  for (const chunk of ['streaming ', 'text ', 'continues', '")']) {
+    realm.settledLiteralVisits = 0;
+    const result = parser.push(chunk);
+    assert.equal(bridge.nativeBudgetExceeded(result), false);
+    assert.equal(result.meta.errors.length, 0);
+    assert.equal(realm.settledLiteralVisits, 0, 'settled literal syntax has no query dependencies to rediscover');
+    assert.equal(result.root.props.children.length, 201);
+    const before = previous.root.props.children[0], after = result.root.props.children[0];
+    assert.notEqual(after, before, 'materialization still creates fresh elements');
+    assert.notEqual(after.props.value, before.props.value, 'materialization still creates fresh literal containers');
+    assert.deepEqual(plain(after.props.value), { title: 'settled literal 0', items: [1, 2, 3] });
+    previous = result;
+  }
+  assert.equal(previous.root.props.children.at(-1).props.value, 'streaming text continues');
+});
 
 for (const width of [24, 128]) {
   test(`201 stable declarations share settled metadata through ${width}-unit chunks`, () => {

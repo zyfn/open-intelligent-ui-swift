@@ -307,6 +307,9 @@ function queryDependencies(node: any, ctx: any, scope: ReadonlySet<string> = emp
   const visited = new Set<any>();
   const collect = (n: any, local: ReadonlySet<string>, depth = 0) => {
     if (!n || typeof n !== 'object' || depth > 256 || visited.has(n) || visited.size >= 100000) return;
+    // References can lead to completed, reference-free syntax too. Reuse the
+    // same closure fact as the entry point without caching materialized values.
+    if (closedLocalDepth.has(n)) return;
     visited.add(n);
     if (n.k === 'RuntimeRef') { if (n.refType === 'query') queries.add(n.n); return; }
     if (n.k === 'Ref' && !local.has(n.n)) {

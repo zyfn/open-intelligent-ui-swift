@@ -1,6 +1,6 @@
 # Language runtime benchmark
 
-文档版本：1.3 · 更新日期：2026-11-17
+文档版本：1.4 · 更新日期：2026-11-18
 
 独立 SwiftPM 消费者，仅依赖公开 `SwiftLang` 产品。要求 macOS 13+ 与 Swift 6 工具链。
 
@@ -22,9 +22,13 @@ runner 使用 Release 构建，将结果写入 `outputs/benchmarks/language-runt
 
 `streaming.slowestPushes` 保留最慢的 10 次 push 及其零起始 iteration、chunk 和累计 UTF-16 输入位置。这些位置在全部测量之后从原始 samples 推导，不在计时循环内额外采样。比较时同时报告 p95 与最大值；较好的 p95 不能替代对 80–100ms 单次调用的检查。
 
+两组负载的节点数分别记录：顶层 `components` 属于语言工作负载，`streaming.components` 根据流式末态的实际子元素与根容器计数。`--rows 200` 对应 200 个稳定文本、一个变化尾部和一个根容器，流式共 202 个元素；原始输入不变，不把顶层的 201 当作流式总数或实际 SwiftUI 视图数。
+
+基准的 `org.openui.benchmarks` / `LanguageRuntime` signpost 为每次 `Public push` 关联 iteration 与 chunk；负 iteration 是预热，非负值与 `slowestPushes` 一致。`streaming.pushSignpostsEnabled` 记录这组外层区间是否启用。单次计时排除外层区间的开始与结束，但采样、内部区间及整流计时仍有诊断开销；trace 用于归因，耗时前后对照使用相同条件下的不采样运行。
+
 需定位长调用时，在 Instruments 的 signpost 记录中筛选 subsystem `org.openui.swiftlang`、category `Runtime`。区间区分 `Parse`、`Parse projection`、`Evaluation context`、`Root evaluation`、`Native projection`、`Live index`、`Presentation commit` 和 `Bridge operation`；最后一项包含该次外层桥接的临时对象释放，不含进入串行锁之前的等待。桥接身份改为随原生值释放后，旧的周期全表扫描及 `Bridge cleanup` 区间已删除；在外层桥接之外发生的对象释放不属于 `Bridge operation`。多个区间会嵌套，不能将时长相加当独占成本或当整次 push 耗时。重入区间使用独立 ID；未启用记录时直接执行原操作，不输出源码或工具数据。这些区间帮助定位成本，不代表已经取得新版本设备 trace，也不能单凭调用位置把长尾归因于 GC。
 
-复测客户端 `c7310054` 报告中的 201 节点场景时，在新旧提交各自独立的目录运行同一组参数，并保留报告中的源码、工具链和提交身份：
+复测客户端 `c7310054` 报告所用的 `--rows 200` 参数时，在新旧提交各自独立的目录运行同一组参数，并保留报告中的源码、工具链和提交身份；节点数按上面的各负载口径解释：
 
 ```sh
 for chunk in 24 128; do

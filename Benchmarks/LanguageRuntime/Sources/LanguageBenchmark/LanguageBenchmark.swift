@@ -3,6 +3,7 @@ import Dispatch
 import Foundation
 import Combine
 import SwiftLang
+import os
 
 private enum BenchmarkError: Error {
     case usage(String)
@@ -128,17 +129,23 @@ private func residentBytes() -> UInt64? {
             String(decoding: wire[$0..<min(wire.count, $0 + options.chunkUnits)], as: UTF8.self)
         }
         var pushSamples: [Double] = [], completionSamples: [Double] = [], streamSamples: [Double] = []
-        var parseCallbacks = 0, publications = 0
-        @MainActor func streamIteration(record: Bool) throws {
+        var parseCallbacks = 0, publications = 0, streamingComponents = 0
+        let signposter = OSSignposter(subsystem: "org.openui.benchmarks", category: "LanguageRuntime")
+        let pushSignpostsEnabled = signposter.isEnabled
+        @MainActor func streamIteration(record: Bool, iteration: Int) throws {
             let state = OpenUIState(schema: schema)
             state.onParseResult = { _ in if record { parseCallbacks += 1 } }
             let subscription = state.objectWillChange.sink { if record { publications += 1 } }
             defer { subscription.cancel() }
             let started = DispatchTime.now().uptimeNanoseconds
-            for chunk in chunks {
+            for (chunkIndex, chunk) in chunks.enumerated() {
+                let interval = pushSignpostsEnabled ? signposter.beginInterval("Public push",
+                    id: signposter.makeSignpostID(), "iteration=\(iteration) chunk=\(chunkIndex)") : nil
                 let start = DispatchTime.now().uptimeNanoseconds
                 state.push(chunk)
-                if record { pushSamples.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000) }
+                let elapsed = DispatchTime.now().uptimeNanoseconds - start
+                if let interval { signposter.endInterval("Public push", interval) }
+                if record { pushSamples.append(Double(elapsed) / 1_000_000) }
             }
             let completionStart = DispatchTime.now().uptimeNanoseconds
             state.complete()
@@ -151,13 +158,14 @@ private func residentBytes() -> UInt64? {
                   PropValue.string(PropValue.children(root).last!, "value") == String(repeating: "streaming text ", count: 128) else {
                 throw BenchmarkError.invalidProgram("Streaming lost a completed sibling or its final tail")
             }
+            streamingComponents = PropValue.children(root).count + 1
             if record {
                 completionSamples.append(Double(completed - completionStart) / 1_000_000)
                 streamSamples.append(Double(completed - started) / 1_000_000)
             }
         }
-        for _ in 0..<min(options.warmup, 3) { try autoreleasepool { try streamIteration(record: false) } }
-        for _ in 0..<options.streamIterations { try autoreleasepool { try streamIteration(record: true) } }
+        for index in 0..<min(options.warmup, 3) { try autoreleasepool { try streamIteration(record: false, iteration: -index - 1) } }
+        for index in 0..<options.streamIterations { try autoreleasepool { try streamIteration(record: true, iteration: index) } }
         // Tool responses can be wide without being deeply nested. Measure the
         // native ordered-object construction that happens outside the JS work
         // counter; a small final UI must not conceal quadratic input work.
@@ -204,6 +212,8 @@ private func residentBytes() -> UInt64? {
             "maxMilliseconds": timings.last!, "residentSamples": memory,
             "streaming": [
                 "workload": "public OpenUIState.push with stable siblings and a changing text tail, then complete",
+                "components": streamingComponents, "stableTextComponents": options.rows,
+                "pushSignpostsEnabled": pushSignpostsEnabled,
                 "iterations": options.streamIterations, "chunkUTF16Units": options.chunkUnits,
                 "chunksPerIteration": chunks.count, "sourceUTF16Units": streamingSource.utf16.count,
                 "push": statistics(pushSamples), "complete": statistics(completionSamples),

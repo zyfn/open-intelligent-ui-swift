@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.32 · 更新日期：2026-11-18
+文档版本：1.33 · 更新日期：2026-11-18
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -143,7 +143,19 @@ serializer 修复后的程序须由未修改的官方 parser 接受，并保留�
 
 源码所有权检查和当前随包 JS 的 172 项回归在本地通过；本地没有 Apple/Swift 编译环境，新增原生用例、完整 XCTest、Release fitting 与 iOS 编译的实际状态以该候选 CI 为准。现有 Debug/Release 子集加入 facade 与 Intelligent UI 挂载用例，没有另建测试流水线。执行证据在忽略的 `outputs/sdk-runtime-performance-review/`。
 
+最终候选 `807d0161f3e3bdf61e8360274ae22c8e6a7562a9` 已通过 [CI 44156376266](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44156376266)，随后按原提交 fast-forward 合入 main。完整原生套件 1,251 项、OpenUI Debug / Release 各 356 项、Release fitting 5 项、SwiftLang ASan 451 项均零失败；这些组有重叠，不累加计数。iOS 16 Simulator 产品与 Gallery 构建、三个独立产品消费者及资源重建门禁通过。该版本的 Release 公开流式基准中，`--rows 200` 的 24 / 128 单位分片单次 push p95 分别为 33.89 / 31.58 ms，最大为 101.12 / 65.44 ms；它没有挂载 SwiftUI，不能据这些数字判断完成文档的滚动，也不能把全部通过等同于设备性能验收。
+
 整体审查没有发现滚动/尺寸拟合主动重建 State 或提交源码的路径；已有完整呈现提交、节点比较与弱订阅不能再当作待实现功能。真实 push、字段和 Query 更新仍可能整 root 求值/投影、索引并检查全部挂载订阅；当前没有设备 trace 可以把它们认定为已完成文档滚动的根因。引用弹窗等待 Markdown 引擎共享锁、行内 Markdown 图片的解码复用，以及远程 SVG 的首次重复解析保留为可定位的测量入口，不据代码出现位置宣称它们解释整次卡顿。仍需相同 App 输入与设备的滚动前后对照，以及同进程进入/离开时的对象持有链；本轮不宣称解决所有卡顿、证明无泄漏或提供长文档分段回收。
+
+### 变化尾部的查询依赖遍历
+
+从 `807d016` 继续对照 200 个稳定文本、一个变化尾部和根容器。先让声明完整，再追加 24 个单位；Node VM 的操作计数显示 parser 仍重新物化稳定行，而 `boundedRoot` 直接使用本轮静态结果，求值 work 为 1。这是工作量与对象身份的证据，不是 Apple 各阶段耗时。公开基准没有挂载组件，因此这组长调用也不能归因于数百个 SwiftUI 订阅或布局。
+
+调用栈计数把 1,011 次 `Object.values` 中的 606 次定位到原生 readiness 的 Query 依赖收集。入口原本会跳过已完成、无引用的语法，但递归通过符号访问同样语法时没有复用该事实。修复仅在内部递归复用已有 `closedLocalDepth`；同一对照的该项枚举由 606 次降至 6 次，总枚举由 1,011 次降至 411 次。解析结果、诊断和 presentation 相同，元素与字面容器仍按原语义创建；没有缓存业务值或增加状态所有者。
+
+新增实际遍历回归在原 bundle 上失败、正式重建后的候选通过；本地随包核心 173 项、Validation 与目录兼容合计 13 项通过，固定官方独立对照无未解释差异。原生耗时、完整 Swift 回归与客户端滚动仍须分别验证，不能把枚举数量下降换算为帧率收益。执行材料保存在忽略的 `outputs/runtime-cost-followup/`。
+
+现有 LanguageRuntime 基准增加单次 push 外层 signpost，以 iteration / chunk 关联运行时区间，并分别记录两组负载的元素数。`--rows 200` 的流式末态实际为 202 个元素；此前顶层 `components=201` 属于另一组语言负载，不能直接套用于流式输入。源码、分片和完成断言不变。采样开关与诊断开销的解释见 [基准说明](../Benchmarks/LanguageRuntime/README.md)。
 
 ### 完成长文档的滚动与布局
 

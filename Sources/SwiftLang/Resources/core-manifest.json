@@ -16,10 +16,10 @@
       "reason": "Preserve established anyOf union spelling, nesting and key order; Zod parsing, validation and collection security limits are unchanged."
     }
   ],
-  "sha256": "cff0c3f3dd7009ef0f779e1e16b1fb510087c79ff2dedc8f081987fc35cd2a49",
-  "bytes": 867563,
+  "sha256": "f92baf80aec760ea3ff6213870a33d7330f2051a0dddc510c93260f3ca6d605f",
+  "bytes": 867575,
   "lockSha256": "d46265bd89d52455c3a348541036df59a519160e2db817dfcc6937a7b2ddc9e7",
-  "adapterSha256": "9c661a07f9d990cca3410e7078b00c29271c48a1e2ea3ca9dd475a43c7ad5b87",
+  "adapterSha256": "4329a7dc19d710ccc9163bd3824359f345a938fa6559fa1e5bc57f356b13a450",
   "telemetry": "excluded at build time: native host has no process, fetch or install telemetry",
   "bridge": "opaque captures resolve through upstream EvaluationContext.resolveRef; core-created ActionPlan objects retain provenance; host-authored plans execute at the native boundary",
   "authoring": {
@@ -170,8 +170,8 @@
         "Sources/SwiftLang/Language/ValueConversion.swift"
       ],
       "reason": "Distinguish structural closure, committed data boundaries, local query ownership and interaction readiness in an evaluation-scoped snapshot without mutating shared native values",
-      "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Each descendant constraints travel with that output occurrence through core prop-array copies; native projection memoizes by value identity and scope, so unrelated occurrences of a shared native graph remain independent without cloning Lang values. Dependency-free open/closed presentation descriptions are frozen shared metadata, recognized directly by the Swift bridge; query, occurrence, placeholder and structural metadata remain distinct. Completed parser ASTs with closed, reference-free syntax retain only their context-independent closure/depth fact in a weak map; no Lang value, diagnostic, default or function result is cached and alias depth remains checked",
-      "verification": "Strict intermediate snapshots, independent document and synchronous nested-evaluation scopes, same-evaluation shared-graph sibling/Each/query isolation, immutable native projections with preserved JS identity and opaque action captures, bounded scope memoization and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests, frozen presentation defaults and exact stable-sibling description counts",
+      "observable": "Existing syntax marks remain private; per-property/index boundaries and query dependencies live outside protocol values and serialized ASTs. Parser/native baselines are separate from evaluation snapshots; old native projections remain immutable while SameValue and reverse encoding retain JS identity. Each descendant constraints travel with that output occurrence through core prop-array copies; native projection memoizes by value identity and scope, so unrelated occurrences of a shared native graph remain independent without cloning Lang values. Dependency-free open/closed presentation descriptions are frozen shared metadata, recognized directly by the Swift bridge; query, occurrence, placeholder and structural metadata remain distinct. Completed parser ASTs with closed, reference-free syntax retain only their context-independent closure/depth fact in a weak map; no Lang value, diagnostic, default or function result is cached and alias depth remains checked. Recursive query discovery reuses the same reference-free closure fact after following a symbol reference; materialized values retain fresh identity",
+      "verification": "Strict intermediate snapshots, independent document and synchronous nested-evaluation scopes, same-evaluation shared-graph sibling/Each/query isolation, immutable native projections with preserved JS identity and opaque action captures, bounded scope memoization and preserved output-budget rejection, native alias readiness regressions, source-tail boundary tests, staged chart/table and complete-control/incomplete-action UI tests, frozen presentation defaults and exact stable-sibling description counts, zero settled-literal descendant enumeration during changing-tail query discovery with fresh element/container identities",
       "removal": "Upstream exposes equivalent source/dependency provenance; injection is explicitly retained until then"
     },
     {
