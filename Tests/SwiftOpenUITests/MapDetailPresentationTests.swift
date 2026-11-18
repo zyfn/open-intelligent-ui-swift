@@ -6,6 +6,32 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class MapDetailPresentationTests: XCTestCase {
+  @MainActor func testMountedMapRequestsACommittedPhotoWhileOtherPlacesAreStreaming() async throws {
+    guard #available(macOS 14, *) else { throw XCTSkip("Native Map requires macOS 14") }
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.push("root=Stack([trip])\ntrip=Map([a,b])\na=MapPoint(\"A\",30,120,\"https://map.test/pho")
+    let photo = expectation(description: "First photo requested before the first description or the second place is complete")
+    let loader = MapDetailImageLoader { if $0 == "/photo.jpg" { photo.fulfill() } }
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .openUIResourceContext(.init(loader: loader)).frame(width: 350, height: 360))
+    let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 350, height: 360),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    window.orderFront(nil)
+    defer { window.close() }
+    host.layoutSubtreeIfNeeded()
+    try await Task.sleep(nanoseconds: 200_000_000)
+    XCTAssertTrue(loader.paths.isEmpty, "An unfinished image URL must never be requested")
+    state.push("to.jpg\",null,\"Still arriving")
+    await fulfillment(of: [photo], timeout: 3)
+    XCTAssertEqual(loader.paths, ["/photo.jpg"])
+    XCTAssertFalse(state.isComplete)
+    state.interrupt()
+  }
+
   @MainActor func testSelectionBindingControlsCardsAndUnboundMapShowsFirstPlace() async throws {
     guard #available(macOS 14, *) else { throw XCTSkip("Native Map requires macOS 14") }
     _ = NSApplication.shared

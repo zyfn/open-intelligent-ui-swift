@@ -1,6 +1,11 @@
 import SwiftLang
 import SwiftUI
 
+/// Coordinate reference system for OpenUI map points.
+public enum OpenUIMapCoordinateSystem: String, Sendable {
+    case wgs84, gcj02
+}
+
 /// Native presentation policy. These values are not OpenUI Lang parameters or React theme tokens.
 public struct OpenUIPresentation {
     static let defaults = OpenUIPresentation()
@@ -19,6 +24,9 @@ public struct OpenUIPresentation {
     var minimumInlineThumbnailSize: CGFloat = 64
     public var minimumTextColumnWidth: CGFloat = 160
     public var coverAspectRatio: CGFloat = 16 / 9
+    /// Optional target for a host with a known basemap coordinate system.
+    /// Without an override, Map draws the supplied coordinates as-is.
+    public var mapBasemapCRS: OpenUIMapCoordinateSystem? = nil
     public var maximumCarouselCardWidth: CGFloat = 320
     public var carouselPeek: CGFloat = 32
     public var borderWidth: CGFloat = 1

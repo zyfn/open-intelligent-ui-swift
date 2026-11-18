@@ -47,14 +47,25 @@ private struct NativeMapPlaceholder: View {
 /// Presentation identity is derived locally; the model supplies no ids or groups.
 struct NativeMapPlace: Identifiable {
     let id: String
+    let number: Int
     let title: String
     let image: String?
+    let imageSourceReady: Bool
     let url: String?
     let description: String?
     let coordinate: CLLocationCoordinate2D
 
-    static func decode(_ values: Value?, crs: String) -> [Self] {
-        guard ["wgs84", "gcj02"].contains(crs) else { return [] }
+    static func decode(_ context: OpenUIComponentContext) -> [Self] {
+        let target = context.presentation.mapBasemapCRS
+        guard target == nil || context.element.sourceReadiness["crs"].complete else { return [] }
+        return decode(context.value("points"),
+                      crs: context.presentationString("crs") ?? OpenUIMapCoordinateSystem.gcj02.rawValue,
+                      target: target)
+    }
+
+    static func decode(_ values: Value?, crs: String, target: OpenUIMapCoordinateSystem? = nil) -> [Self] {
+        guard let source = OpenUIMapCoordinateSystem(rawValue: crs) else { return [] }
+        let displayCRS = target ?? source
         var seen = Set<String>()
         return NativeValue.array(values).compactMap { value in
             guard case .element(let element) = value, element.typeName == "MapPoint",
@@ -68,25 +79,53 @@ struct NativeMapPlace: Identifiable {
             let id = declaredID.flatMap { $0.isEmpty ? nil : $0 }
                 ?? "\(title.utf8.count):\(title):\(lat.bitPattern):\(lng.bitPattern)"
             guard seen.insert(id).inserted else { return nil }
-            return Self(id: id, title: title, image: element.isSourceComplete ? PropValue.string(element, "imageSrc") : nil,
+            let imageSourceReady = element.sourceReadiness["imageSrc"].complete
+            return Self(id: id, number: seen.count, title: title,
+                        image: imageSourceReady ? PropValue.string(element, "imageSrc") : nil,
+                        imageSourceReady: imageSourceReady,
                         url: element.isSourceComplete ? PropValue.string(element, "url") : nil,
                         description: PropValue.string(element, "description"),
-                        coordinate: NativeMapCoordinates.wgs84(latitude: lat, longitude: lng, source: crs))
+                        coordinate: NativeMapCoordinates.convert(latitude: lat, longitude: lng, from: source, to: displayCRS))
         }
     }
 
 }
 
+/// A mounted map reuses its ordered places for the same immutable input.
+/// A change of target CRS also invalidates the derived coordinates.
+final class NativeMapPlaceCache {
+    private var last: (element: EvaluatedElement, target: OpenUIMapCoordinateSystem?, places: [NativeMapPlace])?
+
+    func places(for context: OpenUIComponentContext) -> [NativeMapPlace] {
+        let target = context.presentation.mapBasemapCRS
+        if let last, last.element === context.element, last.target == target { return last.places }
+        let places = NativeMapPlace.decode(context)
+        last = (context.element, target, places)
+        return places
+    }
+}
+
 @available(iOS 17, macOS 14, *)
 private struct NativeMap: View {
     let context: OpenUIComponentContext
+    @State private var prepared = NativeMapPlaceCache()
+
+    var body: some View {
+        NativeMapView(context: context, places: prepared.places(for: context))
+    }
+}
+
+@available(iOS 17, macOS 14, *)
+private struct NativeMapView: View {
+    let context: OpenUIComponentContext
+    let places: [NativeMapPlace]
     @State private var localSelection: String?
     @State private var hasUserSelection = false
     @State private var camera: MapCameraPosition = .automatic
     @State private var fullscreenCamera: MapCameraPosition = .automatic
     @State private var expanded = false
     @State private var expandedSourceRevision: Int?
-    @ScaledMetric(relativeTo: NativeTextRole.label.textStyle) private var titleScale: CGFloat = 1
+    @ScaledMetric(relativeTo: NativeTextRole.title.textStyle) private var titleScale: CGFloat = 1
     @ScaledMetric(relativeTo: NativeTextRole.caption.textStyle) private var captionScale: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openUIResourceContext) private var resources
@@ -94,19 +133,12 @@ private struct NativeMap: View {
     private var surfaceColor: Color {
         context.theme.foreground
     }
-    private var places: [NativeMapPlace] {
-        guard context.element.sourceReadiness["crs"].complete else { return [] }
-        return NativeMapPlace.decode(context.value("points"), crs: context.string("crs") ?? "wgs84")
-    }
-    private var selectedID: String? {
+    private var selectedPlace: NativeMapPlace? {
         if let binding = context.presentationBinding("value") {
             guard case .string(let value) = binding.wrappedValue else { return nil }
-            return places.first { OpenUIString($0.id) == value }?.id
+            return places.first { OpenUIString($0.id) == value }
         }
-        return places.first(where: { $0.id == localSelection })?.id ?? places.first?.id
-    }
-    private func number(_ place: NativeMapPlace) -> Int {
-        (places.firstIndex { $0.id == place.id } ?? 0) + 1
+        return places.first(where: { $0.id == localSelection }) ?? places.first
     }
     private func select(_ id: String) {
         guard context.canInteract, let place = places.first(where: { $0.id == id }) else { return }
@@ -127,9 +159,8 @@ private struct NativeMap: View {
             latitudinalMeters: 1600, longitudinalMeters: 1600))
         camera = position; fullscreenCamera = position
     }
-    private var selectedIndex: Int? { places.firstIndex { $0.id == selectedID } }
     private func moveSelection(_ offset: Int) {
-        let index = (selectedIndex ?? -1) + offset
+        let index = (selectedPlace?.number ?? 0) - 1 + offset
         guard places.indices.contains(index) else { return }
         select(places[index].id)
     }
@@ -145,8 +176,13 @@ private struct NativeMap: View {
             focus(place)
         } else { camera = .automatic; fullscreenCamera = .automatic }
     }
+    private var placeTitleStyle: NativeTextStyle {
+        let theme = context.theme
+        return .init(font: theme.textBodyDefaultHeavy, color: theme.textNeutralPrimary,
+                     role: .title, emphasisWeight: theme.textBodyDefaultHeavy.weight)
+    }
     private var textBlockHeight: CGFloat {
-        context.theme.textStyle(.fieldLabel).font.measuredLineHeight(scale: titleScale) * 2
+        placeTitleStyle.font.measuredLineHeight(scale: titleScale) * 2
             + context.theme.componentStyle.titleDetailGap
             + context.theme.textStyle(.caption).font.measuredLineHeight(scale: captionScale)
     }
@@ -180,7 +216,7 @@ private struct NativeMap: View {
                     .accessibilityIdentifier("openui.map.empty")
             }
         }
-        .onChange(of: selectedID, initial: true) { _, id in
+        .onChange(of: selectedPlace?.id, initial: true) { _, id in
             guard context.presentationBinding("value") != nil else { return }
             if let place = places.first(where: { $0.id == id }) { focus(place) }
             else { fitPlaces() }
@@ -191,7 +227,7 @@ private struct NativeMap: View {
                 hasUserSelection = false
             }
             if context.presentationBinding("value") != nil {
-                if selectedID == nil { fitPlaces() }
+                if selectedPlace == nil { fitPlaces() }
             } else if !hasUserSelection {
                 fitPlaces()
             }
@@ -202,11 +238,11 @@ private struct NativeMap: View {
             expanded = false
             expandedSourceRevision = nil
             if context.presentationBinding("value") != nil,
-               let place = places.first(where: { $0.id == selectedID }) { focus(place) }
+               let place = selectedPlace { focus(place) }
             else { fitPlaces() }
         }
     }
-    private var pointMenu: some View {
+    private func pointMenu(selectedID: String?) -> some View {
         Menu {
             Button { fitPlaces() } label: {
                 Label { Text("Show all places", bundle: NativeControlResources.bundle) } icon: { Image(systemName: "scope") }
@@ -214,8 +250,8 @@ private struct NativeMap: View {
             ForEach(places) { place in
                 Button { select(place.id) } label: {
                     if selectedID == place.id {
-                        Label("\(number(place)). \(place.title)", systemImage: "checkmark")
-                    } else { Text("\(number(place)). \(place.title)") }
+                        Label("\(place.number). \(place.title)", systemImage: "checkmark")
+                    } else { Text("\(place.number). \(place.title)") }
                 }
             }
         } label: {
@@ -249,20 +285,21 @@ private struct NativeMap: View {
         }
         .buttonStyle(.plain).accessibilityLabel(Text(title, bundle: NativeControlResources.bundle))
     }
-    private func controls(fullscreen: Bool) -> some View {
-        HStack(spacing: 8) {
+    private func controls(fullscreen: Bool, selection: NativeMapPlace?) -> some View {
+        let selectedNumber = selection?.number ?? 0
+        return HStack(spacing: 8) {
             if fullscreen {
                 mapButton("Close map", icon: "xmark") { expanded = false }
                 Spacer(minLength: 0)
                 capsuleGroup {
-                    groupButton("Previous place", icon: "arrow.left", disabled: (selectedIndex ?? 0) == 0 || !context.canInteract) { moveSelection(-1) }
-                    groupButton("Next place", icon: "arrow.right", disabled: (selectedIndex ?? -1) >= places.count - 1 || !context.canInteract) { moveSelection(1) }
+                    groupButton("Previous place", icon: "arrow.left", disabled: selectedNumber <= 1 || !context.canInteract) { moveSelection(-1) }
+                    groupButton("Next place", icon: "arrow.right", disabled: selectedNumber >= places.count || !context.canInteract) { moveSelection(1) }
                 }
                 capsuleGroup {
-                    groupButton("Recenter on selection", icon: "location", disabled: selectedID == nil || !context.canInteract) {
-                        if let selectedID { select(selectedID) }
+                    groupButton("Recenter on selection", icon: "location", disabled: selection == nil || !context.canInteract) {
+                        if let selection { select(selection.id) }
                     }
-                    pointMenu
+                    pointMenu(selectedID: selection?.id)
                 }
             } else {
                 Spacer(minLength: 8)
@@ -273,32 +310,44 @@ private struct NativeMap: View {
             }
         }.padding(.horizontal, 14).padding(.top, 14)
     }
-    private func marker(_ place: NativeMapPlace) -> some View {
-        let selected = selectedID == place.id
+    private func marker(_ place: NativeMapPlace, selected: Bool) -> some View {
+        let width: CGFloat = selected ? 36 : 29
+        let height = width * 228 / 200
+        let ink = selected ? Color.black : Color.white
+        let pin = NativeMapPinShape()
         return Button { select(place.id) } label: {
-            Text("\(number(place))").font(.subheadline.weight(.semibold)).monospacedDigit()
-                .foregroundStyle(selected ? surfaceColor : .primary)
-                .frame(width: selected ? 38 : 32, height: selected ? 38 : 32)
-                .background(selected ? Color.primary : surfaceColor, in: Circle())
-                .overlay(Circle().stroke(surfaceColor.opacity(0.9), lineWidth: selected ? 2 : 1))
-                .shadow(color: .black.opacity(selected ? 0.22 : 0.12), radius: 5, y: 2)
-                .frame(width: 44, height: 44).contentShape(Rectangle())
+            ZStack(alignment: .top) {
+                pin.fill(selected ? Color.white : Color.black)
+                    .overlay(pin.stroke(ink, lineWidth: 1.5))
+                Text("\(place.number)")
+                    .font(.system(size: selected ? 16 : 13, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(ink)
+                    .frame(width: width, height: width)
+            }
+            .frame(width: width, height: height)
+            .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+            .frame(width: 44, height: 48, alignment: .bottom)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain).disabled(!context.canInteract)
         .accessibilityLabel(place.title)
         .accessibilityValue(Text(selected ? "Selected" : "Not selected", bundle: NativeControlResources.bundle))
     }
     private func surface(fullscreen: Bool) -> some View {
-        Map(position: fullscreen ? $fullscreenCamera : $camera, interactionModes: fullscreen ? .all : [.zoom]) {
+        let selection = selectedPlace
+        return Map(position: fullscreen ? $fullscreenCamera : $camera, interactionModes: fullscreen ? .all : [.zoom]) {
             ForEach(places) { place in
-                Annotation(place.title, coordinate: place.coordinate) { marker(place) }
-                    .annotationTitles(selectedID == place.id ? .visible : .hidden)
+                Annotation(place.title, coordinate: place.coordinate, anchor: .bottom) {
+                    marker(place, selected: selection?.id == place.id)
+                }
+                .annotationTitles(.hidden)
             }
         }
         .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll, showsTraffic: false))
-        .safeAreaInset(edge: .top, spacing: 0) { controls(fullscreen: fullscreen) }
+        .safeAreaInset(edge: .top, spacing: 0) { controls(fullscreen: fullscreen, selection: selection) }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let selectedID { pages(selectedID: selectedID).padding(.bottom, 12) }
+            if let selection { pages(selectedID: selection.id).padding(.bottom, 12) }
         }
     }
     private func pages(selectedID: String) -> some View {
@@ -310,8 +359,9 @@ private struct NativeMap: View {
         let rowHeight = max(side, textBlockHeight)
         return HStack(spacing: 10) {
             NativeMapPlaceArtwork(source: place.image, title: place.title, side: side)
+                .environment(\.openUIMediaSourceReady, place.imageSourceReady)
             VStack(alignment: .leading, spacing: context.theme.componentStyle.titleDetailGap) {
-                Text(place.title).nativeTextStyle(context.theme.textStyle(.fieldLabel)).lineLimit(2)
+                Text(place.title).nativeTextStyle(placeTitleStyle).lineLimit(2)
                 if let description = place.description, !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(description).nativeTextStyle(context.theme.textStyle(.caption)).lineLimit(1)
                 }
@@ -342,6 +392,28 @@ private struct NativeMap: View {
         .accessibilityIdentifier("openui.map.place-card." + place.id)
     }
 
+}
+
+private struct NativeMapPinShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        // Match the Creative marker's 200 × 228 SVG silhouette.
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + rect.width * x / 200,
+                    y: rect.minY + rect.height * y / 228)
+        }
+        var path = Path()
+        path.move(to: point(99.5556, 0))
+        path.addCurve(to: point(0, 99.0293), control1: point(44.5724, 0.071111), control2: point(0, 44.3733))
+        path.addCurve(to: point(92.5724, 226.361), control1: point(0, 177.607), control2: point(71.3956, 217.173))
+        path.addCurve(to: point(98.3182, 227.556), control1: point(94.4071, 227.157), control2: point(96.3698, 227.556))
+        path.addCurve(to: point(99.5556, 227.428), control1: point(98.7307, 227.556), control2: point(99.1431, 227.47))
+        path.addCurve(to: point(100.793, 227.556), control1: point(99.968, 227.456), control2: point(100.38, 227.556))
+        path.addCurve(to: point(106.539, 226.361), control1: point(102.741, 227.556), control2: point(104.704, 227.157))
+        path.addCurve(to: point(199.111, 99.0293), control1: point(127.716, 217.188), control2: point(199.111, 177.607))
+        path.addCurve(to: point(99.5556, 0), control1: point(199.111, 44.3733), control2: point(154.553, 0.071111))
+        path.closeSubpath()
+        return path
+    }
 }
 
 /// The location remains useful without photography. Reuse the same resource
@@ -375,6 +447,10 @@ private struct MapPlaceCarousel<Page: View>: View {
     @State private var pageHeights: [String: CGFloat] = [:]
     @Environment(\.openUITheme) private var theme
 
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: max(0, theme.radius5xl - 9))
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ScrollViewReader { proxy in
@@ -384,8 +460,8 @@ private struct MapPlaceCarousel<Page: View>: View {
                             let width = places.count > 1 ? max(200, geometry.size.width - 56) : max(1, geometry.size.width - 28)
                             page(place, width).padding(12)
                                 .frame(width: width, alignment: .leading)
-                                .background(surfaceColor, in: RoundedRectangle(cornerRadius: theme.radius5xl))
-                                .overlay(RoundedRectangle(cornerRadius: theme.radius5xl).stroke(.primary.opacity(0.06)))
+                                .background(surfaceColor, in: cardShape)
+                                .overlay(cardShape.stroke(.primary.opacity(0.06)))
                                 .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .background(GeometryReader { card in
@@ -428,13 +504,16 @@ private struct PageHeight: PreferenceKey {
     static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) { value.merge(nextValue(), uniquingKeysWith: { _, new in new }) }
 }
 
-// MapKit consumes WGS-84 coordinates for place annotations.
 enum NativeMapCoordinates {
-    static func wgs84(latitude: Double, longitude: Double, source: String) -> CLLocationCoordinate2D {
-        guard source == "gcj02", (72.004...137.8347).contains(longitude), (0.8293...55.8271).contains(latitude) else {
-            return .init(latitude: latitude, longitude: longitude)
+    static func convert(latitude: Double, longitude: Double, from source: OpenUIMapCoordinateSystem,
+                        to target: OpenUIMapCoordinateSystem) -> CLLocationCoordinate2D {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        guard source != target,
+              NativeMapCoordinateCoverage.contains(latitude: latitude, longitude: longitude) else {
+            return coordinate
         }
-        var estimate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        if target == .gcj02 { return gcj02(latitude: latitude, longitude: longitude) }
+        var estimate = coordinate
         for _ in 0..<10 {
             let projected = gcj02(latitude: estimate.latitude, longitude: estimate.longitude)
             let deltaLat = projected.latitude - latitude, deltaLng = projected.longitude - longitude
