@@ -22,6 +22,7 @@ import {
   Layers,
 } from "lucide-react";
 import tokens from "../public/generated/tokens.json";
+import CurrentSDK from "./CurrentSDK";
 import reference from "../public/generated/reference.json";
 import "./style.css";
 import LiveExample from "./LiveExample";
@@ -37,7 +38,7 @@ import {
 import DesignFrontiers from "./DesignFrontiers";
 import { sdkBaseline } from "./baseline";
 const MapSpecimen = lazy(() => import("./MapSpecimen"));
-const github = "https://github.com/zyfn/openui";
+const github = "https://github.com/zyfn/open-intelligent-ui-swift";
 const lake =
   "https://img1.qunarzz.com/travel/d0/1508/b5/86a1839a0346a8.jpg_r_720x480x95_04ad6f0a.jpg";
 const palace =
@@ -201,6 +202,7 @@ function App() {
           OpenUI<span>Swift SDK</span>
         </a>
         <nav aria-label="文章导航">
+          <a href="#current">00 当前 SDK</a>
           <a href="#principle">01 工作原理</a>
           <a href="#system">02 设计系统</a>
           <a href="#streaming">03 流式渲染</a>
@@ -220,10 +222,12 @@ function App() {
         </div>
       </header>
       <main>
+        <CurrentSDK />
         <section className="hero" id="language">
           <p className="eyebrow">iOS · macOS</p>
-          <h1>OpenUI Swift SDK</h1>
+          <h1>OpenUI Swift SDK · RC20 设计档案</h1>
           <p className="lede">{overview}</p>
+          <p className="micro">以下章节为旧站 RC20 历史 Web 演示（2026-11-12）。当前两套原生组件目录请以上方「当前 SDK」导出的契约为准。</p>
           <p className="release-note">
             <a href={sdkBaseline.url} target="_blank" rel="noreferrer">
               当前发布：{sdkBaseline.label}
