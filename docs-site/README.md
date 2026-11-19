@@ -1,38 +1,32 @@
-# Swift SDK 交互式文档站
+# OpenUI Swift SDK 文档站
 
-基于旧站 [zyfn/openui/sites/swift-sdk](https://github.com/zyfn/openui/tree/e3fec603efbd876e8d6527a1fdf77dd184b7af50/sites/swift-sdk) 迁移。文档站是独立的 Vite/React 应用，不修改 SwiftLang、SwiftOpenUI、SwiftIntelligentUI 或 Gallery 的实现。
+面向当前 [zyfn/open-intelligent-ui-swift](https://github.com/zyfn/open-intelligent-ui-swift) 原生 SDK 的公开开发者文档，而非 RC20 存档。迁移了旧站的编辑式视觉方向，但只展示当前 SDK 语义与权威接口。
 
-## 文档边界
+## 内容
 
-首页首先展示**当前 SDK**真实的 OpenUI / Intelligent UI 组件语言契约。数据来自现有 OpenUILibrary 的 specificationJSON，构建时导出，并非手写的另一套 schema。
+- SwiftLang、SwiftOpenUI、SwiftIntelligentUI 分层和两套 Library 的关系
+- 当前 `OpenUILibrary.specificationJSON` 导出的可搜索组件契约（不是静态手写组件表）
+- 正式 SwiftPM 接入路径、状态/流式与生成契约
+- 跳转到现有 README、架构、两个组件指南、原生 Gallery、验证说明
 
-下方保留原站 RC20 的文章、历史组件说明、交互样例和 React Web 预览。历史标本使用固定的 React 0.18.1 运行环境与当时导出的数据；它不宣称与新 SwiftUI SDK 逐像素一致。旧站地图与 SVG 的原生截图通过固定提交的 GitHub 原始地址引用，没有复制大体积历史二进制文件。
+GitHub Pages 网站本身是 React + Vite 静态页面，不执行 SwiftUI，不把 Web 演示冒充原生截图。原生验收以当前 Gallery 与 CI 为准。
 
-## 本地开发（macOS + Swift 6 / Xcode）
+## 本地使用
 
-从仓库根目录运行：
+在 macOS / Xcode / Swift 6 环境中从仓库根目录：
 
-~~~~sh
+```sh
 cd docs-site
 npm ci
 npm run generate:current
 npm run dev
-~~~~
-
-检查生产构建：
-
-~~~~sh
 npm run build
-~~~~
+```
 
-generate:current 仅在 docs-site/public/current 写入导出的静态 JSON，不改动 SDK 源码和 Package.swift，也不重编写组件注册定义。public/current 是构建产物，不作为另一份权威组件清单提交。仅执行 npm run build 不会凭空生成它；GitHub Pages 工作流会先运行导出。
+生成的 `public/current/*.json` 被忽略，CI 在构建前通过 `tools/GuideExport` 使用 SDK 现有 `OpenUILibrary.specificationJSON` 导出。它不会修改 `Sources/`、`Tests/`、`Package.swift` 或原生组件库。无需另维护一份 JSON Schema。
 
 ## 发布
 
-文档站位于 docs-site，发布工作流位于 .github/workflows/docs-site-pages.yml。只有合并到 main 且触及文档站路径时才会触发 Pages 部署；PR 只进行构建验证。新仓库的 Pages 地址是 https://zyfn.github.io/open-intelligent-ui-swift/，实际是否可访问取决于 GitHub Pages 设置与工作流成功与否。
+工作流 `.github/workflows/docs-site-pages.yml` 在 main 的站点改动或手动触发时构建并部署 GitHub Pages。
 
-旧站仍保留在 https://zyfn.github.io/openui/，不直接修改或替换其部署。历史链接 #component-TextContent 在迁移后的站点仍指向旧 RC20 交互标本。
-
-## 维护原则
-
-SDK 源码、生成契约和设计指南继续以仓库现有 Sources、docs 和 Examples/Gallery 为准。网页只负责展示，不另建 Lang 语义、设计 Token 或运行时；新增样例需注明其来自当前原生库还是历史 Web 演示。
+预期地址：<https://zyfn.github.io/open-intelligent-ui-swift/>。需要仓库 Pages 配置允许 GitHub Actions 部署。旧站 <https://zyfn.github.io/openui/> 保持原样，旧版 RC20 组件演示仍可在那里访问。
