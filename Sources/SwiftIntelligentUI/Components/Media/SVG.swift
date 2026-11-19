@@ -6,16 +6,17 @@ enum SVGComponents {
     static var components: [OpenUIComponent] {
         let paint: [ParamDef] = [OpenUIParameter.string("fill", required: false), OpenUIParameter.string("stroke", required: false), Parameter.number("strokeWidth", minimum: 0), Parameter.number("opacity", minimum: 0, maximum: 1)]
         func numbers(_ names: [String]) -> [ParamDef] { names.map { var p = Parameter.number($0); p.required = true; return p } }
+        let paintNames = ["Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "SvgText"]
         let shapes: [(String, [ParamDef])] = [
-            ("Svg", [OpenUIParameter.slot("children", required: true), OpenUIParameter.string("viewBox"), Parameter.number("width", minimum: 0, maximum: 2400), Parameter.number("height", minimum: 0, maximum: 2400)]),
+            ("Svg", [OpenUIParameter.slot("children", required: true, accepting: paintNames + ["G"]), OpenUIParameter.string("viewBox"), OpenUIParameter.string("label", required: false), Parameter.length("width"), Parameter.length("height")]),
             ("Circle", numbers(["cx", "cy", "r"]) + paint),
             ("Ellipse", numbers(["cx", "cy", "rx", "ry"]) + paint),
             ("Rect", numbers(["x", "y", "width", "height"]) + paint + [Parameter.number("rx", minimum: 0)]),
             ("Line", numbers(["x1", "y1", "x2", "y2"]) + [OpenUIParameter.string("stroke", required: false), Parameter.number("strokeWidth", minimum: 0), Parameter.number("opacity", minimum: 0, maximum: 1)]),
             ("Path", [OpenUIParameter.string("d")] + paint),
-            ("Polyline", [OpenUIParameter.string("points"), OpenUIParameter.string("stroke", required: false), Parameter.number("strokeWidth", minimum: 0), OpenUIParameter.string("fill", required: false), Parameter.number("opacity", minimum: 0, maximum: 1)]),
+            ("Polyline", [OpenUIParameter.string("points"), OpenUIParameter.string("fill", required: false), OpenUIParameter.string("stroke", required: false), Parameter.number("strokeWidth", minimum: 0), Parameter.number("opacity", minimum: 0, maximum: 1)]),
             ("Polygon", [OpenUIParameter.string("points")] + paint),
-            ("G", [OpenUIParameter.slot("children", required: true), OpenUIParameter.string("transform", required: false), Parameter.number("opacity", minimum: 0, maximum: 1)]),
+            ("G", [OpenUIParameter.slot("children", required: true, accepting: paintNames), OpenUIParameter.string("transform", required: false), Parameter.number("opacity", minimum: 0, maximum: 1)]),
             ("SvgText", [OpenUIParameter.string("text")] + numbers(["x", "y"]) + [Parameter.number("size", minimum: 0), OpenUIParameter.string("fill", required: false), OpenUIParameter.string("anchor", required: false, values: ["start", "middle", "end"]), OpenUIParameter.string("weight", required: false, values: ["normal", "medium", "semibold"])])
         ]
         return shapes.map { name, params in
@@ -199,7 +200,11 @@ private struct SVGView: View {
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
-    private var height: CGFloat { CGFloat(min(2400, max(40, context.number("height") ?? 240))) }
+    @ScaledMetric(relativeTo: .body) private var fontUnit: CGFloat = 17
+    private var height: CGFloat {
+        let requested = IntelligentUILength.read(context.value("height"))?.resolve(relativeTo: nil, em: fontUnit)
+        return min(2400, max(40, requested ?? 240))
+    }
     private var document: Result<SVGMarkup.Document, Error> {
         Result {
             let palette = Dictionary(uniqueKeysWithValues: SVGMarkup.semanticColors.map {
@@ -219,7 +224,7 @@ private struct SVGView: View {
                         : "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" style=\"width:100%;height:100%\">\(document.markup)</svg>"
                     VStack(alignment: .leading, spacing: theme.innerSpacing) {
                         GeometryReader { geometry in
-                            let preferred = context.number("width").map { CGFloat(min(2400, max(0, $0))) }
+                            let preferred = IntelligentUILength.read(context.value("width"))?.resolve(relativeTo: geometry.size.width, em: fontUnit)
                             WebContent(context: context, content: source, height: height)
                                 .frame(width: min(geometry.size.width, preferred ?? geometry.size.width))
                                 .frame(maxWidth: .infinity)
@@ -228,7 +233,7 @@ private struct SVGView: View {
                             Text(document.labels.joined(separator: " · ")).font(theme.bodyFont).fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    .accessibilityLabel(document.labels.isEmpty ? SDKStrings.text("svg.label", locale: locale) : SDKStrings.text("svg.label_details", locale: locale, document.labels.joined(separator: " · ")))
+                    .accessibilityLabel(context.string("label") ?? (document.labels.isEmpty ? SDKStrings.text("svg.label", locale: locale) : SDKStrings.text("svg.label_details", locale: locale, document.labels.joined(separator: " · "))))
                 case .failure:
                     placeholder(status: "svg.failed")
                 }
@@ -243,7 +248,7 @@ private struct SVGView: View {
         }
         .frame(height: height)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(SDKStrings.text("svg.label", locale: locale))
+        .accessibilityLabel(context.string("label") ?? SDKStrings.text("svg.label", locale: locale))
         .accessibilityValue(SDKStrings.text(status, locale: locale))
     }
 }
