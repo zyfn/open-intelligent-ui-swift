@@ -789,11 +789,11 @@ private struct MapRouteLeg {
         guard points.count > 1 else { return [] }
         return (0..<(points.count - 1)).map { index in
             let a = points[index], b = points[index + 1]
-            var coordinates = [
+            let coordinates = [
                 CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude),
                 CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)
             ]
-            return Self(polyline: MKPolyline(coordinates: &coordinates, count: coordinates.count), followsRoads: false)
+            return Self(polyline: MKPolyline(coordinates: coordinates, count: coordinates.count), followsRoads: false)
         }
     }
 }
