@@ -33,6 +33,12 @@ enum Parameter {
         return ParamDef(name: name, required: false, schema: .object(fields))
     }
 
+    static func length(_ name: String) -> ParamDef {
+        ParamDef(name: name, required: false, schema: .object([
+            .init(key: "type", value: .array([.string("number"), .string("string")]))
+        ]))
+    }
+
     static func boundBoolean(_ name: String) -> ParamDef {
         ParamDef(name: name, required: true, isBindable: true,
                  schema: .object([.init(key: "type", value: .string("boolean"))]))
