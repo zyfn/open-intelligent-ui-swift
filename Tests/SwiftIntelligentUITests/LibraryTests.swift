@@ -16,11 +16,11 @@ final class LibraryTests: XCTestCase {
         XCTAssertFalse(library.systemPrompt.contains("priceText?:"))
         XCTAssertFalse(library.systemPrompt.contains("visibleIds"))
         XCTAssertFalse(library.systemPrompt.contains("SearchImage("))
-        XCTAssertTrue(library.systemPrompt.contains("Image(src: string, alt: string)"))
-        XCTAssertFalse(library.systemPrompt.contains("aspectRatio?:"))
+        XCTAssertTrue(library.systemPrompt.contains("Image(src: string, alt: string, aspectRatio?: number"))
+        XCTAssertTrue(library.systemPrompt.contains("aspectRatio?:"))
         XCTAssertFalse(library.systemPrompt.contains("source-ordered ready prefix"))
         XCTAssertTrue(library.systemPrompt.contains("Do not depend on a particular intermediate rendering order"))
-        XCTAssertFalse(try XCTUnwrap(library.components.library.components.first { $0.name == "Image" }).params.contains { $0.name == "aspectRatio" })
+        XCTAssertTrue(try XCTUnwrap(library.components.library.components.first { $0.name == "Image" }).params.contains { $0.name == "aspectRatio" })
         XCTAssertTrue(try XCTUnwrap(library.readerComponents.library.components.first { $0.name == "Image" }).params.contains { $0.name == "aspectRatio" })
     }
 
