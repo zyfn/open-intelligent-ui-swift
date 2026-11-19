@@ -27,9 +27,10 @@ final class LibraryTests: XCTestCase {
     func testBindingsAndPositionalContracts() throws {
         let library = try OpenIntelligentUIComponents()
         let checkbox = try XCTUnwrap(library.components.library.components.first { $0.name == "Checkbox" })
-        XCTAssertEqual(checkbox.params.map(\.name), ["checked", "label", "lineThrough"])
+        XCTAssertEqual(checkbox.params.map(\.name), ["checked", "label", "lineThrough", "rules"])
         XCTAssertTrue(checkbox.params[0].isBindable)
         XCTAssertFalse(checkbox.params[1].isBindable)
+        XCTAssertFalse(try XCTUnwrap(checkbox.params.first { $0.name == "rules" }).required)
         let button = try XCTUnwrap(library.components.library.components.first { $0.name == "Button" })
         XCTAssertEqual(button.params.map(\.name), ["label", "action", "variant", "color", "size", "icon", "disabled", "block"])
     }

@@ -193,7 +193,7 @@
   },
   "Chart": {
     "category": "DataDisplay",
-    "program": "root = Col([Chart(\"bar\",[{day:\"周一\",walk:30,ride:20},{day:\"周二\",walk:55,ride:35},{day:\"周三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",null,false,240)])"
+    "program": "root = Col([Chart(\"bar\",[{day:\"周一\",walk:30,ride:20},{day:\"周二\",walk:55,ride:35},{day:\"周三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",false,240)])"
   },
   "ProductCard": {
     "category": "DataDisplay",
@@ -205,42 +205,42 @@
   },
   "Circle": {
     "category": "Media",
-    "program": "root = Col([Svg([Circle(160,80,48,\"info\")],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Circle(160,80,48,\"info\")],\"0 0 320 160\",\"圆形示例\",320,160)])"
   },
   "Ellipse": {
     "category": "Media",
-    "program": "root = Col([Svg([Ellipse(160,80,90,45,\"info\")],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Ellipse(160,80,90,45,\"info\")],\"0 0 320 160\",\"椭圆示例\",320,160)])"
   },
   "Rect": {
     "category": "Media",
-    "program": "root = Col([Svg([Rect(60,30,200,100,\"info\",null,null,null,16)],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Rect(60,30,200,100,\"info\",null,null,null,16)],\"0 0 320 160\",\"圆角矩形示例\",320,160)])"
   },
   "Line": {
     "category": "Media",
-    "program": "root = Col([Svg([Line(40,120,280,40,\"info\",4)],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Line(40,120,280,40,\"info\",4)],\"0 0 320 160\",\"斜线示例\",320,160)])"
   },
   "Path": {
     "category": "Media",
-    "program": "root = Col([Svg([Path(\"M40 120 C100 10 220 10 280 120\",\"none\",\"info\",4)],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Path(\"M40 120 C100 10 220 10 280 120\",\"none\",\"info\",4)],\"0 0 320 160\",\"曲线路径示例\",320,160)])"
   },
   "Polyline": {
     "category": "Media",
-    "program": "root = Col([Svg([Polyline(\"30,120 100,40 180,100 280,30\",\"info\",4,\"none\")],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Polyline(\"30,120 100,40 180,100 280,30\",\"none\",\"info\",4)],\"0 0 320 160\",\"折线示例\",320,160)])"
   },
   "Polygon": {
     "category": "Media",
-    "program": "root = Col([Svg([Polygon(\"160,20 280,130 40,130\",\"info\")],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Polygon(\"160,20 280,130 40,130\",\"info\")],\"0 0 320 160\",\"三角形示例\",320,160)])"
   },
   "G": {
     "category": "Media",
-    "program": "root = Col([Svg([G([Circle(80,80,40,\"info\"),Rect(150,40,100,80,\"success\")])],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([G([Circle(80,80,40,\"info\"),Rect(150,40,100,80,\"success\")])],\"0 0 320 160\",\"圆形和矩形组合\",320,160)])"
   },
   "SvgText": {
     "category": "Media",
-    "program": "root = Col([Svg([SvgText(\"Hello SVG\",160,90,28,\"ink\",\"middle\",\"semibold\")],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([SvgText(\"Hello SVG\",160,90,28,\"ink\",\"middle\",\"semibold\")],\"0 0 320 160\",\"居中 SVG 文本示例\",320,160)])"
   },
   "Svg": {
     "category": "Media",
-    "program": "root = Col([Svg([Rect(10,10,300,140,\"surface\",null,null,null,16),Circle(80,80,36,\"info\"),SvgText(\"Hello SVG\",144,88,24,\"ink\")],\"0 0 320 160\",320,160)])"
+    "program": "root = Col([Svg([Rect(10,10,300,140,\"surface\",null,null,null,16),Circle(80,80,36,\"info\"),SvgText(\"Hello SVG\",144,88,24,\"ink\")],\"0 0 320 160\",\"带圆形和文字的 SVG 示例\",320,160)])"
   }
 }

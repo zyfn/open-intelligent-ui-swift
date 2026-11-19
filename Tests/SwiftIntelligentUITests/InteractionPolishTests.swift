@@ -76,7 +76,7 @@ final class InteractionPolishTests: XCTestCase {
         let library = try OpenIntelligentUIComponents()
         let state = library.makeState()
         state.setSource(#"""
-        root = Col([Form([Input($name,"名称","text","")]),$error == "" ? null : Text($error,"sm","danger"),Chart("line",[{x:"A",v:1},{x:"B",v:2}],"x",["v"],"number",null,false,240)])
+        root = Col([Form([Input($name,"名称","text","")]),$error == "" ? null : Text($error,"sm","danger"),Chart("line",[{x:"A",v:1},{x:"B",v:2}],"x",["v"],"number",false,240)])
         $name = ""
         $error = "必填"
         """#)

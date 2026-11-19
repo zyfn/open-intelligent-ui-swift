@@ -4,18 +4,18 @@ import SwiftLang
 @testable import SwiftIntelligentUI
 
 final class LinkedPresentationTests: XCTestCase {
-    @MainActor func testHistoricalComponentSignaturesDoNotExposePrivateParameters() throws {
+    @MainActor func testReaderComponentSignaturesMatchThePublicContract() throws {
         let library = try OpenIntelligentUIComponents()
         let expected: [String: [String]] = [
             "Map": ["markers", "route", "selected", "height"],
             "MapMarker": ["label", "lat", "lng", "category", "icon"],
             "Carousel": ["children", "itemWidth", "gap"],
-            "Chart": ["type", "data", "x", "series", "format", "currency", "stacked", "height"],
+            "Chart": ["type", "data", "x", "series", "format", "stacked", "height"],
             "Image": ["src", "alt", "aspectRatio", "radius", "fit"],
             "Form": ["children"],
-            "Input": ["value", "label", "type", "placeholder"],
-            "TextArea": ["value", "label", "placeholder", "rows"],
-            "Select": ["value", "options", "label", "placeholder"],
+            "Input": ["value", "label", "type", "placeholder", "rules"],
+            "TextArea": ["value", "label", "placeholder", "rows", "rules"],
+            "Select": ["value", "options", "label", "placeholder", "rules"],
             "ListItem": ["title", "description", "marker", "children"]
         ]
         for (name, parameters) in expected {

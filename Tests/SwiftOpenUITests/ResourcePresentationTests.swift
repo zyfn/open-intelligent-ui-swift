@@ -52,7 +52,7 @@ final class ResourcePresentationTests: XCTestCase {
     }
 
     #if os(macOS)
-    @MainActor func testOverflowHintTracksChangesToContentAndViewport() {
+    @MainActor func testNativeTableScrollRangeTracksChangesToContentAndViewport() throws {
         _ = NSApplication.shared
         func view(_ viewport: CGFloat, _ content: CGFloat) -> some View {
             NativeTableViewport { Color.clear.frame(width: content, height: 40) }
@@ -64,20 +64,35 @@ final class ResourcePresentationTests: XCTestCase {
         window.isReleasedWhenClosed = false; window.contentView = host
         window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
         defer { window.close() }
-        func height(_ viewport: CGFloat, _ content: CGFloat) -> CGFloat {
+        func firstScrollView(in view: NSView) -> NSScrollView? {
+            if let scroll = view as? NSScrollView { return scroll }
+            return view.subviews.lazy.compactMap { firstScrollView(in: $0) }.first
+        }
+        func checkScrollRange(viewport: CGFloat, content: CGFloat, expected: CGFloat) throws {
             host.rootView = view(viewport, content)
+            window.setContentSize(NSSize(width: viewport, height: 180))
             host.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-            return host.fittingSize.height
+            host.layoutSubtreeIfNeeded()
+            let scroll = try XCTUnwrap(firstScrollView(in: host))
+            let document = try XCTUnwrap(scroll.documentView)
+            XCTAssertEqual(scroll.contentView.bounds.width, viewport, accuracy: 1)
+            XCTAssertEqual(max(0, document.frame.width - scroll.contentView.bounds.width), expected, accuracy: 1)
+            if expected > 0 {
+                scroll.contentView.scroll(to: NSPoint(x: expected, y: 0))
+                scroll.reflectScrolledClipView(scroll.contentView)
+                XCTAssertEqual(scroll.contentView.bounds.minX, expected, accuracy: 1,
+                    "The last columns must remain reachable")
+            } else {
+                XCTAssertEqual(scroll.contentView.bounds.minX, 0, accuracy: 1,
+                    "When the content fits, the native viewport must reset its horizontal offset")
+            }
         }
-        let fitting = height(300, 200)
-        XCTAssertGreaterThan(height(300, 600), fitting + 8,
-            "A wide table needs a persistent, readable overflow affordance")
-        XCTAssertEqual(height(700, 600), fitting, accuracy: 1,
-            "Widening the viewport must remove an obsolete hint")
-        XCTAssertGreaterThan(height(300, 600), fitting + 8)
-        XCTAssertEqual(height(300, 200), fitting, accuracy: 1,
-            "Streaming or state changes that shorten content must also remove the hint")
+        try checkScrollRange(viewport: 300, content: 200, expected: 0)
+        try checkScrollRange(viewport: 300, content: 600, expected: 300)
+        try checkScrollRange(viewport: 700, content: 600, expected: 0)
+        try checkScrollRange(viewport: 300, content: 600, expected: 300)
+        try checkScrollRange(viewport: 300, content: 200, expected: 0)
     }
     #endif
 

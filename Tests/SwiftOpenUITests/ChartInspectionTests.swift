@@ -63,11 +63,11 @@ final class ChartInspectionTests: XCTestCase {
       var blue = 0, orange = 0
       for y in 0..<image.pixelsHigh {
         for x in 0..<image.pixelsWide {
-          guard let color = image.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+          guard let color = image.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
           if color.blueComponent > color.redComponent + 0.3,
             color.blueComponent > color.greenComponent + 0.2 { blue += 1 }
-          if color.redComponent > 0.6, color.greenComponent > 0.2,
-            color.blueComponent < 0.3 { orange += 1 }
+          if color.redComponent > color.blueComponent + 0.3,
+            color.greenComponent > color.blueComponent + 0.2 { orange += 1 }
         }
       }
       XCTAssertGreaterThan(blue + orange, 100, "A blank or loading chart cannot pass data retention")
