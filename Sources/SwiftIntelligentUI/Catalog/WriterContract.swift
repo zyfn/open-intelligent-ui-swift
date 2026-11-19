@@ -7,10 +7,6 @@ enum WriterContract {
     static func project(_ component: OpenUIComponent) -> OpenUIComponent {
         var definition = component.definition
         switch definition.name {
-        case "Image":
-            definition.params = definition.params.filter { ["src", "alt"].contains($0.name) }
-        case "SearchImage":
-            definition.params = definition.params.filter { $0.name == "query" }
         case "ProductCard", "TransportCard":
             definition.params = definition.params.map { original in
                 var parameter = original

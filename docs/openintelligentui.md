@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.6 · 更新日期：2026-11-18
+文档版本：1.7 · 更新日期：2026-11-20
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -26,13 +26,13 @@
 | Media | Image、Icon、SearchImage、Math、Map、MapMarker、YouTube、HtmlView、Svg、Circle、Ellipse、Rect、Line、Path、Polyline、Polygon、G、SvgText |
 | DataDisplay | Table、Chart、ProductCard、TransportCard、Progress |
 
-每个组件记录有序参数、类型、默认行为、绑定与限制。writer 复用原有 renderer，只投影既有生成规则已经限制的字段：Image 新输出使用 src/alt，SearchImage 使用 query，商品与交通新输出不用 priceText。完整历史 reader 保留这些字段。其余组件及六个新增入口均保持现有签名；原生增强由 SDK 内部或 Swift 宿主配置负责，不要求模型学习额外方言。
+每个组件记录有序参数、类型、默认行为、绑定与限制。本库对齐 2026-11-19 上游最新 `main` 导出的 55 个基础组件契约（官方提交 `53df45b`）：Image / SearchImage 的 aspectRatio、radius、fit 参数重新进入 writer；Card 参数为 children、variant、gap、padding；六类输入新增 rules；Chart、Svg、Polyline、G 使用新签名。商品与交通自有扩展仍排除旧 priceText。完整 reader 保留尚未删除的历史扩展字段。SearchImage 仅在调用方提供图片服务时注册；普通客户端无该服务时不向 Agent 宣告。
 
 ### 2.1 布局与排版
 
-- 长度使用 Apple point；Box 和 Svg 的尺寸接受数值，不解释任意 CSS 长度。颜色使用语义 token；SVG 接受经过检查的颜色字符串。图标使用明确枚举的 Lucide 名称到 SF Symbols 映射。
+- 原生布局使用 Apple point：Box 与 Svg 长度支持点数、px、百分比（以父布局有效 proposal 为基准）和随 Dynamic Type 缩放的 em/rem。复杂 Web CSS 的 vw/vh/fr 与函数表达式没有可靠等价物，不应向 Agent 宣告为可用能力。颜色仍使用原生语义 token；SVG 接受经过检查的显式颜色字符串。图标使用 Lucide 名称映射 SF Symbols。
 - Col/Box 未指定 gap 时按阅读关系取 token：章节、连续正文、标题与正文、眉题与标题、媒体与图注分别处理；透明单子包装不破坏关系。显式 gap 只覆盖间距，不改变后代阅读层级。Box 的 wrap 用于 row 方向，flex 用于非换行 Row；Spacer 的权重与布局轴一致。
-- Row 支持逐项换行、对齐和剩余空间分配。默认图文规则仅用于可识别的双项媒体/正文关系；显式尺寸、gap、align、justify、wrap 优先。切换窄屏、大字号或 RTL 时复用内容身份。
+- Row 支持换行、对齐和剩余空间分配，不再猜测“图片 + 正文”并强制改写成固定缩略图配方。排列由 Agent 显式指定的 Box 宽度、flex 与 Row 对齐决定；辅助阅读字号可将阅读型项目转为纵向，保持节点身份和 RTL 支持。
 - Grid 保留 columns 默认 2 的原有含义；提供 minChildWidth 时才按宽度减少列数，且不超过 columns。无障碍大字号使用单列。生成规则应为需要适应窄屏的内容选择现有 minChildWidth 参数。
 - Card 表示真实对象或连贯分组，不为每个段落增加表面。使用画布背景、连续圆角与轻边框；iOS 默认 16 点内边距，macOS 20 点，嵌套 16 点。单个 ProductCard/TransportCard 沿用自己的表面，透明的单子 Col/Box 不重新触发外层边框与内距；有背景、边框或内距的 Box 继续表示真实分组。
 - Card、Grid、Carousel 和透明 Col/Box 只负责布局，不根据层级或子项位置改变默认 Text/Title 的字号与字重。显式字号始终优先；同一内容在根部和容器内保持同一文字角色。
@@ -55,7 +55,7 @@
 已注册控件沿用 SwiftLang 的组件 Context 订阅实际绑定和就绪状态，不额外观察未使用的整份文档。动作表面也使用同一个 Context 观察机制：独立使用时跟随传入 Context 的原文档，保留其 source revision，不会被更近的无关环境 State 重绑。移除冗余订阅不改变数值草稿、交互启用、原生焦点或动作派发规则；具体挂载验收见[验证说明](validation-and-security.md#sdk-正常接入与生命周期审查)。
 
 - Button、IconButton、Pressable 使用原生按钮语义、胶囊/圆形/轻量表面及选中提示；没有动作时禁用，不自动发送助手消息。Pressable 和 Popover 的触发内容用于展示，避免嵌套交互控件。
-- 输入绑定到显式变量，字面量只读。数值草稿保留中间输入，空值写入 null；未失焦时也显示尚未生效的草稿与当前有效值，失焦后提供错误反馈与明确恢复/采用操作。外部状态更新不静默丢弃草稿，错误的逗号分组不能通过删除逗号变成另一个数字。该机制是单字段编辑状态；Form 不自动收集错误或阻止其他动作提交，宿主须按业务要求组织校验。
+- 输入绑定到显式变量，字面量只读。数值草稿保留中间输入，空值写入 null；未失焦时也显示尚未生效的草稿与当前有效值，失焦后提供错误反馈与明确恢复/采用操作。外部状态更新不静默丢弃草稿。最新版 rules 支持 required、email、url、numeric、min/max、minLength/maxLength、pattern；Form 收集已挂载的字段并在 @ToAssistant 提交前校验，失败时显示字段错误并阻止提交，其余局部动作不被误拦截。
 - Input 和 TextArea 共享 FieldSurface，使用原生编辑控件、统一边框、内边距、焦点与错误状态。Input/Select 使用胶囊形字段，TextArea 使用连续 18 点圆角；边框为主题 fieldBorder 的固定 1 点描边。
 - Select 和选择组使用首个同值选项，未知值保持未选择。短选项使用原生分段 Picker，窄屏或大字号时重排。RadioGroup pills 使用胶囊互斥选择，选中实色底上的说明继承操作前景；cards 使用有轻边界的说明型自适应选项，选中通过既有主题表面和边框表达。普通单选保留圆形指示与字重，不强制所有控件绘成同一种胶囊。
 - Slider 显示来源原值，越界时只将滑块投影到安全位置；实际调整或明确采用才写回。密集 marks 分行避让，保留每个标记。Checkbox 保留勾选框与整行触达。DatePicker 在空值、已有值和错误状态保持同一字段外壳与标签位置，进入既有日期面板后经确认才写回；有效日期按 locale、Gregorian 与 UTC 显示，非法值与越界值保留来源和错误反馈。取消不写入，协议编解码继续使用 Gregorian、UTC、POSIX 和 YYYY-MM-DD。
@@ -76,7 +76,7 @@
 - MapMarker 保持 label/lat/lng/category/icon 参数，Map.selected 继续保存地点 label；不新增 card、filter、expanded 等 Lang 参数。重复 label 给出诊断，数据变化后的选择只保留仍有效的地点。
 - 地图标记使用来源 emoji 或编号。完整名称、分类和选中状态在地图内部底部的横向点位卡片中持续可访问；底图只强调选中名称，避免密集长标签互相遮挡。卡片和标记点选同步高亮、聚焦，地图点选后滚到对应卡片。
 - 内嵌和展开均提供原生地图交互。展开使用 iOS 全屏呈现或 macOS 大尺寸 sheet；关闭后保持筛选与选中。内嵌和展开各持有视口状态，尺寸变化不会重置选择；全览清空选择并重新适配当前筛选的全部点位。
-- 相机按内部工具栏、卡片实际高度及宿主 contentInsets 留出可见区域。route 仍只按来源 marker 顺序绘制直线示意，不计算道路路线，不把备选自动连成建议行程。
+- 相机按内部工具栏、卡片实际高度及宿主 contentInsets 留出可见区域。route=true 使用 Apple MKDirections，按来源 marker 顺序逐段计算驾车道路几何（不是步行、实时交通或导航承诺）。异步请求防抖 350ms、按地图当前点位代次取消旧任务、仅对至多 13 个地点发起线路请求并对完成结果作 8 组有界缓存；路由中/失败/过长行程用虚线直接连接，不应将虚线解读成道路路线。切换类别不保留旧路段。
 - 内部点位卡片只使用现有 marker 数据，不虚构图片、地址、营业信息或业务动作；额外的来源图文可以作为正文内容展示，不在地图外重复建立筛选和选择控件。
 - Math 使用固定 KaTeX 在本地生成 MathML，通过可取消的串行工作队列与有界缓存避免重复任务；等待时保留无文字进度，失败时保留可选取的原始 TeX，不追加自动错误标题，状态通过无障碍语义表达。SVG 保持本地无内容脚本的 WebKit，整图预算限制节点、路径、点数、深度和字节；语义颜色读取主题，显式颜色保持来源指定。未完成或无效的图形维持原尺寸占位，状态通过无障碍语义提供，不插入警告与解析错误段落。
 - HtmlView 使用独立非持久 WebKit，没有原生消息桥。仅完整内容开始运行，允许内联脚本，限制网络及导航；默认高度 360 point，可内部滚动。切换外观不重载页面状态。
@@ -90,7 +90,7 @@
 DesignSystem 决定组件在哪些场景按什么规则使用 token 和平台行为。它不是组件参数仓库，也不只等于一组颜色变量。
 
 - **语义 token**：OpenIntelligentUITheme 只提供可复用的颜色、字体角色、间距、圆角、阅读宽度、图片默认比例与主操作前景/背景。间距与圆角独立定义，不通过 spacingUnit 派生圆角；chart1...chart6 使用独立图表序列色，不复用业务状态色。
-- **组件规格**：表格列宽、商品缩略图、地图高度等留在组件内部；共享图文尺寸由 EditorialMetrics 维护，不全部暴露为公共主题参数。
+- **组件规格**：表格列宽、商品缩略图、地图高度等留在组件内部；Row 为通用布局，文字和图片只按显式尺寸和主题默认语义排版，不内置媒体配方。
 - **字体层级**：默认使用系统字族与 Dynamic Type：页面 title2、章节 title3、对象 headline 使用 semibold，正文 body 使用 regular，辅助说明 subheadline、图注 footnote。省略参数保持稳定角色，深色外观不额外加粗；显式 weight 与字号优先。宿主在旧系统需要自定义字体与原生混排一致时，使用 theme.setTextFont(UIFont/NSFont, for:) 配对；所提供的具体字号保持不变，动态缩放由宿主提供。支持 Font.resolve 的系统可解析 SwiftUI 字体，不能宣称所有旧系统能自动反解任意自定义 Font。
 - **阅读节奏**：开篇眉题紧接标题，标题靠近正文，连续段落保持阅读间距，图注靠近图片，章节之间增加留白。正文到随后图片使用组间距，图片/图表/表格/SVG 后的 Caption 使用较小内间距；显式 gap 仍由调用方决定。
 - **操作层级**：主按钮与业务卡导航共用胶囊动作样式，原生 Button 保留激活、焦点和可访问语义，label 内包含完整触达区域。outline 使用 fieldBorder；低强调控件共用按下、焦点和禁用反馈。Pressable 自己显示选中状态，不依赖父 Row。静态 Badge 不伪装成可点击控件；短选择优先原生 segmented Picker。
@@ -101,7 +101,7 @@ DesignSystem 决定组件在哪些场景按什么规则使用 token 和平台行
 - **适配**：大字号通过重排、增高和展开明细保持可读，不整体缩小内容。主要操作有可访问名称，状态同时使用文字或形状提示。
 - **反馈**：绑定修改直接影响结果；动作通过 SDK 派发。加载、缺图、错误、禁用和处理中状态与真实状态对应。
 
-通用 Image 使用 16:9 封面比例，在加载、成功和失败状态保留同一媒体区域；原图预览与 Markdown 文档插图保留完整来源比例。ProductCard 使用自己的商品媒体比例，不直接套用通用 Image 默认值。
+通用 Image 默认采用原版 3:2 画幅，Agent 可以显式传入 aspectRatio、radius、fit；加载、成功和失败状态维持同一媒体区域，原图预览与 Markdown 插图保留完整原图。ProductCard 使用自己的商品媒体比例，不直接套用通用 Image 默认值。
 
 设计依据：[Apple Design Principles](https://developer.apple.com/design/human-interface-guidelines/design-principles/)、[Fonts](https://developer.apple.com/documentation/technologyoverviews/fonts)、[Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons)。具体效果以运行画面与操作验收为准。
 
@@ -217,7 +217,7 @@ swift run --package-path Tools/ContractExport ContractExport --reader-contract -
 
 `--suite guided|free|all` 区分指定组件的回归与不点名组件的自由组合任务。free 套件包含解释、商品、数据、表单和地图任务，以及商品/表单跟进更新；来源、交互、呈现审查单独记录 pending，解析成功不推断为任务成功。跟进使用前次生成程序和原始来源事实，不能把模型前次输出升级为新事实。
 
-CLI 保留导出、--validate 与 --case 命令结构，并提供显式历史验证和 reader 导出入口。官方组件不追加私有参数；Image 等原生增强不进入模型签名。ProductCard 不提供 offers 或其他旧数据契约的适配。
+CLI 保留导出、--validate 与 --case 命令结构，并提供历史验证和 reader 导出入口。官方组件参数与新版基线对齐；Image 等原有 framing 字段已进入生成签名。原生主题、图像缓存和地图选点等实现细节仍不成为私有 Lang 参数。ProductCard 不提供 offers 或其他旧数据契约的适配。
 
 ## 7. 验证与流式边界
 
@@ -225,7 +225,7 @@ CLI 保留导出、--validate 与 --case 命令结构，并提供显式历史验
 |---|---|
 | 构建 | macOS Swift Package 与 iOS Simulator Gallery，证明目标平台可编译 |
 | 自动测试 | 计算函数、解析、绑定、流式、图片、字段、布局与组件数据；失败必须保留并解释 |
-| 契约 | spec、Prompt、manifest 与 writer 同源；历史 reader 与固定 RC20 基线对比全部 61 个入口（含可选 SearchImage）、函数/动作、有序签名和完整 schema |
+| 契约 | spec、Prompt、manifest 与 writer 同源；对比 2026-11-19 官方 main 的 55 个基础组件签名（SearchImage 仅在注入时参加），验证 59 个函数、动作、绑定及 Swift 原生偏差 |
 | Gallery | 固定程序的 UI 演示和离线检查，不代替真实模型输出或真实操作 |
 | 真实界面 | 指定设备、原程序与原图片的实际显示和操作，不能由编译或单元测试推断 |
 

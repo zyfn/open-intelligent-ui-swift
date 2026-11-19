@@ -9,7 +9,7 @@ enum CheckboxComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Checkbox", description: "A compact leading checkmark square with a text label, not an iOS settings switch. Bind checked to a $variable; literal values are read-only. The full row is tappable with an accessible checked state. lineThrough defaults to false and strikes the label only when checked. For tasks use one clear task label rather than repeating the same task in a title, description and Checkbox.", params: [
             Parameter.boundBoolean("checked"), OpenUIParameter.string("label"),
-            OpenUIParameter.flag("lineThrough")
+            OpenUIParameter.flag("lineThrough"), IntelligentUIRules.parameter()
         ]) { CheckboxView(context: $0) }
     }
 }
@@ -47,5 +47,6 @@ private struct CheckboxView: View {
         .accessibilityValue(checked ? SDKStrings.text("controls.checkbox.checked", locale: locale) : SDKStrings.text("controls.checkbox.unchecked", locale: locale))
         .accessibilityAddTraits(checked ? [.isSelected] : [])
         .disabled(!context.canInteract || context.binding("checked") == nil)
+        .modifier(IntelligentUIFormFieldFeedback(context: context, valueKey: "checked"))
     }
 }

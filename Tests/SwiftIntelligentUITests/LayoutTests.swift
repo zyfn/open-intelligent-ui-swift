@@ -77,7 +77,7 @@ final class LayoutTests: XCTestCase {
     @MainActor func testOfficialFieldAndContainerSignatures() throws {
         let state = try OpenIntelligentUIComponents().makeState()
         state.setSource(#"""
-        root = Col([Input($name,"名称","text","旧占位"),TextArea($note,"备注","可选",3),Select($choice,["A","B"],"尺寸","请选择"),Form([Button("提交",@Set($name,"示例"))]),Image("","缺图",1,"md","contain"),Chart("bar",[{x:"A",v:1}],"x",["v"],"number","USD",false,240)])
+        root = Col([Input($name,"名称","text","旧占位"),TextArea($note,"备注","可选",3),Select($choice,["A","B"],"尺寸","请选择"),Form([Button("提交",@Set($name,"示例"))]),Image("","缺图",1,"md","contain"),Chart("bar",[{x:"A",v:1}],"x",["v"],"number",false,240)])
         $name = ""
         $note = ""
         $choice = "A"

@@ -275,13 +275,13 @@ jobs:
           swift run --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" --skip-build OpenUIGallery \
             --export-contracts "$PWD/outputs/verification/gallery-contracts" \
             2>&1 | tee outputs/verification/gallery-contracts.log
-      - name: Preserve historical Intelligent UI contracts
+      - name: Verify latest upstream Intelligent UI positional contracts
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
-          python3 Tools/check_lang_compatibility.py \
-            2>&1 | tee outputs/verification/historical-contracts.log
+          swift test --configuration release --filter OfficialContractParityTests \
+            2>&1 | tee outputs/verification/upstream-contracts.log
       - name: Native language AddressSanitizer
         if: ${{ !cancelled() }}
         shell: bash

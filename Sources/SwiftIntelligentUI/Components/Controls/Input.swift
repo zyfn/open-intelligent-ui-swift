@@ -6,10 +6,10 @@ enum InputComponent {
         let value = ParamDef(name: "value", required: true, isBindable: true, schema: .object([
             .init(key: "type", value: .array([.string("string"), .string("number")]))
         ]))
-        return OpenUIComponent(name: "Input", description: "Text or number input. type defaults to text. Bind value to a $variable; literals are read-only. Finite numeric edits update the binding and empty input writes null. Unapplied numeric drafts show the current committed value during editing; invalid drafts remain visible for review afterward and never replace it. Numbers use dot decimals and valid comma thousands grouping. Form does not automatically commit or validate all fields.", params: [
+        return OpenUIComponent(name: "Input", description: "Text or number input. type defaults to text. Bind value to a $variable; literals are read-only. Finite numeric edits update the binding and empty input writes null. Unapplied numeric drafts show the current committed value during editing; invalid drafts remain visible for review afterward and never replace it. Numbers use dot decimals and valid comma thousands grouping. Form submission validates declared rules before continuing the conversation.", params: [
             value, OpenUIParameter.string("label", required: false),
             OpenUIParameter.string("type", required: false, values: ["text", "number"]),
-            OpenUIParameter.string("placeholder", required: false)
+            OpenUIParameter.string("placeholder", required: false), IntelligentUIRules.parameter()
         ]) { InputView(context: $0) }
     }
 }
@@ -132,6 +132,7 @@ private struct InputView: View {
         .disabled(!context.canInteract || context.binding("value") == nil)
         .onChange(of: focused) { if !$0 && numeric { draft.finish(current: value) } }
         .onChange(of: value) { if numeric { draft.externalValueChanged(to: $0) } }
+        .modifier(IntelligentUIFormFieldFeedback(context: context, valueKey: "value"))
     }
     @ViewBuilder private var reviewActions: some View {
         Button(SDKStrings.text("controls.input.restore", locale: locale)) { draft.discard() }

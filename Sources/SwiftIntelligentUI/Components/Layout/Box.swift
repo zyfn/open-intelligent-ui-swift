@@ -3,13 +3,13 @@ import SwiftLang
 
 enum BoxComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Box", description: "Container, direction col by default. gap uses theme units, padding defaults to 0, background clear, border false. Background roles muted/faint use a neutral surface; status background tokens use soft tints, while chart colors retain their paint. Prefer surface + ink with a status-colored accent; foreground must differ from the containing background and remain readable in light/dark. Width/height accept points. flex weights share free space in nonwrapping Row. align/justify control placement; wrap applies to row direction. Radius clips when supplied. CSS lengths are not supported.", params: [
+        OpenUIComponent(name: "Box", description: "Container, direction col by default. gap uses theme units, padding defaults to 0, background clear, border false. Background roles muted/faint use a neutral surface; status background tokens use soft tints, while chart colors retain their paint. Prefer surface + ink with a status-colored accent; foreground must differ from the containing background and remain readable in light/dark. Width/height accept numbers, px, percentages of the offered size, and Dynamic Type-scaled em/rem. Unsupported viewport CSS expressions are not simulated. flex weights share free space in nonwrapping Row. align/justify control placement; wrap applies to row direction. Radius clips when supplied. CSS lengths are not supported.", params: [
             OpenUIParameter.slot("children"),
             OpenUIParameter.string("direction", required: false, values: ["row", "col"]),
             Parameter.number("gap", minimum: 0, maximum: 24), Parameter.number("padding", minimum: 0, maximum: 24),
             OpenUIParameter.string("background", required: false, values: Parameter.colors), Parameter.radius(),
-            OpenUIParameter.flag("border"), Parameter.number("width", minimum: 0, maximum: 10_000),
-            Parameter.number("height", minimum: 0, maximum: 10_000), Parameter.number("flex", minimum: 0, maximum: 1000),
+            OpenUIParameter.flag("border"), Parameter.length("width"),
+            Parameter.length("height"), Parameter.number("flex", minimum: 0, maximum: 1000),
             OpenUIParameter.string("align", required: false, values: ["start", "center", "end", "stretch"]),
             OpenUIParameter.string("justify", required: false, values: ["start", "center", "end", "between"]), OpenUIParameter.flag("wrap")
         ]) { BoxView(context: $0) }
@@ -22,6 +22,7 @@ private struct BoxView: View {
     @Environment(\.openIntelligentUIContentBackground) private var contentBackground
     @Environment(\.openIntelligentUIEditorial) private var editorial
     @Environment(\.layoutDirection) private var direction
+    @ScaledMetric(relativeTo: .body) private var fontUnit: CGFloat = 17
     private var radius: CGFloat { theme.radius(named: context.string("radius"), points: context.number("radius"), fallback: 0) }
     @ViewBuilder var body: some View {
         Group {
@@ -48,8 +49,8 @@ private struct BoxView: View {
             }
         }
         .padding(CGFloat(min(24, max(0, context.number("padding") ?? 0))) * theme.spacingUnit)
-        .frame(width: context.number("width").map { CGFloat(min(10_000, max(0, $0))) },
-               height: context.number("height").map { CGFloat(min(10_000, max(0, $0))) }, alignment: Alignment(horizontal: horizontal, vertical: justify == "end" ? .bottom : justify == "center" ? .center : .top))
+        .modifier(IntelligentUILengthModifier(width: IntelligentUILength.read(context.value("width")),
+            height: IntelligentUILength.read(context.value("height")), fontUnit: fontUnit))
         .background(context.string("background").map { theme.backgroundColor($0) } ?? .clear)
         .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(context.flag("border") == true ? theme.fieldBorder : .clear))
         .environment(\.openIntelligentUIContentBackground, context.string("background").map { theme.backgroundColor($0) } ?? contentBackground ?? theme.canvas)

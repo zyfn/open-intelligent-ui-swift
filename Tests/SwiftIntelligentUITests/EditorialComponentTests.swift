@@ -3,13 +3,13 @@ import SwiftLang
 @testable import SwiftIntelligentUI
 
 final class EditorialComponentTests: XCTestCase {
-    func testLeadingEditorialColumnsRemainSideBySideOnPhoneWidths() {
-        for width in [280.0, 320.0, 353.0, 680.0] {
-            let columns = EditorialRowMetrics.columns(width: width, preferred: 116, gap: 16)
-            XCTAssertLessThanOrEqual(columns.image, width * 0.34 + 0.01)
-            XCTAssertGreaterThan(columns.text, columns.image)
-            XCTAssertEqual(columns.image + columns.text + 16, width, accuracy: 0.01)
-        }
+    func testRowRespectsAuthoredEqualWidthColumns() {
+        let layout = RowGeometry(sizes: [CGSize(width: 120, height: 100), CGSize(width: 120, height: 100)],
+            width: 260, gap: 20, alignment: "start", justification: "start", wraps: false)
+        XCTAssertEqual(layout.frames.count, 2)
+        XCTAssertEqual(layout.frames[0].width, 120)
+        XCTAssertEqual(layout.frames[1].minX, 140)
+        XCTAssertEqual(layout.size.height, 100)
     }
     @MainActor func testEditorialContentAndSourcesKeepOriginalData() throws {
         let library = try OpenIntelligentUIComponents()

@@ -6,8 +6,8 @@ enum CardComponent {
         OpenUIComponent(name: "Card", description: "A restrained content group. Single ProductCard/TransportCard children reuse their own surface; in Map the SDK summary card owns presentation instead of nested borders. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units, from 0 to 24.", params: [
             OpenUIParameter.slot("children", required: true),
             OpenUIParameter.string("variant", required: false, values: ["outline", "soft"]),
-            Parameter.number("padding", minimum: 0, maximum: 24),
-            Parameter.number("gap", minimum: 0, maximum: 24)
+            Parameter.number("gap", minimum: 0, maximum: 24),
+            Parameter.number("padding", minimum: 0, maximum: 24)
         ]) { context in
             CardView(context: context)
         }

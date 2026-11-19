@@ -89,14 +89,10 @@ final class DesignRevampTests: XCTestCase {
         XCTAssertEqual(EditorialSpacing.between(wrapped, credit, theme: theme), 9)
     }
 
-    func testRowOnlyAppliesItsDefaultMediaRecipeToProseAndHonorsExplicitPlacement() {
+    func testRowPreservesGenericReadingBlocksWithoutForcingMediaLayout() {
         let pair = [node("Image"), node("Text")]
-        XCTAssertEqual(RowPresentation.mediaIndex(pair, hasExplicitPlacement: false), 0)
-        XCTAssertEqual(RowPresentation.mediaIndex(pair.reversed().map { $0 }, hasExplicitPlacement: false), 1)
-        XCTAssertNil(RowPresentation.mediaIndex(pair, hasExplicitPlacement: true))
-        XCTAssertNil(RowPresentation.mediaIndex([node("Image"), node("Input")], hasExplicitPlacement: false))
-        XCTAssertNil(RowPresentation.mediaIndex(pair + [node("Badge")], hasExplicitPlacement: false))
         XCTAssertTrue(pair.allSatisfy(RowPresentation.isReadingBlock))
+        XCTAssertFalse(RowPresentation.isReadingBlock(node("Input")))
     }
 
     func testSpacerKeepsAWeightAndExplicitBoxFlexKeepsPriority() {
@@ -105,7 +101,6 @@ final class DesignRevampTests: XCTestCase {
         XCTAssertEqual(RowFlexRules.weight(node("Box", [("flex", .number(3))])), 3)
         XCTAssertEqual(RowFlexRules.weight(node("Box", [("flex", .number(0))])), 0)
         XCTAssertEqual(WrappingRowLayout.layoutProperties.stackOrientation, .horizontal)
-        XCTAssertEqual(EditorialRowLayout.layoutProperties.stackOrientation, .horizontal)
         let geometry = RowGeometry(sizes: [CGSize(width: 40, height: 48), CGSize(width: 1, height: 0), CGSize(width: 30, height: 20)],
             width: 160, gap: 8, alignment: "center", justification: "start", wraps: false, stretchIndices: [1])
         XCTAssertEqual(geometry.frames[1].height, 48)

@@ -26,7 +26,7 @@ struct PrimaryLinkButton: View {
 enum IconButtonComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "IconButton", description: "Native icon button with accessible label. variant defaults to outline. Missing actions are disabled.", params: [
-            OpenUIParameter.string("icon", values: IconCatalog.names), OpenUIParameter.action(),
+            OpenUIParameter.string("icon"), OpenUIParameter.action(),
             OpenUIParameter.string("label", required: false), OpenUIParameter.string("variant", required: false, values: ["outline", "ghost", "solid"])
         ]) { IconButtonView(context: $0) }
     }

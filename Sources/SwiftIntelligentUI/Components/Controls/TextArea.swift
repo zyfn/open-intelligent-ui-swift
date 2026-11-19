@@ -5,7 +5,7 @@ enum TextAreaComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "TextArea", description: "Multiline input bound to a string variable. rows defaults to 3, rounded and clamped to 2...20; height scales with Dynamic Type. Literal values are read-only.", params: [
             OpenUIParameter.selection("value"), OpenUIParameter.string("label", required: false),
-            OpenUIParameter.string("placeholder", required: false), Parameter.number("rows", minimum: 2, maximum: 20)
+            OpenUIParameter.string("placeholder", required: false), Parameter.number("rows", minimum: 2, maximum: 20), IntelligentUIRules.parameter()
         ]) { TextAreaView(context: $0) }
     }
 }
@@ -43,6 +43,7 @@ private struct TextAreaView: View {
         }
         .foregroundStyle(theme.primaryText)
         .disabled(!context.canInteract || context.binding("value") == nil)
+        .modifier(IntelligentUIFormFieldFeedback(context: context, valueKey: "value"))
         #if os(iOS)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {

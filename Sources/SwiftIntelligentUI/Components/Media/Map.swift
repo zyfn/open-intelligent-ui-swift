@@ -26,7 +26,7 @@ private struct MapMarkerView: View {
 enum MapComponent {
     static var component: OpenUIComponent {
         var selected = OpenUIParameter.selection("selected", required: false); selected.isBindable = true
-        return OpenUIComponent(name: "Map", description: "Street map with internal category filtering, selectable place cards and native expanded view. selected holds the clicked marker label; empty means overview. Marker/card selection stays synchronized across expansion. route draws a schematic line in marker order, not road directions. No user location or invented coordinates.", params: [
+        return OpenUIComponent(name: "Map", description: "MapKit street map with internal category filtering, selectable place cards and native expanded view. route uses Apple driving directions in marker order; dashed direct connectors are a clearly distinct fallback when directions are loading, unavailable or the itinerary is too long. Not turn-by-turn navigation. selected holds the clicked marker label; empty means overview. Marker/card selection stays synchronized across expansion. route draws a schematic line in marker order, not road directions. No user location or invented coordinates.", params: [
             OpenUIParameter.slot("markers", required: true, accepting: ["MapMarker"]), OpenUIParameter.flag("route"), selected,
             Parameter.number("height", minimum: 160, maximum: 800)
         ]) { NativeMapView(context: $0) }
@@ -492,11 +492,7 @@ enum MapLabelLayout {
         }
         if annotationGeometryChanged || routeChanged {
             coordinator.route = route
-            map.removeOverlays(map.overlays)
-            if route && points.count > 1 {
-                let coordinates = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
-                map.addOverlay(MKPolyline(coordinates: coordinates, count: coordinates.count))
-            }
+            coordinator.updateRoute(map, points: points, enabled: route)
         }
         if let pin = map.annotations.compactMap({ $0 as? MapPin }).first(where: { $0.id == selected }) {
             if !map.selectedAnnotations.contains(where: { $0 === pin }) { map.selectAnnotation(pin, animated: false) }
@@ -510,6 +506,12 @@ enum MapLabelLayout {
         weak var map: MKMapView?
         var points: [MapPoint] = []
         var route = false
+        private var routeKey = ""
+        private var routeRevision = UUID()
+        private var routeTask: Task<Void, Never>?
+        private var activeDirections: MKDirections?
+        private var routeCache: [String: [MapRouteLeg]] = [:]
+        private var routeCacheOrder: [String] = []
         var selected = ""
         var bottomInset: CGFloat = 0
         var topInset: CGFloat = 84
@@ -531,6 +533,82 @@ enum MapLabelLayout {
         var colorScheme: ColorScheme = .light
         var onSelect: (String) -> Void
         init(onSelect: @escaping (String) -> Void) { self.onSelect = onSelect }
+
+        func stopRouting() {
+            routeRevision = UUID()
+            routeTask?.cancel(); routeTask = nil
+            activeDirections?.cancel(); activeDirections = nil
+        }
+
+        func updateRoute(_ map: MKMapView, points: [MapPoint], enabled: Bool) {
+            let key = enabled && points.count > 1
+                ? points.map { "\($0.latitude),\($0.longitude)" }.joined(separator: ";")
+                : ""
+            guard key != routeKey else { return }
+            stopRouting()
+            routeKey = key
+            map.removeOverlays(map.overlays)
+            guard !key.isEmpty else { return }
+            let direct = MapRouteLeg.directConnections(points)
+            renderRoute(map, legs: direct)
+
+            // Avoid dispatching dozens of requests when an answer is streamed
+            // or a filter rapidly changes the visible stop set.
+            guard points.count <= 13 else { return }
+            if let cached = routeCache[key] {
+                renderRoute(map, legs: cached)
+                return
+            }
+            let revision = routeRevision
+            routeTask = Task { [weak self, weak map] in
+                do { try await Task.sleep(nanoseconds: 350_000_000) }
+                catch { return }
+                guard let self, let map, !Task.isCancelled else { return }
+                var legs: [MapRouteLeg] = []
+                for index in 0..<(points.count - 1) {
+                    guard !Task.isCancelled, self.routeRevision == revision else { return }
+                    let a = points[index], b = points[index + 1]
+                    let request = MKDirections.Request()
+                    request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude)))
+                    request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)))
+                    request.transportType = .automobile
+                    request.requestsAlternateRoutes = false
+                    let directions = MKDirections(request: request)
+                    self.activeDirections = directions
+                    do {
+                        let response = try await directions.calculate()
+                        guard !Task.isCancelled, self.routeRevision == revision else { return }
+                        if let route = response.routes.first {
+                            legs.append(MapRouteLeg(polyline: route.polyline, followsRoads: true))
+                        } else {
+                            legs.append(direct[index])
+                        }
+                    } catch {
+                        guard !Task.isCancelled, self.routeRevision == revision else { return }
+                        legs.append(direct[index])
+                    }
+                }
+                guard !Task.isCancelled, self.routeRevision == revision else { return }
+                self.activeDirections = nil
+                self.routeTask = nil
+                self.routeCache[key] = legs
+                self.routeCacheOrder.append(key)
+                if self.routeCacheOrder.count > 8 {
+                    let expired = self.routeCacheOrder.removeFirst()
+                    self.routeCache.removeValue(forKey: expired)
+                }
+                self.renderRoute(map, legs: legs)
+            }
+        }
+
+        private func renderRoute(_ map: MKMapView, legs: [MapRouteLeg]) {
+            map.removeOverlays(map.overlays)
+            for leg in legs {
+                leg.polyline.title = leg.followsRoads ? "road" : "direct"
+                map.addOverlay(leg.polyline)
+            }
+        }
+
         func requestViewport(_ map: MKMapView, fit: Bool = false, focus: Bool = false, resize: Bool = false) {
             if fit {
                 fitRequested = true
@@ -689,13 +767,33 @@ enum MapLabelLayout {
         }
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             guard let line = overlay as? MKPolyline else { return MKOverlayRenderer(overlay: overlay) }
-            let renderer = MKPolylineRenderer(polyline: line); renderer.lineWidth = 3
+            let renderer = MKPolylineRenderer(polyline: line)
+            let isDirect = line.title == "direct"
+            renderer.lineWidth = isDirect ? 2 : 3
+            if isDirect { renderer.lineDashPattern = [6, 4] }
             #if os(iOS)
-            renderer.strokeColor = .label
+            renderer.strokeColor = isDirect ? .secondaryLabel : .label
             #else
-            renderer.strokeColor = .labelColor
+            renderer.strokeColor = isDirect ? .secondaryLabelColor : .labelColor
             #endif
             return renderer
+        }
+    }
+}
+
+private struct MapRouteLeg {
+    let polyline: MKPolyline
+    let followsRoads: Bool
+
+    static func directConnections(_ points: [MapPoint]) -> [Self] {
+        guard points.count > 1 else { return [] }
+        return (0..<(points.count - 1)).map { index in
+            let a = points[index], b = points[index + 1]
+            let coordinates = [
+                CLLocationCoordinate2D(latitude: a.latitude, longitude: a.longitude),
+                CLLocationCoordinate2D(latitude: b.latitude, longitude: b.longitude)
+            ]
+            return Self(polyline: MKPolyline(coordinates: coordinates, count: coordinates.count), followsRoads: false)
         }
     }
 }
@@ -741,12 +839,12 @@ private struct MapBadge: View {
 extension MapSurface: UIViewRepresentable {
     func makeUIView(context: Context) -> MKMapView { makeMap(context.coordinator) }
     func updateUIView(_ view: MKMapView, context: Context) { update(view, coordinator: context.coordinator) }
-    static func dismantleUIView(_ view: MKMapView, coordinator: Coordinator) { view.delegate = nil; (view as? MapCanvas)?.onViewportChange = nil }
+    static func dismantleUIView(_ view: MKMapView, coordinator: Coordinator) { coordinator.stopRouting(); view.delegate = nil; (view as? MapCanvas)?.onViewportChange = nil }
 }
 #else
 extension MapSurface: NSViewRepresentable {
     func makeNSView(context: Context) -> MKMapView { makeMap(context.coordinator) }
     func updateNSView(_ view: MKMapView, context: Context) { update(view, coordinator: context.coordinator) }
-    static func dismantleNSView(_ view: MKMapView, coordinator: Coordinator) { view.delegate = nil; (view as? MapCanvas)?.onViewportChange = nil }
+    static func dismantleNSView(_ view: MKMapView, coordinator: Coordinator) { coordinator.stopRouting(); view.delegate = nil; (view as? MapCanvas)?.onViewportChange = nil }
 }
 #endif

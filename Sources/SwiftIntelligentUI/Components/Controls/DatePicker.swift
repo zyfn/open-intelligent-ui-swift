@@ -29,7 +29,7 @@ enum DatePickerComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "DatePicker", description: "Native date input bound to YYYY-MM-DD, with optional inclusive min/max dates. Empty value remains unselected until edited. Calendar dates use Gregorian UTC to preserve their day.", params: [
             OpenUIParameter.selection("value"), OpenUIParameter.string("label", required: false),
-            OpenUIParameter.string("min", required: false), OpenUIParameter.string("max", required: false)
+            OpenUIParameter.string("min", required: false), OpenUIParameter.string("max", required: false), IntelligentUIRules.parameter()
         ]) { DateFieldView(context: $0) }
     }
 }
@@ -105,6 +105,7 @@ private struct DateFieldView: View {
         }
         .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
         .environment(\.calendar, Calendar(identifier: .gregorian))
+        .modifier(IntelligentUIFormFieldFeedback(context: context, valueKey: "value"))
     }
     @ViewBuilder private var proposalPanel: some View {
         let selection = selection

@@ -19,6 +19,7 @@ enum FormComponent {
 private struct FormGroup: View {
     let context: OpenUIComponentContext
     @State private var identity = UUID().uuidString
+    @StateObject private var validation = IntelligentUIFormValidationStore()
     @Environment(\.openIntelligentUITheme) private var theme
     var body: some View {
         VStack(alignment: .leading, spacing: theme.groupSpacing) {
@@ -27,6 +28,7 @@ private struct FormGroup: View {
             }
         }.openUIForm(context.element.statementId ?? identity)
             .environment(\.openUIInteractionScopeReady, context.canInteract)
+            .environment(\.openIntelligentUIFormValidation, validation)
     }
 }
 enum PopoverComponent {

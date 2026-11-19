@@ -8,7 +8,7 @@ enum ButtonComponent {
             OpenUIParameter.string("variant", required: false, values: ["solid", "outline", "soft", "ghost"]),
             OpenUIParameter.string("color", required: false, values: ["primary", "danger", "success"]),
             OpenUIParameter.string("size", required: false, values: ["sm", "md", "lg"]),
-            OpenUIParameter.string("icon", required: false, values: IconCatalog.names),
+            OpenUIParameter.string("icon", required: false),
             OpenUIParameter.flag("disabled"), OpenUIParameter.flag("block")
         ]) { ActionButtonView(context: $0) }
     }

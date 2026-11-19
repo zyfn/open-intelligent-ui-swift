@@ -10,9 +10,9 @@ final class GenerationContractTests: XCTestCase {
         let reader = library.readerComponents.library.components
         XCTAssertEqual(writer.count, 61)
         XCTAssertEqual(reader.count, 61)
-        XCTAssertEqual(writer.first { $0.name == "Image" }?.params.map(\.name), ["src", "alt"])
+        XCTAssertEqual(writer.first { $0.name == "Image" }?.params.map(\.name), ["src", "alt", "aspectRatio", "radius", "fit"])
         XCTAssertEqual(reader.first { $0.name == "Image" }?.params.map(\.name), ["src", "alt", "aspectRatio", "radius", "fit"])
-        XCTAssertEqual(writer.first { $0.name == "SearchImage" }?.params.map(\.name), ["query"])
+        XCTAssertEqual(writer.first { $0.name == "SearchImage" }?.params.map(\.name), ["query", "aspectRatio", "radius", "fit"])
         for components in [reader, writer] {
             XCTAssertEqual(components.first { $0.name == "Map" }?.params.map(\.name), ["markers", "route", "selected", "height"])
             XCTAssertEqual(components.first { $0.name == "MapMarker" }?.params.map(\.name), ["label", "lat", "lng", "category", "icon"])
@@ -46,7 +46,7 @@ final class GenerationContractTests: XCTestCase {
         let root = try XCTUnwrap(state.root)
         XCTAssertEqual(library.validationIssues(in: root, profile: .historical), [])
         let generated = library.validationIssues(in: root, profile: .generation)
-        XCTAssertTrue(generated.contains { $0.contains("aspectRatio") })
+        XCTAssertFalse(generated.contains { $0.contains("aspectRatio") })
         XCTAssertTrue(generated.contains { $0.contains("Timer") && $0.contains("not available") })
         XCTAssertTrue(generated.contains { $0.contains("priceText") })
         XCTAssertTrue(library.recognizesUI(in: source))

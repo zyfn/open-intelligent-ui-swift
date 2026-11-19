@@ -51,8 +51,7 @@ enum PresentationText {
                     scatter: ValueReading.string(ValueReading.field(value, "type")) == "scatter")
                 return data.entries.map { entry in
                     entry.label + "，" + entry.series + ": " + (entry.value.map {
-                        ChartData.formatted($0, kind: ValueReading.field(value, "format").map { ValueReading.string($0) },
-                                            currency: ValueReading.field(value, "currency").map { ValueReading.string($0) }, locale: locale)
+                        ChartData.formatted($0, locale: locale)
                     } ?? SDKStrings.text("chart.missing_value", locale: locale))
                 }.joined(separator: "；")
             }

@@ -51,7 +51,7 @@ enum SelectComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Select", description: "Menu selection bound to a string. Options are strings or value/label objects. Unknown selection shows placeholder; no implicit selection. Duplicate values use the first option. Empty lists and literal values are read-only.", params: [
             OpenUIParameter.selection("value"), ChoiceOption.parameter(),
-            OpenUIParameter.string("label", required: false), OpenUIParameter.string("placeholder", required: false)
+            OpenUIParameter.string("label", required: false), OpenUIParameter.string("placeholder", required: false), IntelligentUIRules.parameter()
         ]) { SelectView(context: $0) }
     }
 }
@@ -96,6 +96,7 @@ private struct SelectView: View {
         .accessibilityHint(options.isEmpty ? SDKStrings.text("controls.choice.empty", locale: locale) : context.binding("value") == nil ? SDKStrings.text("controls.choice.read_only", locale: locale) : "")
         .disabled(!context.canInteract || context.binding("value") == nil || options.isEmpty)
         }
+        .modifier(IntelligentUIFormFieldFeedback(context: context, valueKey: "value"))
     }
 }
 
@@ -138,7 +139,7 @@ enum RadioGroupComponent {
         OpenUIComponent(name: "RadioGroup", description: "Single selection bound to a string. variant defaults to list; pills wrap, cards show descriptions. Duplicate values use the first option. Literal values are read-only.", params: [
             OpenUIParameter.selection("value"), ChoiceOption.parameter(descriptions: true),
             OpenUIParameter.string("label", required: false),
-            OpenUIParameter.string("variant", required: false, values: ["list", "pills", "cards"])
+            OpenUIParameter.string("variant", required: false, values: ["list", "pills", "cards"]), IntelligentUIRules.parameter()
         ]) { ChoiceGroupView(context: $0, segmented: false) }
     }
 }
@@ -219,5 +220,6 @@ private struct ChoiceGroupView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(segmented ? SDKStrings.text("controls.choice.options", locale: locale) : context.string("label") ?? SDKStrings.text("controls.choice.single", locale: locale))
         .disabled(!context.canInteract || context.binding("value") == nil)
+        .modifier(IntelligentUIFormFieldFeedback(context: context, valueKey: "value"))
     }
 }

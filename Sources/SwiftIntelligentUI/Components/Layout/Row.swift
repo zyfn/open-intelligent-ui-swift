@@ -3,7 +3,7 @@ import SwiftLang
 
 enum RowComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Row", description: "Horizontal flex layout. Defaults: gap 2 theme units, align center, justify start, wrap false. Explicit Box.flex/width controls ordinary rows. A two-item image/prose row with default placement uses the SDK thumbnail profile; explicit gap is honored and explicit align/justify/wrap use ordinary row placement. Narrow or accessibility reading rows may stack without replacing their children. wrap moves items to further lines.", params: [
+        OpenUIComponent(name: "Row", description: "Horizontal flex layout. Defaults: gap 2 theme units, align center, justify start, wrap false. Explicit Box.flex/width controls ordinary rows. Row never overrides the authored image size or alignment with an implicit image/text recipe. Accessibility-sized reading rows stack without replacing their children. wrap moves items to further lines.", params: [
             OpenUIParameter.slot("children", required: true), Parameter.number("gap", minimum: 0, maximum: 24),
             OpenUIParameter.string("align", required: false, values: ["start", "center", "end", "stretch"]),
             OpenUIParameter.string("justify", required: false, values: ["start", "center", "end", "between"]),
@@ -17,45 +17,30 @@ private struct RowView: View {
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.layoutDirection) private var direction
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Environment(\.openIntelligentUIEditorial) private var editorial
-    @State private var availableWidth: CGFloat = 0
 
     var body: some View {
         let children = context.children()
-        let mediaIndex = RowPresentation.mediaIndex(children.map(\.value), hasExplicitPlacement: context.string("align") != nil || context.string("justify") != nil || context.flag("wrap") != nil)
-        let stacked = (typeSize.isAccessibilitySize && children.count > 1 && children.allSatisfy { RowPresentation.isReadingBlock($0.value) })
-            || (mediaIndex != nil && availableWidth > 0 && availableWidth < EditorialMetrics.minimumRowWidth)
+        let stacked = typeSize.isAccessibilitySize && children.count > 1
+            && children.allSatisfy { RowPresentation.isReadingBlock($0.value) }
         let gap = context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
-            ?? (mediaIndex == nil ? theme.spacingUnit * 2 : theme.groupSpacing)
-        let stackedAlignment: HorizontalAlignment = context.string("align") == "end" ? .trailing : context.string("align") == "center" ? .center : .leading
+            ?? theme.spacingUnit * 2
+        let alignment = context.string("align") ?? "center"
+        let cross: HorizontalAlignment = alignment == "end" ? .trailing
+            : alignment == "center" ? .center : .leading
         let layout: AnyLayout = stacked
-            ? AnyLayout(VStackLayout(alignment: stackedAlignment, spacing: gap))
-            : mediaIndex.map { AnyLayout(EditorialRowLayout(preferredImageWidth: EditorialMetrics.imageWidth,
-                ratio: EditorialNode.imageRatio(children[$0].value) ?? EditorialMetrics.imageAspectRatio,
-                gap: gap, rightToLeft: direction == .rightToLeft, mediaIndex: $0)) }
-                ?? AnyLayout(WrappingRowLayout(gap: gap, alignment: context.string("align") ?? "center",
-                    justification: context.string("justify") ?? "start", wraps: context.flag("wrap") ?? false,
-                    rightToLeft: direction == .rightToLeft))
-        // Keep the same ForEach and IDs while only the layout changes.
+            ? AnyLayout(VStackLayout(alignment: cross, spacing: gap))
+            : AnyLayout(WrappingRowLayout(gap: gap, alignment: alignment,
+                justification: context.string("justify") ?? "start", wraps: context.flag("wrap") ?? false,
+                rightToLeft: direction == .rightToLeft))
         return layout {
             ForEach(children) { child in
                 context.render(child.value)
-                    .environment(\.openIntelligentUIEditorial, childContext(child.value, media: mediaIndex != nil, stacked: stacked))
-                    .frame(maxWidth: stacked && context.string("align") == "stretch" ? .infinity : nil, alignment: .leading)
+                    .frame(maxWidth: stacked && alignment == "stretch" ? .infinity : nil, alignment: .leading)
                     .layoutValue(key: RowFlexWeight.self, value: RowFlexRules.weight(child.value))
                     .layoutValue(key: RowDivider.self, value: EditorialNode.kind(child.value) == "Divider")
             }
         }
-        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: stackedAlignment, vertical: .top))
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-            if width.isFinite, width > 0, abs(width - availableWidth) > 0.5 { availableWidth = width }
-        }
-    }
-
-    private func childContext(_ value: Value, media: Bool, stacked: Bool) -> EditorialContext {
-        var result = editorial
-        if media && EditorialNode.media(value) { result.mediaRatio = stacked ? theme.coverImageAspectRatio : EditorialMetrics.imageAspectRatio }
-        return result
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: cross, vertical: .top))
     }
 }
 
@@ -69,14 +54,6 @@ enum RowFlexRules {
 enum RowPresentation {
     static func isReadingBlock(_ value: Value) -> Bool {
         EditorialNode.media(value) || ["Text", "Title", "Caption", "Markdown", "Box", "Col", "Card", "ImageText", "ProductCard", "TransportCard", "List", "Table", "Chart", "Form", "Quote", "Code", "Disclosure"].contains(EditorialNode.kind(value))
-    }
-    static func mediaIndex(_ children: [Value], hasExplicitPlacement: Bool) -> Int? {
-        guard !hasExplicitPlacement, children.count == 2,
-              children.filter({ EditorialNode.media($0) }).count == 1,
-              let index = children.firstIndex(where: EditorialNode.media),
-              EditorialNode.isProse(children[1 - index]),
-              children.allSatisfy({ ValueReading.field($0, "width") == nil && ValueReading.field($0, "flex") == nil }) else { return nil }
-        return index
     }
 }
 

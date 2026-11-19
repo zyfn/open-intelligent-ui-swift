@@ -20,11 +20,6 @@ extension EnvironmentValues {
 }
 
 enum EditorialNode {
-    static func imageRatio(_ value: Value) -> CGFloat? {
-        if let ratio = ValueReading.number(ValueReading.field(value, "aspectRatio")) { return CGFloat(min(5, max(0.2, ratio))) }
-        if kind(value) == "Box", let image = ValueReading.array(ValueReading.field(value, "children")).first { return imageRatio(image) }
-        return nil
-    }
     static func kind(_ value: Value) -> String {
         if case .element(let element) = value { return element.typeName }
         return "Text"
@@ -87,6 +82,7 @@ enum EditorialSpacing {
         return section(theme)
     }
 }
+
 
 enum EditorialRowMetrics {
     static func columns(width: CGFloat, preferred: CGFloat, gap: CGFloat) -> (image: CGFloat, text: CGFloat) {
