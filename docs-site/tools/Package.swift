@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "GuideExport",
     platforms: [.macOS(.v13)],
-    dependencies: [.package(path: "../..")],
+    dependencies: [.package(name: "openui-swift-sdk", path: "../..")],
     targets: [
         .executableTarget(name: "GuideExport", dependencies: [
             .product(name: "swift-ui", package: "openui-swift-sdk"),
