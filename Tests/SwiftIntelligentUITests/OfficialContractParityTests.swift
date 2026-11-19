@@ -66,7 +66,7 @@ final class OfficialContractParityTests: XCTestCase {
         "MapMarker": ["label", "lat", "lng", "category", "icon"]
     ]
 
-    func testEveryOfficialComponentHasTheSamePositionalArguments() throws {
+    @MainActor func testEveryOfficialComponentHasTheSamePositionalArguments() throws {
         let images = OpenIntelligentUIImageSearch { _ in
             .init(url: "https://example.invalid/photo.jpg", alt: "fixture")
         }
