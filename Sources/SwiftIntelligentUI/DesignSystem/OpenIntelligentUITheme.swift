@@ -42,7 +42,7 @@ public struct OpenIntelligentUITheme: Equatable {
     public var codeNumber: Color = .blue
     public var titleFont: Font = .headline.weight(.semibold)
     public var priceFont: Font = .title3.weight(.semibold)
-    public var coverImageAspectRatio: CGFloat = 16.0 / 9.0
+    public var coverImageAspectRatio: CGFloat = 3.0 / 2.0
     public var compactActionFont: Font = .footnote
     public var spacingUnit: CGFloat = 4
     public var sectionSpacing: CGFloat = 20
