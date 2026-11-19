@@ -144,7 +144,7 @@ enum BadgeComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Badge", description: "A compact status label. color defaults to neutral; icons use the supported symbol mapping.", params: [
             OpenUIParameter.string("text"), OpenUIParameter.string("color", required: false, values: ["neutral", "info", "success", "warning", "danger", "purple", "pink"]),
-            OpenUIParameter.string("icon", required: false, values: IconCatalog.names)
+            OpenUIParameter.string("icon", required: false)
         ]) { BadgeView(context: $0) }
     }
 }
