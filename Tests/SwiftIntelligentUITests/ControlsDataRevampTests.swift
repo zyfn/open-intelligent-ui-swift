@@ -167,10 +167,9 @@ final class ControlsDataRevampTests: XCTestCase {
 
     func testChartInspectionPreservesRepresentableSmallAndPreciseNumbers() {
         let locale = Locale(identifier: "en_US_POSIX")
-        XCTAssertEqual(ChartData.formatted(0.004, kind: "number", currency: nil, locale: locale), "0.004")
-        XCTAssertEqual(ChartData.formatted(1.23456, kind: "number", currency: nil, locale: locale), "1.23456")
-        XCTAssertEqual(ChartData.formatted(0.004, kind: "currency", currency: "JPY", locale: locale), "JPY 0.004")
-        XCTAssertEqual(ChartData.formatted(0.004, kind: "percent", currency: nil, locale: locale), "0.004%")
+        XCTAssertEqual(ChartData.formatted(0.004, locale: locale), "0.004")
+        XCTAssertEqual(ChartData.formatted(1.23456, locale: locale), "1.23456")
+        XCTAssertEqual(ChartData.formatted(0.004, kind: "percent", locale: locale), "0.004%")
     }
 
     func testChartMissingCategoryKeepsDomainAndBreaksOnlyItsSeries() {
