@@ -115,6 +115,15 @@ final class OfficialContractParityTests: XCTestCase {
         XCTAssertTrue(form.errors.isEmpty)
     }
 
+    @MainActor func testNativeIconContractAcceptsUnlistedLucideNames() throws {
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        state.setSource(#"root = Col([Icon("coffee"), Icon("an-unlisted-lucide-name")])"#)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        XCTAssertEqual(IconCatalog.symbol("coffee"), "cup.and.saucer")
+        XCTAssertEqual(IconCatalog.symbol("an-unlisted-lucide-name"), "questionmark.circle")
+    }
+
     func testChartSyntaxNowMatchesPercentageOnlyFormat() throws {
         let library = try OpenIntelligentUIComponents()
         let chart = try XCTUnwrap(library.components.library.components.first { $0.name == "Chart" })
