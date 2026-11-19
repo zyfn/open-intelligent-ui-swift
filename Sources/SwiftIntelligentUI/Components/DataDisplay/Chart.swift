@@ -10,13 +10,13 @@ private enum ChartMetrics {
 
 enum ChartComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Chart", description: "Native chart with tap/drag/hover popover inspection, accessible data points and expandable data details. Selection stays local to the chart. x is a category (numeric for scatter); up to 8 numeric series inferred from the first row. Defaults: format number, currency USD, stacked false, height 240 points. Invalid values are omitted. Pie/donut use the first series and nonnegative values. Data details preserve exact accessible values.", params: [
+        OpenUIComponent(name: "Chart", description: "Native chart with tap/drag/hover data inspection. x is a category (numeric for scatter); up to 8 numeric series inferred from the first row. format applies to pie/donut only: percent means each slice's percentage of its nonnegative total, number means original value. height sizes Cartesian plots; pie/donut size themselves. Invalid values are omitted and the native details preserve numeric source values.", params: [
             OpenUIParameter.string("type", values: ["bar", "line", "area", "pie", "donut", "scatter"]),
             Parameter.array("data", items: .object([.init(key: "type", value: .string("object")), .init(key: "additionalProperties", value: .object([.init(key: "type", value: .array([.string("string"), .string("number")]))]))])),
             OpenUIParameter.string("x", required: false),
             Parameter.array("series", items: .object([.init(key: "type", value: .string("string"))]), required: false),
-            OpenUIParameter.string("format", required: false, values: ["number", "currency", "percent"]),
-            OpenUIParameter.string("currency", required: false), OpenUIParameter.flag("stacked"),
+            OpenUIParameter.string("format", required: false, values: ["number", "percent"]),
+            OpenUIParameter.flag("stacked"),
             Parameter.number("height", minimum: 140, maximum: 480)
         ]) { ChartView(context: $0) }
     }
@@ -80,24 +80,15 @@ struct ChartData {
         }
         self.points = points; self.omitted = omitted; self.labels = labels; self.entries = entries
     }
-    static func formatted(_ value: Double, kind: String?, currency: String?, locale: Locale = .current) -> String {
+    static func formatted(_ value: Double, kind: String? = nil, locale: Locale = .current) -> String {
         guard value.isFinite else { return SDKStrings.text("chart.unavailable", locale: locale) }
-        // Shortest numeric representation preserves the current Value/Double.
-        // It cannot recover source lexical zeros or precision lost before rendering.
+        // Preserve the original numeric value in details. Only explicit pie/donut
+        // percentage mode changes a displayed slice into a share of the total.
         let number = jsNumberString(value).replacingOccurrences(of: ".", with: locale.decimalSeparator ?? ".")
-        if kind == "percent" { return number + "%" }
-        if kind == "currency" { return currencyCode(currency) + " " + number }
-        return number
+        return kind == "percent" ? number + "%" : number
     }
-    static func currencyCode(_ currency: String?) -> String {
-        currency?.range(of: "^[A-Za-z]{3}$", options: .regularExpression) != nil ? currency!.uppercased() : "USD"
-    }
-    /// Axis labels are concise; inspection and data details retain the original precision.
-    static func axisLabel(_ value: Double, kind: String?, currency: String?, locale: Locale = .current) -> String {
-        let label = value.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)).locale(locale))
-        if kind == "percent" { return label + "%" }
-        guard kind == "currency" else { return label }
-        return currencyCode(currency) + " " + label
+    static func axisLabel(_ value: Double, locale: Locale = .current) -> String {
+        value.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)).locale(locale))
     }
 }
 
@@ -112,7 +103,15 @@ private struct ChartView: View {
     private var selectedLabel: String? { inspectedLabel }
     private var kind: String { context.string("type") ?? "bar" }
     private var data: ChartData { ChartData(rows: context.value("data"), x: context.string("x"), series: context.value("series"), scatter: kind == "scatter") }
-    private func formatted(_ value: Double) -> String { ChartData.formatted(value, kind: context.string("format"), currency: context.string("currency"), locale: locale) }
+    private func formatted(_ value: Double) -> String {
+        guard ["pie", "donut"].contains(kind), context.string("format") == "percent" else {
+            return ChartData.formatted(value, locale: locale)
+        }
+        let source = data
+        let total = source.points.filter { $0.series == source.series.first && $0.value >= 0 }
+            .reduce(0.0) { $0 + $1.value }
+        return ChartData.formatted(total > 0 && total.isFinite ? value / total * 100 : 0, kind: "percent", locale: locale)
+    }
     var body: some View {
         let data = data
         VStack(alignment: .leading, spacing: theme.groupSpacing) {
@@ -124,7 +123,7 @@ private struct ChartView: View {
                     if kind == "pie" || kind == "donut" {
                         NativePie(points: data.points.filter { $0.series == data.series.first && $0.value >= 0 },
                                   donut: kind == "donut", selected: inspectedPointID,
-                                  plotHeight: CGFloat(min(480, max(140, context.number("height") ?? 240))),
+                                  plotHeight: 240,
                                   interactive: context.canInteract,
                                   formatted: formatted, select: { selectPoint($0, data: data) })
                             .popover(isPresented: $inspectionPresented) { popover(data) }
@@ -249,7 +248,7 @@ private struct ChartView: View {
         .chartYAxis { AxisMarks(position: .leading) { value in
             AxisGridLine().foregroundStyle(theme.separator)
             AxisValueLabel { if let number = value.as(Double.self) {
-                Text(ChartData.axisLabel(number, kind: context.string("format"), currency: context.string("currency"), locale: locale))
+                Text(ChartData.axisLabel(number, locale: locale))
                     .font(ChartMetrics.axisFont).foregroundStyle(ChartMetrics.labelColor)
             } }
         } }
