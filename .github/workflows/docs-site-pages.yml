@@ -22,6 +22,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  web-preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - run: npm ci --prefix docs-site --ignore-scripts
+      - run: npm run build --prefix docs-site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-site-web-preview
+          path: docs-site/dist
+          retention-days: 3
+
   build:
     runs-on: macos-15
     env:
