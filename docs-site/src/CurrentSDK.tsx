@@ -56,11 +56,11 @@ export default function CurrentSDK() {
 
   return (
     <section id="current" className="current-guide" aria-label="当前 SDK 组件文档">
-      <div className="current-guide__eyebrow">CURRENT SDK · NATIVE CONTRACT</div>
+      <div className="current-guide__eyebrow">02 / COMPONENT CATALOG</div>
       <div className="current-guide__intro">
         <div>
           <h2>从实际组件库出发</h2>
-          <p>这里展示当前 Swift SDK 导出的生成契约，而不是旧版 React 演示组件。两套组件库共享 SwiftLang，但有各自独立的组件名、参数和设计系统。</p>
+          <p>直接浏览当前 Swift SDK 导出的生成契约。两套组件库共享 SwiftLang，但组件结构、参数、生成规则与设计系统各自独立；签名来自构建时的实际 Library 定义。</p>
         </div>
         <a href="https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Examples/Gallery" target="_blank" rel="noreferrer">查看原生 Gallery ↗</a>
       </div>
@@ -110,10 +110,6 @@ export default function CurrentSDK() {
           </div>
         </div>
       )}
-      <div className="current-guide__history">
-        <strong>RC20 设计档案</strong>
-        <span>下方保留旧站的交互式讲解与 React Web 标本，包括 <a href="#component-TextContent">TextContent</a>。它们是历史参考，不能当作当前 Native SDK 的渲染验收。</span>
-      </div>
     </section>
   );
 }
