@@ -240,13 +240,19 @@ extension ComponentLibraryTests {
     let replacements = OpenUIComponents.components.compactMap { component -> OpenUIComponent? in
       guard ["Tabs", "Map", "MapPoint"].contains(component.definition.name) else { return nil }
       var definition = component.definition
-      definition.params.append(definition.name == "MapPoint"
-        ? OpenUIParameter.string("id", required: false)
-        : OpenUIParameter.selection("value", required: false))
+      if definition.name == "Tabs" {
+        // This host's published second argument is the selection binding.
+        definition.params.insert(OpenUIParameter.selection("value", required: false), at: 1)
+      } else {
+        definition.params.append(definition.name == "MapPoint"
+          ? OpenUIParameter.string("id", required: false)
+          : OpenUIParameter.selection("value", required: false))
+      }
       return component.replacingDefinition(definition)
     }
     let extended = try standard.extending(overriding: replacements)
-    XCTAssertEqual(standard.library.toSchema().components["Tabs"]?.map(\.name), ["items"])
+    XCTAssertEqual(standard.library.toSchema().components["Tabs"]?.map(\.name), ["items", "variant"])
+    XCTAssertEqual(extended.library.toSchema().components["Tabs"]?.map(\.name), ["items", "value", "variant"])
     XCTAssertEqual(standard.library.toSchema().components["Map"]?.map(\.name), ["points", "crs"])
     let state = OpenUIState(schema: extended.library.toSchema())
     state.setSource("$choice=\"a\"\nroot=Stack([Tabs([TabItem(\"a\",\"A\",[TextContent(\"A\")]),TabItem(\"b\",\"B\",[TextContent(\"B\")])],$choice),Map([MapPoint(\"A\",30,120,null,null,null,\"a\"),MapPoint(\"B\",31,121,null,null,null,\"b\")],\"wgs84\",$choice)])")

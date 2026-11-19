@@ -58,7 +58,7 @@ final class StreamingPresentationTests: XCTestCase {
         XCTAssertGreaterThan(state.presentationRevision, generation)
     }
 
-    func testTabsFollowTheLastGrowingContentUntilAManualValueChange() {
+    func testTabsKeepTheFirstOrManuallySelectedItemAsOtherContentGrows() {
         let a = NativeTabPanel(id: "a", label: "First", content: .string("First"))
         let b = NativeTabPanel(id: "b", label: "Second", content: .string("Second"))
         var selection = NativeTabsSelection()
@@ -67,34 +67,34 @@ final class StreamingPresentationTests: XCTestCase {
         selection.reconcile([a])
         XCTAssertEqual(selection.selected, "a")
         selection.reconcile([a, b])
-        XCTAssertEqual(selection.selected, "b", "New growing content follows the upstream candidate rule")
+        XCTAssertEqual(selection.selected, "a", "An appended item must not replace the current page")
         selection.reconcile([NativeTabPanel(id: "a", label: a.label, content: .string("First grows considerably")), b])
-        XCTAssertEqual(selection.selected, "a", "Growth in an existing item also changes the active value")
+        XCTAssertEqual(selection.selected, "a")
         selection.reconcile([
             NativeTabPanel(id: "a", label: a.label, content: .string("First grows considerably more")),
             NativeTabPanel(id: "b", label: b.label, content: .string("Second grows too")),
         ])
-        XCTAssertEqual(selection.selected, "b", "The last growing item wins, not the largest item")
-        selection.choose("a")
+        XCTAssertEqual(selection.selected, "a", "Neither the order nor the amount of incoming text changes the page")
+        selection.choose("b")
         selection.reconcile([a, NativeTabPanel(id: "b", label: b.label, content: .string("Second keeps growing"))])
-        XCTAssertEqual(selection.selected, "a", "A manual value change permanently stops automatic following")
-        selection.reconcile([b])
-        XCTAssertEqual(selection.selected, "a", "Do not add a native-only removal fallback")
+        XCTAssertEqual(selection.selected, "b", "A manual value change pins the chosen item")
+        selection.reconcile([a])
+        XCTAssertEqual(selection.selected, "a", "A settled removal falls back to the remaining first item")
         selection.reconcile([])
-        XCTAssertEqual(selection.selected, "a")
+        XCTAssertNil(selection.selected)
     }
 
-    func testCompleteInitialTabsAndEqualSizeUpdatesUseTheUpstreamRule() {
+    func testCompleteAndIncrementalTabsIgnoreTextSizeWhenSelecting() {
         func panel(_ id: OpenUIString, _ text: OpenUIString) -> NativeTabPanel {
             NativeTabPanel(id: id, label: id.displayString, content: .string(text))
         }
         var selection = NativeTabsSelection()
         selection.reconcile([panel("a", "One"), panel("b", "Two")])
-        XCTAssertEqual(selection.selected, "b", "The initial full snapshot follows the last growing item too")
+        XCTAssertEqual(selection.selected, "a")
         selection.reconcile([panel("a", "New"), panel("b", "Two")])
-        XCTAssertEqual(selection.selected, "b", "Equal JSON length does not count as growth")
-        selection.reconcile([panel("a", "🙂🙂"), panel("b", "Two")])
-        XCTAssertEqual(selection.selected, "a", "JSON length counts UTF-16, not Swift graphemes")
+        XCTAssertEqual(selection.selected, "a")
+        selection.reconcile([panel("a", "New"), panel("b", "🙂🙂")])
+        XCTAssertEqual(selection.selected, "a", "A longer UTF-16 payload in another tab does not select it")
     }
 
     func testTappingTheSelectedNativeTabKeepsItAsLaterPanelsArrive() {
@@ -110,7 +110,7 @@ final class StreamingPresentationTests: XCTestCase {
         XCTAssertEqual(selection.selected, "a")
     }
 
-    func testTabsMeasureTheSerializedComponentContentRatherThanOnlyItsText() {
+    func testChangingComponentMetadataInAnotherPanelDoesNotSelectIt() {
         func panel(_ id: OpenUIString, partial: Bool) -> NativeTabPanel {
             NativeTabPanel(id: id, label: id.displayString, content: .array([
                 .element(EvaluatedElement(typeName: "TextContent", props: [("text", .string("Same text"))], partial: partial))
@@ -118,9 +118,9 @@ final class StreamingPresentationTests: XCTestCase {
         }
         var selection = NativeTabsSelection()
         selection.reconcile([panel("a", partial: true), panel("b", partial: true)])
-        XCTAssertEqual(selection.selected, "b")
-        selection.reconcile([panel("a", partial: false), panel("b", partial: true)])
-        XCTAssertEqual(selection.selected, "a", "JSON false is one UTF-16 unit longer than true")
+        XCTAssertEqual(selection.selected, "a")
+        selection.reconcile([panel("a", partial: true), panel("b", partial: false)])
+        XCTAssertEqual(selection.selected, "a")
     }
 
     func testAccordionOpensTheNewestArrivalUntilTheUserChangesItsValue() {
@@ -166,7 +166,7 @@ final class StreamingPresentationTests: XCTestCase {
         XCTAssertGreaterThan(state.presentationRevision, replacement)
     }
 
-    @MainActor func testIncrementalTabsFollowNewContentAndPreserveTheComponentInstance() throws {
+    @MainActor func testIncrementalTabsKeepShowingTheFirstDeclaredItem() throws {
         let library = try OpenUIComponents.library()
         let state = OpenUIState(schema: library.library.toSchema())
         let source = "root=Tabs([TabItem(\"a\",\"方案一 · 较长中文标题\",[TextContent(\"第一段正文逐渐增长\")]),TabItem(\"b\",\"方案二 · 另一种选择\",[TextContent(\"第二段\")]),TabItem(\"c\",\"方案三 · 第三种选择\",[TextContent(\"第三段\")])])"
@@ -175,14 +175,24 @@ final class StreamingPresentationTests: XCTestCase {
         for character in source {
             state.push(String(character))
             guard let root = state.root else { continue }
-            let panels = NativeTabPanel.read(OpenUIRenderChild.children(of: PropValue.value(root, "items") ?? .null))
-            selection.reconcile(panels)
+            let context = OpenUIComponentContext(element: root, registry: library.registry, state: state)
+            let variant = NativeTabsVariant(context)
+            let children = context.children("items")
+            let panels = NativeTabPanel.read(children, variant: variant)
+            selection.reconcile(.read(context, children: children, panels: panels, variant: variant))
             if let selected = selection.selected { visited.insert(selected) }
             XCTAssertFalse(state.isComplete)
         }
         state.complete()
-        XCTAssertEqual(visited, Set(["a", "b", "c"]))
+        XCTAssertEqual(visited, Set(["a"]))
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-        XCTAssertEqual(selection.selected, "c")
+        XCTAssertEqual(selection.selected, "a")
+    }
+}
+
+private extension NativeTabsSelection {
+    mutating func reconcile(_ panels: [NativeTabPanel]) {
+        let ids = panels.map(\.id)
+        reconcile(NativeTabChoices(ids: ids, first: ids.first, settled: true))
     }
 }

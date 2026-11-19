@@ -9,12 +9,13 @@ final class ContractAlignmentTests: XCTestCase {
         let library = try OpenUIComponents.library()
         let schema = library.library.toSchema()
         XCTAssertEqual(schema.components["TabItem"]?.map(\.name), ["value", "trigger", "content"])
-        XCTAssertEqual(schema.components["Tabs"]?.map(\.name), ["items"])
+        XCTAssertEqual(schema.components["Tabs"]?.map(\.name), ["items", "variant"])
         XCTAssertEqual(schema.components["Card"]?.map(\.name), ["children", "variant", "direction", "gap", "align", "justify", "wrap"])
         let upstream = LibrarySpec(json: OpenUIReference.catalog.field("spec")!)
         for expected in upstream.components where !["Card", "TabItem", "AccordionItem"].contains(expected.name) {
             let signature: String
             switch expected.name {
+            case "Tabs": signature = "Tabs(items: TabItem[], variant?: \"default\" | \"date\")"
             case "Steps": signature = "Steps(items: StepsItem[], variant?: \"default\" | \"timeline\")"
             case "StepsItem": signature = "StepsItem(title: string, details: string, time?: string)"
             default: signature = expected.signature
@@ -57,15 +58,16 @@ final class ContractAlignmentTests: XCTestCase {
         XCTAssertTrue(runtime.errors.isEmpty, "\(runtime.errors)")
         let tabs = try XCTUnwrap(PropValue.children(runtime.root!).first)
         XCTAssertNil(runtime.binding(for: tabs, prop: "value"))
-        let panels = NativeTabPanel.read(OpenUIRenderChild.children(of: PropValue.value(tabs, "items")!))
+        let context = OpenUIComponentContext(element: tabs, registry: library.registry, state: runtime)
+        let children = context.children("items")
+        let panels = NativeTabPanel.read(children)
+        let choices = NativeTabChoices.read(context, children: children, panels: panels, variant: .standard)
         var local = NativeTabsSelection()
-        local.reconcile(panels)
-        XCTAssertEqual(local.selected, "b", "The complete snapshot follows the last growing item, as upstream does")
-        local.choose("a")
-        local.reconcile([
-            panels[0], NativeTabPanel(id: "b", label: "Beta", content: .string("Longer streamed content")),
-        ])
-        XCTAssertEqual(local.selected, "a", "A user's choice must survive streaming updates")
+        local.reconcile(choices)
+        XCTAssertEqual(local.selected, "a")
+        local.choose("b")
+        local.reconcile(choices)
+        XCTAssertEqual(local.selected, "b", "A user's choice must survive the next update")
         XCTAssertTrue(
             runtime.snapshotState().isEmpty, "Uncontrolled Tabs must not allocate a shared variable")
     }

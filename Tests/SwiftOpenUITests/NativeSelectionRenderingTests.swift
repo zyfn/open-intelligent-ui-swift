@@ -7,7 +7,7 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class NativeSelectionRenderingTests: XCTestCase {
-    @MainActor func testArrivingDataChangesTheMountedTabsAndAccordion() throws {
+    @MainActor func testArrivingDataKeepsTheMountedTabAndOpensTheNewAccordionItem() throws {
         _ = NSApplication.shared
         let marker = OpenUIComponent(name: "LocationMarker", description: "Selection evidence",
             params: [OpenUIParameter.string("location")]) { TabLocationMarker(location: $0.string("location") ?? "") }
@@ -48,7 +48,7 @@ final class NativeSelectionRenderingTests: XCTestCase {
         waitFor(["Tab A", "Detail A"])
         let revision = state.presentationRevision
         state.setState("$append", value: .boolean(true))
-        waitFor(["Tab B", "Detail B"])
+        waitFor(["Tab A", "Detail B"])
         XCTAssertEqual(state.presentationRevision, revision, "Arrival must update the existing presentation")
     }
 
@@ -62,7 +62,7 @@ final class NativeSelectionRenderingTests: XCTestCase {
         let state = OpenUIState(schema: library.library.toSchema())
         state.setSource("""
         $day="ferry"
-        panels=[TabItem("day2","Day two",[LocationMarker("academy")]),TabItem("day1","Day one",[LocationMarker($day)])]
+        panels=[TabItem("day1","Day one",[LocationMarker($day)]),TabItem("day2","Day two",[LocationMarker("academy")])]
         root=Stack([Tabs(panels),Input("selection",null,null,null,$day)])
         """)
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")

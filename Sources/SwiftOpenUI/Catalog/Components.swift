@@ -34,18 +34,20 @@ public enum OpenUIComponents {
             } else if definition.name == "StepsItem" {
                 extended.params.append(OpenUIParameter.string("time", required: false))
                 extended.description += " Optional time is shown in timeline when known; do not invent times."
+            } else if definition.name == "Tabs" {
+                extended.params.append(OpenUIParameter.string("variant", required: false, values: ["default", "date"]))
+                extended.description += ". Opens the first item in display order and keeps the selected page as content arrives. Use date to switch calendar days, with a unique YYYY-MM-DD value and a short weekday trigger per TabItem. Omit variant for ordinary topic tabs."
             }
             let registered = component.replacingDefinition(extended)
-            // The upstream Steps definition has no variant. Apply the shared
-            // layout contract only after the optional field has been added.
-            if definition.name == "Steps" {
+            // Register native layout dependencies after extending the upstream definitions.
+            if definition.name == "Steps" || definition.name == "Tabs" {
                 return registered.presentation(layoutFields: NativeLayoutContract.fields(for: extended.name))
             }
             return registered
         }
         let all = pinned + [OpenUIGeographicComponents.map, OpenUIGeographicComponents.mapPoint, OpenUIGraphicComponents.svg, OpenUIJourneyComponents.journeyLine]
         // Use the shared core's ordinary slot extension. Existing parameter
-        // positions remain unchanged; Steps only appends the optional fields above.
+        // positions are retained when optional fields are appended above.
         do {
             let definitions = try createLibrary(components: pinned.map(\.definition)).extend(
                 LibraryExtension(addComponents: Array(all.dropFirst(pinned.count)).map(\.definition), addComponentSlots: Dictionary(uniqueKeysWithValues: ["Map", "SVG", "JourneyLine"].map {

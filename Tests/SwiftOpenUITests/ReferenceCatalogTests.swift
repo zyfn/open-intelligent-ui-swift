@@ -74,6 +74,9 @@ final class ReferenceCatalogTests: XCTestCase {
       let suffix: String
       let appended: [String]
       switch expected.name {
+      case "Tabs":
+        suffix = ". Opens the first item in display order and keeps the selected page as content arrives. Use date to switch calendar days, with a unique YYYY-MM-DD value and a short weekday trigger per TabItem. Omit variant for ordinary topic tabs."
+        appended = ["variant"]
       case "Steps":
         suffix = " Use timeline for chronological events; omit variant for numbered instructions."
         appended = ["variant"]

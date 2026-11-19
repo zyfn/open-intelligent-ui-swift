@@ -13,7 +13,7 @@
   },
   "Tabs": {
     "category": "Layout",
-    "program": "root = Stack([Tabs([TabItem(\"overview\",\"概览\",[TextContent(\"先看整体安排。\")]),TabItem(\"details\",\"详情\",[TextContent(\"再查看具体事项。\")])])])"
+    "program": "root = Stack([Card([heading, days])])\nheading = CardHeader(\"城市漫步\", \"11 月 14 日至 16 日\")\ndays = Tabs([sat, sun, mon], \"date\")\nsat = TabItem(\"2026-11-14\", \"周六\", [satTitle, satWalk])\nsatTitle = TextContent(\"10:00  沿湖散步\", \"large\")\nsatWalk = TextContent(\"从湖边出发，沿林荫步道走到码头。傍晚可以沿原路返回，看另一侧的湖景。\")\nsun = TabItem(\"2026-11-15\", \"周日\", [sunTitle, sunWalk])\nsunTitle = TextContent(\"14:00  老街寻访\", \"large\")\nmon = TabItem(\"2026-11-16\", \"周一\", [monTitle, monWalk])\nmonTitle = TextContent(\"09:30  河岸晨游\", \"large\")\nsunWalk = TextContent(\"从南入口进入老街，穿过街市，在北侧的小广场休息。下雨时可以改走带屋檐的街巷。\")\nmonWalk = TextContent(\"沿河慢行到旧桥，在桥头回望两岸建筑。返程从西岸步道折回，预留半小时休息。\")"
   },
   "TabItem": {
     "category": "Layout",

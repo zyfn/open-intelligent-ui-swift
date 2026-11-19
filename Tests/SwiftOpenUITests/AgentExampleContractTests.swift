@@ -19,6 +19,9 @@ final class AgentExampleContractTests: XCTestCase {
     let expandedSlots:Set<String>=["Card","TabItem","AccordionItem"]
     for component in standard.components where !expandedSlots.contains(component.name) {
       switch component.name {
+      case "Tabs":
+        XCTAssertEqual(component.signature, "Tabs(items: TabItem[], variant?: \"default\" | \"date\")")
+        XCTAssertEqual(spec.components.first { $0.name == "Tabs" }?.signature, "Tabs(items: TabItem[])")
       case "JourneyLine":
         XCTAssertEqual(component.signature, "JourneyLine(mode: \"flight\" | \"train\" | \"bus\" | \"taxi\")")
       case "Steps":
