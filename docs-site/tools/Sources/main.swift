@@ -33,5 +33,6 @@ import SwiftIntelligentUI
         ]
         try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
             .write(to: output.appendingPathComponent("metadata.json"))
+        try ThemeExport.write(to: output)
     }
 }
