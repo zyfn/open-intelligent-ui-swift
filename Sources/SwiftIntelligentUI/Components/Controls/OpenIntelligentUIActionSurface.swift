@@ -38,6 +38,7 @@ private struct IntelligentUIActionContent<Content: View>: View {
     let content: Content
     @Environment(\.isEnabled) private var hostEnabled
     @Environment(\.locale) private var locale
+    @Environment(\.openIntelligentUIFormValidation) private var formValidation
     @State private var operation: UUID?
 
     var body: some View {
@@ -46,6 +47,10 @@ private struct IntelligentUIActionContent<Content: View>: View {
             context.recordUserInteraction()
             // A host interaction callback may synchronously replace the source.
             guard context.canActivate else { return }
+            if action.steps.contains(where: { step in
+                if case .continueConversation = step { return true }
+                return false
+            }), formValidation?.submit() == false { return }
             let ticket = UUID()
             operation = ticket
             Task { @MainActor in
