@@ -1,0 +1,7 @@
+node_modules/
+dist/
+tools/.build/
+tools/Package.resolved
+
+# Native contracts are generated from SDK library registries.
+public/current/
