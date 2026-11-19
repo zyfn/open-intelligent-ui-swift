@@ -39,6 +39,13 @@ jobs:
         run: swift run --package-path docs-site/tools GuideExport "$GITHUB_WORKSPACE/docs-site/public/current"
       - name: Build interactive documentation
         run: npm run build --prefix docs-site
+      - name: Keep preview build for visual QA
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-site-preview
+          path: docs-site/dist
+          retention-days: 3
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3
