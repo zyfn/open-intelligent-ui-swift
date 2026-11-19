@@ -39,7 +39,7 @@ extension OpenIntelligentUIComponents {
                 "HTML has no native bridge; inline scripts are isolated and network is restricted.",
                 "Functions execute pinned upstream computation code in JavaScriptCore; JSON data values only.",
                 "Point dimensions replace CSS lengths; semantic colors replace arbitrary CSS colors.",
-                "New Image outputs use src/alt only; writer definitions generate the spec and prompt together. Legacy presentation and priceText fields remain in the historical reader.",
+                "Image and optional SearchImage expose the upstream framing fields to new generation; writer definitions generate spec and prompt together. Legacy priceText fields remain in the historical reader.",
                 "Existing component names, positional parameters, bindings and reader schemas are retained. Visual defaults and invalid-value feedback are refined without a new language.",
                 "Generation validation uses the advertised writer profile; historical validation keeps the complete reader. Presentation warnings are non-blocking.",
                 "This manifest describes implemented contracts, not exhaustive device or model acceptance."
