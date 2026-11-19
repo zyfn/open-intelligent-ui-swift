@@ -3,23 +3,29 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class GeographicGraphicTests: XCTestCase {
-  @MainActor func testDefaultLibraryOwnsExistingHostContractsAndContainerSlots() throws {
+  @MainActor func testDefaultLibraryRegistersMapSVGAndJourneyLineInCard() throws {
     let library = try OpenUIComponents.library()
     let fixture = try XCTUnwrap(Bundle.module.url(forResource: "test-library-spec", withExtension: "json",
                                                   subdirectory: "Fixtures/AgentCasesContract"))
     let previous = try LibrarySpec(jsonString: String(contentsOf: fixture, encoding: .utf8))
     for name in ["Map", "MapPoint", "SVG", "Card", "TabItem", "AccordionItem"] {
       let old = try XCTUnwrap(previous.components.first { $0.name == name }?.signature)
-      let expected = ["Card", "TabItem", "AccordionItem"].contains(name)
-        ? old.replacingOccurrences(of: " | SVG)[]", with: " | SVG | JourneyLine)[]") : old
+      let expected: String
+      switch name {
+      case "Card":
+        expected = old.replacingOccurrences(of: " | SVG)[]", with: " | SVG | JourneyLine)[]")
+      case "TabItem", "AccordionItem":
+        expected = old.replacingOccurrences(of: " | Map | SVG)[]", with: ")[]")
+      default:
+        expected = old
+      }
       XCTAssertEqual(library.toSpec().components.first { $0.name == name }?.signature, expected, name)
     }
     let state = OpenUIState(schema: library.library.toSchema())
-    for source in [
-      "root=Card([Map([MapPoint(\"A\",30,120)])])",
-      "root=Tabs([TabItem(\"a\",\"A\",[SVG(\"<svg viewBox='0 0 2 1'/>\")])])",
-      "root=Accordion([AccordionItem(\"a\",\"A\",[Map([MapPoint(\"A\",30,120)])])])"
-    ] { state.setSource(source); XCTAssertTrue(state.errors.isEmpty, "\(source): \(state.errors)") }
+    state.setSource(#"root=Card([Map([MapPoint("A",30,120)]),SVG("<svg viewBox='0 0 2 1'/>"),JourneyLine("train")])"#)
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    let card = try XCTUnwrap(state.root)
+    XCTAssertEqual(PropValue.children(card).map(\.typeName), ["Map", "SVG", "JourneyLine"])
   }
   func testSVGRequiresFinitePositiveViewBoxAndRejectsActiveOrExternalContent() {
     XCTAssertEqual(NativeSVGDocument.parse("<svg viewBox='0 0 200 100'><path d='M0 0 L10 10'/></svg>")?.ratio, 2)

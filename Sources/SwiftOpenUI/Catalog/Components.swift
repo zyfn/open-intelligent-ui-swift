@@ -51,7 +51,7 @@ public enum OpenUIComponents {
         do {
             let definitions = try createLibrary(components: pinned.map(\.definition)).extend(
                 LibraryExtension(addComponents: Array(all.dropFirst(pinned.count)).map(\.definition), addComponentSlots: Dictionary(uniqueKeysWithValues: ["Map", "SVG", "JourneyLine"].map {
-                    ($0, ["Card.children", "TabItem.content", "AccordionItem.content"])
+                    ($0, ["Card.children"])
                 }))).components
             let builders = Dictionary(uniqueKeysWithValues: all.map { ($0.definition.name, $0) })
             return definitions.map { builders[$0.name]!.replacingDefinition($0) }

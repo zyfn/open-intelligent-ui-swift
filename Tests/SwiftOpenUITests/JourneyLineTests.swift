@@ -29,7 +29,7 @@ final class JourneyLineTests: XCTestCase {
     }
   }
 
-  @MainActor func testDesignerContractRendersInCardAndTabsForEveryMode() throws {
+  @MainActor func testDesignerContractRendersInCardForEveryMode() throws {
     let library = try OpenUIComponents.library()
     let component = try XCTUnwrap(library.toSpec().components.first { $0.name == "JourneyLine" })
     XCTAssertEqual(component.signature, "JourneyLine(mode: \"flight\" | \"train\" | \"bus\" | \"taxi\")")
@@ -38,19 +38,12 @@ final class JourneyLineTests: XCTestCase {
     XCTAssertTrue(library.prompt().contains("JourneyLine(mode:"))
     let state = OpenUIState(schema: library.library.toSchema())
     for mode in ["flight", "train", "bus", "taxi"] {
-      let source = "root=Card([Tabs([TabItem(\"day\",\"Day\",[JourneyLine(\"\(mode)\")])])])"
+      let source = "root=Card([JourneyLine(\"\(mode)\")])"
       state.setSource(source)
       XCTAssertTrue(state.errors.isEmpty, "\(source): \(state.errors)")
-      func findJourney(_ value: Value) -> EvaluatedElement? {
-        switch value {
-        case .element(let element):
-          if element.typeName == "JourneyLine" { return element }
-          return element.props.compactMap { findJourney($0.1) }.first
-        case .array(let values): return values.compactMap(findJourney).first
-        default: return nil
-        }
-      }
-      let journey = try XCTUnwrap(findJourney(.element(try XCTUnwrap(state.root))))
+      let card = try XCTUnwrap(state.root)
+      let journey = try XCTUnwrap(PropValue.children(card).first)
+      XCTAssertEqual(journey.typeName, "JourneyLine")
       XCTAssertEqual(PropValue.string(journey, "mode"), mode)
       #if os(macOS)
       _ = NSApplication.shared

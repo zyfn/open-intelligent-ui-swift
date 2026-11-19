@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.37 · 更新日期：2026-11-19
+文档版本：1.38 · 更新日期：2026-11-19
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -29,7 +29,9 @@ Gallery 按 Layout、Content、Controls、DataDisplay、Media 浏览实际注册
 
 Steps 默认仍为数字步骤；`Steps(items, "timeline")` 显示行程时间线，`StepsItem(title, details, time?)` 的时间仅在已知时填写。可选参数均追加在原参数后，旧调用不变。`variant` 的完整性使用 SDK 公共布局依赖机制判断。流式生成建议先输出 `root = Steps(items, "timeline")`，再逐步输出 `items`，使样式可以先确定；行内列表尚未到达尾部样式参数时，先呈现已到达的文字，避免预先猜测节点样式，样式确定后字号和缩进仍可能调整。生成中断且样式始终未确定时，已完成的条目回退到默认数字步骤；已经确定的时间线样式保持不变。未闭合的时间值不会作为完整时间显示。
 
-交通方向线使用 `JourneyLine(mode)`，沿用设计师的四种方式 `flight`、`train`、`bus`、`taxi` 和虚线造型；它只表达起终点方向，不代表地图路线。
+交通方向线使用 `JourneyLine(mode)`，用虚线和交通方式图标表示起终点方向。支持 `flight`、`train`、`bus`、`taxi`。
+
+`Map`、`SVG` 和 `JourneyLine` 的显式父组件槽位是 `Card.children`。
 
 普通主题页签使用 `Tabs(items)` 或 `Tabs(items, "default")`。按具体日历日切换时使用 `Tabs(items, "date")`。两者都使用 `TabItem(value, trigger, content)`。日期项的 `value` 是唯一的 `YYYY-MM-DD`，`trigger` 填短星期名，按钮在星期下方显示日号。
 

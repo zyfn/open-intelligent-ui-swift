@@ -5,7 +5,7 @@ enum OpenUIJourneyComponents {
     static var journeyLine: OpenUIComponent {
         OpenUIComponent(
             name: "JourneyLine",
-            description: "交通卡内的起终点虚线与方式图标，只表达行程方向，不代表地图路线。mode 可选 flight、train、bus、taxi。",
+            description: "Dashed line with a transport icon showing the direction between two stops in a Card.",
             params: [OpenUIParameter.string("mode", values: ["flight", "train", "bus", "taxi"])]
         ) { context in
             NativeComponentHost(context: context) { NativeJourneyLine(context: $0) }
