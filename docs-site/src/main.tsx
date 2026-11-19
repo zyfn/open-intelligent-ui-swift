@@ -6,6 +6,8 @@ import {
   Workflow, Zap
 } from "lucide-react";
 import CurrentSDK from "./CurrentSDK";
+import { HeroArt, EditorialShowcase, DesignStudio } from "./EditorialExperience";
+import "./editorial.css";
 import "./site.css";
 
 const repo = "https://github.com/zyfn/open-intelligent-ui-swift";
@@ -84,9 +86,10 @@ function App() {
         </a>
         <nav aria-label="站点导航">
           <a href="#overview">架构</a>
+          <a href="#showcase">案例</a>
+          <a href="#design">设计系统</a>
           <a href="#components">组件</a>
           <a href="#integration">接入</a>
-          <a href="#references">文档</a>
         </nav>
         <div className="top-actions">
           <button type="button" className="theme-toggle" onClick={() => setDark(!dark)} aria-label={dark ? "切换浅色" : "切换深色"}>
@@ -99,11 +102,11 @@ function App() {
       <main id="top">
         <section className="hero" aria-labelledby="hero-heading">
           <div className="hero-copy">
-            <div className="eyebrow"><span className="eyebrow-dot" /> NATIVE GENERATIVE UI · SWIFTUI</div>
-            <h1 id="hero-heading">生成的界面，<br /><em>原生地呈现。</em></h1>
-            <p className="lede">一套 OpenUI Lang 内核，两套独立的原生组件库。让 Agent 的结构化内容在 iOS 与 macOS 中流式显示、交互与更新。</p>
+            <div className="eyebrow"><span className="eyebrow-dot" /> NATIVE GENERATIVE UI / VOL. 01</div>
+            <h1 id="hero-heading">让回答，<br /><em>长成界面。</em></h1>
+            <p className="lede">从一段文字，到一个可理解、可探索、可操作的界面。为 iOS 与 macOS 构建的原生生成式 UI，保持设计的秩序，也保留内容的自由。</p>
             <div className="hero-actions">
-              <a href="#components" className="button-primary">探索组件 <ArrowRight size={17} /></a>
+              <a href="#showcase" className="button-primary">探索案例 <ArrowRight size={17} /></a>
               <a href="#integration" className="button-quiet">快速接入 <ChevronRight size={17} /></a>
             </div>
             <div className="hero-facts">
@@ -113,29 +116,7 @@ function App() {
               <div><strong>13+</strong><span>macOS 最低版本</span></div>
             </div>
           </div>
-          <div className="hero-editor" aria-label="SDK 接入示意">
-            <div className="editor-top"><span className="dots"><i/><i/><i/></span><span>Message.swift</span><span className="editor-status">SwiftUI</span></div>
-            <div className="editor-content">
-              <div className="editor-comment">// Pick a component library</div>
-              <div><span className="code-purple">import</span> {sample.module}</div>
-              <div className="editor-spacer" />
-              <div><span className="code-purple">let</span> library = <span className="code-green">try</span> {sample.create}</div>
-              <div><span className="code-purple">let</span> state = library.makeState()</div>
-              <div className="editor-spacer" />
-              <div className="editor-comment">// Render streamed OpenUI Lang</div>
-              <div>state.push(chunk)</div>
-              <div><span className="code-purple">let</span> view = OpenUIView(</div>
-              <div className="editor-indent">state: state, library: library</div>
-              <div>)</div>
-            </div>
-            <div className="editor-footer">
-              <div className="editor-choice" role="group" aria-label="示意组件库">
-                <button type="button" className={library==="openui"?"selected":""} onClick={()=>setLibrary("openui")}>OpenUI</button>
-                <button type="button" className={library==="intelligent"?"selected":""} onClick={()=>setLibrary("intelligent")}>Intelligent UI</button>
-              </div>
-              <span className="editor-foot-note"><span className="live-dot"/> Shared Runtime</span>
-            </div>
-          </div>
+          <HeroArt />
         </section>
 
         <section id="overview" className="section architecture" aria-labelledby="arch-title">
@@ -163,13 +144,16 @@ function App() {
           </div>
         </section>
 
+        <EditorialShowcase />
+        <DesignStudio />
+
         <section id="components" className="components-section">
           <CurrentSDK />
         </section>
 
         <section id="integration" className="section integration" aria-labelledby="integration-title">
           <div className="section-head">
-            <div className="kicker">03 / INTEGRATION</div>
+            <div className="kicker">05 / INTEGRATION</div>
             <h2 id="integration-title">最小接入，完整控制。</h2>
             <p>选择 SwiftPM 产品后，生成 Prompt、组件注册、状态和原生 View 都使用同一个 Library。不要用 Intelligent UI 的 Reader 解释历史 Stack 程序。</p>
           </div>
@@ -196,7 +180,7 @@ function App() {
 
         <section id="references" className="section references">
           <div className="section-head">
-            <div className="kicker">04 / DOCUMENTATION</div>
+            <div className="kicker">06 / DOCUMENTATION</div>
             <h2>从源码和真实文档出发。</h2>
             <p>组件信息从 SDK 当前生成契约导出。设计、架构与验收结论始终以各自权威文档和真实原生 Gallery 为准。</p>
           </div>
