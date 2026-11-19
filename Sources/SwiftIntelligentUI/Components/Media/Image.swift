@@ -3,7 +3,7 @@ import SwiftLang
 
 enum ImageComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Image", description: "Image from a supplied HTTP(S) URL or exact caller-provided image key. Generate Image(src, alt) only: the SDK chooses framing from its enclosing layout, never source dimensions. Loading, missing-source and retryable failure keep the same media geometry and use quiet native feedback. Legacy optional presentation arguments remain readable. No search or substitution.", params: [
+        OpenUIComponent(name: "Image", description: "Image from a supplied HTTP(S) URL or exact caller-provided image key. Optional aspectRatio, radius and fit control authored framing; when omitted, a 3:2 cover and the native theme radius apply. Loading and retryable failure preserve the same geometry. Never invent a source URL; no implicit search or substitution.", params: [
             OpenUIParameter.string("src"), OpenUIParameter.string("alt"),
             Parameter.number("aspectRatio", minimum: 0.2, maximum: 5),
             Parameter.radius(),
