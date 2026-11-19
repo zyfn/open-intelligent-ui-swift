@@ -39,7 +39,10 @@ enum IntelligentUIRules {
     }
 
     @MainActor static func message(context: OpenUIComponentContext, valueKey: String) -> String? {
-        let rules = parse(context.value("rules"))
+        let rules = parse(context.value("rules")).filter {
+            // Upstream Checkbox and DatePicker accept only 'required'.
+            (valueKey == "checked" || context.element.typeName == "DatePicker") ? $0.type == "required" : true
+        }
         guard !rules.isEmpty else { return nil }
         let value = context.binding(valueKey)?.wrappedValue ?? context.value(valueKey) ?? .null
         // A required checkbox must actually be selected, not merely present.
