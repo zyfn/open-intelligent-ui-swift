@@ -7,12 +7,6 @@ struct EditorialContext: Equatable {
     var mediaRatio: CGFloat? = nil
 }
 
-enum EditorialMetrics {
-    static let imageWidth: CGFloat = 116
-    static let imageAspectRatio: CGFloat = 0.8
-    static let minimumRowWidth: CGFloat = 260
-}
-
 extension EnvironmentValues {
     @Entry var openIntelligentUIEditorial = EditorialContext()
     @Entry var openIntelligentUIInlineContent = false
@@ -20,11 +14,6 @@ extension EnvironmentValues {
 }
 
 enum EditorialNode {
-    static func imageRatio(_ value: Value) -> CGFloat? {
-        if let ratio = ValueReading.number(ValueReading.field(value, "aspectRatio")) { return CGFloat(min(5, max(0.2, ratio))) }
-        if kind(value) == "Box", let image = ValueReading.array(ValueReading.field(value, "children")).first { return imageRatio(image) }
-        return nil
-    }
     static func kind(_ value: Value) -> String {
         if case .element(let element) = value { return element.typeName }
         return "Text"
@@ -88,35 +77,3 @@ enum EditorialSpacing {
     }
 }
 
-enum EditorialRowMetrics {
-    static func columns(width: CGFloat, preferred: CGFloat, gap: CGFloat) -> (image: CGFloat, text: CGFloat) {
-        let width = max(1, width), gap = max(0, gap)
-        let image = min(max(1, preferred), width * 0.34)
-        return (image, max(1, width - image - gap))
-    }
-}
-
-struct EditorialRowLayout: Layout {
-    let preferredImageWidth: CGFloat
-    let ratio: CGFloat
-    let gap: CGFloat
-    let rightToLeft: Bool
-    var idealWidth: CGFloat = 280
-    var mediaIndex = 0
-    static var layoutProperties: LayoutProperties {
-        var properties = LayoutProperties(); properties.stackOrientation = .horizontal; return properties
-    }
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? idealWidth
-        let columns = EditorialRowMetrics.columns(width: width, preferred: preferredImageWidth, gap: gap)
-        let text = subviews.count > 1 ? subviews[1 - mediaIndex].sizeThatFits(.init(width: columns.text, height: nil)).height : 0
-        return CGSize(width: width, height: max(columns.image / max(0.2, ratio), text))
-    }
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard subviews.count == 2 else { return }
-        let columns = EditorialRowMetrics.columns(width: bounds.width, preferred: preferredImageWidth, gap: gap)
-        let imageOnRight = rightToLeft != (mediaIndex == 1)
-        subviews[mediaIndex].place(at: CGPoint(x: imageOnRight ? bounds.maxX - columns.image : bounds.minX, y: bounds.minY), anchor: .topLeading, proposal: .init(width: columns.image, height: columns.image / max(0.2, ratio)))
-        subviews[1 - mediaIndex].place(at: CGPoint(x: imageOnRight ? bounds.minX : bounds.minX + columns.image + gap, y: bounds.minY), anchor: .topLeading, proposal: .init(width: columns.text, height: bounds.height))
-    }
-}
