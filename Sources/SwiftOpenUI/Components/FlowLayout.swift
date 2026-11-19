@@ -256,6 +256,7 @@ struct NativeAdaptiveThumbnail {
 struct NativeListMediaLayout {
     let imageWidth: CGFloat
     let axis: NativeMediaRowAxis
+    var imageSize: CGSize { CGSize(width: imageWidth, height: imageWidth * 4 / 3) }
 
     init(width: CGFloat?, preferredImageWidth: CGFloat, minimumImageWidth: CGFloat,
          textWidth: CGFloat, gap: CGFloat) {

@@ -392,44 +392,99 @@ private struct NativeGalleryImage: Identifiable {
   }
 }
 
-/// Small galleries are measured synchronously at their actual container width.
-/// Columns never outnumber the supplied images, so sparse galleries fill the row.
 struct NativeGalleryGridLayout: Layout {
-  let minimumWidth: CGFloat
+  static let previewLimit = 5
+  let isCompact: Bool
+  let fallbackWidth: CGFloat
   let gap: CGFloat
-  var maximumColumns: Int?
-  var layoutCount: Int? = nil
+  let aspectRatio: CGFloat
+  var isVerticallyCompact = false
+  var viewportHeight: CGFloat?
+  var compactThumbnailSize = OpenUIPresentation.defaults.compactThumbnailSize
 
-  private func frames(_ proposal: ProposedViewSize, _ subviews: Subviews) -> (CGFloat, [CGRect]) {
-    let width = proposal.width.flatMap { $0.isFinite ? max(1, $0) : nil } ?? max(1, minimumWidth)
-    guard !subviews.isEmpty else { return (width, []) }
-    let count = max(subviews.count, layoutCount ?? subviews.count)
-    let columns = min(count, maximumColumns ?? count,
-      max(1, Int((width + gap) / max(1, minimumWidth + gap))))
-    let tileWidth = max(1, (width - gap * CGFloat(columns - 1)) / CGFloat(columns))
-    let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: tileWidth, height: nil)) }
-    var result: [CGRect] = []
-    var y: CGFloat = 0
-    for start in stride(from: 0, to: subviews.count, by: columns) {
-      let end = min(start + columns, subviews.count)
-      let rowHeight = sizes[start..<end].map(\.height).max() ?? 0
-      for index in start..<end {
-        result.append(CGRect(x: CGFloat(index - start) * (tileWidth + gap), y: y,
-          width: tileWidth, height: sizes[index].height))
-      }
-      y += rowHeight + gap
+  private var coverRatio: CGFloat {
+    aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : OpenUIPresentation.defaults.coverAspectRatio
+  }
+  private var spacing: CGFloat { gap.isFinite ? max(0, gap) : 0 }
+  private var availableHeight: CGFloat {
+    let viewport = viewportHeight.flatMap { $0 > 0 && $0.isFinite ? $0 : nil } ?? .infinity
+    let thumbnail = compactThumbnailSize > 0 && compactThumbnailSize.isFinite
+      ? compactThumbnailSize : OpenUIPresentation.defaults.compactThumbnailSize
+    return isVerticallyCompact ? min(viewport, 2 * thumbnail) : viewport
+  }
+
+  func minimumGridWidth(count: Int, targetSize: CGFloat) -> CGFloat? {
+    let rows = count == 2 ? 1 : 2
+    let minimumHeight = CGFloat(rows) * targetSize + CGFloat(rows - 1) * spacing
+    guard availableHeight >= minimumHeight else { return nil }
+    let columns: Int
+    switch count {
+    case 2, 3: columns = count
+    case 5 where isCompact: columns = 3
+    default: columns = 4
     }
-    return (width, result)
+    let tilesWidth = CGFloat(columns) * targetSize + CGFloat(columns - 1) * spacing
+    let width = max(tilesWidth, minimumHeight * max(1, coverRatio))
+    return width.isFinite ? width : nil
   }
+
+  func frames(width: CGFloat, count: Int) -> [CGRect] {
+    guard count > 0, width > 0, width.isFinite else { return [] }
+    // A collage uses the same vertical space as a single cover in the reading column.
+    let heightLimit = min(width / max(1, coverRatio), availableHeight)
+    let gap = min(spacing, heightLimit / 6)
+    if count == 1 {
+      return [CGRect(x: 0, y: 0, width: width, height: heightLimit)]
+    }
+
+    let half = (width - gap) / 2
+    let rowHeight = (heightLimit - gap) / 2
+    let lowerRow = rowHeight + gap
+    let fullHeight = lowerRow + rowHeight
+    let rightColumn = half + gap
+    func tile(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat? = nil) -> CGRect {
+      CGRect(x: x, y: y, width: width, height: height ?? rowHeight)
+    }
+    switch count {
+    case 2:
+      let height = min(half, heightLimit)
+      return [tile(0, 0, half, height), tile(rightColumn, 0, half, height)]
+    case 3:
+      // The lead image spans two rows. Give it the width of two supporting tiles.
+      let detailWidth = (width - gap) / 3
+      let leadWidth = width - gap - detailWidth
+      let detailColumn = leadWidth + gap
+      return [tile(0, 0, leadWidth, fullHeight), tile(detailColumn, 0, detailWidth),
+              tile(detailColumn, lowerRow, detailWidth)]
+    case 4:
+      let quarter = (half - gap) / 2
+      return [tile(0, 0, half, fullHeight), tile(rightColumn, 0, half),
+              tile(rightColumn, lowerRow, quarter), tile(rightColumn + quarter + gap, lowerRow, quarter)]
+    default:
+      if isCompact {
+        let third = (width - 2 * gap) / 3
+        return [tile(0, 0, half), tile(rightColumn, 0, half),
+                tile(0, lowerRow, third), tile(third + gap, lowerRow, third),
+                tile(2 * (third + gap), lowerRow, third)]
+      }
+      let quarter = (width - 2 * gap) / 4
+      let middle = 2 * quarter + gap
+      let right = middle + quarter + gap
+      return [tile(0, 0, 2 * quarter, fullHeight), tile(middle, 0, quarter), tile(right, 0, quarter),
+              tile(middle, lowerRow, quarter), tile(right, lowerRow, quarter)]
+    }
+  }
+
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    let (width, frames) = frames(proposal, subviews)
-    return CGSize(width: width, height: frames.map(\.maxY).max() ?? 0)
+    let width = proposal.width.flatMap { $0.isFinite ? max(1, $0) : nil } ?? max(1, fallbackWidth)
+    return CGSize(width: width, height: frames(width: width, count: subviews.count).map(\.maxY).max() ?? 0)
   }
+
   func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    let (_, frames) = frames(ProposedViewSize(width: bounds.width, height: nil), subviews)
+    let frames = frames(width: bounds.width, count: subviews.count)
     for (view, frame) in zip(subviews, frames) {
       view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-        anchor: .topLeading, proposal: ProposedViewSize(width: frame.width, height: nil))
+        anchor: .topLeading, proposal: ProposedViewSize(width: frame.width, height: frame.height))
     }
   }
 }
@@ -438,90 +493,79 @@ struct NativeImageGallery: View {
   let context: OpenUIComponentContext
   @Environment(\.openUIResourceContext) private var resources
   @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
   @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
   @State private var phases: [NativeGalleryResourceID: NativeMediaStatus] = [:]
   @State private var selected: NativeGalleryResourceID?
   @State private var preview = false
   @State private var retries: [String: Int] = [:]
-  // Keep the inline preview compact; opening a photo presents the full gallery.
-  private let previewLimit = 5
   @State private var stableImages: [NativeGalleryImage]?
+  private var retainedImages: [NativeGalleryImage]? {
+    context.hasPendingData || context.hasDataFailure ? stableImages : nil
+  }
   private var images: [NativeGalleryImage] {
-    if context.hasPendingData || context.hasDataFailure, let stableImages {
+    if let retainedImages {
       // Keep the readable data during a query refresh, but never carry pixels
       // from a previous loader/account into the new resource environment.
-      return stableImages.map { $0.retargeted(resources: resources, attempt: retries[$0.id, default: 0]) }
+      return retainedImages.map { $0.retargeted(resources: resources, attempt: retries[$0.id, default: 0]) }
     }
     return currentImages
   }
   private var currentImages: [NativeGalleryImage] {
-    let children = context.presentationChildren("images")
+    guard case .array(let values) = context.presentationValue("images") else { return [] }
     let source = context.element.sourceReadiness["images"]
-    let mapped = source.valueIndices.map { $0.compactMap { $0 } == Array(children.indices) } ?? false
-    let aligned = source.complete || source.expectedCount == children.count || mapped
-    return children.enumerated().map { index, child in
-      let attempt = retries[child.id, default: 0]
-      let src = NativeValue.string(child.value, "src")
-      return NativeGalleryImage(id: child.id, index: index,
-        src: src, alt: NativeValue.string(child.value, "alt") ?? "",
-        details: NativeValue.string(child.value, "details"),
-        target: .init(source: src, resources: resources, attempt: attempt),
-        sourceReady: {
-          if case .element(let image) = child.value { return image.sourceReadiness["src"].complete }
-          guard aligned else { return false }
-          return source[index]["src"].complete
-        }())
+    let slotIndices = source.valueIndices.flatMap { $0.count == values.count ? $0 : nil }
+    let aligned = source.complete || source.expectedCount == values.count || slotIndices != nil
+    return values.enumerated().compactMap { index, value in
+      guard !value.isNullish else { return nil }
+      let id = String(index)
+      let src = NativeValue.string(value, "src")
+      let sourceReady: Bool
+      if case .element(let image) = value {
+        sourceReady = image.sourceReadiness["src"].complete
+      } else {
+        // The expanded values use declared positions. Readiness follows the retained values.
+        let valueIndex = slotIndices.map { $0[index] } ?? index
+        sourceReady = aligned && valueIndex.map { source[$0]["src"].complete } == true
+      }
+      return NativeGalleryImage(id: id, index: index,
+        src: src, alt: NativeValue.string(value, "alt") ?? "",
+        details: NativeValue.string(value, "details"),
+        target: .init(source: src, resources: resources, attempt: retries[id, default: 0]),
+        sourceReady: sourceReady)
     }
   }
-  private var visible: [NativeGalleryImage] { Array(images.prefix(previewLimit)) }
+  private var previewLimit: Int { typeSize.isAccessibilitySize ? 1 : NativeGalleryGridLayout.previewLimit }
+  private var visibleSlots: [NativeGalleryImage?] {
+    let limit = previewLimit
+    let inlineImages = images.prefix(limit)
+    guard let layoutCount else { return inlineImages.map(Optional.some) }
+    // Keep gaps at their original positions when references resolve out of order.
+    return (0..<min(limit, layoutCount)).map { index in inlineImages.first { $0.index == index } }
+  }
   private var gridReady: Bool {
-    if stableImages != nil && (context.hasPendingData || context.hasDataFailure) { return true }
+    if retainedImages != nil { return true }
     return NativeLayoutContract.collectionShapeReady(context.element.sourceReadiness["images"], count: images.count)
   }
   private var layoutCount: Int? {
+    guard retainedImages == nil else { return nil }
     let source = context.element.sourceReadiness["images"]
-    return !source.complete && source.closed ? source.expectedCount.map { min(previewLimit, $0) } : nil
+    return !source.complete && source.closed ? source.expectedCount : nil
+  }
+  private var waitingForImages: Bool {
+    !context.hasDataFailure && (context.isStreaming || context.hasPendingData)
   }
   private func rememberImages() {
     if gridReady && !context.hasPendingData && !context.hasDataFailure { stableImages = currentImages }
   }
   var body: some View {
+    let slots = visibleSlots
     VStack(alignment: .leading, spacing: context.theme.spaceM) {
-      if !gridReady || (visible.isEmpty && (context.hasPendingData || (context.isStreaming && !context.element.isSourceComplete))) {
-        NativePendingContent(loading: !context.hasDataFailure && (context.isStreaming || context.hasPendingData), message: "Loading image")
-      } else if !visible.isEmpty {
-        NativeGalleryGridLayout(minimumWidth: max(context.presentation.thumbnailSize,
-            context.presentation.minimumCompactCardWidth * readingScale),
-          gap: context.theme.spaceM, maximumColumns: typeSize.isAccessibilitySize ? 1 : nil, layoutCount: layoutCount) {
-          ForEach(visible) { image in
-            VStack(alignment: .leading, spacing: context.theme.spacing("xs")) {
-              Button {
-                guard context.canActivate else { return }
-                if phases[image.key] == .unavailable { retry(image) }
-                else { selected = image.key; preview = true }
-              } label: {
-                NativeRemoteImage(
-                  src: image.src, alt: image.alt, layout: .cover,
-                  attempt: image.target.attempt,
-                  onStatus: { phase, _ in record(phase, for: image.key) }, interactionEnabled: false
-                )
-                .environment(\.openUIMediaSourceReady, image.sourceReady)
-                .background(context.theme.sunk)
-                .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
-              }
-              .buttonStyle(.plain).disabled(!context.canInteract || (!image.sourceReady)
-                || (phases[image.key] != .loaded && phases[image.key] != .unavailable))
-              .accessibilityLabel(image.alt.isEmpty ? Text("View image", bundle: NativeControlResources.bundle) : Text(image.alt))
-              .accessibilityValue(
-                phases[image.key] == .unavailable
-                  ? Text("Image unavailable", bundle: NativeControlResources.bundle)
-                  : phases[image.key] != .loaded ? Text("Loading image", bundle: NativeControlResources.bundle) : Text("")
-              )
-              .accessibilityIdentifier("openui.gallery.image.\(image.index)")
-              if let details = image.details { Text(details).nativeTextStyle(context.theme.textStyle(.supporting)) }
-            }
-          }
-        }
+      if !gridReady || (slots.isEmpty && (context.hasPendingData || (context.isStreaming && !context.element.isSourceComplete))) {
+        NativePendingContent(loading: waitingForImages, message: "Loading image")
+      } else if !slots.isEmpty {
+        gallery(slots)
       }
     }
     .accessibilityElement(children: .contain).accessibilityIdentifier("openui.gallery")
@@ -539,6 +583,80 @@ struct NativeImageGallery: View {
       if selected.map(current.contains) != true { preview = false; selected = nil }
     }
   }
+
+  @ViewBuilder private func gallery(_ slots: [NativeGalleryImage?]) -> some View {
+    let layout = NativeGalleryGridLayout(
+      isCompact: horizontalSizeClass == .compact,
+      fallbackWidth: max(context.presentation.thumbnailSize, context.presentation.minimumCompactCardWidth * readingScale),
+      gap: context.presentation.borderWidth, aspectRatio: context.presentation.coverAspectRatio,
+      isVerticallyCompact: verticalSizeClass == .compact, viewportHeight: context.presentation.viewportHeight,
+      compactThumbnailSize: context.presentation.compactThumbnailSize)
+    let cover = Array(slots.prefix(1))
+    if slots.count > 1, let minimumWidth = layout.minimumGridWidth(
+        count: slots.count, targetSize: context.presentation.minimumControlTargetSize) {
+      ViewThatFits(in: .horizontal) {
+        galleryGrid(slots, layout: layout).frame(minWidth: minimumWidth, idealWidth: minimumWidth)
+        galleryGrid(cover, layout: layout)
+      }
+    } else {
+      galleryGrid(cover, layout: layout)
+    }
+  }
+
+  private func galleryGrid(_ slots: [NativeGalleryImage?], layout: NativeGalleryGridLayout) -> some View {
+    layout {
+      ForEach(slots.indices, id: \.self) { index in
+        if let image = slots[index] {
+          galleryPhoto(image).id(image.id)
+        } else {
+          NativeLoadingSurface(active: waitingForImages, showsMediaSymbol: true, background: context.theme.imagePlaceholderBackground)
+        }
+      }
+    }
+    .overlay(alignment: .bottomTrailing) {
+      if images.count > slots.count {
+        Button {
+          guard context.canActivate, let first = images.first else { return }
+          if !images.contains(where: { $0.key == selected }) { selected = first.key }
+          preview = true
+        } label: {
+          Image(systemName: "square.grid.2x2")
+        }
+        .buttonStyle(NativeActionButtonStyle(theme: context.theme, size: "extra-small", iconOnly: true, circular: true))
+        .disabled(!context.canInteract)
+        .accessibilityLabel(Text("Show All", bundle: NativeControlResources.bundle))
+        .accessibilityIdentifier("openui.gallery.showAll")
+        .padding(context.theme.space2xs)
+      }
+    }
+    .clipShape(RoundedRectangle(cornerRadius: context.theme.radius3xl, style: .continuous))
+  }
+
+  private func galleryPhoto(_ image: NativeGalleryImage) -> some View {
+    Button {
+      guard context.canActivate else { return }
+      if phases[image.key] == .unavailable { retry(image) }
+      else { selected = image.key; preview = true }
+    } label: {
+      NativeRemoteImage(
+        src: image.src, alt: image.alt, layout: .fill,
+        attempt: image.target.attempt,
+        onStatus: { phase, _ in record(phase, for: image.key) }, interactionEnabled: false
+      )
+      .environment(\.openUIMediaSourceReady, image.sourceReady)
+      .background(context.theme.sunk)
+    }
+    .buttonStyle(.plain).disabled(!context.canInteract || !image.sourceReady
+      || (phases[image.key] != .loaded && phases[image.key] != .unavailable))
+    .accessibilityLabel(image.alt.isEmpty ? Text("View image", bundle: NativeControlResources.bundle) : Text(image.alt))
+    .accessibilityValue(
+      phases[image.key] == .unavailable
+        ? Text("Image unavailable", bundle: NativeControlResources.bundle)
+        : phases[image.key] != .loaded ? Text("Loading image", bundle: NativeControlResources.bundle) : Text("")
+    )
+    .accessibilityIdentifier("openui.gallery.image.\(image.index)")
+  }
+
   private func retry(_ image: NativeGalleryImage) {
     retries[image.id, default: 0] += 1
     if selected == image.key { selected = currentImages.first(where: { $0.id == image.id })?.key }

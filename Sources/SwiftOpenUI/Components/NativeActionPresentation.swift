@@ -90,29 +90,29 @@ struct NativeConversationActionLabel: View {
     let theme: OpenUIThemeValues
     var fillsWidth = false
     @Environment(\.openUIActionLabelFont) private var actionFont
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: theme.spaceS) {
-            Text(text).fixedSize(horizontal: false, vertical: true)
-            NativeConversationAccessory(font: actionFont ?? theme.textStyle(.action).font)
-        }
-        .frame(maxWidth: fillsWidth ? .infinity : nil)
+        let font = actionFont ?? theme.textStyle(.action).font
+        let progressInset = (max(1, font.size * 1.25 * scale) + theme.spaceS) / 2
+        Text(text)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, progressInset)
+            .frame(maxWidth: fillsWidth ? .infinity : nil)
+            .overlay(alignment: .trailing) {
+                NativeConversationAccessory(width: progressInset, height: font.measuredLineHeight(scale: scale))
+            }
     }
 }
 
 private struct NativeConversationAccessory: View {
-    let font: OpenUIFont
+    let width: CGFloat
+    let height: CGFloat
     @Environment(\.openUIActionAccessoryActive) private var active
-    @Environment(\.openUIActionAppearance) private var appearance
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
 
     var body: some View {
         NativeDelayedPresentation(active: active) { visible in
-            Image(systemName: "arrow.forward")
-                .openUIFont(font, role: .control)
-                .frame(width: max(1, font.size * 1.25 * scale),
-                       height: font.measuredLineHeight(scale: scale))
-                .opacity(visible ? 0 : appearance == .pending ? 0.5 : 1)
+            Color.clear.frame(width: width, height: height)
                 .overlay {
                     if visible { NativeLoadingIndicator() }
                 }

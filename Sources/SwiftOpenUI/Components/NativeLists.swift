@@ -82,7 +82,7 @@ struct NativeEntityList: View {
 }
 
 private struct NativeListPresentation {
-  var imageWidth: CGFloat?
+  var imageSize: CGSize?
   var compact = false
   var axis = NativeMediaRowAxis.horizontal
 }
@@ -139,7 +139,7 @@ struct NativeListBlock: View {
       if containerWidth.map({ abs($0 - width) > 0.5 }) ?? true { containerWidth = width }
     }
     .environment(\.openUIListPresentation, NativeListPresentation(
-      imageWidth: imageList ? mediaLayout.imageWidth : 0,
+      imageSize: imageList ? mediaLayout.imageSize : .zero,
       compact: compact, axis: mediaLayout.axis))
   }
 }
@@ -154,9 +154,12 @@ private struct NativeListContainerWidths: PreferenceKey {
 struct NativeListItem: View {
   let context: OpenUIComponentContext
   @Environment(\.openUIListPresentation) private var presentation
-  private var imageWidth: CGFloat { presentation.imageWidth ?? context.presentation.inlineThumbnailSize }
+  private var imageSize: CGSize {
+    let side = context.presentation.inlineThumbnailSize
+    return presentation.imageSize ?? CGSize(width: side, height: side)
+  }
   private var hasImage: Bool {
-    imageWidth > 0 && context.value("image") != nil && context.value("image") != .null
+    imageSize.width > 0 && context.value("image") != nil && context.value("image") != .null
   }
   private var hasAction: Bool {
     context.value("action") != nil && context.value("action") != .null
@@ -182,11 +185,12 @@ struct NativeListItem: View {
   }
   @ViewBuilder private var photo: some View {
     if let image = context.value("image"), image != .null {
+      let size = imageSize
       NativeRemoteImage(
         src: NativeValue.string(image, "src"), alt: NativeValue.string(image, "alt") ?? "",
-        layout: .thumbnail(CGSize(width: imageWidth, height: imageWidth))
+        layout: .thumbnail(size)
       )
-      .frame(width: imageWidth, height: imageWidth)
+      .frame(width: size.width, height: size.height)
       .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
     }
   }

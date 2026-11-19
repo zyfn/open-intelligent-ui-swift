@@ -271,6 +271,44 @@ final class NativeImageSizingTests: XCTestCase {
     XCTAssertEqual(loader.requestCount, 2)
   }
 
+  @MainActor func testGalleryKeepsItsReservedHeightWhenATallPhotoArrives() async throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    let source = "https://images.test/long.png"
+    let loader = SizedImageLoader(data: try imageData(width: 180, height: 1800))
+    let resources = OpenUIResourceContext(loader: loader)
+    state.push("root=Stack([ImageGallery([a,b,c])])\n")
+    let scoped = state.resourceStore.scoped(resources)
+    let request = try XCTUnwrap(scoped.request(for: source))
+    let key = NativeResourceRequestID(request: request, loader: ObjectIdentifier(scoped.loader),
+      attempt: 0, authorizationScope: scoped.loader.authorizationScopeID)
+    var presentation = OpenUIPresentation()
+    presentation.viewportHeight = 568
+
+    let host = NSHostingView(rootView: AnyView(OpenUIContentView(state: state, registry: library.registry)
+      .openUIResourceContext(resources).openUIPresentation(presentation)
+      .environment(\.horizontalSizeClass, .compact).frame(width: 350)))
+    let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: 350, height: 568),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.contentView = host
+    window.orderFront(nil)
+    defer { window.close() }
+    host.layoutSubtreeIfNeeded()
+    let reserved = host.fittingSize.height
+    XCTAssertEqual(reserved, 350 * 9 / 16, accuracy: 1)
+
+    state.push("c={src:\"\(source)\",alt:\"Long photo\"}\n")
+    await settle(host) { state.mediaCache[key]?.wasPresented == true }
+    XCTAssertEqual(loader.requestCount, 1)
+    let loaded = try XCTUnwrap(state.mediaCache[key])
+    XCTAssertTrue(loaded.wasPresented)
+    XCTAssertEqual(loaded.size, CGSize(width: 180, height: 1800))
+    XCTAssertEqual(host.fittingSize.height, reserved, accuracy: 1)
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+  }
+
   @MainActor private func settle(_ host: NSHostingView<AnyView>, until condition: () -> Bool) async {
     let deadline = Date().addingTimeInterval(3)
     while !condition() && Date() < deadline {

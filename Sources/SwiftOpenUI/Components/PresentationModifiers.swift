@@ -43,12 +43,15 @@ extension View {
 /// Plain/sunken surfaces opt out of both border and elevation.
 struct NativeCardSurface: ViewModifier {
     @Environment(\.openUIPresentation) private var nativePresentation
+    @Environment(\.displayScale) private var displayScale
 
     let theme: OpenUIThemeValues
     var fill: Color? = nil
     var bordered = true
 
     func body(content: Content) -> some View {
+        let borderWidth = nativePresentation.borderWidth == OpenUIPresentation.defaults.borderWidth
+            ? 1 / displayScale : nativePresentation.borderWidth
         content
             .background {
                 RoundedRectangle(cornerRadius: theme.radius3xl, style: .continuous)
@@ -59,7 +62,7 @@ struct NativeCardSurface: ViewModifier {
             .overlay {
                 RoundedRectangle(cornerRadius: theme.radius3xl, style: .continuous)
                     .strokeBorder(bordered ? nativePresentation.resolvedCardBorderColor(with: theme) : .clear,
-                        lineWidth: nativePresentation.borderWidth)
+                        lineWidth: borderWidth)
                     .allowsHitTesting(false)
             }
     }

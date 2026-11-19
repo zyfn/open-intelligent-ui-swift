@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.1 · 更新日期：2026-11-16
+文档版本：1.4 · 更新日期：2026-11-20
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -67,6 +67,10 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 重现一次已捕获的流式分割时，使用 `--program /absolute/prefix.openui --stream-suffix /absolute/suffix.openui --library openintelligentui`。前缀以未完成状态展示，点击顶部播放控件的“追加流式后缀”完成。后缀按原始文本读取，可从对象项或字符串中间开始；编辑器保留完整的前缀加后缀，因此恢复、中断后完整渲染及重新播放都不会把半个程序误当成完整文档。
 
 `--library` 与 JSON 的 library 字段均使用 `openui|openintelligentui`。`--case` 也接受 `Components/Button` 这样的组件 ID。
+
+在 `Components/ImageGallery` 示例中用「1 张」到「6 张」切换同一组照片的张数。用「手机」和「平板」设备预设可对照五图的上下排和左右排。Gallery 按画布模拟系统尺寸类并传入画布高度，缩放只改变显示倍率。
+
+`Components/Card` 在一张卡片里展示两行图文和分隔线，下方用 EntityList 展示同一行程的键值信息。
 
 可选参数还有 `--locale system|en|zh-Hans|ar`。`--help` 列出全部参数。外部文件限制为 1 MiB 以内的 UTF-8 文本。
 

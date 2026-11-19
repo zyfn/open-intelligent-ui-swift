@@ -42,6 +42,76 @@ final class NativeLayoutSemanticsTests: XCTestCase {
     XCTAssertEqual(NativePagerContentHeight.measure([.nan, -2, .infinity]), 0)
   }
 
+  func testGalleryThreeImageArrangementKeepsOneCoverHeightAndBalancedTileProportions() {
+    for isCompact in [true, false] {
+      let layout = NativeGalleryGridLayout(isCompact: isCompact, fallbackWidth: 160, gap: 1, aspectRatio: 16.0 / 9)
+      for width in [CGFloat(280), 390, 600] {
+        let frames = layout.frames(width: width, count: 3)
+        XCTAssertEqual(frames[0].width, 2 * frames[1].width, accuracy: 0.001)
+        XCTAssertEqual(frames[1].minY, 0)
+        XCTAssertEqual(frames[1].minX, frames[2].minX)
+        XCTAssertEqual(frames[1].maxY + 1, frames[2].minY, accuracy: 0.001)
+        XCTAssertEqual(frames[0].maxY, frames[2].maxY, accuracy: 0.001)
+        XCTAssertEqual(frames[2].maxY, width * 9 / 16, accuracy: 0.001)
+        XCTAssertEqual(frames[2].maxX, width, accuracy: 0.001)
+      }
+    }
+  }
+
+  func testGalleryBoundsEveryTemplateToTheAvailableViewport() {
+    for isCompact in [true, false] {
+      let tall = NativeGalleryGridLayout(isCompact: isCompact, fallbackWidth: 160,
+        gap: 1, aspectRatio: 16.0 / 9, viewportHeight: 844)
+      let short = NativeGalleryGridLayout(isCompact: isCompact, fallbackWidth: 160,
+        gap: 1, aspectRatio: 16.0 / 9, viewportHeight: 120)
+      for count in 1...5 {
+        let tallHeight = tall.frames(width: 350, count: count).map(\.maxY).max() ?? 0
+        let shortHeight = short.frames(width: 350, count: count).map(\.maxY).max() ?? 0
+        XCTAssertLessThanOrEqual(tallHeight, 350 * 9.0 / 16)
+        XCTAssertEqual(shortHeight, 120, accuracy: 0.001)
+      }
+    }
+    let fallback = NativeGalleryGridLayout(isCompact: false, fallbackWidth: 160,
+      gap: 1, aspectRatio: 16.0 / 9, isVerticallyCompact: true, compactThumbnailSize: 72)
+    XCTAssertEqual(fallback.frames(width: 720, count: 3)[2].maxY, 144, accuracy: 0.001)
+  }
+
+  func testGalleryTwoPhotosUseSquareTilesUpToTheHeightLimit() {
+    let layout = NativeGalleryGridLayout(isCompact: true, fallbackWidth: 160, gap: 1, aspectRatio: 16.0 / 9)
+    let pair = layout.frames(width: 350, count: 2)
+    XCTAssertEqual(pair[0].height, pair[0].width)
+    XCTAssertEqual(pair[0].size, pair[1].size)
+    XCTAssertEqual(pair[1].minX, pair[0].maxX + 1)
+    XCTAssertEqual(pair[1].maxX, 350)
+    var short = layout
+    short.viewportHeight = 120
+    XCTAssertEqual(short.frames(width: 350, count: 2)[0].height, 120)
+  }
+
+  func testGalleryFiveImageArrangementFollowsTheDeviceSizeClass() {
+    let compact = NativeGalleryGridLayout(isCompact: true, fallbackWidth: 160, gap: 1, aspectRatio: 16.0 / 9)
+    let regular = NativeGalleryGridLayout(isCompact: false, fallbackWidth: 160, gap: 1, aspectRatio: 16.0 / 9)
+    let narrow = compact.frames(width: 390, count: 5)
+    XCTAssertEqual(narrow[0].width, narrow[1].width)
+    XCTAssertEqual(narrow[2].width, narrow[4].width)
+    XCTAssertEqual(narrow[4].maxX, 390, accuracy: 0.001)
+
+    let wide = regular.frames(width: 390, count: 5)
+    XCTAssertEqual(wide[0].width, 2 * wide[1].width)
+    XCTAssertEqual(wide[4].maxX, 390, accuracy: 0.001)
+    XCTAssertEqual(wide[0].maxY, wide[4].maxY)
+  }
+
+  func testGalleryFourImagesShareTwoRows() {
+    let layout = NativeGalleryGridLayout(isCompact: false, fallbackWidth: 160, gap: 8, aspectRatio: 16.0 / 9)
+    for width in [CGFloat(390), 820] {
+      let frames = layout.frames(width: width, count: 4)
+      XCTAssertEqual(frames[0].maxY, frames[3].maxY)
+      XCTAssertEqual(frames[1].width, frames[0].width)
+      XCTAssertEqual(frames[3].maxX, width)
+    }
+  }
+
   #if os(macOS)
   @MainActor func testChoiceColumnsDependOnWidthRatherThanCopyHeight() {
     _ = NSApplication.shared
@@ -58,19 +128,6 @@ final class NativeLayoutSemanticsTests: XCTestCase {
     XCTAssertEqual(height(width: 600, secondHeight: 200), 200, accuracy: 1)
     XCTAssertEqual(height(width: 240, secondHeight: 200), 324, accuracy: 1)
     XCTAssertEqual(height(width: 320, secondHeight: 200, single: true), 324, accuracy: 1)
-  }
-
-  @MainActor func testKnownGalleryShapeAllocatesTheFirstImageAtItsFinalColumnWidth() {
-    _ = NSApplication.shared
-    let first = NSHostingView(rootView: NativeGalleryGridLayout(minimumWidth: 112, gap: 12, maximumColumns: nil, layoutCount: 2) {
-      Color.clear.aspectRatio(16.0/9, contentMode: .fit)
-    }.frame(width:320))
-    let complete = NSHostingView(rootView: NativeGalleryGridLayout(minimumWidth: 112, gap: 12, maximumColumns: nil) {
-      Color.clear.aspectRatio(16.0/9, contentMode: .fit)
-      Color.clear.aspectRatio(16.0/9, contentMode: .fit)
-    }.frame(width:320))
-    XCTAssertEqual(first.fittingSize.height,complete.fittingSize.height,accuracy:1)
-    XCTAssertEqual(first.fittingSize.height,154*9.0/16,accuracy:1)
   }
 
   @MainActor func testMountedPagerReservesTheSameTrackInBothReadingDirections() {

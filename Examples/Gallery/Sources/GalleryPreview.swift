@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftLang
+import SwiftOpenUI
 import SwiftIntelligentUI
 
 /// A fixed logical viewport inside a separately scaled workbench canvas.
@@ -43,9 +44,14 @@ import SwiftIntelligentUI
     }
 
     private var program: some View {
-        OpenUIView(state: session.state, library: session.library)
+        var presentation = OpenUIPresentation()
+        presentation.viewportHeight = viewport.height
+        return OpenUIView(state: session.state, library: session.library)
             .openUIResourceContext(resources)
+            .openUIPresentation(presentation)
             .dynamicTypeSize(dynamicType)
+            .environment(\.horizontalSizeClass, viewport.horizontalSizeClass)
+            .environment(\.verticalSizeClass, viewport.verticalSizeClass)
             .environment(\.locale, locale)
             .environment(\.layoutDirection, direction)
             .environment(\.openURL, OpenURLAction { url in

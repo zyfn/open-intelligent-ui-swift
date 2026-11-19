@@ -27,13 +27,18 @@ final class NativeResponsiveMediaTests: XCTestCase {
         XCTAssertEqual(layout(240).imageWidth, 68)
         XCTAssertEqual(layout(212).imageWidth, 40)
         XCTAssertEqual(layout(360, preferred: 80).imageWidth, 80)
+        XCTAssertEqual(layout(360, preferred: 80).imageSize.height, 80 * 4 / 3, accuracy: 0.001)
         for width in [CGFloat(360), 240, 212] {
-            XCTAssertTrue(layout(width).axis == .horizontal)
-            XCTAssertGreaterThanOrEqual(width - layout(width).imageWidth - 12, 160)
+            let media = layout(width)
+            XCTAssertTrue(media.axis == .horizontal)
+            XCTAssertGreaterThanOrEqual(width - media.imageWidth - 12, 160)
+            XCTAssertEqual(media.imageSize.height, media.imageSize.width * 4 / 3, accuracy: 0.001)
         }
         for width in [CGFloat(211), 120, 80] {
-            XCTAssertTrue(layout(width).axis == .vertical)
-            XCTAssertLessThanOrEqual(layout(width).imageWidth, width)
+            let media = layout(width)
+            XCTAssertTrue(media.axis == .vertical)
+            XCTAssertLessThanOrEqual(media.imageWidth, width)
+            XCTAssertEqual(media.imageSize.height, media.imageSize.width * 4 / 3, accuracy: 0.001)
         }
     }
 

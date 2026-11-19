@@ -48,7 +48,7 @@ final class NativeActionAccessoryTests: XCTestCase {
         host.layoutSubtreeIfNeeded()
     }
 
-    /// Ignore both accessory edges, so a changing arrow/spinner cannot make
+    /// Ignore both accessory edges, so a changing spinner cannot make
     /// disappearing text pass merely because some new pixels were painted.
     @MainActor private func middleTextInk<V: View>(_ host: NSHostingView<V>) throws -> Int {
         let image = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))

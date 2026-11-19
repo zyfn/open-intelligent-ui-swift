@@ -24,6 +24,8 @@ public struct OpenUIPresentation {
     var minimumInlineThumbnailSize: CGFloat = 64
     public var minimumTextColumnWidth: CGFloat = 160
     public var coverAspectRatio: CGFloat = 16 / 9
+    /// A host can provide the height of its reading viewport in points.
+    public var viewportHeight: CGFloat?
     /// Optional target for a host with a known basemap coordinate system.
     /// Without an override, Map draws the supplied coordinates as-is.
     public var mapBasemapCRS: OpenUIMapCoordinateSystem? = nil

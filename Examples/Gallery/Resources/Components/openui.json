@@ -5,7 +5,7 @@
   },
   "Card": {
     "category": "Layout",
-    "program": "root = Stack([Card([CardHeader(\"周末计划\",\"留出一点自由时间\"),TextContent(\"用一张卡片组织相关内容。\")])])"
+    "program": "root = Stack([itinerary, times], \"column\", \"l\")\nitinerary = Card([first, Separator(), second], \"card\")\nfirst = ImageText(\"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/West_Lake_%28Hangzhou%29_sunset_2016_January.jpg/960px-West_Lake_%28Hangzhou%29_sunset_2016_January.jpg\", \"西湖日落\", \"第一天 · 西湖散步\", \"沿湖步行，傍晚在长桥看日落。\", true)\nsecond = ImageText(\"https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Liangzhu_Museum%2C_2019-07-07_04.jpg/960px-Liangzhu_Museum%2C_2019-07-07_04.jpg\", \"良渚博物院展品\", \"第二天 · 良渚博物院\", \"上午看展，午后在馆外散步。\", true)\ntimes = EntityList([{left:\"出发\",right:\"09:00\"},{left:\"回程\",right:\"17:30\"}])"
   },
   "CardHeader": {
     "category": "Content",
@@ -111,7 +111,7 @@
   },
   "ImageGallery": {
     "category": "Media",
-    "program": "root = Stack([ImageGallery([{src:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},{src:\"https://upload.wikimedia.org/wikipedia/commons/4/49/Nikon_DSLR_camera_D850_lateral_rear_view.jpg\",alt:\"相机背面\"}])])"
+    "program": "root = Stack([galleryTabs])\ngalleryTabs = Tabs([count1, count2, count3, count4, count5, count6])\ncount1 = TabItem(\"1\", \"1 张\", [ImageGallery([photo1])])\ncount2 = TabItem(\"2\", \"2 张\", [ImageGallery([photo1, photo2])])\ncount3 = TabItem(\"3\", \"3 张\", [ImageGallery([photo1, photo2, photo3])])\ncount4 = TabItem(\"4\", \"4 张\", [ImageGallery([photo1, photo2, photo3, photo4])])\ncount5 = TabItem(\"5\", \"5 张\", [ImageGallery([photo1, photo2, photo3, photo4, photo5])])\ncount6 = TabItem(\"6\", \"6 张\", [ImageGallery([photo1, photo2, photo3, photo4, photo5, photo6])])\nphoto1 = {src: \"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\", alt: \"照片 1\", details: \"Wolfgang Moroder · CC BY-SA 3.0\"}\nphoto2 = {src: \"https://upload.wikimedia.org/wikipedia/commons/4/49/Nikon_DSLR_camera_D850_lateral_rear_view.jpg\", alt: \"照片 2\", details: \"Wolfgang Moroder · CC BY-SA 3.0\"}\nphoto3 = {src: \"https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Sony_WH-CH500-40869.jpg/500px-Sony_WH-CH500-40869.jpg\", alt: \"照片 3\", details: \"Raimond Spekking · CC BY-SA 4.0\"}\nphoto4 = {src: \"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Deshou_Palace.jpg/960px-Deshou_Palace.jpg\", alt: \"照片 4\", details: \"Takashishin · CC BY-SA 4.0\"}\nphoto5 = {src: \"https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Liangzhu_Museum%2C_2019-07-07_04.jpg/960px-Liangzhu_Museum%2C_2019-07-07_04.jpg\", alt: \"照片 5\", details: \"Siyuwj · CC BY-SA 4.0\"}\nphoto6 = {src: \"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/West_Lake_%28Hangzhou%29_sunset_2016_January.jpg/960px-West_Lake_%28Hangzhou%29_sunset_2016_January.jpg\", alt: \"照片 6\", details: \"Morio · CC BY-SA 4.0\"}"
   },
   "ImageText": {
     "category": "Content",
@@ -366,7 +366,7 @@
   },
   "ListBlock": {
     "category": "Content",
-    "program": "root = Stack([ListBlock([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留弹性\")],\"number\")])"
+    "program": "root = Stack([ListBlock([lake, museum, palace], \"image\")])\nlake = ListItem(\"西湖散步\", \"沿湖步行，傍晚在长桥看日落。\", {src:\"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/West_Lake_%28Hangzhou%29_sunset_2016_January.jpg/960px-West_Lake_%28Hangzhou%29_sunset_2016_January.jpg\", alt:\"西湖日落\"})\nmuseum = ListItem(\"良渚博物院\", \"上午看展，午后沿馆外步道散步。\", {src:\"https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Liangzhu_Museum%2C_2019-07-07_04.jpg/960px-Liangzhu_Museum%2C_2019-07-07_04.jpg\", alt:\"良渚博物院展品\"})\npalace = ListItem(\"德寿宫\", \"留一段时间看南宋遗址和院落。\", {src:\"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Deshou_Palace.jpg/960px-Deshou_Palace.jpg\", alt:\"德寿宫建筑\"})"
   },
   "ListItem": {
     "category": "Content",

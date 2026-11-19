@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct GalleryOptions {
     var library: GalleryLibrary = .openIntelligentUI
@@ -93,6 +94,8 @@ struct GalleryViewport: Equatable {
     var width: Double = 390
     var height: Double = 844
     var zoom: Double = 1
+    var horizontalSizeClass: UserInterfaceSizeClass { width < GalleryDevice.reading.size.0 ? .compact : .regular }
+    var verticalSizeClass: UserInterfaceSizeClass { height <= GalleryDevice.largePhone.size.0 ? .compact : .regular }
     var scaledWidth: Double { width * zoom }
     var scaledHeight: Double { height * zoom }
     mutating func rotate() { let oldWidth = width; width = height; height = max(320, oldWidth) }
