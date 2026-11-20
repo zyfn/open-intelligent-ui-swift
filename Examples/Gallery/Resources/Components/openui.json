@@ -735,8 +735,7 @@
         "title": "基础用法",
         "program": "root = Stack([FollowUpBlock([FollowUpItem(\"安排一个轻松的半日行程\"),FollowUpItem(\"还有哪些适合散步的地方？\")])])"
       }
-    ],
-    "category": "FormsAndButtons"
+    ]
   },
   "FollowUpItem": {
     "container": "FollowUpBlock"

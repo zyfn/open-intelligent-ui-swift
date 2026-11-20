@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.51 · 更新日期：2026-11-20
+文档版本：1.52 · 更新日期：2026-11-20
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -24,6 +24,21 @@ let view = OpenUIView(state: state, library: library)
 实际目录由 OpenUIComponents 注册并导出，包括固定上游的 84 个定义，以及原生 Map、MapPoint、SVG 和 JourneyLine，共 88 个定义。其中 73 个是可视定义，15 个是由父组件消费的结构或数据定义；不能把注册数等同于独立可点击控件数量。
 
 Gallery 按注册目录的 `componentGroups` 浏览，结构子项跟随父组件，组件用法默认展开。签名、位置参数和默认值以 library.specification 为准。原始参考目录在 [upstream-catalog.json](../Sources/SwiftOpenUI/Resources/upstream-catalog.json)，原生注册在 [Catalog](../Sources/SwiftOpenUI/Catalog/)。
+
+分组依据是组件在 Lang 中接收的主要输入和它的职责。
+
+| 分组 | 用途 | 代表组件 |
+| --- | --- | --- |
+| 布局与容器 | 排列、包裹或分隔已经构成的内容 | Stack、Card、Separator |
+| 浏览与切换 | 控制一组子内容如何切换或展开 | Tabs、Carousel、Accordion、Modal |
+| 文字与标记 | 呈现正文、标题、说明或标记 | TextContent、MarkDownRenderer、CardHeader、CodeBlock、Tag、Icon |
+| 媒体 | 展示图片资源及其浏览方式 | Image、ImageBlock、ImageGallery |
+| 列表与对象卡片 | 展示属性、重复条目、顺序或各自独立的对象 | EntityList、ListBlock、Steps、VisualCardBlock |
+| 表格、图表与指标 | 读数据明细、量化差异或指标 | Table、各类图表、MetricIndicatorWithStrikethrough |
+| 地图与图形 | 表达点位、交通方向或图示 | Map、SVG、JourneyLine |
+| 表单与操作 | 收集输入、提交或继续对话 | Form、输入控件、Button、FollowUpBlock |
+
+TabItem、StepsItem 等从属定义与父组件同组，共用数据定义 Series 随图表分组。通用 Card 是包裹子内容的容器，VisualCardBlock 接受有独立字段的卡项。
 
 只有实际实现并注册的定义进入生成契约。Swift 包名、文件归属和视觉调整不改变已支持的 Lang 组件名、参数顺序、绑定和枚举。
 

@@ -46,21 +46,9 @@ enum GallerySection: String, CaseIterable, Identifiable {
 
 enum GalleryComponentCategory: String, Codable, CaseIterable, Identifiable {
     case layout = "Layout", content = "Content", controls = "Controls"
-    case tablesAndCharts = "TablesAndCharts", formsAndButtons = "FormsAndButtons", media = "Media"
-    case data = "DataDisplay", cards = "Cards", maps = "Maps and Diagrams"
-
-    init?(catalogName: String) {
-        switch catalogName {
-        case "Tables", "Charts (2D)", "Charts (1D)", "Charts (Scatter)":
-            self = .tablesAndCharts
-        case "Forms", "Buttons":
-            self = .formsAndButtons
-        case "Data Display":
-            self = .data
-        default:
-            self.init(rawValue: catalogName)
-        }
-    }
+    case containers = "Layout and Containers", browsing = "Browsing and Switching", text = "Text and Labels"
+    case media = "Media", lists = "Lists and Object Cards", tablesAndCharts = "Tables, Charts and Metrics"
+    case maps = "Maps and Diagrams", formsAndActions = "Forms and Actions", data = "DataDisplay"
 
     var id: String { rawValue }
     var title: String {
@@ -68,12 +56,15 @@ enum GalleryComponentCategory: String, Codable, CaseIterable, Identifiable {
         case .layout: "布局"
         case .content: "内容"
         case .controls: "控件"
-        case .tablesAndCharts: "表格与图表"
-        case .formsAndButtons: "表单与按钮"
+        case .containers: "布局与容器"
+        case .browsing: "浏览与切换"
+        case .text: "文字与标记"
         case .media: "媒体"
-        case .data: "数据展示"
-        case .cards: "卡片"
+        case .lists: "列表与对象卡片"
+        case .tablesAndCharts: "表格、图表与指标"
         case .maps: "地图与图形"
+        case .formsAndActions: "表单与操作"
+        case .data: "数据展示"
         }
     }
 }
@@ -84,7 +75,7 @@ struct GalleryComponentExample: Decodable, Identifiable, Equatable {
     let program: String
 }
 
-/// Names and signatures come from the real library. Gallery owns the grouping and examples.
+/// OpenUI names, signatures and grouping come from the real library. Gallery supplies usages.
 struct GalleryComponent: Identifiable {
     let definition: LibrarySpecEntry
     let category: GalleryComponentCategory
@@ -113,11 +104,15 @@ struct GalleryComponent: Identifiable {
             throw GalleryFailure("\(kind.title) 组件示例与实际目录不一致。缺少：\(missing)；未知：\(unknown)")
         }
         var libraryCategories: [String: GalleryComponentCategory] = [:]
+        var libraryOrder: [String: Int] = [:]
         for group in specification.componentGroups ?? [] {
-            guard let category = GalleryComponentCategory(catalogName: group.name) else {
+            guard let category = GalleryComponentCategory(rawValue: group.name) else {
                 throw GalleryFailure("\(kind.title) 有未知的组件分组 \(group.name)。")
             }
-            for name in group.components { libraryCategories[name] = category }
+            for name in group.components {
+                libraryOrder[name] = libraryOrder.count
+                libraryCategories[name] = category
+            }
         }
         return try specification.components.map { definition in
             let item = catalog[definition.name]!
@@ -146,7 +141,9 @@ struct GalleryComponent: Identifiable {
             return GalleryComponent(definition: definition, category: category, examples: examples,
                                     supporting: item.container != nil || item.supporting == true,
                                     container: item.container, previewRoot: previewRoot)
-        }.sorted { $0.name < $1.name }
+        }.sorted {
+            (libraryOrder[$0.name] ?? Int.max, $0.name) < (libraryOrder[$1.name] ?? Int.max, $1.name)
+        }
     }
 }
 

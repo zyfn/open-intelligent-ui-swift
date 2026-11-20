@@ -178,17 +178,29 @@ final class GalleryTests: XCTestCase {
             if kind == .openUI {
                 XCTAssertEqual(items.count, 88)
                 XCTAssertTrue(items.contains { $0.name == "JourneyLine" })
-                XCTAssertEqual(items.first { $0.name == "Steps" }?.category, .layout)
-                XCTAssertEqual(items.first { $0.name == "Card" }?.category, .content)
-                XCTAssertEqual(items.first { $0.name == "EntityList" }?.category, .data)
                 let categories = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.category) })
+                XCTAssertEqual(items.map(\.name), library.specification.componentGroups?.flatMap(\.components))
+                XCTAssertEqual(categories["Stack"], .containers)
+                XCTAssertEqual(categories["Card"], .containers)
+                for name in ["Tabs", "Carousel", "Modal", "Accordion"] {
+                    XCTAssertEqual(categories[name], .browsing, name)
+                }
+                for name in ["TextContent", "CardHeader", "Tag", "Icon"] {
+                    XCTAssertEqual(categories[name], .text, name)
+                }
+                for name in ["Image", "ImageBlock", "ImageGallery"] {
+                    XCTAssertEqual(categories[name], .media, name)
+                }
+                for name in ["EntityList", "ListBlock", "Steps", "VisualCardBlock"] {
+                    XCTAssertEqual(categories[name], .lists, name)
+                }
                 for name in ["Table", "BarChart", "PieChart", "ScatterChart"] {
                     XCTAssertEqual(categories[name], .tablesAndCharts, name)
                 }
                 for name in ["Form", "Button", "FollowUpBlock"] {
-                    XCTAssertEqual(categories[name], .formsAndButtons, name)
+                    XCTAssertEqual(categories[name], .formsAndActions, name)
                 }
-                XCTAssertEqual(Set(categories.values).count, 7)
+                XCTAssertEqual(Set(categories.values).count, 8)
                 XCTAssertEqual(items.first { $0.name == "StepsItem" }?.container, "Steps")
                 XCTAssertEqual(items.first { $0.name == "Point" }?.container, "ScatterSeries")
             } else {

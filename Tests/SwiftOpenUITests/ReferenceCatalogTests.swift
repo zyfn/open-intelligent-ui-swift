@@ -5,6 +5,18 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class ReferenceCatalogTests: XCTestCase {
+  func testCatalogGroupsCoverEachRegisteredComponentAndPreserveGuidance() throws {
+    let library = try OpenUIComponents.library()
+    let groups = try XCTUnwrap(library.library.toSpec().componentGroups)
+    let grouped = groups.flatMap(\.components)
+    let registered = library.library.components.map(\.name)
+    XCTAssertEqual(grouped.count, registered.count)
+    XCTAssertEqual(Set(grouped), Set(registered))
+    let priorNotes = OpenUIReference.groups.flatMap { $0.notes ?? [] }
+    let publishedNotes = groups.filter { $0.name != "Maps and Diagrams" }.flatMap { $0.notes ?? [] }
+    XCTAssertEqual(publishedNotes.sorted(), priorNotes.sorted())
+  }
+
   // Zod's official JSON importer represents singleton enums as const. This is
   // JSON Schema equivalence, not an extra native rule or a wire-format patch.
   private static func canonicalSchema(_ value: JSONValue) -> JSONValue {
