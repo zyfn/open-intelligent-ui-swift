@@ -97,6 +97,7 @@ struct GalleryComponentMarks {
 /// photograph is never substituted for another URL or another place/product.
 final class GalleryImageLoader: OpenUIResourceLoading {
     static let cameraURL = "https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg"
+    private static let delayedCameraURL = "https://gallery.invalid/loading-camera.jpg"
     private struct Asset: Decodable { let file: String; let source: String }
     private struct Manifest: Decodable { let images: [Asset] }
     private let files: [String: URL]
@@ -129,7 +130,10 @@ final class GalleryImageLoader: OpenUIResourceLoading {
 
     func data(for request: URLRequest) async throws -> Data {
         try Task.checkCancellation()
-        if let source = request.url?.absoluteString, let url = files[source] {
+        let source = request.url?.absoluteString
+        let delayed = source == Self.delayedCameraURL
+        if let asset = delayed ? Self.cameraURL : source, let url = files[asset] {
+            if delayed { try await Task.sleep(nanoseconds: 6_000_000_000) }
             let data = try Data(contentsOf: url)
             guard data.count <= resourceLimits.maximumResponseBytes else {
                 throw GalleryFailure("Gallery 图片超过资源大小限制。")

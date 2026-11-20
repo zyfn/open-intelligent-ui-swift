@@ -27,7 +27,7 @@ import SwiftLang
                                 .font(.callout).foregroundStyle(.secondary)
                             if component.supporting {
                                 Text(component.container.map { "在 \($0) 中展示 \(component.name) 的实际用法。" }
-                                     ?? "该定义没有独立视图，示例保留其源码用法。")
+                                     ?? "这是数据定义。参数和用法见下方源码。")
                                     .font(.callout).foregroundStyle(.secondary)
                             }
                         }

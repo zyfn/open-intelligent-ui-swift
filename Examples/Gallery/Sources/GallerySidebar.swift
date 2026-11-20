@@ -3,13 +3,17 @@ import UniformTypeIdentifiers
 
 /// Navigation state is independent of the selected document and virtualized rows.
 struct GallerySidebarState {
-    private var expanded: [GalleryLibrary: Set<String>] = [:]
+    private var expanded: [GalleryLibrary: Set<GalleryComponentCategory>] = [:]
 
-    func isExpanded(_ category: String, in library: GalleryLibrary) -> Bool {
+    func isExpanded(_ category: GalleryComponentCategory, in library: GalleryLibrary) -> Bool {
         expanded[library, default: []].contains(category)
     }
 
-    mutating func toggle(_ category: String, in library: GalleryLibrary) {
+    mutating func expand(_ category: GalleryComponentCategory, in library: GalleryLibrary) {
+        expanded[library, default: []].insert(category)
+    }
+
+    mutating func toggle(_ category: GalleryComponentCategory, in library: GalleryLibrary) {
         if !expanded[library, default: []].insert(category).inserted {
             expanded[library, default: []].remove(category)
         }
@@ -69,6 +73,8 @@ struct GallerySidebarState {
         .onChange(of: scenePhase) { phase in
             if phase == .active { model.reloadComponentMarks() }
         }
+        .onAppear(perform: revealSelectedComponent)
+        .onChange(of: model.selectedID) { _ in revealSelectedComponent() }
     }
 
     private var scenes: [GalleryEntry] {
@@ -79,40 +85,44 @@ struct GallerySidebarState {
             if !result.contains(entry.item.category) { result.append(entry.item.category) }
         }
     }
-    private var categories: [String] {
-        GalleryComponent.categories.filter { category in model.components.contains { $0.category == category } }
+    private var categories: [GalleryComponentCategory] {
+        GalleryComponentCategory.allCases.filter { category in model.components.contains { $0.category == category } }
     }
     private var componentRows: [GalleryComponentRow] {
         GalleryComponentRow.hierarchy(model.components)
     }
+    private func revealSelectedComponent() {
+        if let category = model.selectedComponent?.category {
+            navigation.expand(category, in: model.selectedLibrary)
+        }
+    }
+
     @ViewBuilder private var navigationItems: some View {
-        if scenes.isEmpty && model.components.isEmpty {
-            Text("没有可浏览的内容").font(.headline).padding(10)
-        } else {
-            if !scenes.isEmpty {
-                sectionTitle("场景")
-                ForEach(sceneCategories, id: \.self) { category in
-                    Text(category)
-                        .font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                        .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 3)
-                        .accessibilityAddTraits(.isHeader)
-                    ForEach(scenes.filter { $0.item.category == category }) { entry in
-                        item(entry.id, title: entry.item.title)
+        if model.designSystem != nil {
+            item(GalleryDesignSystem.id, title: "Design System")
+        }
+        if !model.components.isEmpty {
+            sectionTitle("组件库").padding(.top, 12)
+            ForEach(categories) { category in
+                categoryHeader(category)
+                if navigation.isExpanded(category, in: model.selectedLibrary) {
+                    ForEach(componentRows.filter { $0.component.category == category }) { row in
+                        componentItem(row.component)
+                            .padding(.leading, 18 + CGFloat(row.depth) * 16)
+                            .transition(.identity)
                     }
                 }
             }
-            if !model.components.isEmpty {
-                sectionTitle("组件库")
-                    .padding(.top, scenes.isEmpty ? 0 : 16)
-                ForEach(categories, id: \.self) { category in
-                    categoryHeader(category)
-                    if navigation.isExpanded(category, in: model.selectedLibrary) {
-                        ForEach(componentRows.filter { $0.component.category == category }) { row in
-                            componentItem(row.component)
-                                .padding(.leading, 18 + CGFloat(row.depth) * 16)
-                                .transition(.identity)
-                        }
-                    }
+        }
+        if !scenes.isEmpty {
+            sectionTitle("场景").padding(.top, 16)
+            ForEach(sceneCategories, id: \.self) { category in
+                Text(category)
+                    .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 3)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(scenes.filter { $0.item.category == category }) { entry in
+                    item(entry.id, title: entry.item.title)
                 }
             }
         }
@@ -125,29 +135,31 @@ struct GallerySidebarState {
             .accessibilityAddTraits(.isHeader)
     }
 
-    private func categoryHeader(_ category: String) -> some View {
+    private func categoryHeader(_ category: GalleryComponentCategory) -> some View {
         let isExpanded = navigation.isExpanded(category, in: model.selectedLibrary)
         let count = model.components.filter { $0.category == category }.count
         return Button { navigation.toggle(category, in: model.selectedLibrary) } label: {
             HStack(spacing: 8) {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.caption.weight(.semibold)).frame(width: 10)
-                Text(category).font(.body.weight(.medium))
+                Text(category.title).font(.body.weight(.medium))
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(category) 组件，\(count) 项")
+        .accessibilityLabel("\(category.title)，\(count) 项")
         .accessibilityValue(isExpanded ? "已展开" : "已折叠")
-        .accessibilityIdentifier("gallery.category.\(category)")
+        .accessibilityIdentifier("gallery.category.\(category.rawValue)")
     }
 
     private func componentItem(_ component: GalleryComponent) -> some View {
         let library = model.selectedLibrary
         let marked = model.componentMarks.contains(component.name, in: library)
-        return item(component.id, title: component.name, supporting: component.supporting, marked: marked)
+        let hint = component.container.map { "在 \($0) 中查看用法" }
+            ?? (component.supporting ? "查看数据定义和用法" : "")
+        return item(component.id, title: component.name, hint: hint, marked: marked)
             .contextMenu {
                 if model.marksRepository != nil {
                     Button(marked ? "取消划线" : "划线") {
@@ -167,7 +179,7 @@ struct GallerySidebarState {
     }
 
     @ViewBuilder private func item(
-        _ id: String, title: String, supporting: Bool = false, marked: Bool = false
+        _ id: String, title: String, hint: String = "", marked: Bool = false
     ) -> some View {
         #if os(macOS)
         let selected = model.selectedID == id
@@ -182,13 +194,13 @@ struct GallerySidebarState {
         .buttonStyle(.plain)
         .focused($focusedID, equals: id)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityHint(supporting ? "在所属组件中查看用法" : "")
+        .accessibilityHint(hint)
         .accessibilityValue(marked ? "已划线" : "")
         .accessibilityIdentifier("gallery.item.\(id)")
         .id(id)
         #else
         NavigationLink(value: id) { itemLabel(title, marked: marked) }
-            .accessibilityHint(supporting ? "在所属组件中查看用法" : "")
+            .accessibilityHint(hint)
             .accessibilityValue(marked ? "已划线" : "")
             .accessibilityIdentifier("gallery.item.\(id)")
             .tag(id)
@@ -198,10 +210,12 @@ struct GallerySidebarState {
     #if os(macOS)
     private func moveSelection(_ direction: MoveCommandDirection) -> String? {
         guard direction == .up || direction == .down else { return nil }
-        let ids = sceneCategories.flatMap { type in scenes.filter { $0.item.category == type }.map(\.id) } + categories.flatMap { category in
+        let componentIDs = categories.flatMap { category in
             navigation.isExpanded(category, in: model.selectedLibrary)
                 ? componentRows.filter { $0.component.category == category }.map(\.id) : []
         }
+        let sceneIDs = sceneCategories.flatMap { type in scenes.filter { $0.item.category == type }.map(\.id) }
+        let ids = (model.designSystem == nil ? [] : [GalleryDesignSystem.id]) + componentIDs + sceneIDs
         guard !ids.isEmpty else { return nil }
         let current = ids.firstIndex(of: model.selectedID ?? "")
         let index = current.map { min(ids.count - 1, max(0, $0 + (direction == .down ? 1 : -1))) }

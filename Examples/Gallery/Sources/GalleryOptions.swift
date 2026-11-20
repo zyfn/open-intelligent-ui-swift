@@ -80,7 +80,7 @@ struct GalleryOptions {
     static let usage = """
     OpenUIGallery — OpenUI / OpenIntelligentUI
       --library openui|openintelligentui  Select a product
-      --case <id>                         Select a catalog case
+      --case <id>                         Select a scene, component, or DesignSystem
       --program <file.openui|file.json>    Import a program (requires --library)
       --stream-suffix <file.openui>        Keep prefix incomplete; append on demand
       --width 240...1600 --height 320...1600 --zoom 0.5...1.5

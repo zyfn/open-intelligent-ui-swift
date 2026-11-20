@@ -23,6 +23,8 @@ private enum GalleryPanel: Identifiable {
     @State private var appearance: String
     @State private var largeType: Bool
     @State private var localeName: String
+    @State private var museTheme: GalleryDesignSystem.Theme = .original
+    @State private var appliesMuseTheme = false
     @State private var importing = false
     #if os(macOS)
     @State private var showsSource = false
@@ -49,7 +51,7 @@ private enum GalleryPanel: Identifiable {
             GallerySidebar(model: model)
         } detail: {
             detail
-                .navigationTitle(model.selectedComponent?.name ?? model.session?.title ?? model.selectedEntry?.item.title ?? "选择案例")
+                .navigationTitle(navigationTitle)
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
@@ -87,13 +89,24 @@ private enum GalleryPanel: Identifiable {
         .onDisappear { model.session?.interrupt() }
     }
 
+    private var navigationTitle: String {
+        if model.selectedID == GalleryDesignSystem.id { return "Design System" }
+        return model.selectedComponent?.name ?? model.session?.title ?? model.selectedEntry?.item.title ?? "选择案例"
+    }
+
     private var detail: some View {
         VStack(spacing: 0) {
             if let failure = model.failure ?? model.marksFailure {
                 Text(failure).font(.callout).foregroundStyle(.orange).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(16)
             }
-            if let session = model.session, let resources = model.resources {
+            if model.selectedID == GalleryDesignSystem.id, let system = model.designSystem {
+                GalleryDesignSystemView(system: system, theme: $museTheme, appearance: $appearance,
+                                        appliesToOpenUI: $appliesMuseTheme)
+            } else if let session = model.session, let resources = model.resources {
+                if let component = model.selectedComponent, component.examples.count > 1 {
+                    examplePicker(component.examples)
+                }
                 #if os(macOS)
                 HSplitView {
                     preview(session: session, resources: resources).frame(minWidth: 280)
@@ -116,11 +129,24 @@ private enum GalleryPanel: Identifiable {
         }
     }
 
+    private func examplePicker(_ examples: [GalleryComponentExample]) -> some View {
+        Picker("用法", selection: Binding(get: { model.selectedExampleID ?? examples[0].id },
+                                         set: { model.selectExample($0) })) {
+            ForEach(examples) { example in Text(example.title).tag(example.id) }
+        }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier("gallery.component.example")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24).padding(.vertical, 8)
+    }
+
     private func preview(session: GalleryDocumentSession, resources: OpenUIResourceContext) -> some View {
-        GalleryPreview(session: session, resources: resources, viewport: viewport,
+        let usesMuseTokens = appliesMuseTheme && session.kind == .openUI
+        return GalleryPreview(session: session, resources: resources, viewport: viewport,
                        dynamicType: largeType ? .accessibility2 : systemType,
                        locale: localeName == "system" ? systemLocale : Locale(identifier: localeName),
-                       direction: localeName == "system" ? systemDirection : localeName == "ar" ? .rightToLeft : .leftToRight)
+                       direction: localeName == "system" ? systemDirection : localeName == "ar" ? .rightToLeft : .leftToRight,
+                       museTheme: museTheme, tokens: usesMuseTokens ? model.designSystem?.tokens(for: museTheme) : nil)
             .id(session.id)
     }
 

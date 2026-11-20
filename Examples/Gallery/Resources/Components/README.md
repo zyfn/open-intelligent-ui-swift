@@ -1,15 +1,15 @@
-# 组件示例
+# 组件用法
 
-文档版本：1.1 · 更新日期：2026-11-19
+文档版本：1.5 · 更新日期：2026-11-20
 
 `openui.json` 对应 OpenUI，`openintelligentui.json` 对应 OpenIntelligentUI。文件名沿用既有内部产品标识；界面和新的命令行参数使用产品名称。
 
-每个键是实际注册的组件名称，值包含展示分类、完整 Lang 示例，以及可选的结构/数据子项与父组件说明。Gallery 从真实 `OpenUILibrary.specification` 取得名称、签名和描述，并检查示例键集合与组件目录完全一致。这里不维护第二份组件契约。
+每个键对应实际注册的组件。独立展示的组件填写 `examples`，每个用法包含页内唯一的 `id`、界面标题 `title` 与可执行的 `program`。结构或数据子项填写 `container`，继承父项的分组与全部用法。Gallery 从真实 `OpenUILibrary.specification` 读取名称、签名和描述，并核对注册项覆盖。
 
-目录沿用 OpenIntelligentUI 源码的 `Layout / Content / Controls / DataDisplay / Media`，OpenUI 也按同一目录体系组织对应展示。静态检查逐项核对 OpenIntelligentUI 示例目录与实际组件实现的文件夹归属；不额外发明展示分类。组件用法默认展开，仍可手动收起。
+OpenUI 的分组来自注册目录的 `componentGroups`。Gallery 合并表格和各类图表，表单和按钮也合为一组。`FollowUpBlock` 通过 `category` 补入「表单与按钮」。OpenIntelligentUI 的独立组件填写与源码目录对应的 `category`。可用相同内容直接比较的形态放在同一用法中，例如 Card 的三种底层容器。图库张数、日期 Tabs、表单校验等需要单独互动的用法，通过当前组件页面切换。
 
-每个组件都可以独立选择。TabItem、Series、MapMarker 等嵌套或数据组件在父组件中展示；Slice 没有独立原生视觉，示例明确说明这一点。图片复用 Images 清单中来源精确匹配的本地素材，不为不同来源伪造图片映射。SearchImage 使用 Gallery 的本地模拟适配器。
+TabItem、StepsItem、MapMarker 等跟随各自的父组件。多个图表共用的 Series 位于「表格与图表」，用同一组数据对照柱状图与折线图。Slice 的页面展示数据定义。图片复用 Images 清单中来源精确匹配的本地素材。SearchImage 使用 Gallery 的本地模拟适配器。
 
-OpenUI 有 88 个注册定义，其中 73 个具有原生视觉实现，15 个结构或数据定义由父组件消费或保留协议读取。Layout 下的 Tabs 示例演示日期样式，TabItem 示例演示普通样式。点流式播放后可以观察首项和手选项如何随正文追加保持选中。
+OpenUI 有 88 个注册定义，OpenIntelligentUI 有 61 个。普通 Tabs 和日期 Tabs 各有一项用法，`TabItem` 共用这两项。点流式播放后可以观察首项和手选项如何随正文追加保持选中。
 
 修改组件目录时同步补齐示例；`Tools/check_gallery_catalog.py` 检查资源完整性，`Examples/Gallery/verify.sh` 用真实库验证完整与流式求值。实际外观及交互仍需打开原生 Gallery 检查。

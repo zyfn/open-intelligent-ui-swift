@@ -13,13 +13,22 @@ import SwiftIntelligentUI
     let dynamicType: DynamicTypeSize
     let locale: Locale
     let direction: LayoutDirection
+    let museTheme: GalleryDesignSystem.Theme
+    let tokens: GalleryThemeTokens?
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         GeometryReader { geometry in
             ScrollView([.horizontal, .vertical]) {
                 document
                     .frame(width: viewport.width, height: viewport.height)
-                    .background(.background)
+                    .background {
+                        if let canvas = tokens?.colorValue("canvas", scheme: scheme)?.color {
+                            Rectangle().fill(.background).overlay(canvas)
+                        } else {
+                            Rectangle().fill(.background)
+                        }
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.16)))
                     .scaleEffect(viewport.zoom, anchor: .topLeading)
@@ -49,6 +58,8 @@ import SwiftIntelligentUI
         return OpenUIView(state: session.state, library: session.library)
             .openUIResourceContext(resources)
             .openUIPresentation(presentation)
+            .openUITheme(lightTheme: tokens?.openUITheme(museTheme, scheme: .light) ?? OpenUITheme(),
+                         darkTheme: tokens?.openUITheme(museTheme, scheme: .dark))
             .dynamicTypeSize(dynamicType)
             .environment(\.horizontalSizeClass, viewport.horizontalSizeClass)
             .environment(\.verticalSizeClass, viewport.verticalSizeClass)

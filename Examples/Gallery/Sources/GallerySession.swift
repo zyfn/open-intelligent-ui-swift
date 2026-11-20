@@ -156,12 +156,14 @@ enum GalleryPlayback: String {
     @Published private(set) var selectedID: String?
     @Published private(set) var selectedLibrary: GalleryLibrary
     @Published private(set) var components: [GalleryComponent] = []
+    @Published private(set) var selectedExampleID: String?
     @Published private(set) var session: GalleryDocumentSession?
     @Published private(set) var failure: String?
     @Published private(set) var componentMarks = GalleryComponentMarks()
     @Published private(set) var marksRepository: URL?
     @Published private(set) var marksFailure: String?
     let resources: OpenUIResourceContext?
+    let designSystem: GalleryDesignSystem?
     private let resourceRoot: URL?
     private var selections: [GalleryLibrary: String] = [:]
     var selectedEntry: GalleryEntry? { entries.first { $0.id == selectedID } }
@@ -174,12 +176,14 @@ enum GalleryPlayback: String {
             let loader = try GalleryImageLoader(resourceRoot: root)
             let loaded = try catalog?.entries ?? GalleryCatalog(resourceRoot: root).entries
             let componentItems = try GalleryComponent.load(options.library, resourceRoot: root)
+            designSystem = try GalleryDesignSystem.load(resourceRoot: root)
             resources = OpenUIResourceContext(loader: loader)
             self.resourceRoot = root
             entries = loaded
             components = componentItems
         } catch {
             resources = nil
+            designSystem = nil
             self.resourceRoot = nil
             failure = error.localizedDescription
             return
@@ -195,7 +199,7 @@ enum GalleryPlayback: String {
             } catch { failure = error.localizedDescription }
         } else if let id = options.caseID {
             if let entry = entries.first(where: { $0.item.id == id || $0.id == id }) { select(entry.id) }
-            else if components.contains(where: { $0.id == id }) { select(id) }
+            else if id == GalleryDesignSystem.id || components.contains(where: { $0.id == id }) { select(id) }
             else { failure = "找不到案例：\(id)" }
         } else if let first = entries.first(where: { $0.supports(selectedLibrary) }) { select(first.id) }
 
@@ -212,20 +216,37 @@ enum GalleryPlayback: String {
     func select(_ id: String) {
         let entry = entries.first { $0.id == id && $0.supports(selectedLibrary) }
         let component = components.first { $0.id == id }
-        guard entry != nil || component != nil else { return }
-        if id == selectedID, session?.kind == selectedLibrary { return }
+        guard entry != nil || component != nil || id == GalleryDesignSystem.id else { return }
+        if id == selectedID { return }
         let sharesPreview = component.map { selectedComponent?.previewRoot == $0.previewRoot } == true
             && session?.kind == selectedLibrary
-        if !sharesPreview { session?.retire(); session = nil }
         selectedID = id
         selections[selectedLibrary] = id
         if sharesPreview { failure = nil; return }
+        session?.retire()
+        session = nil
+        selectedExampleID = nil
+        failure = nil
+        if let example = component?.examples.first {
+            selectExample(example.id)
+        } else if let entry {
+            do {
+                session = try GalleryDocumentSession(kind: selectedLibrary, source: entry.source(for: selectedLibrary),
+                                                     title: entry.item.title)
+            } catch { report(error) }
+        }
+    }
+
+    func selectExample(_ id: String) {
+        guard let component = selectedComponent, let example = component.examples.first(where: { $0.id == id }),
+              selectedExampleID != id else { return }
         do {
-            let source = try component?.source ?? entry!.source(for: selectedLibrary)
-            session = try GalleryDocumentSession(kind: selectedLibrary, source: source,
-                                                 title: component?.name ?? entry!.item.title)
+            let next = try GalleryDocumentSession(kind: selectedLibrary, source: example.program, title: component.name)
+            session?.retire()
+            selectedExampleID = id
+            session = next
             failure = nil
-        } catch { failure = error.localizedDescription }
+        } catch { report(error) }
     }
 
     func selectLibrary(_ library: GalleryLibrary) {
@@ -234,12 +255,14 @@ enum GalleryPlayback: String {
         if let id = selectedID { selections[selectedLibrary] = id }
         session?.retire(); session = nil
         selectedID = nil
+        selectedExampleID = nil
         selectedLibrary = library
         do {
             guard let root = resourceRoot else { return }
             components = try GalleryComponent.load(library, resourceRoot: root)
             let matchingScene = entries.first { $0.id == previousID && $0.section == .cases && $0.supports(library) }?.id
-            let id = selections[library] ?? matchingScene ?? entries.first { $0.section == .cases && $0.supports(library) }?.id
+            let id = previousID == GalleryDesignSystem.id ? previousID
+                : selections[library] ?? matchingScene ?? entries.first { $0.section == .cases && $0.supports(library) }?.id
             if let id { select(id) }
         } catch {
             components = []
@@ -255,6 +278,7 @@ enum GalleryPlayback: String {
             let next = try GalleryDocumentSession(kind: selectedLibrary, source: source, title: url.lastPathComponent)
             session?.retire()
             selectedID = nil
+            selectedExampleID = nil
             session = next
             failure = nil
         } catch { failure = error.localizedDescription }

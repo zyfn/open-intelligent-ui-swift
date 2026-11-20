@@ -1,0 +1,335 @@
+{
+  "revision": "6ff6dc6dbbf8b62638a36a35a436b65718fb925a",
+  "base": {
+    "colors": {
+      "canvas": {
+        "light": {
+          "hex": "#F5F8FC"
+        },
+        "dark": {
+          "hex": "#141720"
+        },
+        "usage": "会话渐变背景的首尾基色、智能 UI 背景"
+      },
+      "surface": {
+        "light": {
+          "hex": "#FFFFFF"
+        },
+        "dark": {
+          "hex": "#242834"
+        },
+        "usage": "卡片背景"
+      },
+      "accentSoft": {
+        "light": {
+          "hex": "#E2EDFE"
+        },
+        "dark": {
+          "hex": "#E2EDFE"
+        },
+        "usage": "按钮背景、轻强调容器"
+      },
+      "separator": {
+        "light": {
+          "hex": "#F2F3F5"
+        },
+        "dark": {
+          "hex": "#343945"
+        },
+        "usage": "卡片内分割线、次级按钮背景"
+      },
+      "tableGrid": {
+        "light": {
+          "hex": "#E4E6EA"
+        },
+        "dark": {
+          "hex": "#4B505A"
+        },
+        "usage": "表格内部 0.5pt 分割线与外边框"
+      },
+      "tagMutedBackground": {
+        "light": {
+          "hex": "#F7F8FA"
+        },
+        "dark": {
+          "hex": "#333741"
+        },
+        "usage": "灰色强调标签背景"
+      },
+      "textPrimary": {
+        "light": {
+          "hex": "#0F131A"
+        },
+        "dark": {
+          "hex": "#F5F6FA"
+        },
+        "usage": "标题、正文、价格数字"
+      },
+      "textSecondary": {
+        "light": {
+          "hex": "#5C5F66"
+        },
+        "dark": {
+          "hex": "#C2C4CC"
+        },
+        "usage": "引用、副标题"
+      },
+      "textTertiary": {
+        "light": {
+          "hex": "#919499"
+        },
+        "dark": {
+          "hex": "#A0A4AF"
+        },
+        "usage": "标签文本、弱信息"
+      },
+      "link": {
+        "light": {
+          "hex": "#126BF8"
+        },
+        "dark": {
+          "hex": "#8AB4FF"
+        },
+        "usage": "可读的链接文字；与品牌填充色分别配置"
+      },
+      "onAccent": {
+        "light": {
+          "hex": "#FFFFFF"
+        },
+        "dark": {
+          "hex": "#FFFFFF"
+        },
+        "usage": "品牌主色背景上的图案和文字"
+      },
+      "invertedBackground": {
+        "light": {
+          "hex": "#202024"
+        },
+        "dark": {
+          "hex": "#202024"
+        },
+        "usage": "反色徽标背景；当前 SDK 与主按钮共享文字色"
+      },
+      "accent": {
+        "light": {
+          "hex": "#126BF8"
+        },
+        "dark": {
+          "hex": "#126BF8"
+        },
+        "usage": "主强调色：按钮、链接、时间轴节点、图表高亮及用户消息气泡"
+      },
+      "buttonActive": {
+        "light": {
+          "hex": "#0D55C7"
+        },
+        "dark": {
+          "hex": "#0D55C7"
+        },
+        "usage": "主按钮按下或悬停背景，与主题主按钮文字色配套"
+      },
+      "buttonDisabled": {
+        "light": {
+          "hex": "#536FA3"
+        },
+        "dark": {
+          "hex": "#536FA3"
+        },
+        "usage": "主按钮禁用背景，与主题主按钮文字色配套"
+      },
+      "warning": {
+        "light": {
+          "hex": "#FF3333"
+        },
+        "dark": {
+          "hex": "#FF7070"
+        },
+        "usage": "警示与需立即注意的错误"
+      },
+      "payment": {
+        "light": {
+          "hex": "#FF5533"
+        },
+        "dark": {
+          "hex": "#FF856B"
+        },
+        "usage": "价格优惠、支付相关强调"
+      }
+    },
+    "typography": {
+      "title1": {
+        "size": 25,
+        "weight": "medium",
+        "lineSpacing": 0.24
+      },
+      "title2": {
+        "size": 22,
+        "weight": "medium",
+        "lineSpacing": 0.24
+      },
+      "title3": {
+        "size": 19,
+        "weight": "medium",
+        "lineSpacing": 0.24
+      },
+      "body": {
+        "size": 17,
+        "weight": "regular",
+        "lineSpacing": 0.28,
+        "lineHeight": 1.5
+      },
+      "bodySecondary": {
+        "size": 17,
+        "weight": "regular",
+        "lineSpacing": 0.28,
+        "lineHeight": 1.5
+      },
+      "labelSecondary": {
+        "size": 14,
+        "weight": "regular",
+        "lineSpacing": 0.24
+      },
+      "caption": {
+        "size": 13,
+        "weight": "regular",
+        "lineSpacing": 0.24
+      }
+    },
+    "spacing": {
+      "space000": 0,
+      "space3xs": 2,
+      "space2xs": 4,
+      "spaceXs": 6,
+      "spaceS": 8,
+      "spaceSM": 10,
+      "spaceM": 12,
+      "spaceML": 16,
+      "spaceL": 18,
+      "spaceXl": 24,
+      "space2xl": 36,
+      "space3xl": 48,
+      "markdownListItemGap": 15,
+      "tableCornerRadius": 16,
+      "cardCornerRadius": 24
+    }
+  },
+  "liquidSphere": {
+    "colors": {
+      "canvas": {
+        "light": {
+          "hex": "#F5F5F3",
+          "alpha": 0.72
+        }
+      },
+      "accentSoft": {
+        "light": {
+          "hex": "#F2F3F5"
+        },
+        "dark": {
+          "hex": "#F2F3F5"
+        }
+      },
+      "textPrimary": {
+        "light": {
+          "hex": "#000000"
+        }
+      },
+      "textSecondary": {
+        "light": {
+          "hex": "#000000"
+        }
+      },
+      "link": {
+        "light": {
+          "hex": "#000000"
+        },
+        "dark": {
+          "hex": "#FFFFFF"
+        }
+      },
+      "onAccent": {
+        "light": {
+          "hex": "#FFFFFF"
+        },
+        "dark": {
+          "hex": "#FFFFFF"
+        }
+      },
+      "invertedBackground": {
+        "light": {
+          "hex": "#202024"
+        },
+        "dark": {
+          "hex": "#202024"
+        }
+      },
+      "accent": {
+        "light": {
+          "hex": "#000000"
+        },
+        "dark": {
+          "hex": "#000000"
+        }
+      },
+      "buttonActive": {
+        "light": {
+          "hex": "#202024"
+        },
+        "dark": {
+          "hex": "#202024"
+        }
+      },
+      "buttonDisabled": {
+        "light": {
+          "hex": "#5C626E"
+        },
+        "dark": {
+          "hex": "#5C626E"
+        }
+      }
+    },
+    "typography": {
+      "title1": {
+        "size": 20,
+        "weight": "medium",
+        "lineSpacing": 0.24
+      },
+      "title2": {
+        "size": 20,
+        "weight": "medium",
+        "lineSpacing": 0.24
+      },
+      "title3": {
+        "size": 20,
+        "weight": "medium",
+        "lineSpacing": 0.24
+      },
+      "body": {
+        "size": 16,
+        "weight": "regular",
+        "lineSpacing": 0.28,
+        "lineHeight": 1.5
+      },
+      "bodySecondary": {
+        "size": 16,
+        "weight": "regular",
+        "lineSpacing": 0.28,
+        "lineHeight": 1.5
+      },
+      "labelSecondary": {
+        "size": 14,
+        "weight": "regular",
+        "lineSpacing": 0.24
+      },
+      "caption": {
+        "size": 13,
+        "weight": "regular",
+        "lineSpacing": 0.24
+      }
+    },
+    "spacing": {
+      "cardCornerRadius": 20,
+      "tableCornerRadius": 20
+    }
+  }
+}

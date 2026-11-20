@@ -1,205 +1,619 @@
 {
   "Col": {
     "category": "Layout",
-    "program": "root = Col([Col([Title(\"轻松一点的周末\",\"lg\"),Text(\"标题、正文和补充内容自然排列。\"),Caption(\"按内容分组，保持阅读节奏。\")])])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Col([Title(\"轻松一点的周末\",\"lg\"),Text(\"标题、正文和补充内容自然排列。\"),Caption(\"按内容分组，保持阅读节奏。\")])])"
+      },
+      {
+        "id": "alignment",
+        "title": "留白与对齐",
+        "program": "root = Col([Col([Caption(\"紧凑 · center\"), Badge(\"湖边\"), Badge(\"老街\")], 1, \"center\"), Col([Caption(\"疏朗 · stretch\"), Card([Text(\"第一站\")]), Card([Text(\"第二站\")])], 6, \"stretch\")])"
+      }
+    ]
   },
   "Row": {
     "category": "Layout",
-    "program": "root = Col([Row([Badge(\"湖边\"),Badge(\"散步\"),Badge(\"周末\")],3,\"center\",\"start\",true)])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Row([Badge(\"湖边\"),Badge(\"散步\"),Badge(\"周末\")],3,\"center\",\"start\",true)])"
+      },
+      {
+        "id": "alignment",
+        "title": "对齐与换行",
+        "program": "root = Col([Caption(\"两端对齐\"), Row([Text(\"出发\"),Text(\"到达\")], 3, \"center\", \"between\"), Caption(\"内容过长时换行\"), Row([Badge(\"湖边散步\"),Badge(\"有室内空间的博物馆\"),Badge(\"适合休息的咖啡馆\"),Badge(\"天气好的时候去\")], 2, \"center\", \"start\", true)])"
+      }
+    ]
   },
   "Grid": {
     "category": "Layout",
-    "program": "root = Col([Grid([Card([Title(\"湖边\",\"sm\"),Text(\"轻松散步\")]),Card([Title(\"老城\",\"sm\"),Text(\"街巷闲逛\")])],2,140,4)])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Grid([Card([Title(\"湖边\",\"sm\"),Text(\"轻松散步\")]),Card([Title(\"老城\",\"sm\"),Text(\"街巷闲逛\")])],2,140,4)])"
+      },
+      {
+        "id": "adaptive",
+        "title": "列数与最小宽度",
+        "program": "root = Col([Caption(\"两列 · 窄屏回落\"), Grid(items, 2, 140, 3), Caption(\"三列 · 小单元\"), Grid(items, 3, 85, 2)])\nitems = [Card([Text(\"湖边\")]),Card([Text(\"巷子\")]),Card([Text(\"博物馆\")]),Card([Text(\"餐厅\")])]"
+      }
+    ]
   },
   "Box": {
     "category": "Layout",
-    "program": "root = Col([Box([Title(\"相关内容\",\"sm\"),Text(\"用留白和背景组织一个区域。\")],\"col\",3,4,\"surface\",\"lg\",true)])"
+    "examples": [
+      {
+        "id": "surfaces",
+        "title": "背景、圆角与边框",
+        "program": "root = Col([\n  Col([Caption(\"surface · sm\"), Box([Text(\"细描边\")], \"col\", 2, 4, \"surface\", \"sm\", true)]), Col([Caption(\"faint · md\"), Box([Text(\"弱底色\")], \"col\", 2, 4, \"faint\", \"md\", false)]), Col([Caption(\"info · lg\"), Box([Text(\"信息底色\")], \"col\", 2, 4, \"info\", \"lg\", false)]), Col([Caption(\"warning · xl\"), Box([Text(\"提示底色\")], \"col\", 2, 4, \"warning\", \"xl\", false)]), Col([Caption(\"success · full\"), Box([Text(\"完成状态\")], \"col\", 2, 4, \"success\", \"full\", false)])\n], 6)"
+      },
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Box([Title(\"相关内容\",\"sm\"),Text(\"用留白和背景组织一个区域。\")],\"col\",3,4,\"surface\",\"lg\",true)])"
+      },
+      {
+        "id": "palette",
+        "title": "全部主题背景色",
+        "program": "root = Col([Grid([Col([Box([], \"col\", 0, 4, \"ink\", \"md\", true, null, 44),Caption(\"ink\")]),Col([Box([], \"col\", 0, 4, \"muted\", \"md\", true, null, 44),Caption(\"muted\")]),Col([Box([], \"col\", 0, 4, \"faint\", \"md\", true, null, 44),Caption(\"faint\")]),Col([Box([], \"col\", 0, 4, \"surface\", \"md\", true, null, 44),Caption(\"surface\")]),Col([Box([], \"col\", 0, 4, \"info\", \"md\", true, null, 44),Caption(\"info\")]),Col([Box([], \"col\", 0, 4, \"success\", \"md\", true, null, 44),Caption(\"success\")]),Col([Box([], \"col\", 0, 4, \"warning\", \"md\", true, null, 44),Caption(\"warning\")]),Col([Box([], \"col\", 0, 4, \"danger\", \"md\", true, null, 44),Caption(\"danger\")]),Col([Box([], \"col\", 0, 4, \"purple\", \"md\", true, null, 44),Caption(\"purple\")]),Col([Box([], \"col\", 0, 4, \"pink\", \"md\", true, null, 44),Caption(\"pink\")]),Col([Box([], \"col\", 0, 4, \"chart1\", \"md\", true, null, 44),Caption(\"chart1\")]),Col([Box([], \"col\", 0, 4, \"chart2\", \"md\", true, null, 44),Caption(\"chart2\")]),Col([Box([], \"col\", 0, 4, \"chart3\", \"md\", true, null, 44),Caption(\"chart3\")]),Col([Box([], \"col\", 0, 4, \"chart4\", \"md\", true, null, 44),Caption(\"chart4\")]),Col([Box([], \"col\", 0, 4, \"chart5\", \"md\", true, null, 44),Caption(\"chart5\")]),Col([Box([], \"col\", 0, 4, \"chart6\", \"md\", true, null, 44),Caption(\"chart6\")])], 3, 85, 2)])"
+      }
+    ]
   },
   "Card": {
     "category": "Layout",
-    "program": "root = Col([Card([Title(\"周末计划\",\"sm\"),Text(\"留一点时间给风景和休息。\")]),Card([Text(\"柔和表面\")],\"soft\")])"
+    "examples": [
+      {
+        "id": "surfaces",
+        "title": "全部卡片形态",
+        "program": "root = Col([\n  Col([Caption(\"outline\"), Card([Title(\"周末计划\", \"sm\"), Text(\"沿湖散步，留一点时间休息。\")], \"outline\")]), Col([Caption(\"soft\"), Card([Title(\"周末计划\", \"sm\"), Text(\"沿湖散步，留一点时间休息。\")], \"soft\")])\n], 6)"
+      }
+    ]
   },
   "Divider": {
     "category": "Layout",
-    "program": "root = Col([Text(\"上半部分\"),Divider(),Text(\"下半部分\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Text(\"上半部分\"),Divider(),Text(\"下半部分\")])"
+      }
+    ]
   },
   "Spacer": {
     "category": "Layout",
-    "program": "root = Col([Row([Text(\"起点\"),Spacer(),Text(\"终点\")])])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Row([Text(\"起点\"),Spacer(),Text(\"终点\")])])"
+      }
+    ]
   },
   "Carousel": {
     "category": "Layout",
-    "program": "root = Col([Carousel([Card([Title(\"第一站\",\"sm\"),Text(\"湖边慢走\")]),Card([Title(\"第二站\",\"sm\"),Text(\"街巷漫游\")])],260,4)])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Carousel([Card([Title(\"第一站\",\"sm\"),Text(\"湖边慢走\")]),Card([Title(\"第二站\",\"sm\"),Text(\"街巷漫游\")])],260,4)])"
+      }
+    ]
   },
   "Text": {
     "category": "Content",
-    "program": "root = Col([Text(\"正文保持自然的阅读节奏。\"),Text(\"强调内容\",\"lg\",\"ink\",\"semibold\"),Text(\"补充说明\",\"sm\",\"muted\")])"
+    "examples": [
+      {
+        "id": "roles",
+        "title": "字号与行内强调",
+        "program": "root = Col([Text(\"xs · 小字\", \"xs\"), Text(\"sm · 辅助文字\", \"sm\", \"muted\"), Text(\"md · 正文\", \"md\"), Text(\"lg · 强调\", \"lg\", \"ink\", \"semibold\"), Text([\"住在 \",Text(\"湖边\",\"md\",\"ink\",\"medium\"),\" ， 适合散步。\"]), Text(\"Italic\", \"md\", \"muted\", \"normal\", true), Text(\"¥399\",\"md\",\"faint\",\"normal\",false,true,true), Text(\"换行截断示例。重复一句用来检查窄屏上的截断和可达性。\",\"md\",\"ink\",\"normal\",false,false,false,1)])"
+      }
+    ]
   },
   "Title": {
     "category": "Content",
-    "program": "root = Col([Title(\"一级标题\",\"xl\"),Title(\"章节标题\",\"lg\"),Title(\"组内标题\",\"sm\")])"
+    "examples": [
+      {
+        "id": "sizes",
+        "title": "六种标题规格",
+        "program": "root = Col([Title(\"sm · 组内标题\", \"sm\"),Title(\"md · 小节标题\", \"md\"),Title(\"lg · 章节标题\", \"lg\"),Title(\"xl · 页面标题\", \"xl\"),Title(\"2xl · 开篇标题\", \"2xl\"),Title(\"3xl · 特大标题\", \"3xl\")])"
+      }
+    ]
   },
   "Caption": {
     "category": "Content",
-    "program": "root = Col([Text(\"照片记录沿途的风景。\"),Caption(\"摄于一次普通的周末散步。\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Text(\"照片记录沿途的风景。\"),Caption(\"摄于一次普通的周末散步。\")])"
+      }
+    ]
   },
   "Label": {
     "category": "Content",
-    "program": "root = Col([Label(\"出发地点\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Label(\"出发地点\")])"
+      }
+    ]
   },
   "Markdown": {
     "category": "Content",
-    "program": "root = Col([Markdown(\"## 沿湖慢走\\n留一点时间给 **风景和休息**。\\n\\n- 选择一段喜欢的步道\\n- 随时停下来\")])"
+    "examples": [
+      {
+        "id": "semantics",
+        "title": "引用、列表、链接和表格",
+        "program": "root = Col([Markdown(\"## 行前笔记\\n\\n含 **加粗**、*强调*、`行内代码` 与 [参考链接](https://developer.apple.com/) 的正文。\\n\\n> 留一点时间给休息。\\n\\n1. 确认证件\\n2. 检查天气\\n   - 带轻便雨伞\\n\\n| 地点 | 时间 |\\n| --- | ---: |\\n| 西湖 | 09:00 |\\n| 老街 | 14:00 |\\n\\n```swift\\nlet minutes = 60\\n```\")])"
+      }
+    ]
   },
   "Quote": {
     "category": "Content",
-    "program": "root = Col([Quote(\"生活中不缺少美，而是缺少发现。\",\"阅读摘记\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Quote(\"生活中不缺少美，而是缺少发现。\",\"阅读摘记\")])"
+      }
+    ]
   },
   "Code": {
     "category": "Content",
-    "program": "root = Col([Code(\"let library = try OpenUILibrary.intelligent()\",\"swift\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Code(\"let library = try OpenUILibrary.intelligent()\",\"swift\")])"
+      }
+    ]
   },
   "Link": {
     "category": "Content",
-    "program": "root = Col([Link(\"查看 Apple 开发文档\",\"https://developer.apple.com/documentation/swiftui\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Link(\"查看 Apple 开发文档\",\"https://developer.apple.com/documentation/swiftui\")])"
+      }
+    ]
   },
   "Citation": {
     "category": "Content",
-    "program": "root = Col([Text(\"更多信息可以继续阅读：\"),Citation([{title:\"SwiftUI 文档\",url:\"https://developer.apple.com/documentation/swiftui\"},{title:\"Apple 设计指南\",url:\"https://developer.apple.com/design/human-interface-guidelines/\"}])])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Text(\"更多信息可以继续阅读：\"),Citation([{title:\"SwiftUI 文档\",url:\"https://developer.apple.com/documentation/swiftui\"},{title:\"Apple 设计指南\",url:\"https://developer.apple.com/design/human-interface-guidelines/\"}])])"
+      }
+    ]
   },
   "Math": {
     "category": "Media",
-    "program": "root = Col([Math(\"E = mc^2\"),Math(\"\\\\frac{1}{n} \\\\sum_{i=1}^{n} x_i\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Math(\"E = mc^2\"),Math(\"\\\\frac{1}{n} \\\\sum_{i=1}^{n} x_i\")])"
+      }
+    ]
   },
   "List": {
     "category": "Content",
-    "program": "root = Col([List([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留一点弹性\"),ListItem(\"准备出发\",\"核对必需信息\")],\"number\",true)])"
+    "examples": [
+      {
+        "id": "markers",
+        "title": "圆点 / 编号 / 无标记",
+        "program": "root = Col([\n  Col([Caption(\"bullet\"), List([ListItem(\"预留时间\",\"安排一段短途散步\"),ListItem(\"确认开放时间\",\"在出发前复核\")], \"bullet\", false)]), Col([Caption(\"number\"), List([ListItem(\"预留时间\",\"安排一段短途散步\"),ListItem(\"确认开放时间\",\"在出发前复核\")], \"number\", false)]), Col([Caption(\"none\"), List([ListItem(\"预留时间\",\"安排一段短途散步\"),ListItem(\"确认开放时间\",\"在出发前复核\")], \"none\", false)])\n], 6)"
+      },
+      {
+        "id": "basic",
+        "title": "编号时间线",
+        "program": "root = Col([List([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留一点弹性\"),ListItem(\"准备出发\",\"核对必需信息\")],\"number\",true)])"
+      },
+      {
+        "id": "nested",
+        "title": "自定义标记与嵌套内容",
+        "program": "root = Col([List([ListItem(\"出发准备\",\"按天气调整\",\"09:00\",[Text(\"带一把折叠伞。\"),List([\"查天气\",\"查开放时间\"],\"bullet\")]),ListItem(\"到达\",\"留出休息时间\",\"12:30\")],\"none\",true)])"
+      }
+    ]
   },
   "ListItem": {
     "container": "List"
   },
   "Badge": {
     "category": "Content",
-    "program": "root = Col([Row([Badge(\"信息\",\"info\"),Badge(\"已完成\",\"success\",\"check\"),Badge(\"待确认\",\"warning\")],3,\"center\",\"start\",true)])"
+    "examples": [
+      {
+        "id": "palette",
+        "title": "七种语义色",
+        "program": "root = Col([Row([Badge(\"常规\",\"neutral\"),Badge(\"提示\",\"info\"),Badge(\"已完成\",\"success\",\"check\"),Badge(\"待确认\",\"warning\"),Badge(\"有问题\",\"danger\"),Badge(\"灵感\",\"purple\"),Badge(\"精选\",\"pink\")],2,\"center\",\"start\",true)])"
+      }
+    ]
   },
   "Icon": {
     "category": "Media",
-    "program": "root = Col([Row([Icon(\"map-pin\",\"lg\"),Icon(\"camera\",\"lg\"),Icon(\"heart\",\"lg\"),Icon(\"star\",\"lg\")])])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Row([Icon(\"map-pin\",\"lg\"),Icon(\"camera\",\"lg\"),Icon(\"heart\",\"lg\"),Icon(\"star\",\"lg\")])])"
+      }
+    ]
   },
   "Progress": {
     "category": "DataDisplay",
-    "program": "root = Col([Progress(65,100,\"准备进度\"),Caption(\"65 / 100\")])"
+    "examples": [
+      {
+        "id": "ranges",
+        "title": "起始 / 进行中 / 完成",
+        "program": "root = Col([Progress(0,100,\"准备启动\"),Progress(2,5,\"已完成两项\"),Progress(5,5,\"全部完成\")])"
+      }
+    ]
   },
   "Celebration": {
     "category": "Content",
-    "program": "root = Col([Checkbox($done,\"标记为完成\"),Celebration($done),Text($done?\"已完成！\":\"完成后显示庆祝效果\")])\n$done = false"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Checkbox($done,\"标记为完成\"),Celebration($done),Text($done?\"已完成！\":\"完成后显示庆祝效果\")])\n$done = false"
+      }
+    ]
   },
   "Image": {
     "category": "Media",
-    "program": "root = Col([Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机正面\")])"
+    "examples": [
+      {
+        "id": "fit",
+        "title": "裁切 / 容纳 · 比例和圆角",
+        "program": "root = Col([\n  Col([Caption(\"横图 · cover\"), Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\", \"相机\", 1.7778, \"lg\", \"cover\")]), Col([Caption(\"方图 · contain\"), Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\", \"相机\", 1, \"md\", \"contain\")]), Col([Caption(\"圆形 · cover\"), Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\", \"相机\", 1, \"full\", \"cover\")])\n], 6)"
+      },
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机正面\")])"
+      },
+      {
+        "id": "placeholder",
+        "title": "加载与失败",
+        "program": "root = Col([\n  Col([Caption(\"加载\"), Image(\"https://gallery.invalid/loading-camera.jpg\", \"正在加载的相机照片\", 1.7778)]), Col([Caption(\"失败\"), Image(\"https://gallery.invalid/missing.jpg\", \"图片请求失败\", 1.7778)])\n], 6)"
+      }
+    ]
   },
   "ImageText": {
     "category": "Content",
-    "program": "root = Col([ImageText({title:\"旅行摄影\",image:{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},body:\"留住喜欢的瞬间，记录沿途的风景。\",badge:\"摄影\"},\"top\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "上图下文",
+        "program": "root = Col([ImageText({title:\"旅行摄影\",image:{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},body:\"留住喜欢的瞬间，记录沿途的风景。\",badge:\"摄影\"},\"top\")])"
+      },
+      {
+        "id": "leading",
+        "title": "左图右文与底部动作",
+        "program": "root = Col([ImageText({title:\"旅行摄影\",image:{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},subtitle:\"出发前准备\",body:\"检查相机和存储卡。\",caption:\"Wolfgang Moroder · CC BY-SA 3.0\",badge:\"摄影\"},\"leading\",[Button(\"记录准备事项\",@ToAssistant(\"记录摄影准备事项\"),\"outline\")])])"
+      }
+    ]
   },
   "SearchImage": {
     "category": "Media",
-    "program": "root = Col([SearchImage(\"gallery-camera\"),Caption(\"本地模拟图片搜索，使用随 Gallery 打包的相机照片。\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([SearchImage(\"gallery-camera\"),Caption(\"本地模拟图片搜索，使用随 Gallery 打包的相机照片。\")])"
+      },
+      {
+        "id": "states",
+        "title": "搜索中 / 失败重试",
+        "program": "root = Col([Caption(\"搜索中\"),SearchImage(\"gallery-loading\"),Caption(\"首次失败后可重试\"),SearchImage(\"gallery-retry\")])"
+      }
+    ]
   },
   "Map": {
     "category": "Media",
-    "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"散步\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],false)])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "地点与标记",
+        "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"散步\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],false)])"
+      },
+      {
+        "id": "route",
+        "title": "路线、选点与高度",
+        "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"风景\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],true,$selection,220)])\n$selection = \"\""
+      }
+    ]
   },
   "MapMarker": {
     "container": "Map"
   },
   "HtmlView": {
     "category": "Media",
-    "program": "root = Col([HtmlView(\"<html><body style='font:17px -apple-system;padding:16px'><h2>Hello HTML</h2><p>本地内容预览。</p><button onclick='this.textContent=\\\"已点击\\\"'>试一试</button></body></html>\",240,\"HTML 示例\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([HtmlView(\"<html><body style='font:17px -apple-system;padding:16px'><h2>Hello HTML</h2><p>本地内容预览。</p><button onclick='this.textContent=\\\"已点击\\\"'>试一试</button></body></html>\",240,\"HTML 示例\")])"
+      }
+    ]
   },
   "YouTube": {
     "category": "Media",
-    "program": "root = Col([YouTube(\"aqz-KE-bpKQ\",\"Big Buck Bunny · 需要网络及点击播放\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([YouTube(\"aqz-KE-bpKQ\",\"Big Buck Bunny · 需要网络及点击播放\")])"
+      }
+    ]
   },
   "Input": {
     "category": "Controls",
-    "program": "root = Col([Input($name,\"姓名\",\"text\",\"请输入姓名\"),Text(\"已填写：\"+$name)])\n$name = \"\""
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Input($name,\"姓名\",\"text\",\"请输入姓名\"),Text(\"已填写：\"+$name)])\n$name = \"\""
+      },
+      {
+        "id": "numeric",
+        "title": "数字绑定与校验",
+        "program": "root = Col([Form([Input($count,\"出行人数\",\"number\",\"2\",{required:true,numeric:true,min:1,max:8}), Button(\"记录人数\",@ToAssistant(\"记录人数\",{count:$count}))]),Caption(\"当前人数：\"+$count)])\n$count = 2"
+      }
+    ]
   },
   "TextArea": {
     "category": "Controls",
-    "program": "root = Col([TextArea($note,\"备注\",\"想告诉我们的事\",4),Caption(\"填写内容：\"+$note)])\n$note = \"\""
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([TextArea($note,\"备注\",\"想告诉我们的事\",4),Caption(\"填写内容：\"+$note)])\n$note = \"\""
+      },
+      {
+        "id": "rows",
+        "title": "行数与必填",
+        "program": "root = Col([Form([TextArea($note,\"出行备注\",\"填写两到三条关键信息\",5,{required:true,minLength:2}),Button(\"记录备注\",@ToAssistant(\"记录备注\",{note:$note}))])])\n$note = \"\""
+      }
+    ]
   },
   "Checkbox": {
     "category": "Controls",
-    "program": "root = Col([Checkbox($checked,\"喜欢湖边散步\"),Text($checked?\"已选择\":\"尚未选择\")])\n$checked = false"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Checkbox($checked,\"喜欢湖边散步\"),Text($checked?\"已选择\":\"尚未选择\")])\n$checked = false"
+      }
+    ]
   },
   "Slider": {
     "category": "Controls",
-    "program": "root = Col([Slider($minutes,0,120,5,\"步行时间\",\"分钟\"),Text(\"当前：\"+$minutes+\" 分钟\")])\n$minutes = 45"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Slider($minutes,0,120,5,\"步行时间\",\"分钟\"),Text(\"当前：\"+$minutes+\" 分钟\")])\n$minutes = 45"
+      },
+      {
+        "id": "marks",
+        "title": "档位刻度",
+        "program": "root = Col([Slider($minutes,0,120,30,\"步行时间\",\"分钟\",[{value:0,label:\"0\"},{value:30,label:\"半小时\"},{value:60,label:\"一小时\"},{value:120,label:\"两小时\"}]), Caption(\"当前：\"+$minutes+\" 分钟\")])\n$minutes = 30"
+      }
+    ]
   },
   "Select": {
     "category": "Controls",
-    "program": "root = Col([Select($route,[{value:\"lake\",label:\"湖边\"},{value:\"town\",label:\"老城\"}],\"出行方向\",\"请选择\"),Text(\"已选择：\"+$route)])\n$route = \"lake\""
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Select($route,[{value:\"lake\",label:\"湖边\"},{value:\"town\",label:\"老城\"}],\"出行方向\",\"请选择\"),Text(\"已选择：\"+$route)])\n$route = \"lake\""
+      },
+      {
+        "id": "plain",
+        "title": "字符串选项与占位",
+        "program": "root = Col([Select($direction,[\"湖边\",\"老街\",\"室内\"],\"出行方向\",\"请选择\"),Caption(\"选择：\"+$direction)])\n$direction = \"\""
+      }
+    ]
   },
   "SegmentedControl": {
     "category": "Controls",
-    "program": "root = Col([SegmentedControl($pace,[{value:\"easy\",label:\"轻松\"},{value:\"full\",label:\"充实\"}],true),Text($pace==\"easy\"?\"少走一点，慢慢看。\":\"多看几处，留足时间。\")])\n$pace = \"easy\""
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([SegmentedControl($pace,[{value:\"easy\",label:\"轻松\"},{value:\"full\",label:\"充实\"}],true),Text($pace==\"easy\"?\"少走一点，慢慢看。\":\"多看几处，留足时间。\")])\n$pace = \"easy\""
+      }
+    ]
   },
   "RadioGroup": {
     "category": "Controls",
-    "program": "root = Col([RadioGroup($route,[{value:\"lake\",label:\"湖边散步\",description:\"轻松停留\"},{value:\"town\",label:\"街巷漫游\",description:\"看老城烟火\"}],\"半日方向\",\"cards\")])\n$route = \"lake\""
+    "examples": [
+      {
+        "id": "basic",
+        "title": "卡片选项",
+        "program": "root = Col([RadioGroup($route,[{value:\"lake\",label:\"湖边散步\",description:\"轻松停留\"},{value:\"town\",label:\"街巷漫游\",description:\"看老城烟火\"}],\"半日方向\",\"cards\")])\n$route = \"lake\""
+      },
+      {
+        "id": "list-pills",
+        "title": "列表 / 胶囊",
+        "program": "root = Col([RadioGroup($direction,[\"湖边\",\"老街\",\"室内\"],\"半日方向\",\"list\"),RadioGroup($pace,[{value:\"easy\",label:\"轻松\"},{value:\"full\",label:\"充实\"}],\"安排节奏\",\"pills\")])\n$direction = \"湖边\"\n$pace = \"easy\""
+      }
+    ]
   },
   "DatePicker": {
     "category": "Controls",
-    "program": "root = Col([DatePicker($date,\"出发日期\"),Caption(\"当前：\"+$date)])\n$date = \"2026-11-15\""
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([DatePicker($date,\"出发日期\"),Caption(\"当前：\"+$date)])\n$date = \"2026-11-15\""
+      },
+      {
+        "id": "limits",
+        "title": "限制日期范围",
+        "program": "root = Col([DatePicker($date,\"可预约日期\",\"2026-11-15\",\"2026-11-30\",{required:true}),Caption(\"当前：\"+$date)])\n$date = \"2026-11-17\""
+      }
+    ]
   },
   "Timer": {
     "category": "Controls",
-    "program": "root = Col([Timer($seconds,\"休息倒计时\")])\n$seconds = 60"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Timer($seconds,\"休息倒计时\")])\n$seconds = 60"
+      }
+    ]
   },
   "Form": {
     "category": "Layout",
-    "program": "root = Col([Form([Input($name,\"姓名\",\"text\",\"请输入姓名\"),TextArea($note,\"备注\",\"可选\",3),Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\",{name:$name,note:$note}))])])\n$name = \"\"\n$note = \"\""
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Form([Input($name,\"姓名\",\"text\",\"请输入姓名\"),TextArea($note,\"备注\",\"可选\",3),Button(\"记录填写\",@ToAssistant(\"查看本页填写内容\",{name:$name,note:$note}))])])\n$name = \"\"\n$note = \"\""
+      }
+    ]
   },
   "Button": {
     "category": "Controls",
-    "program": "root = Col([Button(\"继续安排\",@ToAssistant(\"继续安排\")),Button(\"查看详情\",@ToAssistant(\"查看详情\"),\"outline\"),Button(\"稍后再看\",@ToAssistant(\"稍后再看\"),\"ghost\")])"
+    "examples": [
+      {
+        "id": "variants",
+        "title": "四种样式与交互状态",
+        "program": "root = Col([\n  Col([Caption(\"solid\"), Button(\"继续安排\", @ToAssistant(\"继续安排\"), \"solid\")]), Col([Caption(\"outline\"), Button(\"继续安排\", @ToAssistant(\"继续安排\"), \"outline\")]), Col([Caption(\"soft\"), Button(\"继续安排\", @ToAssistant(\"继续安排\"), \"soft\")]), Col([Caption(\"ghost\"), Button(\"继续安排\", @ToAssistant(\"继续安排\"), \"ghost\")]), Col([Caption(\"危险 · sm\"), Button(\"移除\", @ToAssistant(\"移除\"), \"solid\", \"danger\", \"sm\", \"trash\")]), Col([Caption(\"成功 · lg · 通栏\"), Button(\"完成\", @ToAssistant(\"完成\"), \"solid\", \"success\", \"lg\", \"check\", false, true)]), Col([Caption(\"禁用\"), Button(\"等待资料\", @ToAssistant(\"等待资料\"), \"solid\", \"primary\", \"md\", null, true)])\n], 6)"
+      }
+    ]
   },
   "IconButton": {
     "category": "Controls",
-    "program": "root = Col([IconButton(\"heart\",@ToAssistant(\"收藏这个方向\"),\"收藏\",\"outline\")])"
+    "examples": [
+      {
+        "id": "variants",
+        "title": "实心 / 描边 / 纯图标",
+        "program": "root = Col([Row([IconButton(\"heart\",@ToAssistant(\"收藏\"),\"实心\",\"solid\"),IconButton(\"heart\",@ToAssistant(\"收藏\"),\"描边\",\"outline\"),IconButton(\"heart\",@ToAssistant(\"收藏\"),\"纯图标\",\"ghost\")],3)])"
+      }
+    ]
   },
   "Pressable": {
     "category": "Controls",
-    "program": "root = Col([Pressable([Title(\"湖边散步\",\"sm\"),Text(\"点击选择这个方向\")],@Set($selected,!$selected),$selected,4,\"surface\",\"lg\"),Text($selected?\"已选择\":\"未选择\")])\n$selected = false"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Pressable([Title(\"湖边散步\",\"sm\"),Text(\"点击选择这个方向\")],@Set($selected,!$selected),$selected,4,\"surface\",\"lg\"),Text($selected?\"已选择\":\"未选择\")])\n$selected = false"
+      }
+    ]
   },
   "Popover": {
     "category": "Layout",
-    "program": "root = Col([Popover(\"查看出行提示\",[Text(\"穿舒适的鞋，预留休息时间。\")])])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Popover(\"查看出行提示\",[Text(\"穿舒适的鞋，预留休息时间。\")])])"
+      }
+    ]
   },
   "Disclosure": {
     "category": "Layout",
-    "program": "root = Col([Disclosure(\"出发前准备\",[Text(\"证件、充电器和轻便外套。\")],$expanded)])\n$expanded = false"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Disclosure(\"出发前准备\",[Text(\"证件、充电器和轻便外套。\")],$expanded)])\n$expanded = false"
+      }
+    ]
   },
   "Flashcard": {
     "category": "Content",
-    "program": "root = Col([Flashcard(\"热泵怎样让屋里变暖？\",\"用电驱动压缩机，把室外热量搬到室内。\",\"点击翻面查看答案\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Flashcard(\"热泵怎样让屋里变暖？\",\"用电驱动压缩机，把室外热量搬到室内。\",\"点击翻面查看答案\")])"
+      }
+    ]
   },
   "Table": {
     "category": "DataDisplay",
-    "program": "root = Col([Table([\"地点\",\"停留时间\"],[[\"苏堤\",\"60 分钟\"],[\"孤山\",\"40 分钟\"]])])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Table([\"地点\",\"停留时间\"],[[\"苏堤\",\"60 分钟\"],[\"孤山\",\"40 分钟\"]])])"
+      },
+      {
+        "id": "wide",
+        "title": "短表与多列横向滚动",
+        "program": "root = Col([Table([\"类别\",\"金额\"],[[\"交通\",60],[\"门票\",100]]),Table([\"起点\",\"终点\",\"换乘时间\",\"预算\",\"备注\"],[[\"杭州东\",\"苏州站\",\"35 分钟\",90,\"出发前核对乘车地点\"],[\"杭州站\",\"苏州新区站\",\"50 分钟\",72,\"按时间安排换乘\"]])])"
+      }
+    ]
   },
   "Chart": {
     "category": "DataDisplay",
-    "program": "root = Col([Chart(\"bar\",[{day:\"周一\",walk:30,ride:20},{day:\"周二\",walk:55,ride:35},{day:\"周三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",false,240)])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "分组柱图",
+        "program": "root = Col([Chart(\"bar\",[{day:\"周一\",walk:30,ride:20},{day:\"周二\",walk:55,ride:35},{day:\"周三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",false,240)])"
+      },
+      {
+        "id": "cartesian",
+        "title": "折线 / 面积 / 散点",
+        "program": "root = Col([\n  Col([Caption(\"line\"), Chart(\"line\",[{day:\"一\",walk:30,ride:20},{day:\"二\",walk:55,ride:35},{day:\"三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",false,200)]), Col([Caption(\"area\"), Chart(\"area\",[{day:\"一\",walk:30,ride:20},{day:\"二\",walk:55,ride:35},{day:\"三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",false,200)]), Col([Caption(\"scatter\"), Chart(\"scatter\",[{day:\"一\",walk:30,ride:20},{day:\"二\",walk:55,ride:35},{day:\"三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",false,200)])\n], 6)"
+      },
+      {
+        "id": "share",
+        "title": "饼图 / 环图 · 百分比",
+        "program": "root = Col([\n  Col([Caption(\"pie\"), Chart(\"pie\",[{day:\"一\",walk:30,ride:20},{day:\"二\",walk:55,ride:35},{day:\"三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"percent\",false,200)]), Col([Caption(\"donut\"), Chart(\"donut\",[{day:\"一\",walk:30,ride:20},{day:\"二\",walk:55,ride:35},{day:\"三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"percent\",false,200)])\n], 6)"
+      },
+      {
+        "id": "stacked",
+        "title": "堆叠柱图",
+        "program": "root = Col([Chart(\"bar\",[{day:\"周一\",walk:30,ride:20},{day:\"周二\",walk:55,ride:35},{day:\"周三\",walk:40,ride:25}],\"day\",[\"walk\",\"ride\"],\"number\",true,220)])"
+      }
+    ]
   },
   "ProductCard": {
     "category": "DataDisplay",
-    "program": "root = Col([ProductCard({id:\"camera-example\",title:\"Nikon D850\",images:[{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"}],specification:\"商品信息布局示例\",priceNote:\"仅展示组件，不提供报价\",actionLabel:\"了解更多\",purchaseURL:\"https://www.nikon.com/\"},\"vertical\",\"contain\")])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "竖排与完整商品信息",
+        "program": "root = Col([ProductCard({id:\"camera-example\",title:\"Nikon D850\",images:[{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"}],specification:\"商品信息布局示例\",priceNote:\"仅展示组件，不提供报价\",actionLabel:\"了解更多\",purchaseURL:\"https://www.nikon.com/\"},\"vertical\",\"contain\")])"
+      },
+      {
+        "id": "layouts",
+        "title": "横排 / 紧凑",
+        "program": "root = Col([ProductCard(camera,\"horizontal\",\"contain\"),ProductCard(camera,\"compact\",\"cover\")])\ncamera = {id:\"camera-layouts\",title:\"Nikon D850\",images:[{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"}],specification:\"全画幅数码单反相机\",priceNote:\"组件预览\",sourceURL:\"https://www.nikon.com/\"}"
+      }
+    ]
   },
   "TransportCard": {
     "category": "DataDisplay",
-    "program": "root = Col([TransportCard({id:\"rail-example\",legs:[{mode:\"train\",from:\"杭州东\",to:\"苏州\",departureDate:\"2026-11-15\",arrivalDate:\"2026-11-15\",departureTime:\"09:00\",arrivalTime:\"10:40\",durationText:\"1 小时 40 分钟\",serviceNumber:\"演示班次\"}],priceNote:\"行程布局示例，不是实时班次\"})])"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "直达行程",
+        "program": "root = Col([TransportCard({id:\"rail-example\",legs:[{mode:\"train\",from:\"杭州东\",to:\"苏州\",departureDate:\"2026-11-15\",arrivalDate:\"2026-11-15\",departureTime:\"09:00\",arrivalTime:\"10:40\",durationText:\"1 小时 40 分钟\",serviceNumber:\"演示班次\"}],priceNote:\"行程布局示例，不是实时班次\"})])"
+      },
+      {
+        "id": "connections",
+        "title": "中转 / 换站",
+        "program": "root = Col([TransportCard({id:\"transfer\",legs:[{mode:\"flight\",from:\"上海虹桥\",to:\"北京首都\",departureTime:\"08:10\",arrivalTime:\"10:25\"},{mode:\"train\",from:\"北京南\",to:\"天津\",departureTime:\"14:10\",arrivalTime:\"14:45\"}],connections:[{afterLeg:0,changeStation:true,location:\"北京\",durationText:\"3 小时 45 分钟\",notice:\"预留机场至火车站时间\"}],separateTickets:true,badge:\"中转示例\"})])"
+      }
+    ]
   },
   "Circle": {
     "container": "Svg"
@@ -230,6 +644,12 @@
   },
   "Svg": {
     "category": "Media",
-    "program": "root = Col([Svg([background, circle, ellipse, rectangle, line, path, polyline, polygon, group, circleLabel, ellipseLabel, rectangleLabel, lineLabel, pathLabel, polylineLabel, polygonLabel, groupLabel], \"0 0 320 181\", \"圆形、椭圆、矩形、直线、曲线、折线、多边形和分组\", 320, 181)])\nbackground = Rect(2, 2, 316, 177, \"surface\", null, null, null, 12)\ncircle = Circle(40, 42, 17, \"info\")\nellipse = Ellipse(120, 42, 25, 14, \"success\")\nrectangle = Rect(178, 28, 44, 28, \"info\", null, null, null, 6)\nline = Line(254, 55, 304, 30, \"info\", 3)\npath = Path(\"M16 135 C33 100 50 100 67 135\", \"none\", \"info\", 3)\npolyline = Polyline(\"96,135 109,112 129,129 145,110\", \"none\", \"info\", 3)\npolygon = Polygon(\"200,107 226,142 174,142\", \"success\")\ngroup = G([Circle(266, 122, 13, \"info\"), Rect(273, 122, 24, 20, \"success\")])\ncircleLabel = SvgText(\"圆形\", 40, 80, 12, \"ink\", \"middle\")\nellipseLabel = SvgText(\"椭圆\", 120, 80, 12, \"ink\", \"middle\")\nrectangleLabel = SvgText(\"矩形\", 200, 80, 12, \"ink\", \"middle\")\nlineLabel = SvgText(\"直线\", 280, 80, 12, \"ink\", \"middle\")\npathLabel = SvgText(\"曲线\", 40, 163, 12, \"ink\", \"middle\")\npolylineLabel = SvgText(\"折线\", 120, 163, 12, \"ink\", \"middle\")\npolygonLabel = SvgText(\"多边形\", 200, 163, 12, \"ink\", \"middle\")\ngroupLabel = SvgText(\"分组\", 280, 163, 12, \"ink\", \"middle\")"
+    "examples": [
+      {
+        "id": "basic",
+        "title": "基础用法",
+        "program": "root = Col([Svg([background, circle, ellipse, rectangle, line, path, polyline, polygon, group, circleLabel, ellipseLabel, rectangleLabel, lineLabel, pathLabel, polylineLabel, polygonLabel, groupLabel], \"0 0 320 181\", \"圆形、椭圆、矩形、直线、曲线、折线、多边形和分组\", 320, 181)])\nbackground = Rect(2, 2, 316, 177, \"surface\", null, null, null, 12)\ncircle = Circle(40, 42, 17, \"info\")\nellipse = Ellipse(120, 42, 25, 14, \"success\")\nrectangle = Rect(178, 28, 44, 28, \"info\", null, null, null, 6)\nline = Line(254, 55, 304, 30, \"info\", 3)\npath = Path(\"M16 135 C33 100 50 100 67 135\", \"none\", \"info\", 3)\npolyline = Polyline(\"96,135 109,112 129,129 145,110\", \"none\", \"info\", 3)\npolygon = Polygon(\"200,107 226,142 174,142\", \"success\")\ngroup = G([Circle(266, 122, 13, \"info\"), Rect(273, 122, 24, 20, \"success\")])\ncircleLabel = SvgText(\"圆形\", 40, 80, 12, \"ink\", \"middle\")\nellipseLabel = SvgText(\"椭圆\", 120, 80, 12, \"ink\", \"middle\")\nrectangleLabel = SvgText(\"矩形\", 200, 80, 12, \"ink\", \"middle\")\nlineLabel = SvgText(\"直线\", 280, 80, 12, \"ink\", \"middle\")\npathLabel = SvgText(\"曲线\", 40, 163, 12, \"ink\", \"middle\")\npolylineLabel = SvgText(\"折线\", 120, 163, 12, \"ink\", \"middle\")\npolygonLabel = SvgText(\"多边形\", 200, 163, 12, \"ink\", \"middle\")\ngroupLabel = SvgText(\"分组\", 280, 163, 12, \"ink\", \"middle\")"
+      }
+    ]
   }
 }

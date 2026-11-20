@@ -44,21 +44,60 @@ enum GallerySection: String, CaseIterable, Identifiable {
     var title: String { self == .cases ? "场景" : "回归程序" }
 }
 
-/// Names and signatures come from the real library. Only examples belong to Gallery.
+enum GalleryComponentCategory: String, Codable, CaseIterable, Identifiable {
+    case layout = "Layout", content = "Content", controls = "Controls"
+    case tablesAndCharts = "TablesAndCharts", formsAndButtons = "FormsAndButtons", media = "Media"
+    case data = "DataDisplay", cards = "Cards", maps = "Maps and Diagrams"
+
+    init?(catalogName: String) {
+        switch catalogName {
+        case "Tables", "Charts (2D)", "Charts (1D)", "Charts (Scatter)":
+            self = .tablesAndCharts
+        case "Forms", "Buttons":
+            self = .formsAndButtons
+        case "Data Display":
+            self = .data
+        default:
+            self.init(rawValue: catalogName)
+        }
+    }
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .layout: "布局"
+        case .content: "内容"
+        case .controls: "控件"
+        case .tablesAndCharts: "表格与图表"
+        case .formsAndButtons: "表单与按钮"
+        case .media: "媒体"
+        case .data: "数据展示"
+        case .cards: "卡片"
+        case .maps: "地图与图形"
+        }
+    }
+}
+
+struct GalleryComponentExample: Decodable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let program: String
+}
+
+/// Names and signatures come from the real library. Gallery owns the grouping and examples.
 struct GalleryComponent: Identifiable {
-    static let categories = ["Layout", "Content", "Controls", "DataDisplay", "Media"]
     let definition: LibrarySpecEntry
-    let category: String
-    let source: String
+    let category: GalleryComponentCategory
+    let examples: [GalleryComponentExample]
     let supporting: Bool
     let container: String?
     let previewRoot: String
     var id: String { "Components/" + definition.name }
     var name: String { definition.name }
 
-    private struct Example: Decodable {
-        let category: String?
-        let program: String?
+    private struct Entry: Decodable {
+        let category: GalleryComponentCategory?
+        let examples: [GalleryComponentExample]?
         let supporting: Bool?
         let container: String?
     }
@@ -66,34 +105,48 @@ struct GalleryComponent: Identifiable {
     @MainActor static func load(_ kind: GalleryLibrary, resourceRoot: URL) throws -> [GalleryComponent] {
         let specification = try kind.makeLibrary().specification
         let url = resourceRoot.appendingPathComponent("Components/" + kind.rawValue + ".json")
-        let examples = try JSONDecoder().decode([String: Example].self, from: Data(contentsOf: url))
+        let catalog = try JSONDecoder().decode([String: Entry].self, from: Data(contentsOf: url))
         let names = Set(specification.components.map(\.name))
-        guard names == Set(examples.keys) else {
-            let missing = names.subtracting(examples.keys).sorted().joined(separator: ", ")
-            let unknown = Set(examples.keys).subtracting(names).sorted().joined(separator: ", ")
+        guard names == Set(catalog.keys) else {
+            let missing = names.subtracting(catalog.keys).sorted().joined(separator: ", ")
+            let unknown = Set(catalog.keys).subtracting(names).sorted().joined(separator: ", ")
             throw GalleryFailure("\(kind.title) 组件示例与实际目录不一致。缺少：\(missing)；未知：\(unknown)")
         }
+        var libraryCategories: [String: GalleryComponentCategory] = [:]
+        for group in specification.componentGroups ?? [] {
+            guard let category = GalleryComponentCategory(catalogName: group.name) else {
+                throw GalleryFailure("\(kind.title) 有未知的组件分组 \(group.name)。")
+            }
+            for name in group.components { libraryCategories[name] = category }
+        }
         return try specification.components.map { definition in
-            let example = examples[definition.name]!
+            let item = catalog[definition.name]!
             var previewRoot = definition.name
             var visited = Set<String>()
-            while let parent = examples[previewRoot]?.container {
-                guard examples[parent] != nil, visited.insert(previewRoot).inserted else {
+            while let parent = catalog[previewRoot]?.container {
+                guard catalog[parent] != nil, visited.insert(previewRoot).inserted else {
                     throw GalleryFailure("\(definition.name) 的父组件关系缺失或成环。")
                 }
-                guard examples[previewRoot]?.program == nil, examples[previewRoot]?.category == nil else {
+                guard catalog[previewRoot]?.examples == nil, catalog[previewRoot]?.category == nil else {
                     throw GalleryFailure("\(previewRoot) 应继承父组件的分类和示例。")
                 }
                 previewRoot = parent
             }
-            guard let category = examples[previewRoot]?.category, categories.contains(category),
-                  let program = examples[previewRoot]?.program, !program.isEmpty else {
+            guard let category = libraryCategories[previewRoot] ?? catalog[previewRoot]?.category,
+                  let examples = catalog[previewRoot]?.examples, !examples.isEmpty else {
                 throw GalleryFailure("\(previewRoot) 缺少分类或示例。")
             }
-            return GalleryComponent(definition: definition, category: category, source: program,
-                                    supporting: example.container != nil || example.supporting == true,
-                                    container: example.container, previewRoot: previewRoot)
-        }.sorted { ($0.category, $0.name) < ($1.category, $1.name) }
+            let exampleIDs = Set(examples.map(\.id))
+            guard exampleIDs.count == examples.count, examples.allSatisfy({
+                !$0.id.isEmpty && !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && !$0.program.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }) else {
+                throw GalleryFailure("\(previewRoot) 存在重复示例 ID 或空示例。")
+            }
+            return GalleryComponent(definition: definition, category: category, examples: examples,
+                                    supporting: item.container != nil || item.supporting == true,
+                                    container: item.container, previewRoot: previewRoot)
+        }.sorted { $0.name < $1.name }
     }
 }
 

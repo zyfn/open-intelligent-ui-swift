@@ -29,8 +29,8 @@ def resolve_component_example(samples: dict, name: str) -> dict:
             return sample
         if not isinstance(parent, str) or parent not in samples:
             raise ValueError(f"{name}: unknown parent component {parent!r}")
-        if sample.get("category") is not None or sample.get("program") is not None:
-            raise ValueError(f"{name}: nested components inherit their parent's category and program")
+        if sample.get("category") is not None or sample.get("examples") is not None:
+            raise ValueError(f"{name}: nested components inherit their parent's category and examples")
         name = parent
     raise ValueError(f"{name}: component example parent cycle")
 
@@ -128,20 +128,15 @@ def check_catalogs(resources: Path) -> dict:
         for unused in sorted(actual - referenced):
             problems.append(f"{group}: unreferenced program {unused.relative_to(directory.resolve())}")
     component_counts: dict[str, int] = {}
-    component_directories = {"Layout", "Content", "Controls", "DataDisplay", "Media"}
-    intelligent_directories: dict[str, str] = {}
-    source_directory = ROOT / "Sources/SwiftIntelligentUI/Components"
-    for source_file in source_directory.rglob("*.swift"):
-        for component_name in re.findall(r'OpenUIComponent\(name: "([A-Za-z0-9]+)"', source_file.read_text()):
-            intelligent_directories[component_name] = source_file.parent.name
-    for component_name in re.findall(r'\("([A-Z][A-Za-z0-9]*)",', (source_directory / "Media/SVG.swift").read_text()):
-        intelligent_directories[component_name] = "Media"
+    example_counts: dict[str, int] = {}
+    intelligent_categories = {"Layout", "Content", "Controls", "Media", "DataDisplay"}
     for library in sorted(LIBRARIES):
         try:
             samples = json.loads((resources / "Components" / f"{library}.json").read_text(encoding="utf-8"))
             if not isinstance(samples, dict) or not samples:
                 raise ValueError("expected a nonempty component example object")
             component_counts[library] = len(samples)
+            example_counts[library] = 0
             for name in samples:
                 label = f"Components/{library}/{name}"
                 try:
@@ -149,17 +144,45 @@ def check_catalogs(resources: Path) -> dict:
                 except ValueError as error:
                     problems.append(f"{label}: {error}")
                     continue
-                category, program = sample.get("category"), sample.get("program")
-                if not isinstance(category, str) or not category or not isinstance(program, str) or not program.strip():
-                    problems.append(f"{label}: missing category or program")
-                elif category not in component_directories:
-                    problems.append(f"{label}: unknown source directory {category}")
-                elif library == "openintelligentui" and category != intelligent_directories.get(name):
-                    problems.append(f"{label}: directory does not match its SDK source")
-                elif f"{name}(" not in program:
-                    problems.append(f"{label}: example does not use its component")
+                category, examples = sample.get("category"), sample.get("examples")
+                if library == "openintelligentui":
+                    if not isinstance(category, str) or category not in intelligent_categories:
+                        problems.append(f"{label}: unknown OpenIntelligentUI group {category!r}")
+                elif category is not None and (not isinstance(category, str) or not category.strip()):
+                    problems.append(f"{label}: expected a group name for an ungrouped component")
+                if not isinstance(examples, list) or not examples:
+                    problems.append(f"{label}: expected a nonempty examples array")
+                    continue
+                if sample is not samples[name]:
+                    if not any(isinstance(item, dict) and isinstance(item.get("program"), str)
+                               and f"{name}(" in item["program"] for item in examples):
+                        problems.append(f"{label}: this component is missing from its parent's examples")
+                    continue
+                ids: set[str] = set()
+                for item in examples:
+                    if not isinstance(item, dict):
+                        problems.append(f"{label}: examples must be objects")
+                        continue
+                    identifier = item.get("id")
+                    if not isinstance(identifier, str) or not IDENTIFIER.fullmatch(identifier) or identifier in ids:
+                        problems.append(f"{label}: invalid or duplicate example ID {identifier!r}")
+                        continue
+                    ids.add(identifier)
+                    title, program = item.get("title"), item.get("program")
+                    if not isinstance(title, str) or not title.strip():
+                        problems.append(f"{label}/{identifier}: missing title")
+                    if not isinstance(program, str) or f"{name}(" not in program:
+                        problems.append(f"{label}/{identifier}: program does not use {name}")
+                    example_counts[library] += 1
         except (ValueError, OSError) as error:
             problems.append(f"Components/{library}: {error}")
+    try:
+        tokens = json.loads((resources / "DesignSystem" / "muse.tokens.json").read_text(encoding="utf-8"))
+        revision = tokens.get("revision") if isinstance(tokens, dict) else None
+        if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
+            problems.append("DesignSystem: Muse token source must pin a complete Git revision")
+    except (ValueError, OSError) as error:
+        problems.append(f"DesignSystem: {error}")
     image_count = 0
     image_directory = resources / "Images"
     image_manifest = image_directory / "catalog.json"
@@ -203,7 +226,8 @@ def check_catalogs(resources: Path) -> dict:
         "catalogs": counts,
         "programs": total_programs,
         "programsByLibrary": by_library,
-        "componentExamples": component_counts,
+        "components": component_counts,
+        "componentExamples": example_counts,
         "bundledImages": image_count,
         "result": "PASS (catalog and resource integrity; not native rendering)",
     }

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftLang
+import SwiftOpenUI
 import SwiftUI
 import XCTest
 @testable import OpenUIGallery
@@ -25,16 +26,16 @@ final class GalleryTests: XCTestCase {
 
     func testSidebarExpansionIsIndependentPerProductAndSurvivesRepeatedToggles() {
         var navigation = GallerySidebarState()
-        navigation.toggle("Controls", in: .openUI)
-        XCTAssertTrue(navigation.isExpanded("Controls", in: .openUI))
-        XCTAssertFalse(navigation.isExpanded("Controls", in: .openIntelligentUI))
-        navigation.toggle("Controls", in: .openIntelligentUI)
+        navigation.toggle(.controls, in: .openUI)
+        XCTAssertTrue(navigation.isExpanded(.controls, in: .openUI))
+        XCTAssertFalse(navigation.isExpanded(.controls, in: .openIntelligentUI))
+        navigation.toggle(.controls, in: .openIntelligentUI)
         for _ in 0..<3 {
-            navigation.toggle("Controls", in: .openUI)
-            XCTAssertFalse(navigation.isExpanded("Controls", in: .openUI))
-            XCTAssertTrue(navigation.isExpanded("Controls", in: .openIntelligentUI))
-            navigation.toggle("Controls", in: .openUI)
-            XCTAssertTrue(navigation.isExpanded("Controls", in: .openUI))
+            navigation.toggle(.controls, in: .openUI)
+            XCTAssertFalse(navigation.isExpanded(.controls, in: .openUI))
+            XCTAssertTrue(navigation.isExpanded(.controls, in: .openIntelligentUI))
+            navigation.toggle(.controls, in: .openUI)
+            XCTAssertTrue(navigation.isExpanded(.controls, in: .openUI))
         }
     }
 
@@ -177,20 +178,43 @@ final class GalleryTests: XCTestCase {
             if kind == .openUI {
                 XCTAssertEqual(items.count, 88)
                 XCTAssertTrue(items.contains { $0.name == "JourneyLine" })
+                XCTAssertEqual(items.first { $0.name == "Steps" }?.category, .layout)
+                XCTAssertEqual(items.first { $0.name == "Card" }?.category, .content)
+                XCTAssertEqual(items.first { $0.name == "EntityList" }?.category, .data)
+                let categories = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.category) })
+                for name in ["Table", "BarChart", "PieChart", "ScatterChart"] {
+                    XCTAssertEqual(categories[name], .tablesAndCharts, name)
+                }
+                for name in ["Form", "Button", "FollowUpBlock"] {
+                    XCTAssertEqual(categories[name], .formsAndButtons, name)
+                }
+                XCTAssertEqual(Set(categories.values).count, 7)
                 XCTAssertEqual(items.first { $0.name == "StepsItem" }?.container, "Steps")
                 XCTAssertEqual(items.first { $0.name == "Point" }?.container, "ScatterSeries")
+            } else {
+                XCTAssertEqual(items.first { $0.name == "Card" }?.category, .layout)
+                XCTAssertEqual(items.first { $0.name == "Flashcard" }?.category, .content)
             }
             for (index, row) in rows.enumerated() {
                 let item = row.component
+                let example = try XCTUnwrap(item.examples.first, item.id)
                 let state = library.makeState()
-                state.setSource(item.source)
-                XCTAssertTrue(item.source.contains(item.name + "("), item.id)
+                state.setSource(example.program)
+                XCTAssertTrue(example.program.contains(item.name + "("), item.id)
                 let root = try XCTUnwrap(state.root, item.id)
                 if let container = item.container {
                     let parent = try XCTUnwrap(rows[..<index].last { $0.component.name == container }, item.id)
                     XCTAssertEqual(row.depth, parent.depth + 1, item.id)
-                    XCTAssertEqual(item.source, parent.component.source, item.id)
+                    XCTAssertEqual(item.examples, parent.component.examples, item.id)
+                    XCTAssertEqual(item.category, parent.component.category, item.id)
                     XCTAssertTrue(GalleryValidation.contains(item.name, in: container, root: root), item.id)
+                }
+                if item.name == "Series" {
+                    XCTAssertEqual(item.category, .tablesAndCharts)
+                    XCTAssertNil(item.container)
+                    XCTAssertTrue(item.supporting)
+                    XCTAssertTrue(GalleryValidation.contains("Series", in: "BarChart", root: root))
+                    XCTAssertTrue(GalleryValidation.contains("Series", in: "LineChart", root: root))
                 }
                 XCTAssertTrue(state.errors.isEmpty, item.id + ": " + state.errors.map(\.message).joined(separator: "; "))
                 state.reset()
@@ -211,6 +235,57 @@ final class GalleryTests: XCTestCase {
         XCTAssertTrue(model.session === preview)
         XCTAssertEqual(model.session?.draft, draft)
         XCTAssertNil(model.failure)
+    }
+
+    @MainActor func testSwitchingUsageRetiresThePreviousProgramAndKeepsSelectionInItsFamily() throws {
+        let options = try GalleryOptions.parse(["--library", "openui", "--case", "Components/Steps"])
+        let model = GalleryModel(options: options)
+        let previous = try XCTUnwrap(model.session)
+        XCTAssertEqual(model.selectedExampleID, "number")
+        model.selectExample("timeline")
+        let timeline = try XCTUnwrap(model.session)
+        XCTAssertEqual(model.selectedExampleID, "timeline")
+        XCTAssertNil(previous.state.root)
+        XCTAssertTrue(GalleryValidation.contains("StepsItem", in: "Steps", root: try XCTUnwrap(timeline.state.root)))
+        model.select("Components/StepsItem")
+        XCTAssertTrue(model.session === timeline)
+        XCTAssertEqual(model.selectedExampleID, "timeline")
+        model.select("Components/Card")
+        XCTAssertNil(timeline.state.root)
+        XCTAssertEqual(model.selectedExampleID, "appearance")
+        model.session?.retire()
+    }
+
+    @MainActor func testDesignSystemShowsMuseTokensAndIsSharedAcrossProducts() throws {
+        let options = try GalleryOptions.parse(["--library", "openui", "--case", "DesignSystem"])
+        let model = GalleryModel(options: options)
+        let design = try XCTUnwrap(model.designSystem)
+        let base = design.tokens(for: .original)
+        let sphere = design.tokens(for: .liquidSphere)
+        XCTAssertEqual(model.selectedID, GalleryDesignSystem.id)
+        XCTAssertNil(model.session)
+        XCTAssertEqual(base.colors.count, 17)
+        XCTAssertEqual(Set(sphere.colors.keys), Set(base.colors.keys))
+        XCTAssertEqual(base.typography.count, 7)
+        XCTAssertEqual(base.spacing.count, 15)
+        XCTAssertEqual(base.colorValue("accent", scheme: .light)?.hex, "#126BF8")
+        XCTAssertEqual(sphere.colorValue("accent", scheme: .light)?.hex, "#000000")
+        XCTAssertEqual(sphere.colorValue("canvas", scheme: .dark)?.hex, base.colorValue("canvas", scheme: .dark)?.hex)
+        let original = base.openUITheme(.original, scheme: .light).resolved()
+        let liquid = sphere.openUITheme(.liquidSphere, scheme: .light).resolved()
+        XCTAssertEqual(original.textHeadingMd.size, 25)
+        XCTAssertEqual(liquid.textHeadingMd.size, 20)
+        XCTAssertEqual(original.radius3xl, 16)
+        XCTAssertEqual(liquid.radius3xl, 20)
+        XCTAssertEqual(original.tableAppearance?.cornerRadius, 16)
+        XCTAssertEqual(liquid.tableAppearance?.cornerRadius, 20)
+        XCTAssertEqual(original.imagePlaceholderBackground, OpenUITheme().resolved().imagePlaceholderBackground)
+        XCTAssertEqual(original.textCodeDefault, OpenUIThemeValues().textCodeDefault)
+        XCTAssertEqual(original.shadowL, OpenUIThemeValues().shadowL)
+        XCTAssertEqual(sphere.spacing["spaceML"], base.spacing["spaceML"])
+        model.selectLibrary(.openIntelligentUI)
+        XCTAssertEqual(model.selectedID, GalleryDesignSystem.id)
+        XCTAssertNil(model.session)
     }
 
     @MainActor func testComponentMarksPersistAndPreserveAnotherLibraryMark() throws {
@@ -389,7 +464,8 @@ final class GalleryTests: XCTestCase {
         let revision = session.state.sourceRevision
         func preview(_ viewport: GalleryViewport) -> GalleryPreview {
             GalleryPreview(session: session, resources: .init(), viewport: viewport,
-                           dynamicType: .large, locale: Locale(identifier: "en"), direction: .leftToRight)
+                           dynamicType: .large, locale: Locale(identifier: "en"), direction: .leftToRight,
+                           museTheme: .original, tokens: nil)
         }
         let host = NSHostingView(rootView: preview(.init(width: 390, height: 844, zoom: 1)))
         host.frame = CGRect(x: 0, y: 0, width: 900, height: 1000)
