@@ -171,21 +171,74 @@ final class GalleryTests: XCTestCase {
             let library = try kind.makeLibrary()
             let items = try GalleryComponent.load(kind, resourceRoot: root)
             XCTAssertEqual(Set(items.map(\.name)), Set(library.specification.components.map(\.name)))
+            let rows = GalleryComponentRow.hierarchy(items)
+            XCTAssertEqual(rows.count, items.count)
+            XCTAssertEqual(Set(rows.map(\.id)), Set(items.map(\.id)))
             if kind == .openUI {
                 XCTAssertEqual(items.count, 88)
                 XCTAssertTrue(items.contains { $0.name == "JourneyLine" })
-                XCTAssertEqual(items.filter(\.supporting).count, 15)
-                XCTAssertEqual(items.first { $0.name == "SelectItem" }?.container, "Select")
+                XCTAssertEqual(items.first { $0.name == "StepsItem" }?.container, "Steps")
+                XCTAssertEqual(items.first { $0.name == "Point" }?.container, "ScatterSeries")
             }
-            for item in items {
+            for (index, row) in rows.enumerated() {
+                let item = row.component
                 let state = library.makeState()
                 state.setSource(item.source)
                 XCTAssertTrue(item.source.contains(item.name + "("), item.id)
-                XCTAssertNotNil(state.root, item.id)
+                let root = try XCTUnwrap(state.root, item.id)
+                if let container = item.container {
+                    let parent = try XCTUnwrap(rows[..<index].last { $0.component.name == container }, item.id)
+                    XCTAssertEqual(row.depth, parent.depth + 1, item.id)
+                    XCTAssertEqual(item.source, parent.component.source, item.id)
+                    XCTAssertTrue(GalleryValidation.contains(item.name, in: container, root: root), item.id)
+                }
                 XCTAssertTrue(state.errors.isEmpty, item.id + ": " + state.errors.map(\.message).joined(separator: "; "))
                 state.reset()
             }
         }
+    }
+
+    @MainActor func testSelectingStepsItemKeepsTheParentPreviewAndEdits() throws {
+        let options = try GalleryOptions.parse(["--library", "openui", "--case", "Components/Steps"])
+        let model = GalleryModel(options: options)
+        let preview = try XCTUnwrap(model.session)
+        defer { preview.retire() }
+        preview.draft += "\n"
+        let draft = preview.draft
+
+        model.select("Components/StepsItem")
+        XCTAssertEqual(model.selectedComponent?.name, "StepsItem")
+        XCTAssertTrue(model.session === preview)
+        XCTAssertEqual(model.session?.draft, draft)
+        XCTAssertNil(model.failure)
+    }
+
+    @MainActor func testComponentMarksPersistAndPreserveAnotherLibraryMark() throws {
+        let repository = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = repository.appendingPathComponent("Examples/Gallery/Resources/" + GalleryComponentMarks.resourcePath)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: repository) }
+        try Data(#"{"openui":[],"openintelligentui":[]}"#.utf8).write(to: file)
+        let options = try GalleryOptions.parse(["--library", "openui", "--case", "Components/StepsItem"])
+        let model = GalleryModel(options: options)
+        let preview = try XCTUnwrap(model.session)
+        defer { preview.retire() }
+        model.connectMarksRepository(repository)
+
+        model.setComponentMarked(true, name: "StepsItem", library: .openUI)
+        XCTAssertNil(model.marksFailure)
+        XCTAssertTrue(model.componentMarks.contains("StepsItem", in: .openUI))
+        XCTAssertFalse(model.componentMarks.contains("Steps", in: .openUI))
+        XCTAssertTrue(model.session === preview)
+        XCTAssertTrue(try GalleryComponentMarks.read(in: repository).contains("StepsItem", in: .openUI))
+
+        _ = try GalleryComponentMarks.set(true, component: "ListItem", library: .openIntelligentUI, in: repository)
+        model.setComponentMarked(false, name: "StepsItem", library: .openUI)
+        XCTAssertNil(model.marksFailure)
+        let saved = try GalleryComponentMarks.read(in: repository)
+        XCTAssertFalse(saved.contains("StepsItem", in: .openUI))
+        XCTAssertTrue(saved.contains("ListItem", in: .openIntelligentUI))
+        XCTAssertTrue(model.session === preview)
     }
 
     func testIntelligentScenesKeepOriginalMediaLinksAndEssentialReadingSections() throws {

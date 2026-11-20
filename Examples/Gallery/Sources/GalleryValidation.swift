@@ -19,6 +19,7 @@ enum GalleryValidation {
                     (id: $0.id, source: try $0.source(for: kind))
                 }
                 let components = try GalleryComponent.load(kind, resourceRoot: GalleryResources.root())
+                let componentsByID = Dictionary(uniqueKeysWithValues: components.map { ($0.id, $0) })
                 programs += components.map { (id: $0.id, source: $0.source) }
                 for program in programs {
                     let label = "\(program.id) [\(kind.rawValue)]"
@@ -28,6 +29,10 @@ enum GalleryValidation {
                     batch.setSource(source)
                     batchChecks += 1
                     check(batch, label: label + " batch", failures: &failures)
+                    if let component = componentsByID[program.id], let parent = component.container,
+                       let root = batch.root, !contains(component.name, in: parent, root: root) {
+                        failures.append(label + ": \(parent) 的示例中缺少从属项 \(component.name)")
+                    }
                     batch.reset()
 
                     // A separate document proves streaming initialization does
@@ -49,6 +54,20 @@ enum GalleryValidation {
             } catch { failures.append(kind.title + ": " + error.localizedDescription) }
         }
         return Report(variants: variants, batchChecks: batchChecks, streamChecks: streamChecks, failures: failures)
+    }
+
+    static func contains(_ name: String, in parent: String, root: EvaluatedElement) -> Bool {
+        func elements(_ value: Value) -> [EvaluatedElement] {
+            switch value {
+            case .element(let node): return [node]
+            case .array(let values): return values.flatMap(elements)
+            case .object(let fields): return fields.flatMap { elements($0.value) }
+            default: return []
+            }
+        }
+        let children = root.props.flatMap { elements($0.1) }
+        return (root.typeName == parent && children.contains { $0.typeName == name })
+            || children.contains { contains(name, in: parent, root: $0) }
     }
 
     @MainActor private static func check(_ state: OpenUIState, label: String, failures: inout [String]) {

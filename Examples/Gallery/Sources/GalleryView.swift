@@ -49,7 +49,7 @@ private enum GalleryPanel: Identifiable {
             GallerySidebar(model: model)
         } detail: {
             detail
-                .navigationTitle(model.session?.title ?? model.selectedEntry?.item.title ?? "选择案例")
+                .navigationTitle(model.selectedComponent?.name ?? model.session?.title ?? model.selectedEntry?.item.title ?? "选择案例")
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
@@ -89,7 +89,7 @@ private enum GalleryPanel: Identifiable {
 
     private var detail: some View {
         VStack(spacing: 0) {
-            if let failure = model.failure {
+            if let failure = model.failure ?? model.marksFailure {
                 Text(failure).font(.callout).foregroundStyle(.orange).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(16)
             }

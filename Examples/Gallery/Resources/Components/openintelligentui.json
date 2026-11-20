@@ -76,8 +76,7 @@
     "program": "root = Col([List([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留一点弹性\"),ListItem(\"准备出发\",\"核对必需信息\")],\"number\",true)])"
   },
   "ListItem": {
-    "category": "Content",
-    "program": "root = Col([List([ListItem(\"选择方向\",\"从兴趣出发\"),ListItem(\"安排时间\",\"保留一点弹性\"),ListItem(\"准备出发\",\"核对必需信息\")],\"number\",true)])"
+    "container": "List"
   },
   "Badge": {
     "category": "Content",
@@ -112,8 +111,7 @@
     "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"散步\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],false)])"
   },
   "MapMarker": {
-    "category": "Media",
-    "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"散步\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],false)])"
+    "container": "Map"
   },
   "HtmlView": {
     "category": "Media",
@@ -204,43 +202,34 @@
     "program": "root = Col([TransportCard({id:\"rail-example\",legs:[{mode:\"train\",from:\"杭州东\",to:\"苏州\",departureDate:\"2026-11-15\",arrivalDate:\"2026-11-15\",departureTime:\"09:00\",arrivalTime:\"10:40\",durationText:\"1 小时 40 分钟\",serviceNumber:\"演示班次\"}],priceNote:\"行程布局示例，不是实时班次\"})])"
   },
   "Circle": {
-    "category": "Media",
-    "program": "root = Col([Svg([Circle(160,80,48,\"info\")],\"0 0 320 160\",\"圆形示例\",320,160)])"
+    "container": "Svg"
   },
   "Ellipse": {
-    "category": "Media",
-    "program": "root = Col([Svg([Ellipse(160,80,90,45,\"info\")],\"0 0 320 160\",\"椭圆示例\",320,160)])"
+    "container": "Svg"
   },
   "Rect": {
-    "category": "Media",
-    "program": "root = Col([Svg([Rect(60,30,200,100,\"info\",null,null,null,16)],\"0 0 320 160\",\"圆角矩形示例\",320,160)])"
+    "container": "Svg"
   },
   "Line": {
-    "category": "Media",
-    "program": "root = Col([Svg([Line(40,120,280,40,\"info\",4)],\"0 0 320 160\",\"斜线示例\",320,160)])"
+    "container": "Svg"
   },
   "Path": {
-    "category": "Media",
-    "program": "root = Col([Svg([Path(\"M40 120 C100 10 220 10 280 120\",\"none\",\"info\",4)],\"0 0 320 160\",\"曲线路径示例\",320,160)])"
+    "container": "Svg"
   },
   "Polyline": {
-    "category": "Media",
-    "program": "root = Col([Svg([Polyline(\"30,120 100,40 180,100 280,30\",\"none\",\"info\",4)],\"0 0 320 160\",\"折线示例\",320,160)])"
+    "container": "Svg"
   },
   "Polygon": {
-    "category": "Media",
-    "program": "root = Col([Svg([Polygon(\"160,20 280,130 40,130\",\"info\")],\"0 0 320 160\",\"三角形示例\",320,160)])"
+    "container": "Svg"
   },
   "G": {
-    "category": "Media",
-    "program": "root = Col([Svg([G([Circle(80,80,40,\"info\"),Rect(150,40,100,80,\"success\")])],\"0 0 320 160\",\"圆形和矩形组合\",320,160)])"
+    "container": "Svg"
   },
   "SvgText": {
-    "category": "Media",
-    "program": "root = Col([Svg([SvgText(\"Hello SVG\",160,90,28,\"ink\",\"middle\",\"semibold\")],\"0 0 320 160\",\"居中 SVG 文本示例\",320,160)])"
+    "container": "Svg"
   },
   "Svg": {
     "category": "Media",
-    "program": "root = Col([Svg([Rect(10,10,300,140,\"surface\",null,null,null,16),Circle(80,80,36,\"info\"),SvgText(\"Hello SVG\",144,88,24,\"ink\")],\"0 0 320 160\",\"带圆形和文字的 SVG 示例\",320,160)])"
+    "program": "root = Col([Svg([background, circle, ellipse, rectangle, line, path, polyline, polygon, group, circleLabel, ellipseLabel, rectangleLabel, lineLabel, pathLabel, polylineLabel, polygonLabel, groupLabel], \"0 0 320 181\", \"圆形、椭圆、矩形、直线、曲线、折线、多边形和分组\", 320, 181)])\nbackground = Rect(2, 2, 316, 177, \"surface\", null, null, null, 12)\ncircle = Circle(40, 42, 17, \"info\")\nellipse = Ellipse(120, 42, 25, 14, \"success\")\nrectangle = Rect(178, 28, 44, 28, \"info\", null, null, null, 6)\nline = Line(254, 55, 304, 30, \"info\", 3)\npath = Path(\"M16 135 C33 100 50 100 67 135\", \"none\", \"info\", 3)\npolyline = Polyline(\"96,135 109,112 129,129 145,110\", \"none\", \"info\", 3)\npolygon = Polygon(\"200,107 226,142 174,142\", \"success\")\ngroup = G([Circle(266, 122, 13, \"info\"), Rect(273, 122, 24, 20, \"success\")])\ncircleLabel = SvgText(\"圆形\", 40, 80, 12, \"ink\", \"middle\")\nellipseLabel = SvgText(\"椭圆\", 120, 80, 12, \"ink\", \"middle\")\nrectangleLabel = SvgText(\"矩形\", 200, 80, 12, \"ink\", \"middle\")\nlineLabel = SvgText(\"直线\", 280, 80, 12, \"ink\", \"middle\")\npathLabel = SvgText(\"曲线\", 40, 163, 12, \"ink\", \"middle\")\npolylineLabel = SvgText(\"折线\", 120, 163, 12, \"ink\", \"middle\")\npolygonLabel = SvgText(\"多边形\", 200, 163, 12, \"ink\", \"middle\")\ngroupLabel = SvgText(\"分组\", 280, 163, 12, \"ink\", \"middle\")"
   }
 }

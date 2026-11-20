@@ -18,6 +18,81 @@ enum GalleryResources {
     }
 }
 
+struct GalleryComponentMarks {
+    static let resourcePath = "Components/marks.json"
+    private static let checkoutPath = "Examples/Gallery/Resources/" + resourcePath
+    private var names: [String: Set<String>] = [:]
+
+    init() {}
+
+    init(contentsOf url: URL) throws {
+        names = try JSONDecoder().decode([String: Set<String>].self, from: Data(contentsOf: url))
+    }
+
+    func contains(_ component: String, in library: GalleryLibrary) -> Bool {
+        names[library.rawValue]?.contains(component) == true
+    }
+
+    static func checkout() -> URL? {
+        let starts = [
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true),
+            Bundle.main.bundleURL
+        ]
+        for start in starts {
+            var directory = start.standardizedFileURL
+            while directory.path != "/" {
+                if FileManager.default.fileExists(atPath: directory.appendingPathComponent(checkoutPath).path) {
+                    return directory
+                }
+                let parent = directory.deletingLastPathComponent()
+                guard parent != directory else { break }
+                directory = parent
+            }
+        }
+        return nil
+    }
+
+    static func read(in repository: URL) throws -> Self {
+        try withFile(in: repository) { try Self(contentsOf: $0) }
+    }
+
+    static func set(_ marked: Bool, component: String, library: GalleryLibrary, in repository: URL) throws -> Self {
+        try withFile(in: repository) { url in
+            let coordinator = NSFileCoordinator(filePresenter: nil)
+            var coordinationError: NSError?
+            var result: Result<Self, Error>?
+            coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { file in
+                result = Result {
+                    var latest = try Self(contentsOf: file)
+                    if latest.contains(component, in: library) == marked { return latest }
+                    if marked { latest.names[library.rawValue, default: []].insert(component) }
+                    else { latest.names[library.rawValue]?.remove(component) }
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    var data = try encoder.encode(latest.names.mapValues { $0.sorted() })
+                    data.append(0x0A)
+                    try data.write(to: file, options: .atomic)
+                    return latest
+                }
+            }
+            if let coordinationError { throw coordinationError }
+            guard let result else { throw GalleryFailure("无法保存组件划线。") }
+            return try result.get()
+        }
+    }
+
+    private static func withFile<T>(in repository: URL, _ operation: (URL) throws -> T) throws -> T {
+        let scoped = repository.startAccessingSecurityScopedResource()
+        defer { if scoped { repository.stopAccessingSecurityScopedResource() } }
+        let directory = repository.resolvingSymlinksInPath().standardizedFileURL
+        let file = directory.appendingPathComponent(checkoutPath).resolvingSymlinksInPath()
+        guard file.path.hasPrefix(directory.path + "/"), FileManager.default.fileExists(atPath: file.path) else {
+            throw GalleryFailure("请选择包含 Gallery 组件标记文件的 SDK 仓库。")
+        }
+        return try operation(file)
+    }
+}
+
 /// Both UI libraries receive the same exact-source bundle transport. A bundled
 /// photograph is never substituted for another URL or another place/product.
 final class GalleryImageLoader: OpenUIResourceLoading {

@@ -158,6 +158,9 @@ enum GalleryPlayback: String {
     @Published private(set) var components: [GalleryComponent] = []
     @Published private(set) var session: GalleryDocumentSession?
     @Published private(set) var failure: String?
+    @Published private(set) var componentMarks = GalleryComponentMarks()
+    @Published private(set) var marksRepository: URL?
+    @Published private(set) var marksFailure: String?
     let resources: OpenUIResourceContext?
     private let resourceRoot: URL?
     private var selections: [GalleryLibrary: String] = [:]
@@ -195,6 +198,15 @@ enum GalleryPlayback: String {
             else if components.contains(where: { $0.id == id }) { select(id) }
             else { failure = "找不到案例：\(id)" }
         } else if let first = entries.first(where: { $0.supports(selectedLibrary) }) { select(first.id) }
+
+        if let repository = GalleryComponentMarks.checkout() {
+            connectMarksRepository(repository)
+        } else if let resourceRoot {
+            do {
+                componentMarks = try GalleryComponentMarks(
+                    contentsOf: resourceRoot.appendingPathComponent(GalleryComponentMarks.resourcePath))
+            } catch { reportMarks(error) }
+        }
     }
 
     func select(_ id: String) {
@@ -202,9 +214,12 @@ enum GalleryPlayback: String {
         let component = components.first { $0.id == id }
         guard entry != nil || component != nil else { return }
         if id == selectedID, session?.kind == selectedLibrary { return }
-        session?.retire(); session = nil
+        let sharesPreview = component.map { selectedComponent?.previewRoot == $0.previewRoot } == true
+            && session?.kind == selectedLibrary
+        if !sharesPreview { session?.retire(); session = nil }
         selectedID = id
         selections[selectedLibrary] = id
+        if sharesPreview { failure = nil; return }
         do {
             let source = try component?.source ?? entry!.source(for: selectedLibrary)
             session = try GalleryDocumentSession(kind: selectedLibrary, source: source,
@@ -246,4 +261,28 @@ enum GalleryPlayback: String {
     }
 
     func report(_ error: Error) { failure = error.localizedDescription }
+
+    func connectMarksRepository(_ url: URL) {
+        do {
+            componentMarks = try GalleryComponentMarks.read(in: url)
+            marksRepository = url
+            marksFailure = nil
+        } catch { reportMarks(error) }
+    }
+
+    func reloadComponentMarks() {
+        if let marksRepository { connectMarksRepository(marksRepository) }
+    }
+
+    func setComponentMarked(_ marked: Bool, name: String, library: GalleryLibrary) {
+        guard let marksRepository else { return }
+        do {
+            componentMarks = try GalleryComponentMarks.set(marked, component: name, library: library, in: marksRepository)
+            marksFailure = nil
+        } catch { reportMarks(error) }
+    }
+
+    func reportMarks(_ error: Error) {
+        marksFailure = error.localizedDescription
+    }
 }

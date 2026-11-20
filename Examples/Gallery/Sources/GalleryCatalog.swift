@@ -52,12 +52,13 @@ struct GalleryComponent: Identifiable {
     let source: String
     let supporting: Bool
     let container: String?
+    let previewRoot: String
     var id: String { "Components/" + definition.name }
     var name: String { definition.name }
 
     private struct Example: Decodable {
-        let category: String
-        let program: String
+        let category: String?
+        let program: String?
         let supporting: Bool?
         let container: String?
     }
@@ -74,15 +75,41 @@ struct GalleryComponent: Identifiable {
         }
         return try specification.components.map { definition in
             let example = examples[definition.name]!
-            guard categories.contains(example.category), !example.program.isEmpty else {
-                throw GalleryFailure("\(definition.name) 缺少分类或示例。")
+            var previewRoot = definition.name
+            var visited = Set<String>()
+            while let parent = examples[previewRoot]?.container {
+                guard examples[parent] != nil, visited.insert(previewRoot).inserted else {
+                    throw GalleryFailure("\(definition.name) 的父组件关系缺失或成环。")
+                }
+                guard examples[previewRoot]?.program == nil, examples[previewRoot]?.category == nil else {
+                    throw GalleryFailure("\(previewRoot) 应继承父组件的分类和示例。")
+                }
+                previewRoot = parent
             }
-            if let container = example.container, !names.contains(container) {
-                throw GalleryFailure("\(definition.name) 引用了不存在的父组件 \(container)。")
+            guard let category = examples[previewRoot]?.category, categories.contains(category),
+                  let program = examples[previewRoot]?.program, !program.isEmpty else {
+                throw GalleryFailure("\(previewRoot) 缺少分类或示例。")
             }
-            return GalleryComponent(definition: definition, category: example.category, source: example.program,
-                                    supporting: example.supporting ?? false, container: example.container)
+            return GalleryComponent(definition: definition, category: category, source: program,
+                                    supporting: example.container != nil || example.supporting == true,
+                                    container: example.container, previewRoot: previewRoot)
         }.sorted { ($0.category, $0.name) < ($1.category, $1.name) }
+    }
+}
+
+struct GalleryComponentRow: Identifiable {
+    let component: GalleryComponent
+    let depth: Int
+    var id: String { component.id }
+
+    static func hierarchy(_ components: [GalleryComponent]) -> [GalleryComponentRow] {
+        let byParent = Dictionary(grouping: components, by: \.container)
+        func rows(_ component: GalleryComponent, depth: Int) -> [GalleryComponentRow] {
+            [.init(component: component, depth: depth)] + byParent[component.name, default: []].flatMap {
+                rows($0, depth: depth + 1)
+            }
+        }
+        return byParent[nil, default: []].flatMap { rows($0, depth: 0) }
     }
 }
 
