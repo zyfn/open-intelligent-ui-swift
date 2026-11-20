@@ -3,6 +3,26 @@
 
   ],
   "openui" : [
-
+    "Accordion",
+    "AccordionItem",
+    "Callout",
+    "CompositeCardBlock",
+    "CompositeCardItem",
+    "ContextCardBlock",
+    "ContextCardItem",
+    "EditableTable",
+    "IconText",
+    "ImageBlock",
+    "ImageText",
+    "ImageTextLarge",
+    "InlineHeader",
+    "Label",
+    "MetricIndicatorInline",
+    "OverviewCardBlock",
+    "OverviewCardItem",
+    "SnippetCardBlock",
+    "SnippetCardItem",
+    "Text",
+    "TextCallout"
   ]
 }
