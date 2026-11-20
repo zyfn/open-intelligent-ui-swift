@@ -48,15 +48,16 @@ struct NativeCardSurface: ViewModifier {
     let theme: OpenUIThemeValues
     var fill: Color? = nil
     var bordered = true
+    var usesStandardCardStyle = false
 
     func body(content: Content) -> some View {
-        let borderWidth = nativePresentation.borderWidth == OpenUIPresentation.defaults.borderWidth
-            ? 1 / displayScale : nativePresentation.borderWidth
+        let usesHairline = !usesStandardCardStyle && nativePresentation.borderWidth == OpenUIPresentation.defaults.borderWidth
+        let borderWidth = usesHairline ? 1 / displayScale : nativePresentation.borderWidth
         content
             .background {
                 RoundedRectangle(cornerRadius: theme.radius3xl, style: .continuous)
-                    .fill(fill ?? theme.foreground)
-                    .shadow(color: .black.opacity(bordered ? theme.shadowM.opacity : 0),
+                    .fill(usesStandardCardStyle ? nativePresentation.cardBackgroundColor : fill ?? theme.foreground)
+                    .shadow(color: .black.opacity(bordered && !usesStandardCardStyle ? theme.shadowM.opacity : 0),
                             radius: theme.shadowM.radius, x: theme.shadowM.x, y: theme.shadowM.y)
             }
             .overlay {

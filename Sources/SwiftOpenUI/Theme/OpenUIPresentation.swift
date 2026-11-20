@@ -24,6 +24,8 @@ public struct OpenUIPresentation {
     var minimumInlineThumbnailSize: CGFloat = 64
     public var minimumTextColumnWidth: CGFloat = 160
     public var coverAspectRatio: CGFloat = 16 / 9
+    /// Spacing in points between tiles in the inline ImageGallery collage.
+    public var imageGallerySpacing: CGFloat = 0
     /// A host can provide the height of its reading viewport in points.
     public var viewportHeight: CGFloat?
     /// Optional target for a host with a known basemap coordinate system.
@@ -35,7 +37,9 @@ public struct OpenUIPresentation {
     /// Text actions are capsules by default. A finite radius is an independent host override.
     public var buttonCornerRadius: CGFloat? = nil
     public var cardBorderColor: Color?
-    /// A form presents one task panel using Card's surface. Hosts embedding a
+    /// Fill for the standard Card surface. Form and the sunk and clear variants own their fills.
+    public var cardBackgroundColor: Color = .clear
+    /// A form presents one filled task panel. Hosts embedding a
     /// form in an existing panel may opt out without adding a Lang parameter.
     public var formShowsCardSurface = true
     public var minimumCardWidth: CGFloat = 240

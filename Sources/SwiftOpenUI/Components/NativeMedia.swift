@@ -588,7 +588,7 @@ struct NativeImageGallery: View {
     let layout = NativeGalleryGridLayout(
       isCompact: horizontalSizeClass == .compact,
       fallbackWidth: max(context.presentation.thumbnailSize, context.presentation.minimumCompactCardWidth * readingScale),
-      gap: context.presentation.borderWidth, aspectRatio: context.presentation.coverAspectRatio,
+      gap: context.presentation.imageGallerySpacing, aspectRatio: context.presentation.coverAspectRatio,
       isVerticallyCompact: verticalSizeClass == .compact, viewportHeight: context.presentation.viewportHeight,
       compactThumbnailSize: context.presentation.compactThumbnailSize)
     let cover = Array(slots.prefix(1))
