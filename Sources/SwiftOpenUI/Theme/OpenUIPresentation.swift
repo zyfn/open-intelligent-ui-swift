@@ -25,7 +25,7 @@ public struct OpenUIPresentation {
     public var minimumTextColumnWidth: CGFloat = 160
     public var coverAspectRatio: CGFloat = 16 / 9
     /// Spacing in points between tiles in the inline ImageGallery collage.
-    public var imageGallerySpacing: CGFloat = 0
+    public var imageGallerySpacing: CGFloat = 1
     /// A host can provide the height of its reading viewport in points.
     public var viewportHeight: CGFloat?
     /// Optional target for a host with a known basemap coordinate system.

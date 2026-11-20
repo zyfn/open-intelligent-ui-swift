@@ -103,16 +103,14 @@ extension OpenUIThemeValues {
         }
     }
     func fieldFont(_ size: String?) -> OpenUIFont { size == "small" ? textBodySm : textBodyDefault }
-  func entityLabelStyle(compact: Bool) -> NativeRichTextStyle {
-    .init(font: compact ? textBodySm : textBodyDefault, color: textNeutralSecondary,
+  func entityLabelStyle(compact: Bool, header: Bool) -> NativeRichTextStyle {
+    .init(font: compact ? textBodySm : textBodyDefault, color: header ? textNeutralSecondary : textNeutralPrimary,
       role: compact ? .detail : .body)
   }
 
   func entityValueStyle(compact: Bool, numeric: Bool, header: Bool, footer: Bool) -> NativeRichTextStyle {
-    let font = compact ? textBodySm : textBodyDefault
-    return .init(font: footer ? textBodyLgHeavy
-      : (numeric || header ? inlineFont(compact ? "xs" : "sm", emphasized: true, numeric: numeric)
-         : font.weight(textLabelDefaultHeavy.weight)), numeric: numeric,
+    let size = footer ? "lg" : compact ? "xs" : nil
+    return .init(font: inlineFont(size, emphasized: true, numeric: numeric), numeric: numeric,
       color: header ? textNeutralSecondary : textNeutralPrimary,
       role: footer ? .title : compact ? .detail : .body)
   }

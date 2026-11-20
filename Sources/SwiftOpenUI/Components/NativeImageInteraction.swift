@@ -91,7 +91,7 @@ struct NativeSingleImagePreview: View {
     VStack(spacing: theme.spaceM) {
       NativeImagePreviewHeader(closeIdentifier: "openui.image.preview.close", close: { dismiss() })
       GeometryReader { geometry in
-        NativeRemoteImage(src: source, alt: alt, layout: .fit, role: .content,
+        NativeRemoteImage(src: source, alt: alt, layout: .fit,
           cachedImage: image, cachedImageTarget: imageTarget, upgradesCachedImage: true,
           requestedPixelSize: NativeMediaPreview.pixelSize(viewport: geometry.size,
             scale: displayScale, zoom: zoomScale, limits: resources.loader.resourceLimits),

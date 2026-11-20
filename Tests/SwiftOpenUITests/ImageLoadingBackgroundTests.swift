@@ -55,8 +55,10 @@ final class ImageLoadingBackgroundTests: XCTestCase {
     XCTAssertGreaterThan(failure.redComponent, failure.blueComponent + 0.4)
   }
 
-  @MainActor func testImageLoadingFollowsOverrideWithoutChangingOtherSunkSurfaces() throws {
+  @MainActor func testImageLoadingAndFailureUseTheSameImageBackground() throws {
     _ = NSApplication.shared
+    var presentation = OpenUIPresentation()
+    presentation.motion.loadingIndicatorDelay = 60
     for scheme in [ColorScheme.light, .dark] {
       for usesOverride in [false, true] {
         var override = OpenUITheme()
@@ -64,16 +66,18 @@ final class ImageLoadingBackgroundTests: XCTestCase {
         if usesOverride { override.imagePlaceholderBackground = .blue }
         let theme = override.resolved()
         let view = HStack(spacing: 0) {
-          NativeRemoteImage(src: nil, layout: .thumbnail(CGSize(width: 100, height: 100)), role: .content)
+          NativeRemoteImage(src: nil, layout: .thumbnail(CGSize(width: 100, height: 100)))
             .environment(\.openUIMediaSourceReady, false)
             .environment(\.openUIStreamActive, true)
             .frame(width: 100, height: 100)
+          NativeRemoteImage(src: nil, layout: .thumbnail(CGSize(width: 100, height: 100)))
           NativeLoadingSurface(active: false).frame(width: 100, height: 100)
         }
+        .openUIPresentation(presentation)
         .environment(\.openUITheme, theme)
         .environment(\.colorScheme, scheme)
         let host = NSHostingView(rootView: view)
-        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 200, height: 100),
+        let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 300, height: 100),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
@@ -85,8 +89,10 @@ final class ImageLoadingBackgroundTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.08))
         let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: bitmap)
-        let image = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 20, y: bitmap.pixelsHigh / 10)?.usingColorSpace(.sRGB))
-        let other = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide * 11 / 20, y: bitmap.pixelsHigh / 10)?.usingColorSpace(.sRGB))
+        let image = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 30, y: bitmap.pixelsHigh / 10)?.usingColorSpace(.sRGB))
+        let failed = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide * 11 / 30, y: bitmap.pixelsHigh / 10)?.usingColorSpace(.sRGB))
+        let other = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide * 21 / 30, y: bitmap.pixelsHigh / 10)?.usingColorSpace(.sRGB))
+        XCTAssertEqual(failed, image)
         XCTAssertGreaterThan(other.redComponent, other.greenComponent + 0.4, "Other surfaces use themed sunk in \(scheme)")
         if usesOverride {
           XCTAssertGreaterThan(image.blueComponent, image.redComponent + 0.4, "Image override should be independent of sunk")

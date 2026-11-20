@@ -12,50 +12,21 @@ enum NativeMediaStatus: Equatable { case loading, loaded, unavailable }
 enum NativeMediaLayout {
   case cover, aspect(CGFloat), thumbnail(CGSize), fit, fill, intrinsic
 }
-/// Content images retain a quiet surface; compact artwork uses its owner's
-/// surface. The layout determines geometry in every resource state.
-enum NativeMediaRole: Equatable { case artwork, content }
-
-/// A resource placeholder is not an alert. Ordinary images show a short status
-/// only when it fits; owner-provided symbols retain their compact appearance.
-struct NativeUnavailableMedia: View {
+/// An owner can retain a semantic symbol in a media slot, such as a map pin.
+struct NativeMediaSymbol: View {
   let theme: OpenUIThemeValues
-  var systemImage: String? = nil
-  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 16
-  @ScaledMetric(relativeTo: .body) private var semanticGlyphSize: CGFloat = 24
+  let systemImage: String
+  @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 24
 
   var body: some View {
     GeometryReader { geometry in
       let available = max(0, min(geometry.size.width, geometry.size.height))
-      if let systemImage {
-        Image(systemName: systemImage)
-          .font(.system(size: min(semanticGlyphSize, available * 0.42), weight: .medium))
-          .foregroundStyle(theme.interactiveAccentDefault)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        let side = min(glyphSize, available)
-        ViewThatFits(in: [.horizontal, .vertical]) {
-          if geometry.size.width >= 160 {
-            VStack(spacing: theme.spaceXs) {
-              glyph(side)
-              Text("Image unavailable", bundle: NativeControlResources.bundle)
-                .nativeTextStyle(theme.textStyle(.supporting))
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, theme.spaceS)
-            }.fixedSize()
-          }
-          glyph(side)
-        }
+      Image(systemName: systemImage)
+        .font(.system(size: min(glyphSize, available * 0.42), weight: .medium))
+        .foregroundStyle(theme.interactiveAccentDefault)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
     }
     .accessibilityHidden(true).allowsHitTesting(false)
-  }
-
-  private func glyph(_ side: CGFloat) -> some View {
-    Image(systemName: "photo").resizable().scaledToFit()
-      .frame(width: side, height: side).foregroundStyle(theme.textNeutralSecondary)
   }
 }
 
@@ -78,7 +49,6 @@ struct NativeRemoteImage: View {
   let src: String?
   var alt = ""
   var layout: NativeMediaLayout = .cover
-  var role: NativeMediaRole = .artwork
   var fallbackSystemImage: String? = nil
   var cachedImage: Image?
   var cachedImageTarget: NativeMediaResourceTarget? = nil
@@ -326,19 +296,10 @@ struct NativeRemoteImage: View {
   }
   private func placeholder(loading: Bool) -> some View {
     canvas {
-      ZStack {
-        if role == .content && fallbackSystemImage == nil {
-          loading ? theme.imagePlaceholderBackground : theme.sunk
-        }
-        // Failure copy must not sit beneath a translucent loading surface.
-        // Swap states without cross-fading their separate photo symbols.
-        if loading && fallbackSystemImage == nil {
-          NativeLoadingSurface(showsMediaSymbol: true, background: theme.imagePlaceholderBackground)
-            .transition(.identity)
-        } else {
-          NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
-            .transition(.identity)
-        }
+      if let fallbackSystemImage {
+        NativeMediaSymbol(theme: theme, systemImage: fallbackSystemImage)
+      } else {
+        NativeLoadingSurface(active: loading, showsMediaSymbol: true, background: theme.imagePlaceholderBackground)
       }
     }
     .accessibilityElement(children: .ignore)
@@ -747,7 +708,7 @@ private struct NativeGalleryPreviewPage: View {
   @State private var zoomScale: CGFloat = 1
 
   var body: some View {
-    NativeRemoteImage(src: item.src, alt: item.alt, layout: .fit, role: .content,
+    NativeRemoteImage(src: item.src, alt: item.alt, layout: .fit,
       requestedPixelSize: NativeMediaPreview.pixelSize(viewport: size, scale: displayScale,
         zoom: zoomScale, limits: resources.loader.resourceLimits),
       releasesImageWhenHidden: true, attempt: item.target.attempt,
@@ -773,7 +734,7 @@ struct NativeImageBlock: View {
   let context: OpenUIComponentContext
   var body: some View {
     NativeRemoteImage(src: context.string("src"), alt: context.string("alt") ?? "",
-      layout: .aspect(context.presentation.coverAspectRatio), role: .content)
+      layout: .aspect(context.presentation.coverAspectRatio))
       .clipShape(RoundedRectangle(cornerRadius: context.theme.radiusM, style: .continuous))
   }
 }

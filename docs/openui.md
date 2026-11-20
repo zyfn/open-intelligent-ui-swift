@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.46 · 更新日期：2026-11-20
+文档版本：1.51 · 更新日期：2026-11-20
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -23,7 +23,7 @@ let view = OpenUIView(state: state, library: library)
 
 实际目录由 OpenUIComponents 注册并导出，包括固定上游的 84 个定义，以及原生 Map、MapPoint、SVG 和 JourneyLine，共 88 个定义。其中 73 个是可视定义，15 个是由父组件消费的结构或数据定义；不能把注册数等同于独立可点击控件数量。
 
-Gallery 按 Layout、Content、Controls、DataDisplay、Media 浏览实际注册定义，结构子项标注父组件上下文，组件用法默认展开。签名、位置参数和默认值以 library.specification 为准，不另维护一张手写权威目录。原始参考目录在 [upstream-catalog.json](../Sources/SwiftOpenUI/Resources/upstream-catalog.json)，原生注册在 [Catalog](../Sources/SwiftOpenUI/Catalog/)。
+Gallery 按注册目录的 `componentGroups` 浏览，结构子项跟随父组件，组件用法默认展开。签名、位置参数和默认值以 library.specification 为准。原始参考目录在 [upstream-catalog.json](../Sources/SwiftOpenUI/Resources/upstream-catalog.json)，原生注册在 [Catalog](../Sources/SwiftOpenUI/Catalog/)。
 
 只有实际实现并注册的定义进入生成契约。Swift 包名、文件归属和视觉调整不改变已支持的 Lang 组件名、参数顺序、绑定和枚举。
 
@@ -91,7 +91,11 @@ OpenUIView(state: state, library: library)
 
 主题通过同一个 typed Context storage 传递。context.theme 和 context.presentation 读取 OpenUI 的值；自建组件需要相同规则时使用对应 Context 扩展。子树覆盖保留同层其它 typed values；不要用高频几何或计时状态反复改写全局主题。
 
-`tableAppearance` 可为 OpenUI Table 和 SDK 内的 Markdown 表格共同配置网格线、表头与首列背景、内容背景、可选字体和圆角；不设置时保留默认表格。圆角未单独设置时使用 `radius3xl`；使用该表格外观的 Markdown 短表铺满可用宽度，宽表保留列对齐并支持横向滚动。EntityList 默认使用共享标签列，文本值共用起始位置，数值沿右缘对齐；标签较长时允许换行。`markdownListItemSpacing` 控制 SDK 内 Markdown 列表项间距，不影响宿主自己的 Markdown 渲染。这些呈现调整不改变组件参数或历史数据。
+`tableAppearance` 可为 OpenUI Table 和 SDK 内的 Markdown 表格共同配置网格线、表头与首列背景、内容背景、可选字体和圆角。省略该项时使用默认表格外观。圆角未单独设置时使用 `radius3xl`。使用该外观的 Markdown 短表铺满可用宽度，宽表保留列对齐并支持横向滚动。`markdownListItemSpacing` 控制 SDK 内 Markdown 列表项间距，宿主自己的 Markdown 由宿主渲染。
+
+EntityList 按上游样式均分两列。标签沿阅读方向的起端对齐，值沿末端对齐。表头和页脚沿用对应列的对齐方式。两列允许换行，间距和行内上下留白使用 `spaceM`。默认尺寸可带表头和页脚，紧凑尺寸只渲染数据行。`rightVariant` 为数字值选择数字字样，行布局在流式追加时按可用宽度排布。
+
+自由组合的键值行可将标签和值作为 `Stack` 的直接子项，以 `direction: row` 和 `justify: between` 放在两端。流式输出先完整声明行布局并引用标签和值，再提供具体文案。
 
 `markdownEmphasisFont` 可为 Markdown 的加粗文字指定字体族与字重；字号仍继承所在段落或标题。不配置时沿用默认加粗方式，原文及链接语义不变。
 
@@ -114,7 +118,7 @@ theme.markdownListItemSpacing = 15
 
 - CardHeader 使用章节角色；InlineHeader 与图文对象保留对象标题角色。恢复原有 20 / 18 pt 默认值；宿主可以完整覆盖字体，容器不根据嵌套层数或文案长度改写文字角色。
 - 普通 Card 使用透明底和 1 pt 描边。宿主可用 OpenUIPresentation 的 cardBackgroundColor、cardBorderColor 和 borderWidth 设置底色、描边颜色和线宽。描边色默认来自主题的 borderDefault。图文行之间可使用 Separator 细线。
-- ImageGallery 拼图图块默认贴合。宿主通过 OpenUIPresentation 的 imageGallerySpacing 设置图块间距，单位为 pt。
+- ImageGallery 拼图图块的默认间距为 1 pt。宿主通过 OpenUIPresentation 的 imageGallerySpacing 设置间距，单位为 pt。
 - Steps 的解释属于正文。ListItem 的 subtitle 继续表示辅助信息；需要多段核心解释时，组合 TextContent/Markdown，而不是把正文都放进小号副标题。
 - ListBlock 的图文模式使用统一的 3:4 竖图画框。每行共用按内容宽度分配的图片列宽，窄栏先缩小图片，图文横排空间不足时改为上下排。加载、失败和成功沿用同一画框。
 - 主 Metric 与行内数字按角色区分；数值和单位保持完整，超长金额不缩字号或截断小数。
@@ -256,11 +260,10 @@ Map 表达来源坐标与选点，不表示真实导航、实时交通或已完�
 - 普通无绑定地图默认选择第一处有效地点并显示地点卡，初始相机仍展示全部点位；用户点选后聚焦。点集新增或重排时保留仍有效的本地选择，选点被删除才回到新的首点。宿主显式选择绑定优先，null 或无效值不被组件改写。关闭完整查看保留选择，换文档清理旧选择、相机与展开状态。
 - 缺图在原透明缩略图槽中央显示 mappin.and.ellipse。没有额外色块、圆盘、描边或阴影；地点卡片自身的表面继续保留。无 URL、等待、失败、恢复与成功淡入遵守同一占位规则，照片加载不挤动相邻文字。
 - 紧凑地点卡的圆角比地图容器小 9 pt，使用主题加重的标题和说明文字展示地点摘要；箭头直接打开该点的有效 URL，无 URL 时保留原有稳定空位。地图展开仍进入完整地图，不额外增加地点详情 sheet；旧文档回调与未就绪内容不能派发外链。
-- 内容图、缩略图、图文卡与图库失败时使用 16 pt photo 图标；宽度至少 160 pt 且单行文案完整放得下时，再显示本地化的“图片暂不可用”，放不下就只留图标。内容图使用现有浅色媒体表面，缩略图沿用所属容器。不显示 alt 正文、详细错误或独立 Retry 按钮；有有效请求时点击整个占位重试，无地址或无效地址不发起空请求。地图保留所属组件的无底色 POI 占位。有限自动恢复按上述传输失败规则进行，尺寸测量不刷新签名或把永久失败当作可恢复错误。
-- `imagePlaceholderBackground` 单独控制图片与 SVG 加载占位、图片成功淡入时的背景；未配置时使用 SDK 的默认图片占位色，随系统明暗模式变化。其他组件继续使用 `sunk`，图片失败状态仍沿用其所属容器的背景。
-- 加载与失败内容在同一媒体槽位内互斥显示，加载期间不挂载失败图标或文案，也不通过整层淡出露出下面的失败状态。宿主提供透明媒体表面时同样只有一套占位；保留加载 shimmer 与成功图片淡入。图片请求是否失败与占位如何绘制分开定位，不能仅凭失败占位把网络或鉴权错误归给客户端或 SDK。
+- 内容图、缩略图、图文卡与图库使用相同的图片占位底色，空间足够的画框中央显示图片图标。加载时柔和的高光扫过底色，失败后停止扫描并保留底色和图标。具备有效请求的占位可以点击重试，加载和重试状态由无障碍语义提供。有限自动恢复按上述传输失败规则进行，尺寸测量不刷新请求签名。
+- `imagePlaceholderBackground` 控制图片占位底色、图片成功淡入时的底色及 SVG 加载底色。SDK 默认色随系统明暗模式变化。地图照片可以使用地图组件提供的无底色 POI 图标。
 - 独立 Image / ImageBlock 恢复固定封面比例，默认 16:9，并填充裁剪超出部分；加载、失败与成功保持同一声明几何，完整原图通过媒体预览查看。宿主的 coverAspectRatio 继续生效。Markdown 内嵌图片仍使用已有原比例路径，图片来源变化不能借用上一资源的尺寸；不按 URL 或图中文字猜测用途。
-- 图库按张数与系统横向尺寸类排布。一张使用封面画框，两张优先按方形画框并排。三张图左主右辅，主图跨两行，宽度等于两格辅图，主辅图的画框比例接近。四张图的左侧主图跨两行。五张缩略图在横向紧凑尺寸下上二下三，在宽展尺寸下左侧一张主图、右侧四格。照片间使用呈现环境的 borderWidth 作细缝，默认 1 pt，图库外轮廓使用主题的 radius3xl。
+- 图库按张数与系统横向尺寸类排布。一张使用封面画框，两张优先按方形画框并排。三张图左主右辅，主图跨两行，宽度等于两格辅图，主辅图的画框比例接近。四张图的左侧主图跨两行。五张缩略图在横向紧凑尺寸下上二下三，在宽展尺寸下左侧一张主图、右侧四格。图块间距使用 imageGallerySpacing，默认 1 pt，图库外轮廓使用主题的 radius3xl。
 - 正文图库以同一内容宽度的单张封面高度为上限。宿主通过 OpenUIPresentation.viewportHeight 提供已知的阅读视口时，再受该高度限制。纵向紧凑时，整体最多占两行紧凑缩略图的高度。图片等比填充并裁切在框内，点开可看完整原图。
 - 流式图库在图片数组闭合、张数确定后预留前五张的画框，图片数据或像素到达后填入原位置。加载、失败和重试时保留画框尺寸。数组尚未闭合时使用等待占位。
 - 图库正文最多展示五张缩略图。辅助阅读字号或画框无法满足平台最低触控尺寸时，正文显示首张封面。还有其他图片时在右下角显示小型图库图标，使用本地化的“查看全部”无障碍标签和标准触控尺寸。点任一可预览的图片从该图进入完整集合。大图预览提供逐图说明。未就绪引用保留已有槽位与资源身份。

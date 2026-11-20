@@ -18,17 +18,12 @@ struct NativeLoadingSurface: View {
   @State private var animating = false
 
   var body: some View {
+    let canAnimate = active && !reduceMotion && scenePhase == .active
     GeometryReader { geometry in
       ZStack {
         background ?? theme.sunk
-        theme.textNeutralSecondary.opacity(0.035)
-        if showsMediaSymbol && geometry.size.width >= 64 && geometry.size.height >= 48 {
-          Image(systemName: "photo")
-            .openUIFont(theme.textBodyDefault)
-            .foregroundStyle(theme.textNeutralSecondary.opacity(0.22))
-        }
-        if animating {
-          LinearGradient(colors: [.clear, .white.opacity(colorScheme == .dark ? 0.10 : 0.55), .clear],
+        if canAnimate && animating {
+          LinearGradient(colors: [.clear, .white.opacity(colorScheme == .dark ? 0.16 : 0.65), .clear],
             startPoint: .leading, endPoint: .trailing)
             .frame(width: geometry.size.width * 0.55)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -38,12 +33,17 @@ struct NativeLoadingSurface: View {
               .repeatForever(autoreverses: false), value: sweeping)
             .onAppear { sweeping = true }
         }
+        if showsMediaSymbol && geometry.size.width >= 64 && geometry.size.height >= 48 {
+          Image(systemName: "photo")
+            .openUIFont(theme.textBodyDefault)
+            .foregroundStyle(theme.textNeutralSecondary.opacity(0.22))
+        }
       }
     }
     .allowsHitTesting(false).accessibilityHidden(true)
-    .task(id: active && !reduceMotion && scenePhase == .active) {
+    .task(id: canAnimate) {
       animating = false; sweeping = false
-      guard active, !reduceMotion, scenePhase == .active else { return }
+      guard canAnimate else { return }
       do { try await Task.sleep(nanoseconds: nativePresentation.motion.loadingDelayNanoseconds) }
       catch { return }
       guard !Task.isCancelled else { return }
@@ -66,7 +66,7 @@ struct NativeMediaReveal: ViewModifier {
     ZStack {
       Group {
         if let fallbackSystemImage {
-          NativeUnavailableMedia(theme: theme, systemImage: fallbackSystemImage)
+          NativeMediaSymbol(theme: theme, systemImage: fallbackSystemImage)
         } else { theme.imagePlaceholderBackground }
       }.opacity(visible || !enabled ? 0 : 1)
       content.opacity(visible || !enabled ? 1 : 0)

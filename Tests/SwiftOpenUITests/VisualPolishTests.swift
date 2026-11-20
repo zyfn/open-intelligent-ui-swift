@@ -158,6 +158,7 @@ final class VisualPolishTests: XCTestCase {
   @MainActor func testImageGallerySpacingIsIndependentOfTheBorderWidth() throws {
     let source = #"root=Stack([ImageGallery([{src:""}, {src:""}])])"#
     var presentation = OpenUIPresentation()
+    XCTAssertEqual(presentation.imageGallerySpacing, 1)
     let defaultGallery = try raster(source, presentation: presentation)
     presentation.borderWidth = 8
     let thickerBorder = try raster(source, presentation: presentation)
@@ -267,6 +268,7 @@ final class VisualPolishTests: XCTestCase {
     // snapshots assert the final artwork, not the operating system preference.
     var presentation = OpenUIPresentation()
     presentation.motion.mediaRevealDuration = 0
+    presentation.motion.loadingIndicatorDelay = 60
     return AnyView(view.openUIPresentation(presentation)
       .transaction { $0.animation = nil; $0.disablesAnimations = true }
       .frame(width: width).background(Color.white))
@@ -332,25 +334,30 @@ final class VisualPolishTests: XCTestCase {
     }
   }
 
-  @MainActor func testMissingOrdinaryArtworkHasVisiblePlaceholderAndPreservesDeclaredGeometry() throws {
-    let (host, window) = artworkHost(NativeRemoteImage(src: nil, alt: "描述", layout: .aspect(1.5)),
+  @MainActor func testMissingOrdinaryArtworkKeepsThePhotoSymbolAndDeclaredGeometry() throws {
+    var theme = OpenUITheme()
+    theme.imagePlaceholderBackground = Color(red: 0, green: 1, blue: 0)
+    let (host, window) = artworkHost(NativeRemoteImage(src: nil, alt: "描述", layout: .aspect(1.5)).openUITheme(theme),
       size: CGSize(width: 180, height: 120))
     defer { window.close() }
     let image = try artworkPixels(host, name: "media-missing-placeholder")
-    XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 20,
-      "An ordinary missing image keeps a visible photo symbol instead of an empty slot")
-    for (x, y) in [(0.1, 0.1), (0.5, 0.1), (0.9, 0.9)] {
-      let offset = (Int(Double(image.height) * y) * image.width + Int(Double(image.width) * x)) * 4
-      XCTAssertGreaterThanOrEqual(image.pixels[offset], 250)
-      XCTAssertGreaterThanOrEqual(image.pixels[offset + 1], 250)
-      XCTAssertGreaterThanOrEqual(image.pixels[offset + 2], 250,
-        "The compact photo symbol does not add a background tile")
+    let fillCount = image.count { r, g, b in
+      r == image.pixels[0] && g == image.pixels[1] && b == image.pixels[2]
     }
+    let fill = image.pixels.prefix(3)
+    let centerHasSymbol = (image.height / 3..<image.height * 2 / 3).contains { y in
+      (image.width / 3..<image.width * 2 / 3).contains { x in
+        let offset = (y * image.width + x) * 4
+        return !image.pixels[offset..<(offset + 3)].elementsEqual(fill)
+      }
+    }
+    XCTAssertGreaterThan(fillCount, image.width * image.height * 98 / 100)
+    XCTAssertTrue(centerHasSymbol, "The centered photo symbol remains visible")
     XCTAssertEqual(host.fittingSize.width, 180, accuracy: 1)
     XCTAssertEqual(host.fittingSize.height, 120, accuracy: 1)
   }
 
-  @MainActor func testFailedPhotoKeepsVisiblePlaceholderWithoutRefetchingOnFitting() async throws {
+  @MainActor func testFailedPhotoKeepsLoadingFillWithoutRefetchingOnFitting() async throws {
     let loader = ArtworkFailureLoader()
     let loading = expectation(description: "loading presented")
     let unavailable = expectation(description: "failure presented")
@@ -363,11 +370,11 @@ final class VisualPolishTests: XCTestCase {
     defer { window.close(); Task { await loader.releaseFailure() } }
     await fulfillment(of: [loading], timeout: 3)
     let before = host.fittingSize
+    let waiting = try artworkPixels(host, name: "media-before-failure")
     await loader.releaseFailure()
     await fulfillment(of: [unavailable], timeout: 3)
     let image = try artworkPixels(host, name: "media-failed-placeholder")
-    XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 20,
-      "A terminal image failure must leave a visible recovery target")
+    XCTAssertEqual(image.pixels, waiting.pixels, "Failure keeps the loading placeholder fill")
     XCTAssertEqual(host.fittingSize, before, "A failure must not move neighboring text")
     for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
     XCTAssertEqual(loader.calls, 1)
@@ -388,7 +395,6 @@ final class VisualPolishTests: XCTestCase {
     await fulfillment(of: [unavailable], timeout: 3)
     let before = host.fittingSize
     let failureImage = try artworkPixels(host, name: "media-before-manual-retry")
-    XCTAssertGreaterThan(failureImage.count { r, g, b in min(r, g, b) < 180 }, 20)
     for _ in 0..<20 { _ = host.fittingSize; host.layoutSubtreeIfNeeded() }
     XCTAssertEqual(loader.calls, 1, "Only a user retry may start the next request")
 
@@ -421,19 +427,18 @@ final class VisualPolishTests: XCTestCase {
     host.layoutSubtreeIfNeeded()
   }
 
-  @MainActor func testContentImageFailureKeepsQuietPlaceholderAndRetriesInItsOriginalSlot() async throws {
+  @MainActor func testImageFailureKeepsThemedPlaceholderAndRetriesInItsOriginalSlot() async throws {
     let loader = ArtworkFailureLoader(succeedsOnRetry: true)
     var theme = OpenUITheme()
-    // A host may expose its background through a media slot. Loading must
-    // remain correct without an opaque layer hiding the failure presentation.
-    theme.sunk = .clear
+    theme.sunk = .red
+    theme.imagePlaceholderBackground = Color(red: 0.2, green: 0.5, blue: 0.9)
     theme.textNeutralSecondary = .black
     let loading = expectation(description: "content image loading")
     let unavailable = expectation(description: "content image unavailable")
     let loaded = expectation(description: "content placeholder retry loaded")
     var sawLoading = false, sawFailure = false, sawSuccess = false
     func content(alt: String) -> some View {
-      NativeRemoteImage(src: "https://artwork.test/fail", alt: alt, layout: .aspect(1.5), role: .content,
+      NativeRemoteImage(src: "https://artwork.test/fail", alt: alt, layout: .aspect(1.5),
         onStatus: { status, _ in
           if status == .loading && !sawLoading { sawLoading = true; loading.fulfill() }
           if status == .unavailable && !sawFailure { sawFailure = true; unavailable.fulfill() }
@@ -447,15 +452,12 @@ final class VisualPolishTests: XCTestCase {
     await fulfillment(of: [loading], timeout: 3)
     let before = host.fittingSize
     let loadingImage = try artworkPixels(host, name: "content-image-loading-placeholder")
-    XCTAssertGreaterThan(loadingImage.count { r, g, b in min(r, g, b) < 245 }, 20,
-      "Loading retains its quiet photo symbol on a transparent surface")
-    XCTAssertEqual(loadingImage.count { r, g, b in min(r, g, b) < 180 }, 0,
-      "Loading must not reveal the failure glyph or its status text underneath")
+    XCTAssertGreaterThan(loadingImage.count { r, _, b in r < 95 && b > 175 },
+      loadingImage.width * loadingImage.height * 98 / 100)
     await loader.releaseFailure()
     await fulfillment(of: [unavailable], timeout: 3)
     let image = try artworkPixels(host, name: "content-image-failed-placeholder")
-    XCTAssertGreaterThan(image.count { r, g, b in min(r, g, b) < 180 }, 40,
-      "A quiet photo glyph keeps the reserved media region recognizable")
+    XCTAssertEqual(image.pixels, loadingImage.pixels, "Failure retains the themed fill and photo symbol without adding status copy")
     XCTAssertEqual(host.fittingSize, before, "A resource failure cannot move adjacent content")
     host.rootView = artworkRoot(content(alt: "A different, much longer alternative description remains available to VoiceOver."), width: 240)
     try await Task.sleep(nanoseconds: 100_000_000)

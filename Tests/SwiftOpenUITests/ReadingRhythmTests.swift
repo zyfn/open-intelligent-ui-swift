@@ -229,189 +229,104 @@ final class ReadingRhythmTests: XCTestCase {
     XCTAssertGreaterThan(try height(numeric, theme: theme), try height(numeric) + 15)
   }
 
-  @MainActor func testReadOnlyRowsUseTheirCompactSpacingRole() throws {
-    let source = "root=EntityList([{left:\"One\",right:\"First\"},{left:\"Two\",right:\"Second\"}])"
+  @MainActor func testEntityRowsUseTheSharedVerticalSpacingToken() throws {
+    let source = #"root=EntityList([{left:"One",right:"First"},{left:"Two",right:"Second"}],"small")"#
     var theme = OpenUIThemeValues()
-    theme.spaceS = 26
+    theme.spaceM = 26
     XCTAssertGreaterThan(try height(source, theme: theme), try height(source) + 50,
-      "Read-only row spacing uses spaceS; spaceM remains the column and group gap")
+      "The compact list uses spaceM for row padding")
   }
 
-  @MainActor func testLongEntityValuesWrapInsideTheirColumnWithoutMovingBelowTheLabel() throws {
-    _ = NSApplication.shared
-    let library = try OpenUIComponents.library()
-    let state = OpenUIState(schema: library.library.toSchema())
-    let value = "这是一段较长的范围说明，用于让字段值在手机宽度下自然换行。\nEND"
-    let literal = try XCTUnwrap(String(data: JSONEncoder().encode(value), encoding: .utf8))
-    state.setSource("""
-      root=EntityList([
-        {left:"范围",right:\(literal)},
-        {left:"航班号与承运人",right:"10 个全部对应"},
-        {left:"起飞 / 到达时刻",right:"含跨夜的次日到达"},
-        {left:"机场与航站楼",right:"含 3 个中转方案"},
-        {left:"时长与价格",right:"2h15m–27h45m"}
-      ])
-      """)
-    XCTAssertTrue(state.errors.isEmpty)
-    var theme = OpenUIThemeValues()
-    theme.textNeutralPrimary = .black
-    theme.textNeutralSecondary = Color(red: 1, green: 0, blue: 0)
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
-      .openUITheme(theme)
-      .frame(width: 300).padding(10).background(Color.white))
-    host.frame = CGRect(origin: .zero, size: host.fittingSize)
-    host.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-    host.frame = CGRect(origin: .zero, size: host.fittingSize)
-    host.layoutSubtreeIfNeeded()
-    let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-    host.cacheDisplay(in: host.bounds, to: bitmap)
-    let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
-    var bands: [(first: Int, last: Int, left: Int)] = []
-    var firstLabelInk: Int?
-    var lastLabelInk = 0
-    for y in 0..<bitmap.pixelsHigh {
-      for x in 0..<bitmap.pixelsWide {
-        if let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
-          c.redComponent > 0.7 && c.greenComponent < 0.3 && c.blueComponent < 0.3 {
-          if firstLabelInk == nil { firstLabelInk = y }
-          lastLabelInk = max(lastLabelInk, x)
-        }
+  @MainActor func testEntityListAlignsHeaderTextNumbersAndFooterToTheTrailingEdge() throws {
+    for size in ["default", "small"] {
+      let decorations = size == "default"
+        ? #",{left:"项目",right:"明细"},{left:"合计",right:"¥60",rightVariant:"number"}"# : ""
+      let columns = try entityInkBands("""
+        root=EntityList([
+          {left:"交通",right:"¥60",rightVariant:"number"},
+          {left:"景点",right:"已预约"}
+        ],"\(size)"\(decorations))
+        """)
+      let count = size == "default" ? 4 : 2
+      XCTAssertEqual(columns.labels.count, count)
+      XCTAssertEqual(columns.values.count, count)
+
+      let edge = try XCTUnwrap(columns.values.first).upperBound
+      XCTAssertGreaterThan(edge, 290, "The value column should reach the trailing edge")
+      for value in columns.values.dropFirst() {
+        XCTAssertEqual(value.upperBound, edge, accuracy: 4)
       }
-      let ink = (0..<bitmap.pixelsWide).filter { x in
-        guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
-        return c.alphaComponent > 0.8 && max(c.redComponent, c.greenComponent, c.blueComponent) < 0.4
-      }
-      guard ink.count >= 2, let left = ink.first else { continue }
-      if let last = bands.last, y - last.last <= 2 {
-        bands[bands.count - 1] = (last.first, y, min(last.left, left))
-      } else { bands.append((y, y, left)) }
-    }
-    let lines = bands.filter { CGFloat($0.last - $0.first + 1) >= 6 * scale }
-    XCTAssertGreaterThanOrEqual(lines.count, 5, "The fixture must render values from all five rows")
-    XCTAssertEqual(CGFloat(try XCTUnwrap(firstLabelInk)) / scale,
-      CGFloat(try XCTUnwrap(lines.first).first) / scale, accuracy: 5,
-      "The first value line must align with the label instead of stacking below it")
-    let firstValueX = CGFloat(try XCTUnwrap(lines.first).left) / scale
-    XCTAssertLessThan(CGFloat(lastLabelInk) / scale, firstValueX,
-      "Even a long label must stay to the left of every value")
-    XCTAssertLessThan(firstValueX, 10 + (300 + theme.spaceM) / 2,
-      "Short labels should leave more than half the width to the values")
-    for line in lines {
-      XCTAssertEqual(CGFloat(line.left) / scale, firstValueX, accuracy: 8,
-        "Every row and wrapped value line must begin at the same shared column")
     }
   }
 
-  @MainActor func testNumericEntityValuesRemainTrailingAligned() throws {
-    _ = NSApplication.shared
-    let library = try OpenUIComponents.library()
-    let state = OpenUIState(schema: library.library.toSchema())
-    state.setSource("""
-      root=EntityList([{left:"门票",right:"9",rightVariant:"number"},
-                       {left:"预估费用",right:"1200",rightVariant:"number"}])
-      """)
-    XCTAssertTrue(state.errors.isEmpty)
-    var theme = OpenUIThemeValues()
-    theme.textNeutralPrimary = .black
-    theme.textNeutralSecondary = .red
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
-      .openUITheme(theme).frame(width: 300).padding(10).background(Color.white))
-    host.frame = CGRect(origin: .zero, size: host.fittingSize)
-    host.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-    host.layoutSubtreeIfNeeded()
-    let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-    host.cacheDisplay(in: host.bounds, to: bitmap)
-    var bands: [(lastY: Int, right: Int)] = []
-    for y in 0..<bitmap.pixelsHigh {
-      let ink = (0..<bitmap.pixelsWide).filter { x in
-        guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
-        return color.alphaComponent > 0.8 && max(color.redComponent, color.greenComponent, color.blueComponent) < 0.4
-      }
-      guard ink.count >= 2, let right = ink.last else { continue }
-      if let last = bands.last, y - last.lastY <= 2 {
-        bands[bands.count - 1] = (y, max(last.right, right))
-      } else { bands.append((y, right)) }
-    }
-    XCTAssertEqual(bands.count, 2, "Both numeric rows must render")
-    guard bands.count == 2 else { return }
-    let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
-    XCTAssertEqual(CGFloat(bands[0].right) / scale, CGFloat(bands[1].right) / scale, accuracy: 2,
-      "Numeric values retain a shared trailing edge")
+  @MainActor func testEntityListRetainsTheTrailingEdgeAsRowsArrive() throws {
+    let prefix = """
+      root=EntityList(rows)
+      rows=[{left:"景点",right:"已预约"},
+      """
+    let first = try XCTUnwrap(entityInkBands(prefix, streaming: true).values.first)
+    let complete = prefix + #"{left:"机场与航站楼",right:"¥120",rightVariant:"number"}]"#
+    let appended = try entityInkBands(complete, streaming: true).values
+    let restored = try entityInkBands(complete).values
+    XCTAssertEqual(appended.count, 2)
+    XCTAssertEqual(restored.count, 2)
+    XCTAssertGreaterThan(first.upperBound, 290)
+    XCTAssertEqual(try XCTUnwrap(appended.first).upperBound, first.upperBound, accuracy: 3)
+    XCTAssertEqual(try XCTUnwrap(restored.first).upperBound, first.upperBound, accuracy: 3)
   }
 
-  @MainActor func testShortEntityLabelsDoNotReserveAnOversizedColumn() throws {
-    _ = NSApplication.shared
-    let library = try OpenUIComponents.library()
-    let state = OpenUIState(schema: library.library.toSchema())
-    state.setSource("root=EntityList([{left:\"A\",right:\"Visible value\"},{left:\"Name\",right:\"Another value\"}])")
-    XCTAssertTrue(state.errors.isEmpty)
-    var theme = OpenUIThemeValues()
-    theme.textNeutralPrimary = .black
-    theme.textNeutralSecondary = .red
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
-      .openUITheme(theme).frame(width: 300).padding(10).background(Color.white))
-    host.frame = CGRect(origin: .zero, size: host.fittingSize)
-    host.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-    host.layoutSubtreeIfNeeded()
-    let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-    host.cacheDisplay(in: host.bounds, to: bitmap)
-    var firstBlackX = bitmap.pixelsWide
-    for y in 0..<bitmap.pixelsHigh {
-      for x in 0..<bitmap.pixelsWide {
-        guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
-        if color.alphaComponent > 0.8 && max(color.redComponent, color.greenComponent, color.blueComponent) < 0.4 {
-          firstBlackX = min(firstBlackX, x)
-        }
-      }
-    }
-    let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
-    XCTAssertLessThan(CGFloat(firstBlackX) / scale, 90,
-      "Short labels should use their natural width instead of always reserving 40%")
-  }
-
-  @MainActor func testLongEntityLabelWrapsWithoutCoveringItsValue() throws {
-    _ = NSApplication.shared
-    let library = try OpenUIComponents.library()
-    let state = OpenUIState(schema: library.library.toSchema())
-    state.setSource("root=EntityList([{left:\"特别长的字段名称需要在窄屏上完整换行\",right:\"Visible value\"}])")
-    XCTAssertTrue(state.errors.isEmpty)
-    var theme = OpenUIThemeValues()
-    theme.textNeutralPrimary = .black
-    theme.textNeutralSecondary = .red
+  @MainActor func testEntityListWrapsBothColumnsInANarrowViewport() throws {
+    let label = #"root=EntityList([{left:"特别长的字段名称需要在窄屏上完整换行",right:""}])"#
+    let value = #"root=EntityList([{left:"",right:"这段说明也需要在右侧值列内完整换行。"}])"#
     for size in [DynamicTypeSize.large, .xxxLarge] {
-      let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
-        .openUITheme(theme).environment(\.dynamicTypeSize, size)
-        .frame(width: 180).padding(10).background(Color.white))
-      host.frame = CGRect(origin: .zero, size: host.fittingSize)
-      host.layoutSubtreeIfNeeded()
-      RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-      host.frame = CGRect(origin: .zero, size: host.fittingSize)
-      host.layoutSubtreeIfNeeded()
-      let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-      host.cacheDisplay(in: host.bounds, to: bitmap)
-      var lastRedX = 0, firstBlackX = bitmap.pixelsWide
-      var redBands = 0, lastRedY = -10
-      for y in 0..<bitmap.pixelsHigh {
-        var hasRed = false
-        for x in 0..<bitmap.pixelsWide {
-          guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
-          if c.redComponent > 0.7 && c.greenComponent < 0.3 && c.blueComponent < 0.3 {
-            hasRed = true; lastRedX = max(lastRedX, x)
-          } else if c.alphaComponent > 0.8 && max(c.redComponent, c.greenComponent, c.blueComponent) < 0.4 {
-            firstBlackX = min(firstBlackX, x)
-          }
-        }
-        if hasRed {
-          if y - lastRedY > 2 { redBands += 1 }
-          lastRedY = y
-        }
-      }
-      XCTAssertGreaterThanOrEqual(redBands, 3, "The long label must wrap at \(size)")
-      XCTAssertLessThan(lastRedX, firstBlackX, "The label must not cover its value at \(size)")
+      let labels = try entityInkBands(label, width: 180, dynamicType: size)
+      let values = try entityInkBands(value, width: 180, dynamicType: size)
+      XCTAssertGreaterThanOrEqual(labels.labels.count, 3, "The label must wrap at \(size)")
+      XCTAssertTrue(labels.values.isEmpty, "A long label must stay inside its half")
+      XCTAssertGreaterThanOrEqual(values.values.count, 3, "The value must wrap at \(size)")
+      XCTAssertTrue(values.labels.isEmpty, "A long value must stay inside its half")
     }
+  }
+
+  @MainActor private func entityInkBands(
+    _ source: String, width: CGFloat = 300, dynamicType: DynamicTypeSize = .large, streaming: Bool = false
+  ) throws -> (labels: [ClosedRange<CGFloat>], values: [ClosedRange<CGFloat>]) {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.setSource(source, streaming: streaming)
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    var theme = OpenUIThemeValues()
+    theme.textNeutralPrimary = .black
+    theme.textNeutralSecondary = .black
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .openUITheme(theme).environment(\.dynamicTypeSize, dynamicType)
+      .frame(width: width).padding(10).background(Color.white))
+    host.frame = CGRect(origin: .zero, size: host.fittingSize)
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+    host.layoutSubtreeIfNeeded()
+    let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    host.cacheDisplay(in: host.bounds, to: bitmap)
+    let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
+
+    func inkBands(in columns: Range<Int>) -> [ClosedRange<CGFloat>] {
+      var bands: [(lastY: Int, left: Int, right: Int)] = []
+      for y in 0..<bitmap.pixelsHigh {
+        let ink = columns.filter { x in
+          guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
+          return color.alphaComponent > 0.8 && max(color.redComponent, color.greenComponent, color.blueComponent) < 0.4
+        }
+        guard ink.count >= 2, let left = ink.first, let right = ink.last else { continue }
+        if let last = bands.last, y - last.lastY <= 2 {
+          bands[bands.count - 1] = (y, min(last.left, left), max(last.right, right))
+        } else { bands.append((y, left, right)) }
+      }
+      return bands.map { CGFloat($0.left) / scale...CGFloat($0.right) / scale }
+    }
+
+    let midpoint = bitmap.pixelsWide / 2
+    return (inkBands(in: 0..<midpoint), inkBands(in: midpoint..<bitmap.pixelsWide))
   }
 
   @MainActor func testSingleStackedBarUsesAnIntrinsicCompactPlot() throws {
