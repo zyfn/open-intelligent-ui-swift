@@ -17,6 +17,24 @@ LIBRARIES = {"openui", "openintelligentui"}
 IDENTIFIER = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
+def resolve_component_example(samples: dict, name: str) -> dict:
+    visited: set[str] = set()
+    while name not in visited:
+        visited.add(name)
+        sample = samples.get(name)
+        if not isinstance(sample, dict):
+            raise ValueError(f"{name}: expected a component example object")
+        parent = sample.get("container")
+        if parent is None:
+            return sample
+        if not isinstance(parent, str) or parent not in samples:
+            raise ValueError(f"{name}: unknown parent component {parent!r}")
+        if sample.get("category") is not None or sample.get("program") is not None:
+            raise ValueError(f"{name}: nested components inherit their parent's category and program")
+        name = parent
+    raise ValueError(f"{name}: component example parent cycle")
+
+
 def check_catalogs(resources: Path) -> dict:
     resources = resources.resolve()
     problems: list[str] = []
@@ -124,15 +142,22 @@ def check_catalogs(resources: Path) -> dict:
             if not isinstance(samples, dict) or not samples:
                 raise ValueError("expected a nonempty component example object")
             component_counts[library] = len(samples)
-            for name, sample in samples.items():
-                if not isinstance(sample, dict) or not sample.get("category") or not sample.get("program"):
-                    problems.append(f"Components/{library}/{name}: missing category or program")
-                elif sample["category"] not in component_directories:
-                    problems.append(f"Components/{library}/{name}: unknown source directory {sample['category']}")
-                elif library == "openintelligentui" and sample["category"] != intelligent_directories.get(name):
-                    problems.append(f"Components/{library}/{name}: directory does not match its SDK source")
-                elif f"{name}(" not in sample["program"]:
-                    problems.append(f"Components/{library}/{name}: example does not use its component")
+            for name in samples:
+                label = f"Components/{library}/{name}"
+                try:
+                    sample = resolve_component_example(samples, name)
+                except ValueError as error:
+                    problems.append(f"{label}: {error}")
+                    continue
+                category, program = sample.get("category"), sample.get("program")
+                if not isinstance(category, str) or not category or not isinstance(program, str) or not program.strip():
+                    problems.append(f"{label}: missing category or program")
+                elif category not in component_directories:
+                    problems.append(f"{label}: unknown source directory {category}")
+                elif library == "openintelligentui" and category != intelligent_directories.get(name):
+                    problems.append(f"{label}: directory does not match its SDK source")
+                elif f"{name}(" not in program:
+                    problems.append(f"{label}: example does not use its component")
         except (ValueError, OSError) as error:
             problems.append(f"Components/{library}: {error}")
     image_count = 0
