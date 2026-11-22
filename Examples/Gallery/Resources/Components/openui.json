@@ -95,6 +95,11 @@
   "Carousel": {
     "examples": [
       {
+        "id": "photo-cards",
+        "title": "图文卡片",
+        "program": "root = Carousel([lake, palace, museum])\nlake = [Image(\"西湖晚霞\", \"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/West_Lake_%28Hangzhou%29_sunset_2016_January.jpg/960px-West_Lake_%28Hangzhou%29_sunset_2016_January.jpg\"), CardHeader(\"西湖日落\"), TextContent(\"沿湖走一段，等夕阳沉到远山后面。\")]\npalace = [Image(\"德寿宫\", \"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Deshou_Palace.jpg/960px-Deshou_Palace.jpg\"), CardHeader(\"德寿宫\"), TextContent(\"从红墙走进展馆，读一段南宋的临安往事。\")]\nmuseum = [Image(\"良渚博物院\", \"https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Liangzhu_Museum%2C_2019-07-07_04.jpg/960px-Liangzhu_Museum%2C_2019-07-07_04.jpg\"), CardHeader(\"良渚博物院\"), TextContent(\"把半天留给玉器、古城模型和馆外的草地。\")]\n"
+      },
+      {
         "id": "basic",
         "title": "卡片样式",
         "program": "root = Stack([Carousel([[CardHeader(\"第一站\"),TextContent(\"湖边散步\")],[CardHeader(\"第二站\"),TextContent(\"街巷漫游\")]])])"

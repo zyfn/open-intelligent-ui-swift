@@ -339,7 +339,6 @@ struct NativeCardBlock: View {
       } else {
         NativePager(ids: children.map(\.id), selection: selection(children), enabled: true,
           identifier: "openui.card-block.\(kind.lowercased())",
-          showsControls: false,
           maximumPageWidth: context.presentation.maximumCarouselCardWidth,
           trailingPeek: context.presentation.carouselPeek, pageSpacing: gap, grid: grid(children), layoutCount: layoutCount, supportsAdjustment: false) { id in
           if let index = byID[id] {

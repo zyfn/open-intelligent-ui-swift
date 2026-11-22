@@ -14,13 +14,12 @@ struct NativeOverviewMetricKey: LayoutValueKey { static let defaultValue = false
 /// Page height is intrinsic, including updates inside a mounted page; it is not
 /// fed back asynchronously through a horizontal ScrollView's fixed frame.
 struct NativePager<ID: Hashable, Content: View>: View {
-    @Environment(\.openUIPresentation) private var nativePresentation
+  @Environment(\.openUIPresentation) private var nativePresentation
 
   let ids: [ID]
   @Binding var selection: ID
   let enabled: Bool
   let identifier: String
-  var showsControls = false
   var maximumPageWidth: CGFloat? = nil
   var trailingPeek: CGFloat = 0
   var pageSpacing: CGFloat = 0
@@ -47,7 +46,11 @@ struct NativePager<ID: Hashable, Content: View>: View {
   #if os(macOS)
   @FocusState private var keyboardFocused: Bool
   #endif
-  private var canSwipe: Bool { enabled && grid == nil && ids.count > 1 }
+  private var canSwipe: Bool {
+    guard enabled, grid == nil, width > 0 else { return false }
+    let track = geometry
+    return track.previousIndex != nil || track.nextIndex != nil
+  }
   private var activeTranslation: CGFloat {
     #if os(iOS)
     if #available(iOS 18, *) { return nativeTranslation }
@@ -77,61 +80,69 @@ struct NativePager<ID: Hashable, Content: View>: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      strip
-      if showsControls && ids.count > 1 {
-        NativePageControls(page: index, count: ids.count, enabled: enabled, identifier: identifier,
-          showsCount: false, select: select)
-      }
-    }
+    strip
     .frame(idealWidth: fallbackWidth, maxWidth: .infinity, alignment: .leading)
     .animation(pagingAnimation, value: selection)
-    .onAppear { if pageRadius != nil { previousSelection = selection } }
-    .onChange(of: selection) { if pageRadius != nil { previousSelection = $0 } }
-    .onChange(of: ids) { available in
-      if !available.contains(selection), let first = available.first { selection = first }
+    .onAppear {
+      reconcileSelection(in: ids)
+      if pageRadius != nil { previousSelection = selection }
     }
+    .onChange(of: selection) { if pageRadius != nil { previousSelection = $0 } }
+    .onChange(of: ids) { reconcileSelection(in: $0) }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier(identifier + ".pager")
-    .accessibilityValue(grid == nil && !ids.isEmpty ? "\(index + 1) / \(ids.count)" : "")
+    .accessibilityValue(grid == nil && !ids.isEmpty && (!isCarousel || canSwipe) ? "\(index + 1) / \(ids.count)" : "")
     .onChange(of: trackingDrag) { if !$0 { activationIntent.ended() } }
     .modifier(NativePagerAdjustment(enabled: supportsAdjustment) { action in
+      guard canSwipe else { return }
       switch action {
-      case .increment: select(index + 1)
-      case .decrement: select(index - 1)
+      case .increment: select(geometry.nextIndex)
+      case .decrement: select(geometry.previousIndex)
       @unknown default: break
       }
     })
     .accessibilityActions {
-      if !supportsAdjustment && grid == nil {
-        Button { select(index - 1) } label: { Text("Previous page", bundle: NativeControlResources.bundle) }
-        Button { select(index + 1) } label: { Text("Next page", bundle: NativeControlResources.bundle) }
+      if !supportsAdjustment && canSwipe {
+        if let previous = geometry.previousIndex {
+          Button { select(previous) } label: { Text("Previous page", bundle: NativeControlResources.bundle) }
+        }
+        if let next = geometry.nextIndex {
+          Button { select(next) } label: { Text("Next page", bundle: NativeControlResources.bundle) }
+        }
       }
     }
     #if os(macOS)
-    .focusable(enabled && grid == nil)
+    .focusable(canSwipe)
     .focused($keyboardFocused)
     .onMoveCommand { movement in
-      guard keyboardFocused, enabled, grid == nil else { return }
+      guard keyboardFocused, canSwipe else { return }
       switch movement {
-      case .left: select(index + (direction == .rightToLeft ? 1 : -1))
-      case .right: select(index + (direction == .rightToLeft ? -1 : 1))
+      case .left: select(direction == .rightToLeft ? geometry.nextIndex : geometry.previousIndex)
+      case .right: select(direction == .rightToLeft ? geometry.previousIndex : geometry.nextIndex)
       default: break
       }
     }
     #endif
   }
 
+  private func reconcileSelection(in available: [ID]) {
+    if !available.contains(selection), let first = available.first { selection = first }
+  }
+
   private var strip: some View {
-    NativePagerLayout(
+    let range = pageRange
+    let track = geometry
+    return NativePagerLayout(
       selected: index, maximumPageWidth: maximumPageWidth,
       minimumPageWidth: nativePresentation.minimumCardWidth, peek: trailingPeek, spacing: pageSpacing,
       fallbackWidth: fallbackWidth, translation: activeTranslation, rightToLeft: direction == .rightToLeft,
       grid: grid, layoutCount: layoutCount,
-      firstPageIndex: pageRange.lowerBound, totalPageCount: ids.count
+      firstPageIndex: range.lowerBound, totalPageCount: ids.count
     ) {
-      ForEach(Array(ids[pageRange]), id: \.self) { id in
-        content(id).id(id).accessibilityHidden(grid == nil && !isCarousel && id != selection)
+      ForEach(Array(ids[range].enumerated()), id: \.element) { offset, id in
+        let pageIndex = range.lowerBound + offset
+        let inViewport = isCarousel && width > 0 && track.fullyShowsPage(at: pageIndex)
+        content(id).id(id).accessibilityHidden(grid == nil && pageIndex != index && !inViewport)
       }
     }
     .clipped().contentShape(Rectangle())
@@ -152,35 +163,35 @@ struct NativePager<ID: Hashable, Content: View>: View {
         .updating($trackingDrag) { _, tracking, _ in tracking = canSwipe }
         .onChanged { _ in if canSwipe { activationIntent.moved() } }
         .updating($translation) { value, current, _ in
-          guard enabled, grid == nil, ids.count > 1, abs(value.translation.width) > abs(value.translation.height) else { return }
+          guard canSwipe, abs(value.translation.width) > abs(value.translation.height) else { return }
           let movement = value.translation.width * (direction == .rightToLeft ? -1 : 1)
-          let edge = (index == 0 && movement > 0) || (index == ids.count - 1 && movement < 0)
+          let edge = (geometry.previousIndex == nil && movement > 0) || (geometry.nextIndex == nil && movement < 0)
           current = movement * (edge ? 0.2 : 1)
         }
         .onEnded { value in
           activationIntent.ended()
-          guard enabled, grid == nil, abs(value.translation.width) > abs(value.translation.height),
+          guard canSwipe, abs(value.translation.width) > abs(value.translation.height),
             abs(value.predictedEndTranslation.width) > max(24, geometry.stride * 0.2)
           else { return }
           let movement = value.predictedEndTranslation.width * (direction == .rightToLeft ? -1 : 1)
-          select(index + (movement < 0 ? 1 : -1))
+          select(movement < 0 ? geometry.nextIndex : geometry.previousIndex)
         }, changed: { movement in
           guard canSwipe else { return }
           activationIntent.moved()
           let logical = movement * (direction == .rightToLeft ? -1 : 1)
-          let edge = (index == 0 && logical > 0) || (index == ids.count - 1 && logical < 0)
+          let edge = (geometry.previousIndex == nil && logical > 0) || (geometry.nextIndex == nil && logical < 0)
           nativeTranslation = logical * (edge ? 0.2 : 1)
         }, ended: { projected in
           nativeTranslation = 0
           activationIntent.ended()
           guard canSwipe, let projected, abs(projected) > max(24, geometry.stride * 0.2) else { return }
           let logical = projected * (direction == .rightToLeft ? -1 : 1)
-          select(index + (logical < 0 ? 1 : -1))
+          select(logical < 0 ? geometry.nextIndex : geometry.previousIndex)
         }))
   }
 
-  private func select(_ next: Int) {
-    guard enabled, ids.indices.contains(next) else { return }
+  private func select(_ next: Int?) {
+    guard enabled, let next, ids.indices.contains(next) else { return }
     selection = ids[next]
   }
 }
@@ -210,6 +221,14 @@ struct NativePagerGeometry {
   let pageWidth: CGFloat
   let stride: CGFloat
   let offset: CGFloat
+  let maximumOffset: CGFloat
+  let previousIndex: Int?
+  let nextIndex: Int?
+
+  func fullyShowsPage(at index: Int) -> Bool {
+    let start = CGFloat(index) * stride - offset
+    return start >= -0.5 && start + pageWidth <= width + 0.5
+  }
 
   init(
     width: CGFloat, count: Int, selected: Int, maximumPageWidth: CGFloat?,
@@ -224,8 +243,21 @@ struct NativePagerGeometry {
       pageWidth = self.width
     }
     stride = pageWidth + spacing
-    let end = max(0, CGFloat(count) * pageWidth + CGFloat(max(0, count - 1)) * spacing - self.width)
-    offset = min(max(0, CGFloat(selected) * stride), end)
+    maximumOffset = max(0, CGFloat(count) * pageWidth + CGFloat(max(0, count - 1)) * spacing - self.width)
+    offset = min(max(0, CGFloat(selected) * stride), maximumOffset)
+    // Several final card indices can share the same clamped offset in a wide
+    // viewport. Navigate to a different visible position, not a dead index.
+    if stride.isFinite && stride > 0 && offset.isFinite && maximumOffset.isFinite && count > 0 {
+      var previous = min(count - 1, max(0, Int(ceil(offset / stride)) - 1))
+      if CGFloat(previous) * stride >= offset { previous -= 1 }
+      previousIndex = offset > 0 && previous >= 0 ? previous : nil
+      var next = min(count - 1, Int(floor(offset / stride)) + 1)
+      if min(CGFloat(next) * stride, maximumOffset) <= offset { next += 1 }
+      nextIndex = offset < maximumOffset && next < count ? next : nil
+    } else {
+      previousIndex = nil
+      nextIndex = nil
+    }
   }
 }
 
@@ -296,9 +328,9 @@ private struct NativePagerLayout: Layout {
     let trackHeight = NativePagerContentHeight.measure(heights)
     for (index, view) in subviews.enumerated() {
       let position = CGFloat(index + firstPageIndex) * layout.stride - layout.offset + translation
-      let x = rightToLeft ? bounds.width - layout.pageWidth - position : position
+      // SwiftUI mirrors the leading coordinates of a custom Layout in RTL.
       view.place(
-        at: CGPoint(x: bounds.minX + x, y: bounds.minY), anchor: .topLeading,
+        at: CGPoint(x: bounds.minX + position, y: bounds.minY), anchor: .topLeading,
         proposal: ProposedViewSize(width: layout.pageWidth,
           height: trackHeight))
     }
@@ -371,12 +403,26 @@ private struct NativePagerSizes: PreferenceKey {
 struct NativeCarousel: View {
   let context: OpenUIComponentContext
   @State private var page = 0
-  // Carousel's outer array contains pages; each inner array is one page.
-  // Rendering-child flattening is appropriate inside a page, never between pages.
-  private var pages: [Value] { NativeValue.array(context.value("children")) }
   var body: some View {
-    NativePager(ids: Array(pages.indices), selection: $page, enabled: true, identifier: "openui.carousel") { index in
-      VStack(alignment: .leading, spacing: context.theme.spacing("s")) { context.render(pages[index]) }
+    let source = context.element.sourceReadiness["children"]
+    // The presentation projection restores the original array positions. Each
+    // resolved inner array owns that slot for the life of the stream.
+    let slots = NativeValue.array(context.presentationValue())
+    let valueIndices = source.valueIndices.flatMap { $0.count == slots.count ? $0 : nil }
+    let ready = slots.indices.filter { slot in
+      guard case .array(let children) = slots[slot] else { return false }
+      if children.contains(where: { !$0.isNullish }) { return true }
+      // A pending inner array may already exist without any renderable child.
+      // Keep explicitly empty authored pages, using the retained value's readiness.
+      let valueIndex = valueIndices?[slot] ?? slot
+      return source[valueIndex].complete
+    }
+    let layoutCount = source.closed && !source.complete ? source.expectedCount ?? slots.count : nil
+    return NativePager(ids: ready, selection: $page, enabled: true, identifier: "openui.carousel",
+      maximumPageWidth: context.presentation.maximumCarouselCardWidth,
+      trailingPeek: context.presentation.carouselPeek, pageSpacing: context.theme.spacing("m"),
+      layoutCount: layoutCount, supportsAdjustment: false) { slot in
+      VStack(alignment: .leading, spacing: context.theme.spacing("m")) { context.render(slots[slot]) }
         .modifier(OpenUICardSurface(theme: context.theme, variant: context.string("variant")))
     }
   }
