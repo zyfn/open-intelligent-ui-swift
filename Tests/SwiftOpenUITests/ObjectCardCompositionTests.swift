@@ -305,6 +305,75 @@ final class ObjectCardCompositionTests: XCTestCase {
     return measured.values
   }
 
+  @MainActor func testStreamingCardCopyKeepsMixedRowWidthsStable() throws {
+    _ = NSApplication.shared
+    for (variant, alignment) in [("clear", "start"), ("card", "stretch")] {
+      let library = try OpenUIComponents.library()
+      var registry = library.registry
+      let image = try XCTUnwrap(registry["Image"])
+      let text = try XCTUnwrap(registry["TextContent"])
+      let frames = ObjectCardFrames()
+      let directions = "出站后沿湖边步道一直走到公交站"
+      registry["Image"] = { element, registry in
+        AnyView(image(element, registry).background(GeometryReader { geometry in
+          Color.clear.onAppear { frames.values["cover"] = geometry.frame(in: .global) }
+            .onChange(of: geometry.frame(in: .global)) { frames.values["cover"] = $0 }
+        }))
+      }
+      registry["TextContent"] = { element, registry in
+        let content = text(element, registry)
+        guard PropValue.string(element, "text") == directions else { return content }
+        return AnyView(content.background(GeometryReader { geometry in
+          Color.clear.onAppear { frames.values["directions"] = geometry.frame(in: .global) }
+            .onChange(of: geometry.frame(in: .global)) { frames.values["directions"] = $0 }
+        }))
+      }
+
+      let state = OpenUIState(schema: library.library.toSchema())
+      state.push("""
+        root=Stack([card,directions],"row","m","\(alignment)","start",false)
+        directions=TextContent("\(directions)")
+        card=Card([Image("湖边"),copy],"\(variant)")
+        copy=TextContent("先到西湖
+        """)
+      let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry)
+        .dynamicTypeSize(.large).frame(width: 350))
+      let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: 350, height: 900),
+        styleMask: [.borderless], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+      defer { window.close() }
+      func settle() {
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        host.layoutSubtreeIfNeeded()
+      }
+
+      settle()
+      let initialCover = try XCTUnwrap(frames.values["cover"])
+      let initialDirections = try XCTUnwrap(frames.values["directions"])
+      let initialHeight = host.fittingSize.height
+      XCTAssertGreaterThan(initialCover.width, 0)
+      XCTAssertGreaterThan(initialDirections.width, 0)
+      state.push("，再沿着湖边步道散步，看完夕阳之后可以到附近的小店休息。")
+      settle()
+
+      let finalCover = try XCTUnwrap(frames.values["cover"])
+      let finalDirections = try XCTUnwrap(frames.values["directions"])
+      XCTAssertEqual(finalCover.width, initialCover.width, accuracy: 1,
+        "Streaming Card copy must stay within its allocated column")
+      XCTAssertEqual(finalDirections.width, initialDirections.width, accuracy: 1)
+      XCTAssertEqual(finalDirections.minX, initialDirections.minX, accuracy: 1)
+      XCTAssertGreaterThan(host.fittingSize.height, initialHeight)
+
+      state.push("\")")
+      state.complete()
+      settle()
+      XCTAssertEqual(try XCTUnwrap(frames.values["cover"]).width, initialCover.width, accuracy: 1)
+      XCTAssertEqual(try XCTUnwrap(frames.values["directions"]).width, initialDirections.width, accuracy: 1)
+      XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    }
+  }
+
   @MainActor func testImagesWaitForUnknownRowContributorsThenStayFixedWhileCopyGrows() throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()

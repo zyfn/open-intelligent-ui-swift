@@ -28,7 +28,7 @@ final class LayoutMeasurementReductionTests: XCTestCase {
         XCTAssertEqual(measurements, 5, "A new layout/subview lifetime must measure again")
     }
 
-    func testFlexReusesNegotiatedWidthsOnlyInsideTheCurrentCall() {
+    func testFlexMeasuresIntrinsicChildrenBeforeSharingTheRemainingWidth() {
         var calls = [Int](repeating: 0, count: 3)
         let actual = NativeFlexRowWidths.proposals(ideal: [40, 200, 80], growing: [false, true, false], width: 360, gap: 10) {
             index, width in
@@ -36,14 +36,16 @@ final class LayoutMeasurementReductionTests: XCTestCase {
             return width
         }
         XCTAssertEqual(actual, [40, 220, 80])
-        XCTAssertEqual(calls, [1, 1, 1])
-        var legacyCalls = 0
-        let expected = legacyFlex(ideal: [40, 200, 80], growing: [false, true, false], width: 360, gap: 10) { _, width in
-            legacyCalls += 1
-            return width
+        XCTAssertEqual(calls, [1, 0, 1])
+    }
+
+    func testFlexGrowingContentDoesNotChangeTheWidthOfAnIntrinsicSibling() {
+        for cardIdeal: CGFloat in [80, 260] {
+            let widths = NativeFlexRowWidths.proposals(
+                ideal: [cardIdeal, 210], growing: [true, false], width: 350, gap: 12
+            ) { _, offered in offered }
+            XCTAssertEqual(widths, [128, 210], "Card ideal width: \(cardIdeal)")
         }
-        XCTAssertEqual(actual, expected)
-        XCTAssertEqual(legacyCalls, 5)
     }
 
     func testFlexWithNoGrowingChildrenDoesNotAddMeasurements() {
@@ -63,20 +65,20 @@ final class LayoutMeasurementReductionTests: XCTestCase {
             return width
         }
         XCTAssertEqual(result, [100, 100, 100])
-        XCTAssertEqual(count, 3)
+        XCTAssertEqual(count, 0)
         XCTAssertTrue(NativeFlexRowWidths.proposals(ideal: [], growing: [], width: 0, gap: 10) { _, _ in
             XCTFail("An empty row must not measure a child")
             return 0
         }.isEmpty)
     }
 
-    func testFlexDifferentClampedProposalIsMeasuredAgain() {
+    func testFlexMeasuresAClampedIntrinsicProposalOnce() {
         var offers: [CGFloat] = []
         let actual = NativeFlexRowWidths.proposals(ideal: [-10, 100], growing: [false, true], width: 200, gap: 10) { index, width in
             if index == 0 { offers.append(width) }
             return max(0, width)
         }
-        XCTAssertEqual(offers, [-10, 0])
+        XCTAssertEqual(offers, [0])
         XCTAssertEqual(actual, [0, 190])
     }
 
@@ -93,11 +95,11 @@ final class LayoutMeasurementReductionTests: XCTestCase {
         let resized = NativeFlexRowWidths.proposals(ideal: [200, 200], growing: [false, true], width: 160, gap: 10, measure: measure)
         XCTAssertEqual(first[1], 360)
         XCTAssertEqual(second[1], 300)
-        XCTAssertEqual(resized[1], 75)
-        XCTAssertEqual(count, 6)
+        XCTAssertEqual(resized[1], 60)
+        XCTAssertEqual(count, 3)
     }
 
-    func testFlexProposalsMatchPreviousAlgorithmAcrossNegotiationCases() {
+    func testFlexProposalsAcrossNegotiationCases() {
         for count in 1...12 {
             for width: CGFloat in [0, 1, 40, 160, 375, 1024] {
                 for gap: CGFloat in [-4, 0, 8, 24] {
@@ -113,8 +115,16 @@ final class LayoutMeasurementReductionTests: XCTestCase {
                             }
                         }
                         let actual = NativeFlexRowWidths.proposals(ideal: ideal, growing: growing, width: width, gap: gap, measure: measure)
-                        let expected = legacyFlex(ideal: ideal, growing: growing, width: width, gap: gap, measure: measure)
-                        XCTAssertEqual(actual, expected, "count=\(count), width=\(width), gap=\(gap), mode=\(mode)")
+                        let caseDescription = "count=\(count), width=\(width), gap=\(gap), mode=\(mode)"
+                        if growing.contains(true) {
+                            let updatedIdeal = zip(ideal, growing).map { $1 ? $0 + 480 : $0 }
+                            let updated = NativeFlexRowWidths.proposals(ideal: updatedIdeal, growing: growing,
+                                                                       width: width, gap: gap, measure: measure)
+                            XCTAssertEqual(actual, updated, caseDescription)
+                        } else {
+                            let expected = legacyIntrinsicRow(ideal: ideal, width: width, gap: gap, measure: measure)
+                            XCTAssertEqual(actual, expected, caseDescription)
+                        }
                     }
                 }
             }
@@ -218,8 +228,8 @@ final class LayoutMeasurementReductionTests: XCTestCase {
 
     // Baseline implementations from FlowLayout.swift at 4803d11. These reference
     // algorithms deliberately retain the redundant probes for differential tests.
-    private func legacyFlex(ideal: [CGFloat], growing: [Bool], width: CGFloat, gap: CGFloat,
-                            measure: (Int, CGFloat) -> CGFloat) -> [CGFloat] {
+    private func legacyIntrinsicRow(ideal: [CGFloat], width: CGFloat, gap: CGFloat,
+                                    measure: (Int, CGFloat) -> CGFloat) -> [CGFloat] {
         var proposals = ideal.map { min(width, $0) }
         var remaining = max(0, width - gap * CGFloat(ideal.count - 1))
         let order = ideal.indices.sorted { ideal[$0] < ideal[$1] }
@@ -227,14 +237,6 @@ final class LayoutMeasurementReductionTests: XCTestCase {
             let offered = min(ideal[index], remaining / CGFloat(order.count - position))
             proposals[index] = max(0, offered)
             remaining = max(0, remaining - measure(index, offered))
-        }
-        let flexible = ideal.indices.filter { growing[$0] }
-        if !flexible.isEmpty {
-            let intrinsicWidth = ideal.indices.filter { !growing[$0] }.reduce(CGFloat.zero) { sum, index in
-                sum + measure(index, proposals[index])
-            }
-            let share = max(0, width - gap * CGFloat(ideal.count - 1) - intrinsicWidth) / CGFloat(flexible.count)
-            for index in flexible { proposals[index] = share }
         }
         return proposals
     }

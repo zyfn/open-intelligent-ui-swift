@@ -7,28 +7,19 @@ enum NativeFlexRowWidths {
     static func proposals(ideal: [CGFloat], growing: [Bool], width: CGFloat, gap: CGFloat,
                           measure: (Int, CGFloat) -> CGFloat) -> [CGFloat] {
         guard !ideal.isEmpty else { return [] }
-        var proposals = ideal.map { min(width, $0) }
+        var proposals = Array(repeating: CGFloat.zero, count: ideal.count)
         let flexible = ideal.indices.filter { growing[$0] }
-        var measuredWidths: [CGFloat?] = flexible.isEmpty ? [] : Array(repeating: nil, count: ideal.count)
-        // Keep the previous ordering and the exact proposals sent to each child.
+        // Intrinsic siblings negotiate widths. Growing children share the
+        // space left after these measurements.
+        let intrinsic = ideal.indices.filter { !growing[$0] }.sorted { ideal[$0] < ideal[$1] }
         var remaining = max(0, width - gap * CGFloat(ideal.count - 1))
-        let order = ideal.indices.sorted { ideal[$0] < ideal[$1] }
-        for (position, index) in order.enumerated() {
-            let offered = min(ideal[index], remaining / CGFloat(order.count - position))
-            proposals[index] = max(0, offered)
-            let measured = measure(index, offered)
-            remaining = max(0, remaining - measured)
-            // A malformed negative/nonfinite ideal can change after clamping.
-            // Only reuse a measurement when the subsequent proposal is equal.
-            if !flexible.isEmpty, !growing[index], offered == proposals[index] {
-                measuredWidths[index] = measured
-            }
+        for (position, index) in intrinsic.enumerated() {
+            let offered = max(0, min(ideal[index], remaining / CGFloat(intrinsic.count - position)))
+            proposals[index] = offered
+            remaining = max(0, remaining - measure(index, offered))
         }
         if !flexible.isEmpty {
-            let intrinsicWidth = ideal.indices.filter { !growing[$0] }.reduce(CGFloat.zero) { sum, index in
-                sum + (measuredWidths[index] ?? measure(index, proposals[index]))
-            }
-            let share = max(0, width - gap * CGFloat(ideal.count - 1) - intrinsicWidth) / CGFloat(flexible.count)
+            let share = remaining / CGFloat(flexible.count)
             for index in flexible { proposals[index] = share }
         }
         return proposals
