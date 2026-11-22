@@ -115,38 +115,37 @@ final class VisualPolishTests: XCTestCase {
       XCTAssertGreaterThan(card.count(red), 100, "The normal card is the visible-border positive control")
     }
     let form = "Form(\"f\",Buttons([]),[FormControl(\"Field\",Input(\"x\",\"Value\"))])"
-    var presentation = OpenUIPresentation()
-    presentation.formShowsCardSurface = false
-    let nested = try raster("root=Card([\(form)],\"sunk\")", theme: theme, presentation: presentation)
+    let nested = try raster("root=Card([\(form)],\"sunk\")", theme: theme)
     XCTAssertEqual(nested.count(red), 0)
     XCTAssertGreaterThan(nested.count(blue), 50, "Removing the content border must not erase editable field boundaries")
   }
 
-  @MainActor func testFormSharesTheStandardCardAppearanceAndSupportsUnframedEmbedding() throws {
+  @MainActor func testFormIsUnframedByDefaultAndSharesCardAppearanceWhenRequested() throws {
     var theme = OpenUITheme()
     let panelFill = Color(red: 0, green: 1, blue: 0)
     theme.foreground = panelFill
     theme.borderDefault = Color(red: 1, green: 0, blue: 0)
     theme.borderInteractive = Color(red: 0, green: 0, blue: 1)
     let form = "Form(\"f\",Buttons([]),[FormControl(\"Field\",Input(\"x\",\"Value\"))])"
-    var embedded = OpenUIPresentation(); embedded.formShowsCardSurface = false
-    let panel = try raster("root=" + form, theme: theme)
+    var framed = OpenUIPresentation()
+    framed.formShowsCardSurface = true
+    let panel = try raster("root=" + form, theme: theme, presentation: framed)
     let cardSource = "root=Card([\(form)])"
-    let composed = try raster(cardSource, theme: theme, presentation: embedded)
+    let composed = try raster(cardSource, theme: theme)
     XCTAssertEqual(panel.width, composed.width)
     XCTAssertEqual(panel.height, composed.height)
-    let unframed = try raster("root=" + form, theme: theme, presentation: embedded)
+    let unframed = try raster("root=" + form, theme: theme)
     let red: (UInt8, UInt8, UInt8) -> Bool = { $0 > 180 && $1 < 100 && $2 < 100 }
     let blue: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 < 100 && $2 > 180 }
     let green: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 > 180 && $2 < 100 }
     XCTAssertGreaterThan(panel.count(red), 100)
-    XCTAssertGreaterThan(composed.count(red), 100, "The default Card retains a visible outline")
-    XCTAssertEqual(panel.count(green), composed.count(green), "Form uses the same transparent fill as Card by default")
+    XCTAssertEqual(composed.count(red), panel.count(red), "A Card around a Form paints one outline")
+    XCTAssertEqual(panel.count(green), composed.count(green), "An opt-in Form uses the same transparent fill as Card")
     XCTAssertEqual(composed.count(green), unframed.count(green), "The outline adds no fill around the form")
     XCTAssertEqual(unframed.count(red), 0)
     XCTAssertGreaterThan(unframed.count(blue), 50, "A quiet Form must preserve editable field boundaries")
     XCTAssertGreaterThan(panel.height, unframed.height)
-    var customized = embedded
+    var customized = OpenUIPresentation()
     customized.cardBackgroundColor = panelFill
     customized.cardBorderColor = Color(red: 1, green: 0, blue: 1)
     customized.borderWidth = 3
@@ -158,6 +157,19 @@ final class VisualPolishTests: XCTestCase {
     let tintedForm = try raster("root=" + form, theme: theme, presentation: customized)
     XCTAssertEqual(tintedForm.count(green), tinted.count(green))
     XCTAssertEqual(tintedForm.count(magenta), tinted.count(magenta))
+  }
+
+  @MainActor func testSingleLineFieldsUsePillCornersAndTextAreasUseThemeCorners() {
+    var theme = OpenUIThemeValues()
+    theme.radiusL = 4
+    let bounds = CGRect(x: 0, y: 0, width: 180, height: 44)
+    let field = NativeFieldSurface(theme: theme).shape.path(in: bounds)
+    let editor = NativeFieldSurface(theme: theme, textEditor: true).shape.path(in: bounds)
+    let nearCorner = CGPoint(x: 2, y: 5)
+
+    XCTAssertFalse(field.contains(nearCorner))
+    XCTAssertTrue(editor.contains(nearCorner))
+    XCTAssertTrue(field.contains(CGPoint(x: 90, y: 5)))
   }
 
   @MainActor func testImageGallerySpacingIsIndependentOfTheBorderWidth() throws {

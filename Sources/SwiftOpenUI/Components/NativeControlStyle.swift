@@ -38,8 +38,8 @@ extension EnvironmentValues {
     }
 }
 
-/// Standalone controls own a quiet surface. Form rows share their parent's
-/// surface, so native controls never acquire a second box inside the group.
+/// Standalone controls own a surface. Grouped and inline controls use the
+/// surrounding container's surface.
 struct NativeFieldSurface: ViewModifier {
     @Environment(\.openUIPresentation) private var nativePresentation
 
@@ -75,6 +75,13 @@ struct NativeFieldSurface: ViewModifier {
             6
         #endif
     }
+
+    private var horizontalInset: CGFloat { textEditor ? 11 : theme.spaceM }
+
+    var shape: NativeButtonShape {
+        NativeButtonShape(radius: textEditor ? theme.radiusL : nil,
+            maximumRadius: NativeButtonShape.readableRadius(horizontal: horizontalInset, vertical: verticalInset))
+    }
     private var sizeScale: CGFloat {
         #if os(iOS)
             size == "small" ? 44.0 / 48 : size == "large" ? 52.0 / 48 : 1
@@ -86,15 +93,15 @@ struct NativeFieldSurface: ViewModifier {
     func body(content: Content) -> some View {
         content.openUIFont(theme.fieldFont(size), role: .control)
             .foregroundStyle(enabled ? theme.textNeutralPrimary : theme.componentStyle.disabledText)
-            .padding(.horizontal, standalone ? (textEditor ? 11 : theme.spaceM) : 0)
+            .padding(.horizontal, standalone ? horizontalInset : 0)
             .padding(.vertical, standalone ? verticalInset : 0)
             .frame(minHeight: max(nativePresentation.minimumControlTargetSize, standalone ? height * sizeScale : presentation == .inline ? inlineHeight : 0))
             .background(
                 standalone ? (enabled ? theme.sunkLight : theme.sunk) : .clear,
-                in: RoundedRectangle(cornerRadius: theme.radiusL, style: .continuous)
+                in: shape
             )
             .overlay(
-                RoundedRectangle(cornerRadius: theme.radiusL, style: .continuous)
+                shape
                     .strokeBorder(
                         standalone ? (!enabled ? theme.borderDefault : error != nil ? theme.textDangerPrimary
                             : (focused || keyboardFocused) ? theme.interactiveAccentDefault : theme.componentStyle.controlBorder) : .clear,

@@ -37,11 +37,10 @@ public struct OpenUIPresentation {
     /// Text actions are capsules by default. A finite radius is an independent host override.
     public var buttonCornerRadius: CGFloat? = nil
     public var cardBorderColor: Color?
-    /// Fill for standard Card and Form panels. Sunk and clear keep their own fills.
+    /// Fill for standard Cards and Forms with an enabled surface.
     public var cardBackgroundColor: Color = .clear
-    /// A form presents one task panel using the standard Card appearance. Hosts embedding a
-    /// form in an existing panel may opt out without adding a Lang parameter.
-    public var formShowsCardSurface = true
+    /// Opt in to the standard Card appearance around a self-contained form.
+    public var formShowsCardSurface = false
     public var minimumCardWidth: CGFloat = 240
     public var minimumCompactCardWidth: CGFloat = 160
     /// Base reading width per option. The local proposal and Dynamic Type
