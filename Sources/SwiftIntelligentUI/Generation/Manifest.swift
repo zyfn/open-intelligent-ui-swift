@@ -33,7 +33,6 @@ extension OpenIntelligentUIComponents {
                 "upstreamCommit and runtimeCommit record the original component and Swift source imports. They do not identify the current SDK checkout or bundled language core.",
                 "SearchImage is registered only with an explicit caller service.",
                 "Content and citations present caller-supplied facts; this library does not retrieve or invent them.",
-                "TransportCard displays supplied local clock/date/zone and fare text; no inferred elapsed duration, through-ticket or total price.",
                 "Map routes use ordered Apple MKDirections automobile routes for 2–25 visible markers. Inline and expanded views share one route lifecycle; complete road results replace the direct-connection overview. Loading, failed and unavailable routes keep that overview. This is not turn-by-turn navigation.",
                 "Map owns category filtering, overview, label selection and native expansion using the pinned Map / MapMarker fields. Duplicate labels keep distinct rendered markers and share label selection. Filtering and recentering do not rewrite the selected value. Place search, business data, location permission and bookings remain host responsibilities.",
                 "Map basemap and remote media depend on external network resources.",
@@ -43,8 +42,8 @@ extension OpenIntelligentUIComponents {
                 "Box supports numeric lengths, numeric strings, px, percent, Dynamic Type-scaled em/rem and vw/vh from the enclosing visible container. Percent uses parent constraints; unavailable viewport geometry stays unresolved. Invalid CSS width/height units and expressions are not simulated.",
                 "Explicit Box.flex uses a zero basis before authored dimensions. Row wrap distributes flex per line; definite-height columns distribute it vertically. Direct Row photos use responsive media width and a 4:3 ratio, so ordinary image/text composition needs no private sizing recipe.",
                 "Colors accept semantic tokens, HEX, RGB(A), HSL(A) and CSS named colors. Advanced CSS color spaces and relative/inherited color expressions are not supported; native palette and system typography remain host-configurable.",
-                "Image and optional SearchImage expose the upstream framing fields to new generation; writer definitions generate spec and prompt together. Legacy priceText fields remain in the historical reader.",
-                "ImageText is available only to historical reading. New output composes Image, Title, Text and Caption with Col, Row, Box or Grid; the writer catalog, prompt and generation validation use the same boundary.",
+                "Image and optional SearchImage expose the upstream framing fields to new generation; component definitions generate spec and prompt together. Removed components are not registered for generation or runtime reading.",
+                "Image, Title, Text and Caption compose through Col, Row, Box or Grid; no special-purpose ImageText component is required.",
                 "Component names, positional arguments and bindings are retained. Layout/color/spacing schemas remove private ranges and enums to follow the pinned upstream contract; components still handle invalid finite values according to their rendering rules.",
                 "Generation validation uses the advertised writer profile; historical validation keeps the complete reader. Presentation warnings are non-blocking.",
                 "This manifest describes implemented contracts, not exhaustive device or model acceptance."
