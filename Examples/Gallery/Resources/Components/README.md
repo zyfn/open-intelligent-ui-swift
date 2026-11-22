@@ -10,7 +10,7 @@ OpenUI 的分组和顺序来自 [SDK 注册目录](../../../../docs/openui.md#�
 
 TabItem、StepsItem、MapMarker 等跟随各自的父组件。多个图表共用的 Series 位于「表格与图表」，用同一组数据对照柱状图与折线图。Slice 的页面展示数据定义。图片复用 Images 清单中来源精确匹配的本地素材。SearchImage 使用 Gallery 的本地模拟适配器。
 
-OpenUI 有 88 个注册定义，OpenIntelligentUI 的 Gallery writer 有 60 个（包括已注入模拟图片服务的 `SearchImage`）。`ImageText` 只保留历史读取，其上图下文和左图右文用法分别由 `Col`、`Row` 页面展示。普通图文直接写 `Row([Image(...), Col([...])])`，图片尺寸和对齐交给 Row 的默认媒体布局；`SearchImage` 页面展示同样的并排组合。`Grid` 对照固定列数与设置 `minChildWidth` 后随容器减少列数的效果，并展示不带 Card 的图文集合；`Box` 展示省略背景色但保留边框的透明分组。普通 Tabs 和日期 Tabs 各有一项用法，`TabItem` 共用这两项。点流式播放后可以观察首项和手选项如何随正文追加保持选中。
+OpenUI 有 88 个注册定义，OpenIntelligentUI 的 Gallery writer 有 60 个（包括已注入模拟图片服务的 `SearchImage`）。图文由基础布局组件组合表达：上图下文使用 `Col`，左图右文使用 `Row`。普通图文直接写 `Row([Image(...), Col([...])])`，图片尺寸和对齐交给 Row 的默认媒体布局；`SearchImage` 页面展示同样的并排组合。`Grid` 对照固定列数与设置 `minChildWidth` 后随容器减少列数的效果，并展示不带 Card 的图文集合；`Box` 展示省略背景色但保留边框的透明分组。普通 Tabs 和日期 Tabs 各有一项用法，`TabItem` 共用这两项。点流式播放后可以观察首项和手选项如何随正文追加保持选中。
 
 修改组件目录时同步补齐示例；`Tools/check_gallery_catalog.py` 检查资源完整性，`Examples/Gallery/verify.sh` 用真实库验证完整与流式求值。实际外观及交互仍需打开原生 Gallery 检查。
 
