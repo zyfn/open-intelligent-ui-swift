@@ -1,0 +1,65 @@
+{
+  "domain": "Layout",
+  "version": 1,
+  "cases": [
+    {
+      "id": "LY-001",
+      "objective": "Flex、Row、Col 与 Box 尺寸分配",
+      "workload": "固定/弹性/百分比宽高、gap、padding、wrap、alignment 组合",
+      "environment": "iOS/macOS · XCTest",
+      "assertions": [
+        "几何结果符合布局契约",
+        "测量与放置使用同一 proposal",
+        "无负尺寸或非有限 frame"
+      ],
+      "metrics": [
+        "布局测量耗时",
+        "几何断言失败数"
+      ],
+      "evidence": [
+        "Tests/SwiftIntelligentUITests/LayoutTests.swift"
+      ],
+      "status": "existing"
+    },
+    {
+      "id": "LY-002",
+      "objective": "Grid 与嵌套组合响应式",
+      "workload": "Image+Col、Card+Grid、Carousel+Box 在 320/375/430/768pt 下呈现",
+      "environment": "iPhone/iPad/macOS · Gallery",
+      "assertions": [
+        "无不可接受溢出或重叠",
+        "列数随 minChildWidth 正确变化",
+        "内容层级保持完整"
+      ],
+      "metrics": [
+        "溢出率",
+        "布局高度变化",
+        "截图"
+      ],
+      "evidence": [
+        "Examples/Gallery",
+        "Tests/SwiftIntelligentUITests"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "LY-003",
+      "objective": "Dynamic Type、RTL 与窗口连续变化",
+      "workload": "辅助字号、阿拉伯 RTL、iPad 分屏和 macOS 连续缩放",
+      "environment": "iOS/macOS · Gallery",
+      "assertions": [
+        "重要内容不裁切",
+        "交互目标仍可达",
+        "RTL 顺序与对齐正确"
+      ],
+      "metrics": [
+        "布局回归数",
+        "最小可读宽度"
+      ],
+      "evidence": [
+        "Examples/Gallery/README.md"
+      ],
+      "status": "planned"
+    }
+  ]
+}

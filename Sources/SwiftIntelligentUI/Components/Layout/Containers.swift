@@ -5,7 +5,7 @@ enum DividerComponent {
     static var component: OpenUIComponent { OpenUIComponent(name: "Divider", description: "Native content separator.", params: []) { _ in Divider().layoutValue(key: RowDivider.self, value: true) } }
 }
 enum SpacerComponent {
-    static var component: OpenUIComponent { OpenUIComponent(name: "Spacer", description: "Fills remaining horizontal space in a nonwrapping Row.", params: []) { _ in Spacer(minLength: 0).layoutValue(key: RowFlexWeight.self, value: 1) } }
+    static var component: OpenUIComponent { OpenUIComponent(name: "Spacer", description: "Shares free space along the parent flex layout's main axis, including each wrapped row and columns with a definite height.", params: []) { _ in Spacer(minLength: 0).layoutValue(key: RowFlexWeight.self, value: 1).layoutValue(key: IntelligentUIFlexItemKey.self, value: IntelligentUIFlexItem(grow: 1)) } }
 }
 enum FormComponent {
     static var component: OpenUIComponent {

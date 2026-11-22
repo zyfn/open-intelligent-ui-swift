@@ -2,6 +2,9 @@ import XCTest
 import SwiftUI
 import SwiftLang
 @testable import SwiftIntelligentUI
+#if os(macOS)
+import AppKit
+#endif
 
 final class LayoutTests: XCTestCase {
     func testWrappingKeepsMultipleItemsOnEachLine() {
@@ -26,6 +29,9 @@ final class LayoutTests: XCTestCase {
         let geometry = RowGeometry(sizes: [CGSize(width: 40, height: 20)], width: 100, gap: 12, alignment: "start", justification: "between", wraps: true)
         XCTAssertEqual(geometry.frames[0].minX, 0)
         XCTAssertEqual(RowGeometry(sizes: [], width: 100, gap: 12, alignment: "start", justification: "start", wraps: true).size, .zero)
+        let oversized = [CGSize(width: 80, height: 20), CGSize(width: 80, height: 20)]
+        XCTAssertEqual(RowGeometry(sizes: oversized, width: 100, gap: 10, alignment: "start", justification: "center", wraps: false).frames[0].minX, -35)
+        XCTAssertEqual(RowGeometry(sizes: oversized, width: 100, gap: 10, alignment: "start", justification: "end", wraps: false).frames[0].minX, -70)
     }
 
     func testAdaptiveGridHonorsMaximumColumnsAndNarrowWidth() {
@@ -36,6 +42,387 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(grid.columnCount(width: 20), 1)
         XCTAssertEqual(EqualGridLayout(columns: 2, minimumWidth: nil, gap: 12).columnCount(width: 1000), 2)
     }
+
+    func testPinnedFlexShorthandAndNumericWidthNoShrinkRule() {
+        // Independent contract: c531b0d Box.tsx uses `flex != null` before
+        // `typeof width === "number"`; row.styles.ts sets child min-width: 0.
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 0, grow: 1), FlexBasis(basis: 0, grow: 1)], available: 312), [156, 156])
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 0, grow: 0), FlexBasis(basis: 0, grow: 1)], available: 312), [0, 312])
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 96), FlexBasis(basis: 96, shrink: 0)], available: 120), [24, 96])
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 16, minimum: 16, insets: 16), FlexBasis(basis: 0, grow: 1)], available: 312), [16, 296])
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 0, grow: 0.25)], available: 200), [50])
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 0, minimum: 200), FlexBasis(basis: 0, grow: 0.5)], available: 400), [200, 100])
+    }
+
+    func testColumnFlexPreservesAutomaticContentMinimums() {
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 0, minimum: 20, grow: 1),
+            FlexBasis(basis: 0, minimum: 20, grow: 1)], available: 192), [96, 96])
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 0, minimum: 20),
+            FlexBasis(basis: 0, minimum: 20, grow: 1)], available: 192), [20, 172])
+        XCTAssertEqual(FlexDistribution.lengths([FlexBasis(basis: 0, grow: 2000),
+            FlexBasis(basis: 0, grow: 4000)], available: 300), [100, 200])
+    }
+
+    func testLayoutGeometryRejectsNonfiniteMeasurements() {
+        let row = RowGeometry(sizes: [CGSize(width: .nan, height: 20), CGSize(width: 40, height: .infinity)],
+                              width: 100, gap: -.infinity, alignment: "stretch", justification: "start", wraps: true)
+        XCTAssertEqual(row.size, CGSize(width: 100, height: 20))
+        XCTAssertTrue(row.frames.allSatisfy { $0.minX.isFinite && $0.minY.isFinite && $0.width.isFinite && $0.height.isFinite })
+        XCTAssertEqual(EqualGridLayout(columns: 0, minimumWidth: nil, gap: 12).columnCount(width: 100), 1)
+        XCTAssertEqual(EqualGridLayout(columns: 3, minimumWidth: 120, gap: .nan).columnCount(width: 260), 2)
+        XCTAssertEqual(EqualGridLayout(columns: 3, minimumWidth: 120, gap: 12).columnCount(width: .infinity), 3)
+        XCTAssertEqual(EqualGridLayout(columns: 3, minimumWidth: .nan, gap: 12).columnCount(width: 260), 3)
+    }
+
+    func testLengthsUseFiniteParentProposalsAndRejectPartialValues() {
+        XCTAssertEqual(IntelligentUILength.read(.string("50%"))?.resolve(relativeTo: 320, em: 17), 160)
+        XCTAssertNil(IntelligentUILength.read(.string("50%"))?.resolve(relativeTo: .infinity, em: 17))
+        XCTAssertNil(IntelligentUILength.read(.string("12p")))
+        XCTAssertNil(IntelligentUILength.read(.string("-4px")))
+        XCTAssertNil(IntelligentUILength.read(.number(.infinity)))
+        XCTAssertNil(IntelligentUILength.percent(100).resolve(relativeTo: .greatestFiniteMagnitude, em: 17))
+        XCTAssertNil(IntelligentUILength.em(2).resolve(relativeTo: 300, em: .nan))
+        XCTAssertEqual(IntelligentUILength.em(2).resolve(relativeTo: 300, em: 24), 48)
+        XCTAssertEqual(IntelligentUILength.read(.number(-12)), .points(0))
+        XCTAssertEqual(IntelligentUILength.read(.string("25000")), .points(25_000))
+        XCTAssertEqual(IntelligentUILength.read(.string(" 1.5px ")), .points(1.5))
+        XCTAssertEqual(IntelligentUILength.read(.string("50vw"))?.resolve(relativeTo: 200, em: 17, viewport: CGSize(width: 800, height: 600)), 400)
+        XCTAssertEqual(IntelligentUILength.read(.string("25vh"))?.resolve(relativeTo: 200, em: 17, viewport: CGSize(width: 800, height: 600)), 150)
+        for invalid in ["-1", ".5px", "1PX", "12pt", "1e2px", "2fr", "calc(50% - 1px)"] {
+            XCTAssertNil(IntelligentUILength.read(.string(OpenUIString(invalid))), invalid)
+        }
+    }
+
+    #if os(macOS)
+    @MainActor func testRealBoxFlexFillsRemainderWithShortCopyAtSeveralWidthsAndInRTL() throws {
+        let source = """
+        root = Row([picture, copy], 2, "start")
+        picture = Box([Text("P")], "col", 0, 0, "danger", null, false, 96, 40)
+        copy = Box([Text("A")], "col", 0, 0, "success", null, false, null, null, 1)
+        """
+        for width in [CGFloat(240), 390, 840] {
+            for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+                try inspectBoxes(source, width: width, direction: direction) { frames in
+                    let picture = try XCTUnwrap(frames["danger"])
+                    let copy = try XCTUnwrap(frames["success"])
+                    XCTAssertEqual(picture.width, 96, accuracy: 1)
+                    XCTAssertEqual(copy.width, width - 96 - 8, accuracy: 1)
+                    XCTAssertEqual(picture.minY, copy.minY, accuracy: 1)
+                    if direction == .leftToRight { XCTAssertEqual(copy.minX - picture.maxX, 8, accuracy: 1) }
+                    else { XCTAssertEqual(picture.minX - copy.maxX, 8, accuracy: 1) }
+                }
+            }
+        }
+    }
+
+    @MainActor func testPinnedWrappingRowStillDistributesZeroBasisFlex() throws {
+        let source = """
+        root = Row([a, b, c], 2, "start", "start", true)
+        a = Box([Text("A")], "col", 0, 0, "danger", null, false, null, null, 1)
+        b = Box([Text("B")], "col", 0, 0, "success", null, false, null, null, 2)
+        c = Box([Text("C")], "col", 0, 0, "info", null, false, null, null, 1)
+        """
+        try inspectBoxes(source, width: 320) { frames in
+            let a = try XCTUnwrap(frames["danger"]), b = try XCTUnwrap(frames["success"])
+            let c = try XCTUnwrap(frames["info"])
+            XCTAssertEqual(a.width, 76, accuracy: 1)
+            XCTAssertEqual(b.width, 152, accuracy: 1)
+            XCTAssertEqual(c.width, 76, accuracy: 1)
+            XCTAssertEqual(a.minY, b.minY, accuracy: 1)
+            XCTAssertEqual(b.minY, c.minY, accuracy: 1)
+            XCTAssertEqual(b.minX - a.maxX, 8, accuracy: 1)
+            XCTAssertEqual(c.minX - b.maxX, 8, accuracy: 1)
+        }
+    }
+
+    @MainActor func testPinnedExplicitFlexTakesPriorityOverWidthIncludingZero() throws {
+        for (length, expected) in [("96", CGFloat(96)), ("\"50%\"", CGFloat(160))] {
+          for (flex, authoredWidth) in [("null", expected), ("0", CGFloat(0)), ("1", CGFloat(156))] {
+            let source = """
+            root = Row([a, b], 2, "start")
+            a = Box([Text("A")], "col", 0, 0, "danger", null, false, \(length), "50%", \(flex))
+            b = Box([Text("B")], "col", 0, 0, "success", null, false, null, null, 1)
+            """
+            for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+                try inspectBoxes(source, width: 320, direction: direction) { frames in
+                    let a = try XCTUnwrap(frames["danger"]), b = try XCTUnwrap(frames["success"])
+                    XCTAssertEqual(a.width, authoredWidth, accuracy: 1)
+                    XCTAssertEqual(b.width, 320 - authoredWidth - 8, accuracy: 1)
+                    XCTAssertEqual(a.height, b.height, accuracy: 1,
+                        "An auto-height row cannot suddenly resolve 50% against the child's own measured height during placement")
+                    if direction == .leftToRight { XCTAssertEqual(b.minX - a.maxX, 8, accuracy: 1) }
+                    else { XCTAssertEqual(a.minX - b.maxX, 8, accuracy: 1) }
+                }
+            }
+          }
+        }
+    }
+
+    @MainActor func testRealNonflexCopyShrinksBesideFixedWidthBox() throws {
+        let source = """
+        root = Row([picture, copy], 2, "start")
+        picture = Box([Text("P")], "col", 0, 0, "danger", null, false, 96, 40)
+        copy = Box([Text("A long paragraph whose content must wrap beside the fixed image without extending the row.")], "col", 0, 0, "success")
+        """
+        try inspectBoxes(source, width: 240) { frames in
+            let picture = try XCTUnwrap(frames["danger"]), copy = try XCTUnwrap(frames["success"])
+            XCTAssertEqual(picture.width, 96, accuracy: 1)
+            XCTAssertLessThanOrEqual(copy.width, 137)
+            XCTAssertEqual(copy.minX - picture.maxX, 8, accuracy: 1)
+            XCTAssertGreaterThan(copy.height, picture.height)
+        }
+    }
+
+    @MainActor func testRealColumnBoxJustificationUsesItsExplicitHeightAndPadding() throws {
+        for (justification, expectedTop) in [("start", CGFloat(12)), ("center", 70), ("end", 128)] {
+            let source = """
+            root = Box([child], "col", 0, 3, "danger", null, false, 200, 160, null, "start", "\(justification)")
+            child = Box([Text("A")], "col", 0, 0, "success", null, false, 40, 20)
+            """
+            try inspectBoxes(source, width: 320) { frames in
+                let outer = try XCTUnwrap(frames["danger"]), child = try XCTUnwrap(frames["success"])
+                XCTAssertEqual(outer.height, 160, accuracy: 1)
+                XCTAssertEqual(child.minY - outer.minY, expectedTop, accuracy: 1)
+                XCTAssertEqual(child.minX - outer.minX, 12, accuracy: 1)
+            }
+        }
+    }
+
+    @MainActor func testRealRowStretchFillsOnlyDirectAutoHeightBoxes() throws {
+        let source = """
+        root = Row([tall, short, fixed], 2, "stretch")
+        tall = Box([Text("T")], "col", 0, 0, "danger", null, false, 80, 80)
+        short = Box([inner], "col", 0, 0, "success", null, false, 80)
+        inner = Box([Text("i")], "col", 0, 0, "info", null, false, 40)
+        fixed = Box([Text("F")], "col", 0, 0, "warning", null, false, 40, 32)
+        """
+        try inspectBoxes(source, width: 320) { frames in
+            let tall = try XCTUnwrap(frames["danger"]), short = try XCTUnwrap(frames["success"])
+            let inner = try XCTUnwrap(frames["info"]), fixed = try XCTUnwrap(frames["warning"])
+            XCTAssertEqual(tall.height, 80, accuracy: 1)
+            XCTAssertEqual(short.height, 80, accuracy: 1)
+            XCTAssertEqual(fixed.height, 32, accuracy: 1, "An explicit height wins over stretch")
+            XCTAssertLessThan(inner.height, 40, "Stretch must not leak through the direct Box into its children")
+            XCTAssertEqual(short.minY, tall.minY, accuracy: 1)
+        }
+    }
+
+    @MainActor func testRealRowBoxWithExplicitHeightStretchesItsChildren() throws {
+        let source = """
+        root = Box([a, b], "row", 2, 0, "danger", null, false, 320, 120, null, "stretch")
+        a = Box([Text("A")], "col", 0, 0, "success", null, false, 80)
+        b = Box([Text("B")], "col", 0, 0, "info", null, false, 80, "50%")
+        """
+        try inspectBoxes(source, width: 320) { frames in
+            let outer = try XCTUnwrap(frames["danger"]), a = try XCTUnwrap(frames["success"])
+            let b = try XCTUnwrap(frames["info"])
+            XCTAssertEqual(outer.height, 120, accuracy: 1)
+            XCTAssertEqual(a.height, 120, accuracy: 1)
+            XCTAssertEqual(b.height, 60, accuracy: 1, "A percentage height keeps the explicit parent height as its reference")
+            XCTAssertEqual(a.minY, outer.minY, accuracy: 1)
+            XCTAssertEqual(b.minY, outer.minY, accuracy: 1)
+        }
+    }
+
+    @MainActor func testPinnedNumberWidthDoesNotShrinkButPixelStringDoes() throws {
+        let source = """
+        root = Row([a, b], 2)
+        a = Box([Text("A")], "col", 0, 0, "danger", null, false, "96px")
+        b = Box([Text("B")], "col", 0, 0, "success", null, false, 96)
+        """
+        try inspectBoxes(source, width: 128) { frames in
+            XCTAssertEqual(try XCTUnwrap(frames["danger"]).width, 24, accuracy: 1)
+            XCTAssertEqual(try XCTUnwrap(frames["success"]).width, 96, accuracy: 1)
+        }
+        try inspectBoxes("root=Box([],\"col\",0,6,\"danger\",null,true,10,10)", width: 320) { frames in
+            let box = try XCTUnwrap(frames["danger"])
+            XCTAssertEqual(box.width, 50, accuracy: 1)
+            XCTAssertEqual(box.height, 50, accuracy: 1)
+        }
+    }
+
+    @MainActor func testPinnedWrapAllocatesFlexSeparatelyOnEachRow() throws {
+        let source = """
+        root=Row([a,b,c,d],2,"start","start",true)
+        a=Box([Text("A")],"col",0,0,"danger",null,false,160,20)
+        b=Box([Text("B")],"col",0,0,"success",null,false,null,null,1)
+        c=Box([Text("C")],"col",0,0,"info",null,false,160,20)
+        d=Box([Text("D")],"col",0,0,"warning",null,false,null,null,1)
+        """
+        try inspectBoxes(source, width: 300) { frames in
+            let a = try XCTUnwrap(frames["danger"]), b = try XCTUnwrap(frames["success"])
+            let c = try XCTUnwrap(frames["info"]), d = try XCTUnwrap(frames["warning"])
+            XCTAssertEqual(b.width, 132, accuracy: 1)
+            XCTAssertEqual(d.width, 132, accuracy: 1)
+            XCTAssertEqual(a.minY, b.minY, accuracy: 1)
+            XCTAssertEqual(c.minY, d.minY, accuracy: 1)
+            XCTAssertGreaterThan(c.minY, a.minY)
+        }
+    }
+
+    @MainActor func testPinnedColumnFlexNeedsDefiniteHeightAndKeepsContentMinimums() throws {
+        for (flex, expected) in [("1", CGFloat(96)), ("0", CGFloat(20))] {
+            let source = """
+            root=Box([a,b],"col",2,0,"canvas",null,false,320,200)
+            a=Box([mark],"col",0,0,"danger",null,false,null,96,\(flex))
+            b=Box([mark],"col",0,0,"success",null,false,null,null,1)
+            mark=Box([],"col",0,0,null,null,false,20,20)
+            """
+            try inspectBoxes(source, width: 320) { frames in
+                XCTAssertEqual(try XCTUnwrap(frames["danger"]).height, expected, accuracy: 1)
+                XCTAssertEqual(try XCTUnwrap(frames["success"]).height, 192 - expected, accuracy: 1)
+            }
+        }
+        let natural = """
+        root=Col([a],0)
+        a=Box([mark],"col",0,0,"danger",null,false,null,96,1)
+        mark=Box([],"col",0,0,null,null,false,20,20)
+        """
+        try inspectBoxes(natural, width: 320) { frames in
+            let a = try XCTUnwrap(frames["danger"])
+            XCTAssertEqual(a.height, 20, accuracy: 1, "Indefinite 0% flex-basis resolves to content, not authored height")
+            XCTAssertEqual(a.width, 320, accuracy: 1, "Col defaults to stretch")
+        }
+    }
+
+    @MainActor func testPinnedColumnWrapDistributesEachColumn() throws {
+        let source = """
+        root=Box([a,b,c,d],"col",2,0,"canvas",null,false,320,200,null,"stretch","start",true)
+        a=Box([],"col",0,0,"danger",null,false,100,120)
+        b=Box([mark],"col",0,0,"success",null,false,100,null,1)
+        c=Box([],"col",0,0,"info",null,false,100,120)
+        d=Box([mark],"col",0,0,"warning",null,false,100,null,1)
+        mark=Box([],"col",0,0,null,null,false,20,20)
+        """
+        try inspectBoxes(source, width: 320) { frames in
+            let a = try XCTUnwrap(frames["danger"]), b = try XCTUnwrap(frames["success"])
+            let c = try XCTUnwrap(frames["info"]), d = try XCTUnwrap(frames["warning"])
+            XCTAssertEqual(a.height, 120, accuracy: 1)
+            XCTAssertEqual(c.height, 120, accuracy: 1)
+            XCTAssertEqual(b.height, 72, accuracy: 1)
+            XCTAssertEqual(d.height, 72, accuracy: 1)
+            XCTAssertEqual(b.minY - a.minY, 128, accuracy: 1)
+            XCTAssertEqual(c.minX - a.minX, 164, accuracy: 1)
+            XCTAssertEqual(c.minY, a.minY, accuracy: 1)
+        }
+    }
+
+    @MainActor func testFlexAllocationDoesNotLeakThroughCardIntoNestedBox() throws {
+        let source = """
+        root=Box([Card([inner])],"col",0,0,"canvas",null,false,null,200)
+        inner=Box([],"col",0,0,"danger",null,false,60,50)
+        """
+        try inspectBoxes(source, width: 320) { frames in
+            let inner = try XCTUnwrap(frames["danger"])
+            XCTAssertEqual(inner.width, 60, accuracy: 1)
+            XCTAssertEqual(inner.height, 50, accuracy: 1)
+        }
+    }
+
+    @MainActor func testPinnedDirectAndSingleBoxPhotosUseDifferentRowOverrides() throws {
+        let direct = """
+        root=Row([Image("local-photo","direct",2),copy],1,"end")
+        copy=Box([Text("Copy")],"col",0,0,"danger",null,false,null,120,1)
+        """
+        try inspectBoxes(direct, width: 600) { frames in
+            let photo = try XCTUnwrap(frames["photo:direct"]), copy = try XCTUnwrap(frames["danger"])
+            XCTAssertEqual(photo.width, 198, accuracy: 1)
+            XCTAssertEqual(photo.height, 148.5, accuracy: 1)
+            XCTAssertEqual(copy.minX - photo.maxX, 16, accuracy: 1)
+            XCTAssertEqual(copy.minY, photo.minY, accuracy: 1)
+        }
+        let boxed = """
+        root=Row([picture,copy],1,"end")
+        picture=Box([Image("local-photo","wrapped",2)],"col",0,0,"info",null,false,40,null,10)
+        copy=Box([Text("Copy")],"col",0,0,"danger",null,false,null,200,1)
+        """
+        try inspectBoxes(boxed, width: 600) { frames in
+            let box = try XCTUnwrap(frames["info"]), photo = try XCTUnwrap(frames["photo:wrapped"])
+            let copy = try XCTUnwrap(frames["danger"])
+            XCTAssertEqual(box.width, 198, accuracy: 1)
+            XCTAssertEqual(photo.height, 148.5, accuracy: 1)
+            XCTAssertEqual(copy.minX - box.maxX, 4, accuracy: 1)
+            XCTAssertEqual(copy.maxY, box.maxY, accuracy: 1)
+        }
+    }
+
+    @MainActor func testPinnedRowHeightKeepsPercentageReferenceAcrossWrappingAndOverflow() throws {
+        for wraps in ["false", "true"] {
+            let source = """
+            root=Box([a,b],"row",2,0,"canvas",null,false,320,120,null,"stretch","start",\(wraps))
+            a=Box([],"col",0,0,"danger",null,false,80,"50%")
+            b=Box([Text("B")],"col",0,0,"success",null,false,80)
+            """
+            for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+                try inspectBoxes(source, width: 320, direction: direction) { frames in
+                    XCTAssertEqual(try XCTUnwrap(frames["danger"]).height, 60, accuracy: 1)
+                    XCTAssertEqual(try XCTUnwrap(frames["success"]).height, 120, accuracy: 1)
+                }
+            }
+        }
+        let overflow = """
+        root=Box([a,b,c],"row",2,0,"canvas",null,false,320,120,null,"stretch")
+        a=Box([],"col",0,0,"danger",null,false,80,"50%")
+        b=Box([],"col",0,0,"info",null,false,80,200)
+        c=Box([],"col",0,0,"success",null,false,80)
+        """
+        try inspectBoxes(overflow, width: 320) { frames in
+            XCTAssertEqual(try XCTUnwrap(frames["danger"]).height, 60, accuracy: 1)
+            XCTAssertEqual(try XCTUnwrap(frames["info"]).height, 200, accuracy: 1)
+            XCTAssertEqual(try XCTUnwrap(frames["success"]).height, 120, accuracy: 1)
+        }
+        let multiline = """
+        root=Box([a,b],"row",2,0,"canvas",null,false,320,120,null,"stretch","start",true)
+        a=Box([],"col",0,0,"danger",null,false,200,"50%")
+        b=Box([mark],"col",0,0,"success",null,false,200)
+        mark=Box([],"col",0,0,null,null,false,20,20)
+        """
+        for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+            try inspectBoxes(multiline, width: 320, direction: direction) { frames in
+                let a = try XCTUnwrap(frames["danger"]), b = try XCTUnwrap(frames["success"])
+                XCTAssertEqual(a.height, 60, accuracy: 1)
+                XCTAssertEqual(b.height, 36, accuracy: 1)
+                XCTAssertEqual(b.minY - a.minY, 84, accuracy: 1)
+            }
+        }
+    }
+
+    @MainActor private func inspectBoxes(_ source: String, width: CGFloat,
+        direction: LayoutDirection = .leftToRight, check: ([String: CGRect]) throws -> Void) throws {
+        _ = NSApplication.shared
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        defer { state.reset() }
+        state.setSource(source)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        let measurements = LayoutBoxMeasurements()
+        var registry = library.readerComponents.registry
+        // Wrap actual registered renderers; all sizing stays in production code.
+        for name in ["Box", "Image"] {
+            let build = try XCTUnwrap(registry[name])
+            registry[name] = { element, currentRegistry in
+                let key = name == "Image" ? "photo:" + (PropValue.string(element, "alt") ?? "") : PropValue.string(element, "background") ?? ""
+                return AnyView(build(element, currentRegistry).background(GeometryReader { geometry in
+                    Color.clear.onAppear { measurements.frames[key] = geometry.frame(in: .global) }
+                        .onChange(of: geometry.frame(in: .global)) { measurements.frames[key] = $0 }
+                }))
+            }
+        }
+        let host = NSHostingView(rootView: SwiftLangView(state: state, registry: registry)
+            .openIntelligentUIImages(["local-photo": Image(systemName: "photo")])
+            .environment(\.layoutDirection, direction).environment(\.dynamicTypeSize, .large).frame(width: width))
+        let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: width, height: 700),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        host.layoutSubtreeIfNeeded()
+        try check(measurements.frames)
+    }
+    #endif
 
     @MainActor func testLayoutProgramAndExpandedParametersRenderAtSeveralWidths() throws {
         let library = try OpenIntelligentUIComponents()
@@ -98,3 +485,9 @@ final class LayoutTests: XCTestCase {
     $selected = false
     """
 }
+
+#if os(macOS)
+private final class LayoutBoxMeasurements {
+    var frames: [String: CGRect] = [:]
+}
+#endif

@@ -4,7 +4,7 @@ import SwiftLang
 enum CaptionComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Caption", description: "Small secondary text with inline Markdown and links. color defaults to muted.", params: [
-            OpenUIParameter.string("text"), OpenUIParameter.string("color", required: false, values: Parameter.colors)
+            OpenUIParameter.string("text"), Parameter.color()
         ]) { CaptionView(context: $0) }
     }
 }

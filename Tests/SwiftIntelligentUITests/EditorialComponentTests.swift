@@ -11,14 +11,15 @@ final class EditorialComponentTests: XCTestCase {
         XCTAssertEqual(layout.frames[1].minX, 140)
         XCTAssertEqual(layout.size.height, 100)
     }
-    @MainActor func testEditorialContentAndSourcesKeepOriginalData() throws {
+    @MainActor func testAtomicImageAndTextCompositionKeepsOriginalSources() throws {
         let library = try OpenIntelligentUIComponents()
         let state = library.makeState()
-        state.setSource(#"root=ImageText({image:{url:"https://example.com/photo.jpg",alt:"原始图片"},title:"1. 标题",body:"正文",subtitle:"说明",caption:"补充",url:"/details/a"},"leading",[Citation([{title:"来源A",url:"/source/a"},{title:"来源B",url:"https://example.com/b"}])])"#)
+        state.setSource(#"root=Row([Image("https://example.com/photo.jpg","原始图片"),Col([Title("标题"),Text("正文"),Citation([{title:"来源A",url:"/source/a"},{title:"来源B",url:"https://example.com/b"}])])])"#)
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         XCTAssertTrue(library.validationIssues(in: try XCTUnwrap(state.root)).isEmpty)
-        let footer = try XCTUnwrap(PropValue.children(try XCTUnwrap(state.root), "footer").first)
-        let context = OpenUIComponentContext(element: footer, registry: library.components.registry, state: state)
+        let textColumn = try XCTUnwrap(PropValue.children(try XCTUnwrap(state.root)).last)
+        let citation = try XCTUnwrap(PropValue.children(textColumn).first { $0.typeName == "Citation" })
+        let context = OpenUIComponentContext(element: citation, registry: library.components.registry, state: state)
         XCTAssertEqual(CitationSource.decode(context.value("sources")).map(\.url), ["/source/a", "https://example.com/b"])
     }
     func testSourcesDeduplicateWithoutInventingReferences() {

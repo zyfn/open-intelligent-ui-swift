@@ -51,7 +51,7 @@ enum SVGMarkup {
             fragments.append(text)
         }
     }
-    static let semanticColors = ["ink", "muted", "faint", "surface", "info", "success", "warning", "danger", "purple", "pink"]
+    static let semanticColors = ["ink", "muted", "faint", "canvas", "surface", "info", "success", "warning", "danger", "purple", "pink"]
         + (1...6).map { "chart\($0)" }
     private static let names = ["Svg": "svg", "Circle": "circle", "Ellipse": "ellipse", "Rect": "rect", "Line": "line", "Path": "path", "Polyline": "polyline", "Polygon": "polygon", "G": "g", "SvgText": "text"]
     private static let numberPattern = #"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"#
@@ -142,9 +142,10 @@ enum SVGMarkup {
     }
     static func paint(_ text: String, palette: [String: String] = [:]) -> String? {
         if semanticColors.contains(text) { return palette[text] ?? "currentColor" }
-        guard !text.isEmpty, text.count < 20_000,
-              text.range(of: #"^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{4}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8}|[a-zA-Z]+|rgba?\([\d\s,.%]+\)|hsla?\([\d\s,.%]+\))$"#, options: .regularExpression) != nil else { return nil }
-        return XMLText.escape(text)
+        guard !text.isEmpty, text.count < 20_000 else { return nil }
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard ["none", "currentcolor"].contains(value.lowercased()) || CSSColor.parse(value) != nil else { return nil }
+        return XMLText.escape(value)
     }
     private static func tokens(_ text: String, pattern: String, field: String) throws -> [String] {
         guard text.count < 20_000 else { throw Failure.budget }
@@ -200,9 +201,10 @@ private struct SVGView: View {
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.openIntelligentUIViewportSize) private var viewport
     @ScaledMetric(relativeTo: .body) private var fontUnit: CGFloat = 17
     private var height: CGFloat {
-        let requested = IntelligentUILength.read(context.value("height"))?.resolve(relativeTo: nil, em: fontUnit)
+        let requested = IntelligentUILength.read(context.value("height"))?.resolve(relativeTo: nil, em: fontUnit, viewport: viewport)
         return min(2400, max(40, requested ?? 240))
     }
     private var document: Result<SVGMarkup.Document, Error> {
@@ -224,7 +226,7 @@ private struct SVGView: View {
                         : "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" style=\"width:100%;height:100%\">\(document.markup)</svg>"
                     VStack(alignment: .leading, spacing: theme.innerSpacing) {
                         GeometryReader { geometry in
-                            let preferred = IntelligentUILength.read(context.value("width"))?.resolve(relativeTo: geometry.size.width, em: fontUnit)
+                            let preferred = IntelligentUILength.read(context.value("width"))?.resolve(relativeTo: geometry.size.width, em: fontUnit, viewport: viewport)
                             WebContent(context: context, content: source, height: height)
                                 .frame(width: min(geometry.size.width, preferred ?? geometry.size.width))
                                 .frame(maxWidth: .infinity)

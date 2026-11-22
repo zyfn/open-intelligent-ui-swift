@@ -20,7 +20,6 @@
 "code.collapse" = "收起代码";
 "code.fullCopyHint" = "复制始终包含完整原文";
 "link.openHint" = "由应用打开链接";
-"imageText.openDetailHint" = "查看详情";
 "disclosure.details" = "详情";
 "list.item" = "第 %lld 项";
 "controls.action.fallback" = "操作";
@@ -82,24 +81,6 @@
 "price.unknown" = "价格待补充";
 "product.buy" = "去购买";
 "product.incomplete" = "商品资料不完整";
-"transport.separate_tickets" = "分段出票";
-"transport.show_legs" = "查看分段行程";
-"transport.departure" = "出发";
-"transport.arrival" = "到达";
-"transport.view" = "查看";
-"transport.view_leg" = "查看该段";
-"transport.station_change" = "换站中转";
-"transport.transfer" = "中转";
-"transport.incomplete" = "交通信息不完整或时间格式不正确";
-"transport.direct" = "直达";
-"transport.transfers" = "%ld次中转";
-"transport.segments" = "%ld段行程";
-"transport.day_offset" = "%@天";
-"transport.mode.flight" = "航班";
-"transport.mode.train" = "列车";
-"transport.mode.bus" = "巴士";
-"transport.mode.ferry" = "轮渡";
-"transport.mode.other" = "交通";
 "chart.unavailable" = "不可用";
 "chart.empty" = "暂无有效图表数据";
 "chart.details" = "数据明细";
@@ -121,7 +102,6 @@
 "image.loading_short" = "正在载入图片";
 "image.searching" = "正在查找图片";
 "image.retry_short" = "重试";
-"map.place_count" = "%ld 个地点";
 "map.overview" = "查看全览";
 "map.expand" = "展开地图";
 "map.close" = "收起地图";
@@ -141,14 +121,8 @@
 "image.zoom.value" = "%d%%";
 "image.source" = "查看图片来源";
 "image.search_failed" = "未能获取图片";
-"map.place" = "地点";
-"map.no_coordinates" = "暂无有效地点坐标";
-"map.preparing" = "正在准备地图";
-"map.fit_all" = "查看全部地点";
-"map.fit_filtered" = "适配当前筛选地点";
 "map.all_places" = "全部地点";
 "map.filter_category" = "按类别筛选";
-"map.empty_category" = "当前类别没有地点";
 "math.failed" = "公式无法排版";
 "math.preparing" = "正在排版公式";
 "svg.preparing" = "正在准备图示";
@@ -169,3 +143,10 @@
 "video.open" = "在 YouTube 中打开";
 "controls.input.pending" = "输入尚未生效，当前有效值：%@";
 
+"map.info" = "关于此地图";
+"map.controls" = "地图操作";
+"map.info.instructions" = "拖动浏览地图，点击地点可高亮显示。";
+"map.route.loading" = "正在获取道路路线，当前连线按顺序连接地点。";
+"map.route.roads" = "连线按地点顺序显示驾车道路路线，仅供概览，不提供逐向导航。";
+"map.route.direct" = "道路路线暂不可用，当前连线按顺序连接地点。";
+"map.route.overview" = "路线概览";

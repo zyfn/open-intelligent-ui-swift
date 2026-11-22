@@ -14,14 +14,18 @@ enum Parameter {
         .object([.init(key: "type", value: .string("array")), .init(key: "items", value: item),
                  .init(key: "minItems", value: .number(Double(minimum))), .init(key: "maxItems", value: .number(Double(maximum)))])
     }
-    static let colors = ["ink", "muted", "faint", "surface", "info", "success", "warning", "danger", "purple", "pink", "chart1", "chart2", "chart3", "chart4", "chart5", "chart6"]
+    /// Upstream Color is a string, not an enumeration of theme tokens. Native
+    /// rendering resolves tokens first and then checks supported CSS colors.
+    static func color(_ name: String = "color", required: Bool = false) -> ParamDef {
+        OpenUIParameter.string(name, required: required)
+    }
 
     static func radius(_ name: String = "radius") -> ParamDef {
         ParamDef(name: name, required: false, schema: .object([
             .init(key: "anyOf", value: .array([
                 .object([.init(key: "type", value: .string("string")),
                          .init(key: "enum", value: .array(["sm", "md", "lg", "xl", "full"].map { .string(OpenUIString($0)) }))]),
-                .object([.init(key: "type", value: .string("number")), .init(key: "minimum", value: .number(0))])
+                .object([.init(key: "type", value: .string("number"))])
             ]))
         ]))
     }

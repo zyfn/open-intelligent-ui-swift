@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.16 · 更新日期：2026-11-18
+文档版本：1.18 · 更新日期：2026-11-22
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -74,7 +74,7 @@ flowchart TB
 | Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
 | Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
 | Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
-| Benchmarks/、Validation/、Fixtures/ | 性能工作负载、静态/模型评测、固定语言输入与参考预期 |
+| Benchmarks/ | SDK 的 Runtime、Streaming、Components、Layout、Visual、Performance 标准工作负载；复用 Tests 与固定 fixtures |\n| Validation/、Fixtures/ | 静态/模型评测、固定语言输入与参考预期 |
 | docs/、outputs/ | 文档；已忽略的本地生成及验收材料 |
 
 源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport、LanguageRuntime 各自持有开发包，通过根 SDK 的公开产品接入。
@@ -241,7 +241,7 @@ ElementErrorBoundary 以不可变元素快照的身份观察输入，保留同�
 - 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
 - typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
 - 通用资源 Context 管理地址、宿主 loader、鉴权作用域和文档生命周期；SwiftLang 的共享基础设施负责原生资源请求、图片解码和缓存预算。占位、裁剪、重试、预览和地图交互由所属组件库决定。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。
-- OpenIntelligentUI 的地图筛选、内部点位卡片、选中、全览与原生展开由 Map 自身管理；场景不补建另一套基本交互，组件不虚构导航或业务结果。
+- OpenIntelligentUI 的地图筛选、label 选中、全览、尺寸适配和原生展开由 Map 自身管理；同一个 Map 的内嵌和展开视图共享组件内的路线请求。Map 使用固定的 Map / MapMarker 输入契约，不另建地点资料注入、卡片投影或业务详情协议。地点来源由宿主提供，组件不隐式搜索、请求位置权限或虚构导航和业务结果。
 - 宿主负责模型/Agent/工具通信、账号权限、消息列表、滚动、业务数据、交易与真实操作结果。Gallery 的模拟工具与动作记录不代表远程业务成功。
 
 OpenUI 的 `NativeRemoteImage` 只提交布局完成后的显示像素需求；它不构造新的资源调度器，也不从测量路径请求图片。加载占位和成功图片共用挂载边界外层的同一个尺寸观察，避免退休内容分支的延迟出现回调覆盖最新画幅。既有 `NativeMediaCache` 持有合并中的加载、取消、有限暂时失败恢复和解码结果，通用 ImageIO 解码根据源比例与 EXIF 决定 fit/fill 需要的最长边。已解码结果和在途键核对冻结的资源策略，不能在限制变化后借用旧预算。显示尺寸改变不改变宿主已经冻结的签名请求；自动恢复在同一个合并工作内进行，显式用户重试才建立新请求。资源预算和 HTTP 状态沿既有 URLError 附加诊断数据，不保留完整响应、地址或凭据。组件占位、预览、实际尺寸及失败后的交互规则仍由 OpenUI 定义，详见其[媒体说明](openui.md#文本媒体与原生差异)。本轮不调整 SwiftIntelligentUI 的独立图片通道。

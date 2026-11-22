@@ -1,11 +1,11 @@
 import Foundation
 import SwiftLang
 
-/// One catalog supplies generation contracts and backwards-compatible reading.
+/// One catalog supplies the components available to the host and to new generation.
 public struct OpenIntelligentUIComponents {
     /// Components available to new model output and exported contracts.
     public let components: OpenUIComponentLibrary
-    /// Existing messages keep the full SDK reader; never exported to the model.
+    /// Full registered component library used to construct runtime state.
     let readerComponents: OpenUIComponentLibrary
     let excludedComponentNames: Set<String>
 
@@ -16,8 +16,8 @@ public struct OpenIntelligentUIComponents {
                         TextComponent.component, TitleComponent.component, CheckboxComponent.component, ButtonComponent.component,
                         SliderComponent.component, ImageComponent.component, IconComponent.component, CaptionComponent.component,
                         LabelComponent.component, LinkComponent.component, InputComponent.component, TextAreaComponent.component,
-                        SelectComponent.component, SegmentedControlComponent.component, RadioGroupComponent.component, ProductCardComponent.component, TransportCardComponent.component,
-                        MarkdownComponent.component, QuoteComponent.component, CodeComponent.component, BadgeComponent.component, ImageTextComponent.component, CitationComponent.component,
+                        SelectComponent.component, SegmentedControlComponent.component, RadioGroupComponent.component, ProductCardComponent.component, JourneyLineComponent.component,
+                        MarkdownComponent.component, QuoteComponent.component, CodeComponent.component, BadgeComponent.component, CitationComponent.component,
                         ListComponent.component, ListItemComponent.component, TableComponent.component, ChartComponent.component, ProgressComponent.component,
                         DividerComponent.component, SpacerComponent.component, CarouselComponent.component, FormComponent.component,
                         PopoverComponent.component, DisclosureComponent.component, IconButtonComponent.component, PressableComponent.component,
@@ -45,8 +45,7 @@ public struct OpenIntelligentUIComponents {
         )
     }
 
-    /// Detect a UI program using the full reader catalog, including components
-    /// excluded from new generation. This is parsing, not contract validation.
+    /// Detect whether source contains a registered UI program. This is parsing, not contract validation.
     public func recognizesUI(in source: String) -> Bool {
         OpenUILibrary(components: readerComponents).recognizesUI(in: source)
     }

@@ -20,7 +20,6 @@
 "code.collapse" = "Collapse code";
 "code.fullCopyHint" = "Copy always includes the full original code";
 "link.openHint" = "The app opens this link";
-"imageText.openDetailHint" = "View details";
 "disclosure.details" = "Details";
 "list.item" = "Item %lld";
 "controls.action.fallback" = "Action";
@@ -82,24 +81,6 @@
 "price.unknown" = "Price unavailable";
 "product.buy" = "View purchase option";
 "product.incomplete" = "Product information is incomplete";
-"transport.separate_tickets" = "Separate tickets";
-"transport.show_legs" = "View journey segments";
-"transport.departure" = "Departure";
-"transport.arrival" = "Arrival";
-"transport.view" = "View";
-"transport.view_leg" = "View this segment";
-"transport.station_change" = "Transfer with station change";
-"transport.transfer" = "Transfer";
-"transport.incomplete" = "Transport information is incomplete or its time format is invalid";
-"transport.direct" = "Direct";
-"transport.transfers" = "%ld transfers";
-"transport.segments" = "%ld segments";
-"transport.day_offset" = "%@ days";
-"transport.mode.flight" = "Flight";
-"transport.mode.train" = "Train";
-"transport.mode.bus" = "Bus";
-"transport.mode.ferry" = "Ferry";
-"transport.mode.other" = "Transport";
 "chart.unavailable" = "Unavailable";
 "chart.empty" = "No valid chart data";
 "chart.details" = "Data details";
@@ -121,7 +102,6 @@
 "image.loading_short" = "Loading image";
 "image.searching" = "Finding image";
 "image.retry_short" = "Try again";
-"map.place_count" = "%ld places";
 "map.overview" = "Show overview";
 "map.expand" = "Expand map";
 "map.close" = "Close map";
@@ -141,14 +121,8 @@
 "image.zoom.value" = "%d%%";
 "image.source" = "View image source";
 "image.search_failed" = "Could not retrieve image";
-"map.place" = "Place";
-"map.no_coordinates" = "No valid place coordinates";
-"map.preparing" = "Preparing map";
-"map.fit_all" = "Show all places";
-"map.fit_filtered" = "Fit filtered places";
 "map.all_places" = "All places";
 "map.filter_category" = "Filter by category";
-"map.empty_category" = "No places in this category";
 "math.failed" = "Could not typeset formula";
 "math.preparing" = "Typesetting formula";
 "svg.preparing" = "Preparing diagram";
@@ -169,3 +143,10 @@
 "video.open" = "Open in YouTube";
 "controls.input.pending" = "This draft has not been applied. Current value: %@";
 
+"map.info" = "About this map";
+"map.controls" = "Map controls";
+"map.info.instructions" = "Drag to explore and select a place to highlight it.";
+"map.route.loading" = "Street routing is loading. The line connects places in order.";
+"map.route.roads" = "The line follows driving routes in place order. It is an overview, not turn-by-turn directions.";
+"map.route.direct" = "Street routing is unavailable. The line connects places in order.";
+"map.route.overview" = "Route overview";

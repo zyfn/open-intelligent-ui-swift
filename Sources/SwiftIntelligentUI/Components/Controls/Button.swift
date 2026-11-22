@@ -18,11 +18,7 @@ private struct ActionButtonView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
     private var tint: Color {
-        switch context.string("color") {
-        case "danger": return theme.danger
-        case "success": return theme.success
-        default: return theme.actionAccent
-        }
+        theme.buttonAccent(context.string("color"), variant: context.string("variant") ?? "solid")
     }
     private var foreground: Color {
         guard (context.string("variant") ?? "solid") == "solid" else { return tint }
@@ -62,6 +58,7 @@ struct UpstreamButtonStyle: ButtonStyle {
     @Environment(\.openIntelligentUITheme) private var theme
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .foregroundStyle(variant == "solid" ? theme.actionForeground : tint)
             .padding(.horizontal, size == "sm" ? 12 : size == "lg" ? 20 : 16)
             .padding(.vertical, size == "sm" ? 6 : size == "lg" ? 10 : 8)
             .frame(minHeight: max(theme.minimumControlHeight, size == "lg" ? 44 : 0))

@@ -20,7 +20,6 @@
 "code.collapse" = "طي الشفرة";
 "code.fullCopyHint" = "يشمل النسخ الشفرة الأصلية كاملة دائمًا";
 "link.openHint" = "يفتح التطبيق هذا الرابط";
-"imageText.openDetailHint" = "عرض التفاصيل";
 "disclosure.details" = "التفاصيل";
 "list.item" = "العنصر %lld";
 "controls.action.fallback" = "إجراء";
@@ -82,24 +81,6 @@
 "price.unknown" = "السعر غير متاح";
 "product.buy" = "عرض خيار الشراء";
 "product.incomplete" = "معلومات المنتج غير مكتملة";
-"transport.separate_tickets" = "تذاكر منفصلة";
-"transport.show_legs" = "عرض مقاطع الرحلة";
-"transport.departure" = "المغادرة";
-"transport.arrival" = "الوصول";
-"transport.view" = "عرض";
-"transport.view_leg" = "عرض هذا المقطع";
-"transport.station_change" = "انتقال مع تغيير المحطة";
-"transport.transfer" = "انتقال";
-"transport.incomplete" = "معلومات النقل غير مكتملة أو تنسيق الوقت غير صالح";
-"transport.direct" = "مباشر";
-"transport.transfers" = "عدد مرات الانتقال: %ld";
-"transport.segments" = "عدد مقاطع الرحلة: %ld";
-"transport.day_offset" = "فرق الأيام: %@";
-"transport.mode.flight" = "رحلة جوية";
-"transport.mode.train" = "قطار";
-"transport.mode.bus" = "حافلة";
-"transport.mode.ferry" = "عبّارة";
-"transport.mode.other" = "نقل";
 "chart.unavailable" = "غير متاح";
 "chart.empty" = "لا توجد بيانات صالحة للمخطط";
 "chart.details" = "تفاصيل البيانات";
@@ -121,7 +102,6 @@
 "image.loading_short" = "جارٍ تحميل الصورة";
 "image.searching" = "جارٍ البحث عن صورة";
 "image.retry_short" = "إعادة المحاولة";
-"map.place_count" = "%ld أماكن";
 "map.overview" = "عرض النظرة العامة";
 "map.expand" = "توسيع الخريطة";
 "map.close" = "إغلاق الخريطة";
@@ -141,14 +121,8 @@
 "image.zoom.value" = "%d%%";
 "image.source" = "عرض مصدر الصورة";
 "image.search_failed" = "تعذّر جلب الصورة";
-"map.place" = "مكان";
-"map.no_coordinates" = "لا توجد إحداثيات صالحة للأماكن";
-"map.preparing" = "جارٍ إعداد الخريطة";
-"map.fit_all" = "عرض كل الأماكن";
-"map.fit_filtered" = "ملاءمة العرض للأماكن المصفّاة";
 "map.all_places" = "كل الأماكن";
 "map.filter_category" = "تصفية حسب الفئة";
-"map.empty_category" = "لا توجد أماكن في هذه الفئة";
 "math.failed" = "تعذّر تنسيق المعادلة";
 "math.preparing" = "جارٍ تنسيق المعادلة";
 "svg.preparing" = "جارٍ إعداد الرسم";
@@ -169,3 +143,10 @@
 "video.open" = "فتح في YouTube";
 "controls.input.pending" = "لم يُطبّق هذا الإدخال. القيمة الحالية: %@";
 
+"map.info" = "حول هذه الخريطة";
+"map.controls" = "عناصر التحكم بالخريطة";
+"map.info.instructions" = "اسحب لاستكشاف الخريطة واختر مكانًا لتمييزه.";
+"map.route.loading" = "جارٍ تحميل المسار عبر الطرق. يصل الخط بين الأماكن بالترتيب.";
+"map.route.roads" = "يتبع الخط طرق القيادة حسب ترتيب الأماكن. وهو نظرة عامة، وليس إرشادات تنقل خطوة بخطوة.";
+"map.route.direct" = "المسار عبر الطرق غير متاح. يصل الخط بين الأماكن بالترتيب.";
+"map.route.overview" = "نظرة عامة على المسار";

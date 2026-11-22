@@ -6,16 +6,25 @@ import SwiftLang
 final class UpstreamParityTests: XCTestCase {
     private func node(_ name: String) -> Value { .element(EvaluatedElement(typeName: name, props: [])) }
 
-    func testNestedFlowUsesGroupSpacingAndCaptionStaysAttached() {
+    func testFlowUsesOfficialDirectSiblingSelectors() {
         let theme = OpenIntelligentUITheme()
         XCTAssertEqual(EditorialSpacing.between(node("Image"), node("Text"), theme: theme), 24)
         XCTAssertEqual(EditorialSpacing.between(node("Image"), node("Text"), theme: theme, nested: true), 12)
         XCTAssertEqual(EditorialSpacing.between(node("Title"), node("Text"), theme: theme), 8)
         XCTAssertEqual(EditorialSpacing.between(node("Caption"), node("Title"), theme: theme), 4)
         XCTAssertEqual(EditorialSpacing.between(node("Text"), node("Text"), theme: theme), 12)
-        XCTAssertEqual(EditorialSpacing.between(node("Image"), node("Caption"), theme: theme), 8)
-        XCTAssertEqual(EditorialSpacing.between(node("Text"), node("Image"), theme: theme), 12)
-        XCTAssertEqual(EditorialSpacing.between(node("Image"), node("Text"), theme: theme), 24)
+        // flow.styles.ts at c531b0d has no special photo/caption or prose/photo
+        // selector. These replace earlier private spacing recipes.
+        XCTAssertEqual(EditorialSpacing.between(node("Image"), node("Caption"), theme: theme), 24)
+        XCTAssertEqual(EditorialSpacing.between(node("Text"), node("Image"), theme: theme), 24)
+        XCTAssertEqual(EditorialSpacing.between(node("Image"), node("Caption"), theme: theme, nested: true), 12)
+        XCTAssertEqual(EditorialSpacing.between(node("Title"), node("Image"), theme: theme), 12)
+        let badges = Value.element(EvaluatedElement(typeName: "Row", props: [("children", .array([node("Badge")]))]))
+        let nestedBadge = Value.element(EvaluatedElement(typeName: "Row", props: [("children", .array([
+            .element(EvaluatedElement(typeName: "Col", props: [("children", .array([node("Badge")]))]))
+        ]))]))
+        XCTAssertEqual(EditorialSpacing.between(node("Title"), badges, theme: theme), 8)
+        XCTAssertEqual(EditorialSpacing.between(node("Title"), nestedBadge, theme: theme), 12)
     }
 
     func testNoneTimelineHasNoDanglingConnector() {

@@ -1,4 +1,8 @@
 Component contracts derived from thesysdev/open-intelligent-ui commit 16ef26475999e3a021a50b1607a03717c0721255.
+Positional contracts aligned with thesysdev/open-intelligent-ui commit 53df45b4231aabab1a0e932733e117937ff2b41c.
+Layout and shared property behavior derived from @openuidev/intelligent-ui-library 0.0.1,
+thesysdev/openui commit c531b0dfe83dc828241f71dbe77e689ebdbf05f7,
+packages/libraries/intelligent-ui/src/components and src/shared.
 
 The MIT License (MIT)
 

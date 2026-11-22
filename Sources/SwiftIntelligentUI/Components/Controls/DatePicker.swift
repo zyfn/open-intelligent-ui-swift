@@ -87,7 +87,7 @@ private struct DateFieldView: View {
                     Spacer(minLength: theme.innerSpacing)
                     Image(systemName: "calendar").accessibilityHidden(true)
                 }.font(theme.bodyFont)
-                    .foregroundStyle(raw.isEmpty ? theme.secondaryText : theme.primaryText)
+                    .foregroundStyle(raw.isEmpty ? theme.fieldSecondaryText : theme.fieldText)
                     .modifier(FieldSurface(invalid: selection.message != nil))
                     .contentShape(Rectangle())
             }

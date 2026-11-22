@@ -51,7 +51,13 @@ report = {"requestedModel": args.model, "actualModel": None, "clientVersion": cl
           "promptSHA256": hashlib.sha256(prompt.encode()).hexdigest(), "requestedCases": [case["id"] for case in cases], "cases": [], "status": "running"}
 for case in cases:
     answer = output / (case["id"] + ".json")
-    request = "You are being evaluated only as a UI generator. Do not use tools or access files. Return only the requested JSON containing a program.\n\n" + prompt + "\n\nTask:\n" + case["task"]
+    request = (
+        "You are being evaluated only as a UI generator. Do not use tools or access files. "
+        "Return the required JSON transport object with a single program string. "
+        "The following UI-generation instructions apply to the contents of program: "
+        "its value is pure OpenUI Lang without Markdown fences or another JSON wrapper.\n\n"
+        + prompt + "\n\nTask:\n" + case["task"]
+    )
     if case.get("previousCase"):
         previous = previous_programs.get(case["previousCase"])
         if previous is None:

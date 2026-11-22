@@ -40,10 +40,15 @@ import SwiftIntelligentUI
             checks["hasCover"] = nodes.contains { $0.typeName == "Image" }
             let composedRows = nodes.filter { node in
                 guard node.typeName == "Row" else { return false }
-                let children = elements(.element(node))
-                return children.contains { $0.typeName == "Image" } && children.contains { ["Text", "Title"].contains($0.typeName) }
+                let children = PropValue.children(node)
+                guard children.contains(where: { $0.typeName == "Image" }) else { return false }
+                return children.contains { child in
+                    guard child.typeName == "Col" else { return false }
+                    let copy = PropValue.children(child)
+                    return copy.contains { $0.typeName == "Title" } && copy.contains { $0.typeName == "Text" }
+                }
             }
-            checks["hasEditorialRows"] = composedRows.count >= 2 || nodes.filter { $0.typeName == "ImageText" }.count == 2
+            checks["hasEditorialRows"] = composedRows.count >= 2
             checks["hasSources"] = nodes.contains { $0.typeName == "Citation" }
             let values = Set(strings(.element(root)))
             checks["preservesImageURLs"] = values.contains("https://example.com/photo-a.jpg") && values.contains("https://example.com/photo-b.jpg")

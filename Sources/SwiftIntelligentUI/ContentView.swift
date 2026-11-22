@@ -14,11 +14,16 @@ struct OpenIntelligentUIContentView: View {
 
     public var body: some View {
         SwiftLangView(state: state, registry: library.readerComponents.registry)
+            // The renderer root may resolve an authored percentage height
+            // against an actual finite host proposal. Auto-height roots still
+            // use natural height; child containers establish their own scope.
+            .environment(\.openIntelligentUIItemSizing, IntelligentUIItemSizing(hasDefiniteHeight: true))
             .openIntelligentUILayoutTrace("renderer-content")
             .frame(maxWidth: theme.readingWidth, alignment: .leading)
             .openIntelligentUILayoutTrace("renderer-frame", "limit=\(LayoutTrace.number(theme.readingWidth))")
             .font(theme.bodyFont)
             .foregroundStyle(theme.primaryText)
             .tint(theme.accent)
+            .modifier(IntelligentUIViewportModifier())
     }
 }

@@ -89,7 +89,7 @@ enum IconComponent {
         OpenUIComponent(name: "Icon", description: "Decorative native icon. Names follow the upstream free-form Lucide identifier contract; known names map to SF Symbols and unknown nonempty names use an explicit accessible native fallback. Size md and ink are defaults; meaningful symbols need visible text.", params: [
             OpenUIParameter.string("name"),
             OpenUIParameter.string("size", required: false, values: ["sm", "md", "lg"]),
-            OpenUIParameter.string("color", required: false, values: Parameter.colors)
+            Parameter.color()
         ]) { IconView(context: $0) }
     }
 }

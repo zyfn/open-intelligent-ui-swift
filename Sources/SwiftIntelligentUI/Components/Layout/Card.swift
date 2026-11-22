@@ -3,11 +3,11 @@ import SwiftLang
 
 enum CardComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Card", description: "A restrained content group. Single ProductCard/TransportCard children reuse their own surface; in Map the SDK summary card owns presentation instead of nested borders. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units, from 0 to 24.", params: [
+        OpenUIComponent(name: "Card", description: "A restrained content group. A single ProductCard child reuses its own surface. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units; negative values become zero.", params: [
             OpenUIParameter.slot("children", required: true),
             OpenUIParameter.string("variant", required: false, values: ["outline", "soft"]),
-            Parameter.number("gap", minimum: 0, maximum: 24),
-            Parameter.number("padding", minimum: 0, maximum: 24)
+            Parameter.number("gap"),
+            Parameter.number("padding")
         ]) { context in
             CardView(context: context)
         }
@@ -31,7 +31,7 @@ private struct CardView: View {
         let children = context.children()
         guard children.count == 1 else { return false }
         let content = EditorialNode.readingEdge(children[0].value)
-        return ["ProductCard", "TransportCard"].contains(EditorialNode.kind(content))
+        return EditorialNode.kind(content) == "ProductCard"
     }
     @ViewBuilder var body: some View {
         Group {
@@ -48,12 +48,12 @@ private struct CardView: View {
             ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                 context.render(child.value)
                     .environment(\.openIntelligentUIEditorial, childContext)
-                    .padding(.top, index == 0 ? 0 : context.number("gap").map { CGFloat(min(24, max(0, $0))) * theme.spacingUnit }
+                    .padding(.top, index == 0 ? 0 : context.number("gap").map { theme.spacing($0) }
                         ?? EditorialSpacing.between(children[index - 1].value, child.value, theme: theme, nested: true))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(CGFloat(min(24, max(0, context.number("padding") ?? defaultPadding))) * theme.spacingUnit)
+        .padding(theme.spacing(context.number("padding"), fallback: CGFloat(defaultPadding)))
         .background(context.string("variant") == "soft" ? theme.surface : theme.canvas,
                     in: RoundedRectangle(cornerRadius: radius))
         .overlay(RoundedRectangle(cornerRadius: radius)
@@ -63,6 +63,7 @@ private struct CardView: View {
     private var childContext: EditorialContext {
         var result = editorial
         result.cardDepth += 1
+        if context.number("gap") == nil { result.flowDepth += 1 }
         return result
     }
 }

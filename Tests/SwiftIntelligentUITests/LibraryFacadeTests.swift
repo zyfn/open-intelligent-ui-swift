@@ -8,31 +8,29 @@ import AppKit
 #endif
 
 final class LibraryFacadeTests: XCTestCase {
-    @MainActor func testExcludedWriterComponentsRemainReadableThroughTheUnifiedView() throws {
-        let library = try OpenUILibrary.openIntelligentUI(excludingComponents: ["ImageText"])
-        let original = try OpenIntelligentUIComponents(excludingComponents: ["ImageText"])
-        XCTAssertEqual(library.specificationJSON, original.specificationJSON)
-        XCTAssertEqual(library.readerSpecification.jsonString(), original.readerSpecification.jsonString())
-        XCTAssertEqual(library.systemPrompt, original.systemPrompt)
-        XCTAssertFalse(library.specification.components.contains { $0.name == "ImageText" })
-        XCTAssertTrue(library.readerSpecification.components.contains { $0.name == "ImageText" })
+    @MainActor func testRemovedComponentsAreAbsentFromFacadeContracts() throws {
+        let library = try OpenUILibrary.openIntelligentUI()
+        for name in ["ImageText", "TransportCard"] {
+            XCTAssertFalse(library.specification.components.contains { $0.name == name })
+            XCTAssertFalse(library.readerSpecification.components.contains { $0.name == name })
+            XCTAssertFalse(library.systemPrompt.contains(name))
+            XCTAssertFalse(library.specificationJSON.contains(name))
+        }
+    }
 
-        let source = #"root = Col([ImageText({title: "Archived title", subtitle: "Stored content"})])"#
-        XCTAssertTrue(library.recognizesUI(in: source))
-        XCTAssertFalse(library.recognizesUI(in: "An ordinary paragraph without a UI program."))
+    @MainActor func testFacadeRendersAtomicImageTextAndJourneyLineComposition() throws {
+        let library = try OpenUILibrary.openIntelligentUI()
+        let source = #"root = Col([Row([Image("https://example.com/photo.jpg", "建筑"), Col([Title("建筑观察"), Text("观察建筑形制")])]), Row([Col([Text("08:30"), Text("北京南站")]), JourneyLine("train"), Col([Text("13:15"), Text("上海虹桥站")])])])"#
         let state = library.makeState()
         state.setSource(source)
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-        XCTAssertEqual(PropValue.children(try XCTUnwrap(state.root)).map(\.typeName), ["ImageText"])
-
+        XCTAssertTrue(library.recognizesUI(in: source))
+        XCTAssertEqual(library.validationIssues(in: state, source: source), [])
+        XCTAssertEqual(PropValue.children(try XCTUnwrap(state.root)).map(\.typeName), ["Row", "Row"])
         #if os(macOS)
         _ = NSApplication.shared
-        let unified = ImageRenderer(content: OpenUIView(state: state, library: library).frame(width: 320))
-        let legacy = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: original).frame(width: 320))
-        let image = try XCTUnwrap(unified.nsImage)
-        let reference = try XCTUnwrap(legacy.nsImage)
-        XCTAssertGreaterThan(image.size.height, 0)
-        XCTAssertEqual(image.size, reference.size)
+        let image = ImageRenderer(content: OpenUIView(state: state, library: library).frame(width: 320))
+        XCTAssertGreaterThan(try XCTUnwrap(image.nsImage).size.height, 0)
         #endif
     }
 

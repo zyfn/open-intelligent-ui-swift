@@ -5,17 +5,23 @@ import SwiftLang
 final class LibraryTests: XCTestCase {
     func testExportContainsOnlyImplementedComponents() throws {
         let library = try OpenIntelligentUIComponents()
-        let expected = Set(["Col", "Row", "Grid", "Box", "Card", "Text", "Title", "Checkbox", "Button", "Slider", "Image", "Icon", "Caption", "Label", "Link", "Input", "TextArea", "Select", "SegmentedControl", "RadioGroup", "ProductCard", "Markdown", "Quote", "Code", "Badge", "List", "ListItem", "Table", "Chart", "Divider", "Spacer", "Carousel", "Form", "Popover", "IconButton", "Pressable", "DatePicker", "Timer", "Flashcard", "Celebration", "Math", "Map", "MapMarker", "HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "TransportCard", "ImageText", "Citation", "Disclosure", "Progress"])
+        let expected = Set(["Col", "Row", "Grid", "Box", "Card", "Text", "Title", "Checkbox", "Button", "Slider", "Image", "Icon", "Caption", "Label", "Link", "Input", "TextArea", "Select", "SegmentedControl", "RadioGroup", "ProductCard", "Markdown", "Quote", "Code", "Badge", "List", "ListItem", "Table", "Chart", "Divider", "Spacer", "Carousel", "Form", "Popover", "IconButton", "Pressable", "DatePicker", "Timer", "Flashcard", "Celebration", "Math", "Map", "MapMarker", "HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "JourneyLine", "Citation", "Disclosure", "Progress"])
         XCTAssertEqual(Set(library.specification.components.map(\.name)), expected)
         XCTAssertEqual(Set(library.components.library.components.map(\.name)), expected)
+        XCTAssertEqual(Set(library.readerSpecification.components.map(\.name)), expected)
         for name in expected { XCTAssertNotNil(library.components.registry[name]) }
         XCTAssertNil(library.components.registry["SearchImage"])
+        XCTAssertNil(library.components.registry["ImageText"])
+        XCTAssertNil(library.readerComponents.registry["ImageText"])
+        XCTAssertNil(library.components.registry["TransportCard"])
+        XCTAssertNil(library.readerComponents.registry["TransportCard"])
         let exported = try LibrarySpec(jsonString: library.specificationJSON)
         XCTAssertEqual(exported.components.map(\.signature), library.specification.components.map(\.signature))
         XCTAssertTrue(library.systemPrompt.contains("Checkbox"))
         XCTAssertFalse(library.systemPrompt.contains("priceText?:"))
         XCTAssertFalse(library.systemPrompt.contains("visibleIds"))
         XCTAssertFalse(library.systemPrompt.contains("SearchImage("))
+        XCTAssertFalse(library.systemPrompt.contains("ImageText"))
         XCTAssertTrue(library.systemPrompt.contains("Image(src: string, alt: string, aspectRatio?: number"))
         XCTAssertTrue(library.systemPrompt.contains("aspectRatio?:"))
         XCTAssertFalse(library.systemPrompt.contains("source-ordered ready prefix"))
@@ -44,6 +50,7 @@ final class LibraryTests: XCTestCase {
         XCTAssertFalse(library.systemPrompt.contains("Buttons without an action automatically send"))
         XCTAssertTrue(library.systemPrompt.contains("Buttons without an explicit action are disabled"))
         XCTAssertTrue(library.systemPrompt.contains("without a Markdown fence or a JSON wrapper"))
+        XCTAssertEqual(library.selectedGenerationExamples, OpenIntelligentUIComponents.generationExamples)
         for example in OpenIntelligentUIComponents.generationExamples {
             let start = try XCTUnwrap(example.range(of: "root = Col("))
             let state = library.makeState()
@@ -51,6 +58,7 @@ final class LibraryTests: XCTestCase {
             XCTAssertTrue(state.errors.isEmpty, "\(example): \(state.errors)")
             _ = try XCTUnwrap(state.root)
             XCTAssertEqual(library.validationIssues(in: state, source: String(example[start.lowerBound...])), [], example)
+            XCTAssertEqual(library.validationIssues(in: state, source: String(example[start.lowerBound...]), profile: .generation), [], example)
         }
     }
 

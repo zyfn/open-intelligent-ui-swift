@@ -70,26 +70,30 @@ final class DesignRevampTests: XCTestCase {
         XCTAssertNil(theme.nativeTextFonts[.body])
     }
 
-    func testReadingRelationshipsUseSemanticTokensAcrossTransparentWrappers() {
+    func testFlowSpacingUsesThemeTokensAndKeepsDirectWrapperBoundaries() {
         var theme = OpenIntelligentUITheme()
         theme.paragraphSpacing = 19
         theme.innerSpacing = 9
         theme.sectionSpacing = 30
         theme.spacingUnit = 5
-        XCTAssertEqual(EditorialSpacing.between(node("Text"), node("Markdown"), theme: theme), 19)
+        XCTAssertEqual(EditorialSpacing.between(node("Text"), node("Text"), theme: theme), 19)
+        XCTAssertEqual(EditorialSpacing.between(node("Text"), node("Markdown"), theme: theme), 35)
         let image = node("Image")
         let wrapped = node("Box", [("children", .array([image]))])
         let surface = node("Box", [("children", .array([image])), ("background", .string("surface"))])
-        XCTAssertEqual(EditorialSpacing.between(wrapped, node("Caption"), theme: theme), 9)
+        XCTAssertEqual(EditorialSpacing.between(wrapped, node("Caption"), theme: theme), 35)
         XCTAssertEqual(EditorialSpacing.between(surface, node("Caption"), theme: theme), 35)
         for media in ["Image", "SearchImage", "Chart", "Table", "Svg", "YouTube", "Map", "Math", "HtmlView"] {
-            XCTAssertEqual(EditorialSpacing.between(node(media), node("Caption"), theme: theme), 9, media)
+            XCTAssertEqual(EditorialSpacing.between(node(media), node("Caption"), theme: theme), 35, media)
         }
         let credit = node("Text", [("text", .array([.string("来源 "), node("Citation")]))])
-        XCTAssertEqual(EditorialSpacing.between(wrapped, credit, theme: theme), 9)
+        XCTAssertEqual(EditorialSpacing.between(wrapped, credit, theme: theme), 35)
+        XCTAssertEqual(EditorialSpacing.between(node("Caption"), node("Title"), theme: theme), 5)
+        XCTAssertEqual(EditorialSpacing.between(node("Title"), node("Caption"), theme: theme), 9)
+        XCTAssertEqual(EditorialSpacing.between(wrapped, credit, theme: theme, nested: true), 19)
     }
 
-    func testRowPreservesGenericReadingBlocksWithoutForcingMediaLayout() {
+    func testReadingBlockDetectionRemainsSeparateFromMediaSizing() {
         let pair = [node("Image"), node("Text")]
         XCTAssertTrue(pair.allSatisfy(RowPresentation.isReadingBlock))
         XCTAssertFalse(RowPresentation.isReadingBlock(node("Input")))

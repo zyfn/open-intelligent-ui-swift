@@ -4,7 +4,7 @@ import SwiftLang
 enum CarouselComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "Carousel", description: "Horizontal collection with adaptive widths and native snapping on iOS 17/macOS 14+ and desktop navigation. Comparable product/transport cards retain equal heights; general content retains its natural height. itemWidth is the preferred width (default 240), gap uses 4-point units.", params: [
-            OpenUIParameter.slot("children", required: true), Parameter.number("itemWidth", minimum: 80, maximum: 640), Parameter.number("gap", minimum: 0, maximum: 24)
+            OpenUIParameter.slot("children", required: true), Parameter.number("itemWidth"), Parameter.number("gap")
         ]) { CarouselView(context: $0) }
     }
 }
@@ -101,7 +101,7 @@ private struct CarouselView: View {
     }
 
     private func items(_ children: [OpenUIRenderChild], itemWidth: CGFloat) -> some View {
-        EqualHeightCarouselLayout(itemWidth: itemWidth, gap: CGFloat(min(24, max(0, context.number("gap") ?? 3))) * theme.spacingUnit,
+        EqualHeightCarouselLayout(itemWidth: itemWidth, gap: theme.spacing(context.number("gap"), fallback: 3),
             equalizesHeights: CarouselMetrics.comparable(children.map(\.value)), rightToLeft: direction == .rightToLeft) {
             ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
                 context.render(child.value)
@@ -115,7 +115,7 @@ private struct CarouselView: View {
             .padding(.trailing, CarouselMetrics.trailingSpace(available: available, itemWidth: itemWidth))
             .padding(.bottom, theme.innerSpacing)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(coordinateSpace)) } action: { frame in
-                let gap = CGFloat(min(24, max(0, context.number("gap") ?? 3))) * theme.spacingUnit
+                let gap = theme.spacing(context.number("gap"), fallback: 3)
                 let offset = direction == .rightToLeft ? frame.maxX - available : -frame.minX
                 let index = CarouselMetrics.index(offset: offset, itemWidth: itemWidth, gap: gap, count: children.count)
                 if current != index { current = index }

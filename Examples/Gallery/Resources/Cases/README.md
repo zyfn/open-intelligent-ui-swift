@@ -1,5 +1,7 @@
 # Gallery 核心案例
 
+文档版本：1.2 · 更新日期：2026-11-22
+
 这里维护 Gallery 的十个核心场景。`catalog.json` 是场景、标题、分类、来源和两份程序路径的唯一索引；宿主按所选库读取 `openui/` 或 `openintelligentui/`。程序路径相对本目录，避免把源码嵌在 Swift 菜单中再维护一份。
 
 ## 内容范围
@@ -7,7 +9,7 @@
 | 场景 | 主要检查的体验 |
 | --- | --- |
 | 杭州周末的四种心情 | 图文叙述、图片网格、地图与继续提问 |
-| 杭州南宋与西湖两日 | 时间安排、地点对比、票务承接 |
+| 杭州南宋与西湖两日 | 时间安排、地点对比、地图筛选与展开、票务承接 |
 | 空调制热的原理 | 原理图、分步解释、数量比较 |
 | 找到舒服的卧室氛围 | 图片选择、多选状态与动作载荷 |
 | 阅读台灯怎么选 | 商品图、比较表、价格与购买入口 |
@@ -25,13 +27,13 @@
 
 - 前八份标准程序从本仓库原 `Examples/AgentCases/` 移入，文件名与字节均保持不变；它们与上述 CaseLab 提交的 `Review/Fixtures/SimpleCases/` 逐字一致。CaseLab 原先也是从 SDK 同步这八份内容，因此本次移动没有再导入第二份副本。
 - `openui/scene-spending.openui` 和 `openui/behavior-form.openui` 分别提取自 `Review/Catalog/Programs/ReviewExamplePrograms.swift` 的 `scene-spending`、`behavior-form` 中文 `zh-Hans` 分支。仅移除 Swift 原始字符串与源码缩进，DSL 未改写。
-- 十份 OpenIntelligentUI 程序按自身组件契约编排，保留 OpenUI 场景的完整内容、阅读层次、来源图片及任务意图。通过 `Col`、`Title`、`Carousel`、`ImageText`、`Chart`、`ProductCard`、`TransportCard` 等组件组织解释、比较、选择与后续行动。
+- 十份 OpenIntelligentUI 程序按自身组件契约编排，保留 OpenUI 场景的完整内容、阅读层次、来源图片及任务意图。通过 `Col`、`Row`、`Box`、`Image`、`Title`、`Text`、`Caption`、`Carousel`、`Chart`、`ProductCard`、`JourneyLine` 等组件组织解释、比较、选择与后续行动。图文内容由基础组件组合，交通通过 `JourneyLine` 与普通内容组件表达。图文集合使用容器默认布局；需要随可用宽度减少列数时，Grid 提供 `minChildWidth`，程序无需计算用户设备尺寸。
 
 后续修改在这里维护。需要向 CaseLab 同步时，应由其消费这些源文件；不要在两个仓库各改一份后再人工挑选。源项目采用 Thesys MIT 许可，本仓库现有第三方声明保留对应许可。
 
 ## 内容完整性与产品表达
 
-OpenUI 的前八份原文继续作为既有行为回归素材。OpenIntelligentUI 保留完整开篇、章节、解释、比较、结论与后续行动；不能为了让示例短小而删去主要内容。探索与候选选择使用横向集合，行程保留逐站照片和说明，商品与交通使用自身业务组件，图解用结构化图元或原生分组表达。补充信息可以折叠，主要解释与结论保持可读；两套产品不要求使用相同的视觉组件。
+OpenUI 的前八份原文继续作为既有行为回归素材。OpenIntelligentUI 保留完整开篇、章节、解释、比较、结论与后续行动；不能为了让示例短小而删去主要内容。探索与候选选择使用横向集合，行程保留逐站照片和说明，商品使用 ProductCard；交通通过 JourneyLine 与通用内容组件组合，图解用结构化图元或原生分组表达。补充信息可以折叠，主要解释与结论保持可读；两套产品不要求使用相同的视觉组件。
 
 商品身份、来源链接、价格口径、日期、时区、地点坐标与演示边界保持一致。Gallery 回归检查两套程序的原始媒体/链接保留，以及十个场景的关键章节、数据与交互入口；这些检查不能替代原生画面的视觉验收。
 
