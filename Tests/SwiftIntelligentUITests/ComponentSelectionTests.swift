@@ -4,7 +4,7 @@ import SwiftLang
 @testable import SwiftIntelligentUI
 
 final class ComponentSelectionTests: XCTestCase {
-    private let excluded: Set<String> = ["ImageText", "YouTube", "Timer"]
+    private let excluded: Set<String> = ["YouTube", "Timer"]
 
     @MainActor func testSelectedContractsStayInSyncWithoutChangingTheDefaultCatalog() throws {
         let full = try OpenIntelligentUIComponents()
@@ -33,40 +33,14 @@ final class ComponentSelectionTests: XCTestCase {
         }
     }
 
-    func testImageTextIsReaderOnlyByDefaultAndItsExplicitExclusionIsIdempotent() throws {
-        let standard = try OpenIntelligentUIComponents()
-        let explicit = try OpenIntelligentUIComponents(excludingComponents: ["ImageText"])
-        let writer = Set(standard.specification.components.map(\.name))
-        let reader = Set(standard.readerSpecification.components.map(\.name))
-        XCTAssertEqual(reader.subtracting(writer), ["ImageText"])
-        XCTAssertEqual(writer.subtracting(reader), [])
-        XCTAssertNil(standard.components.registry["ImageText"])
-        XCTAssertNotNil(standard.readerComponents.registry["ImageText"])
-        XCTAssertFalse(standard.specificationJSON.contains("ImageText"))
-        XCTAssertFalse(standard.systemPrompt.contains("ImageText"))
-        XCTAssertEqual(explicit.specificationJSON, standard.specificationJSON)
-        XCTAssertEqual(explicit.readerSpecification.jsonString(), standard.readerSpecification.jsonString())
-        XCTAssertEqual(explicit.systemPrompt, standard.systemPrompt)
-    }
-
-    @MainActor func testExistingMessagesRemainReadableWithSelectedContracts() throws {
-        let selected = try OpenIntelligentUIComponents(excludingComponents: excluded)
-        let source = #"""
-        root=Col([ImageText({title:"旧消息",subtitle:"原内容"}),Timer($seconds),YouTube("invalid"),Map([MapMarker("地点",30,120)])])
-        $seconds=30
-        """#
-        XCTAssertTrue(selected.recognizesUI(in: #"root=ImageText({title:"旧消息"})"#))
-        XCTAssertTrue(selected.recognizesUI(in: source))
-        XCTAssertFalse(selected.recognizesUI(in: "这是一段普通 Markdown。"))
-        let state = selected.makeState(); state.setSource(source)
-        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-        XCTAssertEqual(selected.validationIssues(in: state, source: source), [])
-        let root = try XCTUnwrap(state.root)
-        XCTAssertEqual(PropValue.children(root).map(\.typeName), ["ImageText", "Timer", "YouTube", "Map"])
-        #if os(macOS)
-        let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: selected).frame(width: 320))
-        XCTAssertNotNil(renderer.nsImage)
-        #endif
+    @MainActor func testRemovedComponentsAreAbsentFromEveryCatalogAndPrompt() throws {
+        let library = try OpenIntelligentUIComponents()
+        for name in ["ImageText", "TransportCard"] {
+            XCTAssertNil(library.components.registry[name])
+            XCTAssertNil(library.readerComponents.registry[name])
+            XCTAssertFalse(library.specificationJSON.contains(name))
+            XCTAssertFalse(library.systemPrompt.contains(name))
+        }
     }
 
     @MainActor func testSelectionRejectsUnknownNamesAndRootAndKeepsOptionalSearchIndependent() throws {

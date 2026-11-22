@@ -21,7 +21,7 @@
   },
   {
     "id": "transport",
-    "task": "使用一个 TransportCard 展示固定混合联程，journey id mix。第一段 id rail：train，A站到B站，2026-11-12 21:00到22:00，bookingURL /transport/train。第二段 id air：flight，B机场到C机场，2026-11-13 08:00到11:00，bookingURL /transport/flight。两段分开预订，separateTickets true；afterLeg 0的中转需要换站，changeStation true，中转时长原文10小时。没有提供总价、总时长、承运人、航班车次，不要补造或计算这些字段。",
+    "task": "比较两种演示行程并自主组织布局。直飞：北京大兴 10:00 → 曼谷素万那普 14:05，航段类型 flight，演示时长 5 小时 5 分，演示价 ¥950。中转：北京大兴 09:00 → 上海浦东 11:00；上海浦东 13:00 → 曼谷素万那普 16:00，均为 flight，衔接 2 小时，演示总时长 8 小时，演示价 ¥820。用 JourneyLine 表达每段交通连接，端点、说明、价格和重新查询动作使用普通组件。保留演示数据边界，不要声称实时库存或购买成功。",
     "mode": "guided"
   },
   {

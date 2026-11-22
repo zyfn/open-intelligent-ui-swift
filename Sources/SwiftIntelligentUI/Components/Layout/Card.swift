@@ -3,7 +3,7 @@ import SwiftLang
 
 enum CardComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Card", description: "A restrained content group. A single ProductCard or TransportCard reuses its own surface. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units; negative values become zero.", params: [
+        OpenUIComponent(name: "Card", description: "A restrained content group. A single ProductCard child reuses its own surface. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units; negative values become zero.", params: [
             OpenUIParameter.slot("children", required: true),
             OpenUIParameter.string("variant", required: false, values: ["outline", "soft"]),
             Parameter.number("gap"),
@@ -31,7 +31,7 @@ private struct CardView: View {
         let children = context.children()
         guard children.count == 1 else { return false }
         let content = EditorialNode.readingEdge(children[0].value)
-        return ["ProductCard", "TransportCard"].contains(EditorialNode.kind(content))
+        return EditorialNode.kind(content) == "ProductCard"
     }
     @ViewBuilder var body: some View {
         Group {

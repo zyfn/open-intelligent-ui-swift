@@ -74,7 +74,7 @@ flowchart TB
 | Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
 | Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
 | Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
-| Benchmarks/、Validation/、Fixtures/ | 性能工作负载、静态/模型评测、固定语言输入与参考预期 |
+| Benchmarks/ | SDK 的 Runtime、Streaming、Components、Layout、Visual、Performance 标准工作负载；复用 Tests 与固定 fixtures |\n| Validation/、Fixtures/ | 静态/模型评测、固定语言输入与参考预期 |
 | docs/、outputs/ | 文档；已忽略的本地生成及验收材料 |
 
 源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport、LanguageRuntime 各自持有开发包，通过根 SDK 的公开产品接入。

@@ -61,7 +61,7 @@ enum RowFlexRules {
 
 enum RowPresentation {
     static func isReadingBlock(_ value: Value) -> Bool {
-        EditorialNode.media(value) || ["Text", "Title", "Caption", "Markdown", "Box", "Col", "Card", "ImageText", "ProductCard", "TransportCard", "List", "Table", "Chart", "Form", "Quote", "Code", "Disclosure"].contains(EditorialNode.kind(value))
+        EditorialNode.media(value) || ["Text", "Title", "Caption", "Markdown", "Box", "Col", "Card", "ProductCard", "List", "Table", "Chart", "Form", "Quote", "Code", "Disclosure"].contains(EditorialNode.kind(value))
     }
 }
 

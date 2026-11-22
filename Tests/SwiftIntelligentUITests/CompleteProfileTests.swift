@@ -8,9 +8,8 @@ final class CompleteProfileTests: XCTestCase {
         let provider = OpenIntelligentUIImageSearch { _ in .init(url: "https://example.com/photo.jpg", alt: "来源") }
         let enabled = try OpenIntelligentUIComponents(imageSearch: provider)
         XCTAssertEqual(enabled.specification.components.count, 60)
-        XCTAssertEqual(enabled.readerSpecification.components.count, 61)
-        XCTAssertEqual(Set(enabled.readerSpecification.components.map(\.name))
-            .subtracting(enabled.specification.components.map(\.name)), ["ImageText"])
+        XCTAssertEqual(enabled.readerSpecification.components.count, 60)
+        XCTAssertEqual(Set(enabled.readerSpecification.components.map(\.name)), Set(enabled.specification.components.map(\.name)))
         XCTAssertNotNil(enabled.components.registry["SearchImage"])
         XCTAssertNil(try OpenIntelligentUIComponents().components.registry["SearchImage"])
         XCTAssertEqual(enabled.specification.functions.count, 59)

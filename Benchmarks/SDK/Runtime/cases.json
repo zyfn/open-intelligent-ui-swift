@@ -1,0 +1,65 @@
+{
+  "domain": "Runtime",
+  "version": 1,
+  "cases": [
+    {
+      "id": "RT-001",
+      "objective": "合法/非法 Lang 与组件签名解析",
+      "workload": "固定语法、类型、位置参数、未知组件和非法值样本",
+      "environment": "macOS · SwiftPM · Debug/Release",
+      "assertions": [
+        "合法程序解析无错误",
+        "非法输入返回稳定诊断",
+        "writer/reader schema 与实际注册一致"
+      ],
+      "metrics": [
+        "解析耗时 P50/P95",
+        "错误分类计数"
+      ],
+      "evidence": [
+        "Tests/SwiftLangTests",
+        "Tests/SwiftIntelligentUITests/GenerationContractTests.swift"
+      ],
+      "status": "existing"
+    },
+    {
+      "id": "RT-002",
+      "objective": "变量、函数、Store、Query 与绑定更新",
+      "workload": "固定声明、派生表达式、状态修改和依赖读取",
+      "environment": "macOS · XCTest",
+      "assertions": [
+        "初始求值正确",
+        "状态修改只影响依赖节点",
+        "持久绑定恢复值一致"
+      ],
+      "metrics": [
+        "求值耗时",
+        "依赖重算数量"
+      ],
+      "evidence": [
+        "Tests/SwiftLangTests",
+        "Tests/SwiftIntelligentUITests/FunctionTests.swift"
+      ],
+      "status": "existing"
+    },
+    {
+      "id": "RT-003",
+      "objective": "执行预算与异常恢复",
+      "workload": "深层嵌套、宽对象、无效引用和预算边界",
+      "environment": "macOS · XCTest",
+      "assertions": [
+        "超限输入被确定拒绝",
+        "最后有效状态不被破坏",
+        "reset/换源后可恢复"
+      ],
+      "metrics": [
+        "执行步数",
+        "失败分类"
+      ],
+      "evidence": [
+        "Tests/SwiftLangTests"
+      ],
+      "status": "planned"
+    }
+  ]
+}

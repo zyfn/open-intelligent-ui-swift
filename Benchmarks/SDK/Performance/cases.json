@@ -1,0 +1,67 @@
+{
+  "domain": "Performance",
+  "version": 1,
+  "cases": [
+    {
+      "id": "PF-001",
+      "objective": "语言解析与求值基线",
+      "workload": "固定节点规模，parser/Store/evaluator 创建、初始求值和状态更新",
+      "environment": "macOS · Release · 固定设备",
+      "assertions": [
+        "每轮结果正确",
+        "报告记录提交和工具链",
+        "预热与测量样本分离"
+      ],
+      "metrics": [
+        "P50/P95/Max",
+        "RSS samples"
+      ],
+      "evidence": [
+        "Benchmarks/LanguageRuntime"
+      ],
+      "status": "existing"
+    },
+    {
+      "id": "PF-002",
+      "objective": "公开 State 流式 Push 基线",
+      "workload": "稳定兄弟节点+增长文本尾部，24/128 UTF-16 chunk",
+      "environment": "macOS · Release",
+      "assertions": [
+        "末态内容完整",
+        "发布次数与执行语义一致",
+        "记录最慢 push"
+      ],
+      "metrics": [
+        "Push/Complete/stream P50/P95/Max",
+        "callbacks/publications"
+      ],
+      "evidence": [
+        "Benchmarks/LanguageRuntime"
+      ],
+      "status": "existing"
+    },
+    {
+      "id": "PF-003",
+      "objective": "原生 SwiftUI 呈现、滚动与资源压力",
+      "workload": "200/500/1000 节点长消息、图片组、布局嵌套和连续滚动",
+      "environment": "真实 iPhone/iPad · Release · Instruments",
+      "assertions": [
+        "交互与滚动保持响应",
+        "无持续内存增长异常",
+        "帧时间与 CPU 归因可复现"
+      ],
+      "metrics": [
+        "first-render latency",
+        "CPU",
+        "peak/RSS memory",
+        "frame time",
+        "scroll hitch rate"
+      ],
+      "evidence": [
+        "Gallery",
+        "Instruments traces"
+      ],
+      "status": "planned"
+    }
+  ]
+}

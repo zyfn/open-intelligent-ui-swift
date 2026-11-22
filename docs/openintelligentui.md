@@ -16,7 +16,7 @@
 
 ## 2. 组件与契约
 
-默认新生成目录（writer）有 59 个组件：54 个上游入口与本库 ProductCard、TransportCard、Citation、Disclosure、Progress；注入图片搜索服务后加入 SearchImage，总计 60 个。完整读取目录（reader）额外保留 ImageText，为 60 / 61 个。ImageText 不再进入新生成 spec、Prompt 或 Gallery 组件入口；旧消息仍按原参数读取，无需改写历史源码。显式传入 `excludingComponents: ["ImageText"]` 仍有效，结果与默认 writer 一致。具体参数和平台行为以导出的 spec、manifest 为准。
+默认组件目录包含 59 个组件：54 个上游入口与本库 ProductCard、JourneyLine、Citation、Disclosure、Progress；注入图片搜索服务后加入 SearchImage，总计 60 个。writer 与运行时组件目录使用相同的组件集合。具体参数和平台行为以导出的 spec、manifest 为准。
 
 下表列出新生成可用的组件：
 
@@ -26,7 +26,7 @@
 | Content | Text、Title、Caption、Label、Badge、Link、List、ListItem、Markdown、Quote、Code、Flashcard、Celebration、Citation |
 | Controls | Button、IconButton、Pressable、Input、TextArea、Select、SegmentedControl、RadioGroup、Slider、Checkbox、DatePicker、Timer |
 | Media | Image、Icon、SearchImage、Math、Map、MapMarker、YouTube、HtmlView、Svg、Circle、Ellipse、Rect、Line、Path、Polyline、Polygon、G、SvgText |
-| DataDisplay | Table、Chart、ProductCard、TransportCard、Progress |
+| DataDisplay | Table、Chart、ProductCard、Progress、JourneyLine |
 
 每个组件记录有序参数、类型、默认行为、绑定与限制。本库以官方提交 [`53df45b`](https://github.com/thesysdev/open-intelligent-ui/tree/53df45b4231aabab1a0e932733e117937ff2b41c) 导出的 55 个基础组件为位置签名基线；本轮布局与属性行为依据该 demo 锁定的 `@openuidev/intelligent-ui-library@0.0.1` 源码 [`c531b0d`](https://github.com/thesysdev/openui/tree/c531b0dfe83dc828241f71dbe77e689ebdbf05f7/packages/libraries/intelligent-ui/src)：Image / SearchImage 的 aspectRatio、radius、fit 参数重新进入 writer；Card 参数为 children、variant、gap、padding；六类输入新增 rules；Chart、Svg、Polyline、G 使用新签名。商品与交通自有扩展仍排除旧 priceText。完整 reader 保留尚未删除的历史扩展字段。SearchImage 仅在调用方提供图片服务时注册；普通客户端无该服务时不向 Agent 宣告。
 
@@ -41,7 +41,7 @@ Agent 表达内容、顺序、分组与交互，布局组件根据宿主实际�
 - Grid 的 columns 默认 2，运行时取整并限制为 1–12。只有提供非零 minChildWidth 时才按可用宽度减少列数，且不超过 columns；宽度小于单项最小宽度时保留一列以容纳当前空间。需要适应窄容器的多列内容使用现有 minChildWidth，普通生成不自己计算列数。辅助阅读字号继续使用原生单列适配。
 - gap / padding 的数字按主题单位换算，默认 1 单位=4 点，负数归零，不再附加 24 的私有上限。数字宽高负数归零；长度支持数字字符串、px、%、em/rem、vw/vh 与 auto。% 使用直接父布局 proposal；em/rem 使用原生动态字号；vw/vh 使用渲染器所在的可见容器，iOS 17 / macOS 14 起从 SwiftUI 容器取得，旧系统读取实际所属滚动视口或窗口；旧系统没有滚动视口时以所属窗口为基准，不宣称可识别任意自定义子面板。没有可测视口时保留自然尺寸，不拿全局屏幕或内容高度替代。pt、负数单位字符串、calc 等表达式不参与尺寸解析；fr 不是有效 width/height 的使用值，不伪造网格轨道能力。
 - 颜色字段保持 string 契约，支持语义 token、HEX、RGB(A)、HSL(A) 与 CSS 命名色。canvas、surface-strong、border 等背景角色按主题解释，muted / faint 保持其原角色，不再统一换成 surface。原生解析器拒绝资源或表达式；lab/lch/oklab/oklch、color()/color-mix()、相对颜色和 CSS 继承关键字仍不支持，不能把该范围描述成完整浏览器 CSS 色彩实现。受官方 onColor 规则支持的显式背景会提供默认可读前景，子项显式颜色仍优先；该规则不扩大到所有 CSS 颜色语法。具体色值与字体由宿主原生主题决定。
-- Card 表示真实对象或连贯分组，不为每个段落增加表面。使用画布背景、连续圆角与轻边框；iOS 默认 16 点内边距，macOS 20 点，嵌套 16 点。单个 ProductCard/TransportCard 沿用自己的表面，透明的单子 Col/Box 不重新触发外层边框与内距；有背景、边框或内距的 Box 继续表示真实分组。
+- Card 表示真实对象或连贯分组，不为每个段落增加表面。使用画布背景、连续圆角与轻边框；iOS 默认 16 点内边距，macOS 20 点，嵌套 16 点。单个 ProductCard 沿用自己的表面，透明的单子 Col/Box 不重新触发外层边框与内距；有背景、边框或内距的 Box 继续表示真实分组。
 - Card、Grid、Carousel 和透明 Col/Box 保留原生稳定文字角色，不根据层级或子项位置改变默认 Text/Title 的字号与字重；显式字号始终优先。系统字体、Dynamic Type、RTL、原生焦点与 MapKit 等属于平台实现，布局规则对齐不表示浏览器像素级还原。
 - Carousel 的首选项宽默认 240 点、运行时限制 80–640 点，正常字号不超过视口的 85%。同类实体卡保留可比较的高度，普通内容按自然高度显示；横滑容器由最高内容决定。末尾补足停靠空间，使最后一项可与当前索引一致。iOS 17/macOS 14 起使用原生停靠，旧系统同步偏移位置；桌面和无障碍提供前后操作。子项使用 child.id，方向按宿主 RTL 环境处理。
 - Divider、Spacer 分别负责分隔与剩余空间，不增加额外交互。
@@ -56,7 +56,7 @@ Agent 表达内容、顺序、分组与交互，布局组件根据宿主实际�
 | 横向浏览 | `Carousel([Col(...), Col(...)])` | 项宽收敛、横滑与停靠 |
 | 透明底、带边框 | Box 留空 background、设置 border=true | 表面、边框、内边距与圆角独立选择 |
 
-左图右文的常规程序如下，无需另外定义 ImageText，也无需给 Agent 一套缩略图固定宽度和正文 flex 的必填配方：
+左图右文直接通过 Row、Image 与 Col 组合，不需要专用复合组件：
 
 ```text
 root = Col([Row([
@@ -69,7 +69,7 @@ root = Col([Row([
 
 响应式依据是父容器实际提供的空间：同一台设备的侧栏、分屏和整页可以有不同宽度，简单尺寸变化由组件重新计算，模型无需重新生成。Row 的媒体规则不包含普遍的窄屏转竖排断点；`wrap=true` 允许换行，Grid 的 minChildWidth 控制减少列数。不能宣称任何固定宽度、任意数量的非换行子项都不会溢出。辅助阅读字号的现有原生重排继续生效。
 
-ProductCard 的价格与购买入口、TransportCard 的班次与票价、Map 的点位与选中行为继续由对应组件管理。图文可组合不等于所有业务控件都应拆成没有行为约束的基础元素。
+ProductCard 的价格与购买入口、Map 的点位与选中行为由对应组件管理；交通通过 JourneyLine 与通用组件组合。图文可组合不等于所有业务控件都应拆成没有行为约束的基础元素。
 
 Box 的可选裁剪仍有独立验收边界：从未提供 radius 切换到提供 radius，或反向切换，会进入不同的 SwiftUI 结构分支，内部局部状态与焦点的连续性尚未验收。已提供 radius 后修改圆角值不切换这两个分支。不能用始终矩形裁剪代替“无裁剪”，否则会改变未设置圆角时的溢出语义。
 
@@ -79,7 +79,7 @@ Box 的可选裁剪仍有独立验收边界：从未提供 radius 切换到提�
 - Title、Caption 支持行内 Markdown 和链接；Title 由显式尺寸选择稳定角色，默认/md 为对象标题、lg 为章节、xl 为页面标题，2xl/3xl 保留大标题层级。Caption 靠近所属图片或内容，不自动变成独立来源区块。
 - Label、Badge 表示字段标签与静态事实。Badge 的 info 为中性，状态背景为浅色；Link 使用正文继承色、下划线和行内尺寸，通过宿主动作打开原 URL。
 - List/ListItem 支持 bullet、数字圆标、自定义短步骤标、时间标记列及连线。none 且无时间标记时不绘制悬空线；description 是次级摘要，主要阅读内容放 children。节点身份由运行时维护，不追加私有 id 参数。
-- Markdown 提供完整文档块排版，默认正文与 Text 共用阅读角色，H1/H2/H3 对应页面、章节、对象标题；宿主显式 markdownHeadingScales 仍优先。历史 ImageText、列表、Quote、Flashcard 等紧凑上下文只缩短段距至 innerSpacing，保留多个段落的区分，不把段距归零或自动缩小正文。Quote 仍表示引文，浅底、圆角、侧线和内边距使用同一表面。Code 与 Markdown 代码块共用原文、着色和复制操作；长代码先显示有界预览，可展开，复制始终派发完整原文。
+- Markdown 提供完整文档块排版，默认正文与 Text 共用阅读角色，H1/H2/H3 对应页面、章节、对象标题；宿主显式 markdownHeadingScales 仍优先。列表、Quote、Flashcard 等紧凑上下文只缩短段距至 innerSpacing，保留多个段落的区分，不把段距归零或自动缩小正文。Quote 仍表示引文，浅底、圆角、侧线和内边距使用同一表面。Code 与 Markdown 代码块共用原文、着色和复制操作；长代码先显示有界预览，可展开，复制始终派发完整原文。
 - Citation 在混排段落中使用紧凑内联尺寸，不把完整按钮触达高度带入正文行；独立来源块和多来源 Popover 保留完整触达与导航能力。图片署名和来源可在同一小段 Text 中组合，不额外添加重复的图片链接。
 
 普通 Text/Title 直接应用宿主 Font；Markdown 通过固定 MarkdownUI 的字体属性入口应用已解析字体，并抵消其内部 body 缩放，避免把原生字号再次放大。macOS 的默认语义系统标题使用同一 SwiftUI 文本引擎取得语义字体与重建固定字体的行间基线差，恢复额外行距并保留宿主已有行距；度量按字体及实际环境有界复用，不靠固定高度或 padding 对齐。宿主任何显式 `markdownHeadingScales` 赋值都继续表示原来的前三层相对比例，包括数值与默认数组相同时；未覆盖时才采用语义标题角色。旧系统仍需使用既有 nativeFont 配对，不能自动反解任意 SwiftUI Font；无法按名称回读的私有字体设计回退到系统字体，不猜测私有字族名称。本库没有 Callout 组件：Quote 保持引文语义，Badge 表示短状态，Box 只提供作者明确选择的表面。
@@ -194,17 +194,9 @@ ProductCard 接受一个 product 对象和 layout，每张卡对应一个商品�
 
 多个商品直接组合 Carousel 或 Grid。每个商品拥有自己的完整图集，横排、compact 与竖排均可切换和预览，不借用父容器的其他商品图片。金额展示区分来源币种，例如 CNY 与 JPY；原始金额字符串、分组异常和币种冲突保留并提供提示。长标题、长价格和按钮通过重排保持可读。Gallery 使用有来源与许可的演示照片，演示价格与购买路径不属于库产品。
 
-### 5.2 TransportCard
+### 5.2 交通组合与 JourneyLine
 
-TransportCard 展示调用方提供的本地日期、时间、时区、行程段与票价文本，不根据本地时钟推断经过时间，不凭段数推断中转、联程、通票或总价。卡片使用与通用 Card 一致的 fieldBorder 描边，保持白底页面上的边界辨识度，不额外添加阴影。
-
-一张卡对应一个来源 journey/方向，legs 只取该 journey 的有序 segments。独立 journeys、去返和备选分别使用独立卡片，不拍平为连接段，也不再包一层组合方案卡。只有全部相应段间均有显式 connections 时才显示中转次数。
-
-顶部按“日期 · 出发城市 → 到达城市”形成行程摘要，右上角可显示来源 badge；航司/车次移到价格上方，不重复占用顶部。城市使用来源 fromCity/toCity，机场或车站全称使用 from/to 放在时间下方；缺少城市字段时省略该摘要段，不通过裁切机场名称推断城市。路线摘要使用三列：左侧为出发时间与机场/车站，中间依次为时长、连接线和直达/中转，右侧为抵达时间与机场/车站。三列顶部对齐，空间不足时逐级降低时间字号，地点与说明使用次级字体并在各自列内换行。缺少时长或承运信息时保留空白槽位，不改变三列骨架；连接线的圆点、线段和箭头连续衔接。机场代码仍保留在数据中，但默认视觉不展示；价格页脚前不额外绘制分割线。
-
-每张卡固定保留底部左侧价格槽和右侧导航槽。缺少价格时保留空白价格槽，缺少有效入口时保留空按钮槽；长价格说明只在价格槽内换行。导航按钮固定使用“查看”文案和圆角按钮样式，在右侧槽内 trailing 对齐，不开放长动作文案。父级报价范围不明时不归入任何单程 price，也不生成卡外报价或按钮；金额与不确定性只在第一张相关卡的 priceNote 中原样保留一次，其余卡保留空槽。
-
-普通字号的交通卡保留三列与缺值槽位；无障碍大字号改为带出发/到达字段标签的纵向信息，不继续逐级缩小时间。商品与交通共用主链接按钮和动作派发链，不另造 Action 视觉组件。
+`JourneyLine(mode)` 是横向交通连接原语，只负责两个端点之间的虚线与交通方式图标。出发/抵达时间、站点、航段说明、中转事实、价格与操作由 Row、Col、Text、Title、Caption、Link、Button 等普通组件组织。多段行程可纵向排列多个 Row；List timeline 表达纵向时间事件，不替代 JourneyLine。
 
 ### 5.3 地图组合
 
@@ -231,7 +223,7 @@ python3 Tools/check_lang_compatibility.py
 
 iOS Gallery 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 OpenUIGallery；支持 iPhone/iPad。Gallery 是独立开发包，通过本地 Swift Package 引用当前根 SDK，并同时展示标准 UI 与 Intelligent UI。精选案例、专项诊断、源码编辑和预览尺寸在同一个入口管理，见 [Gallery 指南](../Examples/Gallery/README.md)。消费者只选择根包的 SDK 库产品。
 
-Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。默认内容包括官方语言模板、59 个生成组件的签名与行为、内置及注册函数、动作、本库 35 条追加规则和 11 个完整示例；注入图片搜索服务后增加 SearchImage 及其规则。示例覆盖同日记录、稳定任务、消费确认、封面图文、图文 Row、网格与表面分离、普通内容横滑、已知联程、独立去返、地图联动与表单计算。排除相关组件时只移除依赖它的规则与示例；不为 ImageText 增设生成开关。示例数据与链接仅用于解释语法，不作为真实推荐。
+Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。默认内容包括官方语言模板、59 个组件的签名与行为、内置及注册函数、动作、本库 35 条追加规则和 11 个完整示例；注入图片搜索服务后增加 SearchImage 及其规则。示例覆盖同日记录、稳定任务、消费确认、封面图文、图文 Row、网格与表面分离、普通内容横滑、已知联程、独立去返、地图联动与表单计算。排除相关组件时只移除依赖它的规则与示例。示例数据与链接仅用于解释语法，不作为真实推荐。
 
 生成原则：
 
@@ -307,7 +299,7 @@ makeState() 使用 `SwiftLang` 中 `OpenUIState` 的默认创建方式，不另�
 2. **组件只承担组件语义**：布局负责组合，控件负责交互，媒体负责资源与平台桥接，业务组件只保留独立业务语义。不得为单个页面或宿主场景新增隐式行为。
 3. **DesignSystem 管呈现规则**：图注关系、阅读节奏、卡片层级、控件状态、大字号与平台适配由设计规则决定，不进入 DSL 参数，也不由父容器随意改变子组件语义。
 4. **公共主题只放语义 token**：颜色、字体角色、间距、圆角、阅读宽度和通用媒体默认值可以共享。间距与圆角独立定义，chartColors 只表示图表序列色，不复用业务状态色。
-5. **组件规格归组件**：表格列宽、商品缩略图、地图高度、图表字体等留在组件内部；通用 Row 媒体规则与历史 ImageText 的 EditorialMetrics 分开，不重新塞进公共主题。
+5. **组件规格归组件**：表格列宽、商品缩略图、地图高度、图表字体等留在组件内部；通用 Row 媒体规则与组件自身的尺寸策略分开，不重新塞进公共主题。
 6. **状态归适配层与调用方**：解析、求值、Store、原生状态、绑定和流式生命周期统一由 SwiftLang 接入；业务数据、消息生命周期、资源与动作结果由宿主负责，组件库不另建业务状态系统。
 7. **Map 只表达地图**：点位、label 选择、分类过滤、fit 与展开由明确规则处理，不接收任意卡片投影，不为地图联动新增身份、筛选或路线方言。
 8. **契约同源**：spec、Prompt、manifest 必须从实际 writer 组件目录生成，不用字符串补丁掩盖实现差异，不让模型学习 SDK 内部运行时细节。

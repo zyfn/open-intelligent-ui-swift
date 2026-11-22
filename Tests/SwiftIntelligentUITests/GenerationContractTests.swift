@@ -3,14 +3,14 @@ import SwiftLang
 @testable import SwiftIntelligentUI
 
 final class GenerationContractTests: XCTestCase {
-    @MainActor func testWriterSignaturesAndSchemaHaveOneSourceWhileReaderRetainsLegacyFields() throws {
+    @MainActor func testWriterAndRuntimeCatalogShareTheSameComponentSet() throws {
         let service = OpenIntelligentUIImageSearch { _ in .init(url: "https://example.invalid/image.jpg", alt: "Image") }
         let library = try OpenIntelligentUIComponents(imageSearch: service)
         let writer = library.components.library.components
         let reader = library.readerComponents.library.components
         XCTAssertEqual(writer.count, 60)
-        XCTAssertEqual(reader.count, 61)
-        XCTAssertEqual(Set(reader.map(\.name)).subtracting(writer.map(\.name)), ["ImageText"])
+        XCTAssertEqual(reader.count, 60)
+        XCTAssertEqual(Set(reader.map(\.name)), Set(writer.map(\.name)))
         XCTAssertEqual(writer.first { $0.name == "Image" }?.params.map(\.name), ["src", "alt", "aspectRatio", "radius", "fit"])
         XCTAssertEqual(reader.first { $0.name == "Image" }?.params.map(\.name), ["src", "alt", "aspectRatio", "radius", "fit"])
         XCTAssertEqual(writer.first { $0.name == "SearchImage" }?.params.map(\.name), ["query", "aspectRatio", "radius", "fit"])
@@ -25,19 +25,6 @@ final class GenerationContractTests: XCTestCase {
         XCTAssertFalse(library.specification.components.first { $0.name == "ProductCard" }!.signature.contains("priceText"))
         XCTAssertTrue(library.readerSpecification.components.first { $0.name == "ProductCard" }!.signature.contains("priceText"))
         XCTAssertEqual(library.manifest.components.map(\.name), library.specification.components.map(\.name))
-    }
-
-    @MainActor func testImageTextHistoryDoesNotBecomeNewGeneration() throws {
-        let library = try OpenIntelligentUIComponents()
-        let source = #"root=Col([ImageText({title:"旧消息",body:"历史图文内容"})])"#
-        let state = library.makeState()
-        state.setSource(source)
-        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-        XCTAssertTrue(library.recognizesUI(in: source))
-        XCTAssertEqual(library.validationIssues(in: state, source: source, profile: .historical), [])
-        XCTAssertEqual(library.validationIssues(in: state, source: source, profile: .generation), [
-            "root.Col.children[0].ImageText: component is not available in this validation profile"
-        ])
     }
 
     @MainActor func testPrimitiveExamplesUseDefaultMediaLayoutAndOrdinaryChildren() throws {
@@ -100,7 +87,7 @@ final class GenerationContractTests: XCTestCase {
         XCTAssertTrue(library.systemPrompt.contains("Every enabled IconButton needs an explicit action"))
         XCTAssertTrue(library.systemPrompt.contains("ToAssistant is allowed only"))
         XCTAssertTrue(library.systemPrompt.contains("Never normalize, shorten, decode, repair or remove parts"))
-        XCTAssertTrue(library.systemPrompt.contains("Use TransportCard for transport"))
+        XCTAssertTrue(library.systemPrompt.contains("Use JourneyLine as a horizontal transport connector"))
         XCTAssertFalse(library.selectedGenerationRules.contains { $0.contains("ProductCard") })
         XCTAssertFalse(library.selectedGenerationExamples.contains { $0.contains("Image(") })
     }

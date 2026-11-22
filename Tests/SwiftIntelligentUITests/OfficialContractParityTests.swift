@@ -84,11 +84,10 @@ final class OfficialContractParityTests: XCTestCase {
         }
         XCTAssertEqual(definitions.count, 60)
         XCTAssertEqual(Set(definitions.keys).subtracting(upstream.keys),
-                       ["ProductCard", "TransportCard", "Citation", "Disclosure", "Progress"],
+                       ["ProductCard", "JourneyLine", "Citation", "Disclosure", "Progress"],
                        "The five generation extensions must stay separate from the official base")
-        XCTAssertEqual(library.readerSpecification.components.count, 61)
-        XCTAssertEqual(Set(library.readerSpecification.components.map(\.name)).subtracting(definitions.keys),
-                       ["ImageText"], "The archived composition remains readable")
+        XCTAssertEqual(library.readerSpecification.components.count, 60)
+        XCTAssertEqual(Set(library.readerSpecification.components.map(\.name)), Set(definitions.keys))
     }
 
     func testSearchImageRemainsAbsentWithoutHostProvider() throws {

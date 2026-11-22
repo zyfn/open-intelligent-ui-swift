@@ -72,7 +72,7 @@ extension OpenIntelligentUIComponents {
         .init("Every enabled Pressable needs an explicit action. Its children are presentation-only; never nest interactive controls or independent link/image operations inside the trigger.", requires: ["Pressable"]),
         .init("Popover trigger content is presentation-only. Put independent controls and links inside the opened content, not inside the trigger.", requires: ["Popover"]),
         .init("Use ProductCard for supplied purchasable goods or bookable services, including accommodation. Preserve known price, all supplied images, exact purchase/booking destination and stable entity identity. Filtering, confirmation or adding a checklist must keep selected entities as cards; use a compact layout when useful. Do not generate legacy priceText, offers, marketing prefixes or inferred units. Put supplied conditions in priceNote.", requires: ["ProductCard"]),
-        .init("Use TransportCard for transport. One card represents one source journey/direction and only its supplied ordered segments. Independent journeys, outbound/return and alternatives remain separate cards. Preserve parent quote ownership. Price and navigation belong in journey fields. An unclear shared quote is preserved once in the first related journey's priceNote, with price empty, rather than duplicated or assigned an unsupported scope. Use supplied fromCity/toCity and full from/to names without trimming or guessing. Only supplied connection facts justify transfer labels. Do not generate legacy priceText or inferred units.", requires: ["TransportCard"]),
+        .init("Use JourneyLine as a horizontal transport connector between departure and arrival content. Place it between endpoint groups inside Row and choose its mode only from supplied transport facts. It draws the dashed line and mode icon; times, station names, duration, transfer details, price and actions remain ordinary sibling components. Do not use it as a vertical timeline or invent route facts.", requires: ["JourneyLine"]),
         .init("Build Map markers only from supplied names and coordinates, with optional source category and emoji icon. Never invent coordinates or place facts. Map handles category filtering, recentering, expansion and responsive sizing. selected stores the clicked marker label, including when labels repeat. route follows the supplied marker order when street routing is available; an overview does not imply turn-by-turn navigation or an inferred visit order.", requires: ["Map", "MapMarker"]),
         .init("ListItem.description is a secondary summary; put substantial reading content in children. Timeline times and stages use the existing marker field.", requires: ["ListItem"]),
         .init("Use Svg for a diagram; always provide its short accessible label. Svg children must be drawing shapes (G may group shapes), not arbitrary UI. Preserve source coordinates and readable text, with equivalent native explanation. Explicit source colors retain meaning; semantic colors follow the SwiftUI theme.", requires: ["Svg"]),
@@ -89,8 +89,8 @@ extension OpenIntelligentUIComponents {
         ["Col", "Row", "Image", "Title", "Text"],
         ["Col", "Grid", "Card", "Title", "Text"],
         ["Col", "Carousel", "Image", "Title", "Caption"],
-        ["Col", "TransportCard"],
-        ["Col", "TransportCard"],
+        ["Col", "JourneyLine"],
+        ["Col", "JourneyLine"],
         ["Col", "Map", "MapMarker"],
         ["Col", "Title", "Form", "Card", "Input", "RadioGroup", "SegmentedControl", "Slider", "Checkbox", "Disclosure", "TextArea", "Button", "Caption", "Text"]
     ]
@@ -143,16 +143,13 @@ extension OpenIntelligentUIComponents {
         window = Col([Image("https://example.com/window.jpg", "窗格细节", 1.5), Caption("观察窗格的结构。")], 2)
         """,
         """
-        A supplied overnight train/flight connection with separate booking URLs; no invented total:
-        root = Col([TransportCard(journey)])
-        journey = {id:"connection", legs:[{id:"rail", mode:"train", from:"A站", to:"B站", fromCity:"A市", toCity:"B市", departureDate:"2026-11-12", arrivalDate:"2026-11-12", departureTime:"21:00", arrivalTime:"22:00", bookingURL:"/transport/train"},{id:"air", mode:"flight", from:"B机场", to:"C机场", fromCity:"B市", toCity:"C市", departureDate:"2026-11-13", arrivalDate:"2026-11-13", departureTime:"08:00", arrivalTime:"11:00", bookingURL:"/transport/flight"}], connections:[{afterLeg:0, changeStation:true, durationText:"10小时"}], separateTickets:true}
+        Compose a mixed train/flight itinerary from ordinary components. JourneyLine supplies only the horizontal transport connector; each endpoint, transfer note and booking action remains independently arranged:
+        root = Col([Card([Title("去程", "md"), Row([Col([Title("21:00"), Text("A站")]), JourneyLine("train"), Col([Title("22:00"), Text("B站")])]), Caption("次日 · 需换站 · 衔接 10 小时"), Row([Col([Title("08:00"), Text("B机场")]), JourneyLine("flight"), Col([Title("11:00"), Text("C机场")])]), Text("两段分开预订；没有提供总价或总时长。"), Row([Link("预订列车", "/transport/train"), Link("预订航班", "/transport/flight")])])])
         """,
         """
-        Independent outbound/return source journeys stay in separate cards. An unclear parent quote is preserved once as a note, not moved outside or assigned as a one-way fare:
-        root = Col([TransportCard(outbound),TransportCard(return)])
+        Keep outbound and return as separate compositions. JourneyLine expresses only each transport connection; the source quote remains attached to its known scope:
+        root = Col([Card([Title("去程", "md"), Row([Col([Title("06:02"), Text("A站")]), JourneyLine("train"), Col([Title("06:52"), Text("B站")])]), Text("来源成人销售价：¥106；具体计价范围按来源定义。"), Link("查看来源行程", sourceURL)]), Card([Title("返程", "md"), Row([Col([Title("19:55"), Text("B站")]), JourneyLine("train"), Col([Title("20:49"), Text("A站")])])])])
         sourceURL = "https://example.com/source?journeyType=round&opaque=keep%3D%3D"
-        outbound = {id:"outbound",legs:[{mode:"train",from:"A站",to:"B站",fromCity:"A市",toCity:"B市",departureDate:"2026-11-23",arrivalDate:"2026-11-23",departureTime:"06:02",arrivalTime:"06:52",serviceNumber:"T1"}],priceNote:"来源成人销售价：¥106；具体计价范围按来源定义",bookingURL:sourceURL}
-        return = {id:"return",legs:[{mode:"train",from:"B站",to:"A站",fromCity:"B市",toCity:"A市",departureDate:"2026-11-23",arrivalDate:"2026-11-23",departureTime:"19:55",arrivalTime:"20:49",serviceNumber:"T2"}]}
         """,
         """
         Supplied coordinates in a street map with category filtering and expansion. Keep selection in the optional label binding:

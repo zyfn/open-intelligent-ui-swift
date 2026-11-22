@@ -1,0 +1,66 @@
+{
+  "domain": "Streaming",
+  "version": 1,
+  "cases": [
+    {
+      "id": "ST-001",
+      "objective": "不同分片宽度下的增量完整性",
+      "workload": "同一 Lang 按 1/24/128/512 UTF-16 units 输入",
+      "environment": "macOS · Release",
+      "assertions": [
+        "最终 AST 与整段解析一致",
+        "UTF-16 边界不丢字符",
+        "complete 后 readiness 完整"
+      ],
+      "metrics": [
+        "Push P50/P95/Max",
+        "parse callbacks",
+        "root publications"
+      ],
+      "evidence": [
+        "Benchmarks/LanguageRuntime",
+        "Tests/SwiftLangTests"
+      ],
+      "status": "existing"
+    },
+    {
+      "id": "ST-002",
+      "objective": "部分组件就绪与流式交互门控",
+      "workload": "逐步补全组件名、参数、绑定与闭合符号",
+      "environment": "macOS · XCTest",
+      "assertions": [
+        "不使用未完成字段",
+        "ready 前交互不可触发",
+        "完成后状态与视图一致"
+      ],
+      "metrics": [
+        "ready latency",
+        "发布次数"
+      ],
+      "evidence": [
+        "Tests/SwiftIntelligentUITests"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "ST-003",
+      "objective": "Interrupt、替换与旧结果隔离",
+      "workload": "慢异步结果期间取消、换源、reset 并触发旧回调",
+      "environment": "macOS · XCTest",
+      "assertions": [
+        "旧结果不能覆盖新文档",
+        "等待者可结束",
+        "新源可正常执行"
+      ],
+      "metrics": [
+        "取消完成延迟",
+        "过期回调计数"
+      ],
+      "evidence": [
+        "Tests/SwiftLangTests",
+        "Tests/SwiftIntelligentUITests"
+      ],
+      "status": "planned"
+    }
+  ]
+}

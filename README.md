@@ -134,7 +134,7 @@ let specJSON = library.specificationJSON
 
 这两个属性在所有库中都相同，内容自动对应选中的组件目录。组件名、位置参数和生成规则继续由各库定义；客户端无需分别拼装 Prompt、schema、函数和 registry。
 
-`readerSpecification` 提供完整读取契约，用于历史数据检查。状态工厂总是使用完整 reader；OpenIntelligentUI 的 `excludingComponents` 只限制新生成内容。`ImageText` 已默认退出新生成目录，普通图文可用 `Row([Image(...), Col([...])])` 组合，图片尺寸和对齐由 Row 的默认媒体布局处理。需要响应式多列时给 Grid 提供 `minChildWidth`，Agent 无需计算设备宽度；已有 `ImageText` 消息仍由完整 reader 读取，无需改写存量源码。具体用法见 [OpenIntelligentUI 组件指南](docs/openintelligentui.md)。默认 OpenIntelligentUI Prompt 不宣告工具查询，宿主需要工具生成时仍须明确其工具策略；传入 ToolProvider 负责执行已经声明的调用。
+`readerSpecification` 提供运行时完整契约，状态工厂使用同一组件集合创建执行状态；`excludingComponents` 控制新生成目录。普通图文直接用 `Row([Image(...), Col([...])])` 组合，图片尺寸和对齐由 Row 的媒体布局处理。需要响应式多列时给 Grid 提供 `minChildWidth`，Agent 无需计算设备宽度。具体用法见 [OpenIntelligentUI 组件指南](docs/openintelligentui.md)。默认 OpenIntelligentUI Prompt 不宣告工具查询，宿主需要工具生成时仍须明确其工具策略；传入 ToolProvider 负责执行已经声明的调用。
 
 ### 4. 切换组件库
 

@@ -5,14 +5,16 @@ import SwiftLang
 final class LibraryTests: XCTestCase {
     func testExportContainsOnlyImplementedComponents() throws {
         let library = try OpenIntelligentUIComponents()
-        let expected = Set(["Col", "Row", "Grid", "Box", "Card", "Text", "Title", "Checkbox", "Button", "Slider", "Image", "Icon", "Caption", "Label", "Link", "Input", "TextArea", "Select", "SegmentedControl", "RadioGroup", "ProductCard", "Markdown", "Quote", "Code", "Badge", "List", "ListItem", "Table", "Chart", "Divider", "Spacer", "Carousel", "Form", "Popover", "IconButton", "Pressable", "DatePicker", "Timer", "Flashcard", "Celebration", "Math", "Map", "MapMarker", "HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "TransportCard", "Citation", "Disclosure", "Progress"])
+        let expected = Set(["Col", "Row", "Grid", "Box", "Card", "Text", "Title", "Checkbox", "Button", "Slider", "Image", "Icon", "Caption", "Label", "Link", "Input", "TextArea", "Select", "SegmentedControl", "RadioGroup", "ProductCard", "Markdown", "Quote", "Code", "Badge", "List", "ListItem", "Table", "Chart", "Divider", "Spacer", "Carousel", "Form", "Popover", "IconButton", "Pressable", "DatePicker", "Timer", "Flashcard", "Celebration", "Math", "Map", "MapMarker", "HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "JourneyLine", "Citation", "Disclosure", "Progress"])
         XCTAssertEqual(Set(library.specification.components.map(\.name)), expected)
         XCTAssertEqual(Set(library.components.library.components.map(\.name)), expected)
-        XCTAssertEqual(Set(library.readerSpecification.components.map(\.name)), expected.union(["ImageText"]))
+        XCTAssertEqual(Set(library.readerSpecification.components.map(\.name)), expected)
         for name in expected { XCTAssertNotNil(library.components.registry[name]) }
         XCTAssertNil(library.components.registry["SearchImage"])
         XCTAssertNil(library.components.registry["ImageText"])
-        XCTAssertNotNil(library.readerComponents.registry["ImageText"])
+        XCTAssertNil(library.readerComponents.registry["ImageText"])
+        XCTAssertNil(library.components.registry["TransportCard"])
+        XCTAssertNil(library.readerComponents.registry["TransportCard"])
         let exported = try LibrarySpec(jsonString: library.specificationJSON)
         XCTAssertEqual(exported.components.map(\.signature), library.specification.components.map(\.signature))
         XCTAssertTrue(library.systemPrompt.contains("Checkbox"))
