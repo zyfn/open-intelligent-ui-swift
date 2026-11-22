@@ -27,7 +27,7 @@
 
 - 前八份标准程序从本仓库原 `Examples/AgentCases/` 移入，文件名与字节均保持不变；它们与上述 CaseLab 提交的 `Review/Fixtures/SimpleCases/` 逐字一致。CaseLab 原先也是从 SDK 同步这八份内容，因此本次移动没有再导入第二份副本。
 - `openui/scene-spending.openui` 和 `openui/behavior-form.openui` 分别提取自 `Review/Catalog/Programs/ReviewExamplePrograms.swift` 的 `scene-spending`、`behavior-form` 中文 `zh-Hans` 分支。仅移除 Swift 原始字符串与源码缩进，DSL 未改写。
-- 十份 OpenIntelligentUI 程序按自身组件契约编排，保留 OpenUI 场景的完整内容、阅读层次、来源图片及任务意图。通过 `Col`、`Row`、`Box`、`Image`、`Title`、`Text`、`Caption`、`Carousel`、`Chart`、`ProductCard`、`TransportCard` 等组件组织解释、比较、选择与后续行动。杭州周末与卧室氛围的图文使用这些基础组件组合，图片、标签、说明及原有交互完整保留；不依赖 `ImageText` 生成入口。图文集合使用容器默认布局；需要随可用宽度减少列数时，Grid 提供 `minChildWidth`，程序无需计算用户设备尺寸。
+- 十份 OpenIntelligentUI 程序按自身组件契约编排，保留 OpenUI 场景的完整内容、阅读层次、来源图片及任务意图。通过 `Col`、`Row`、`Box`、`Image`、`Title`、`Text`、`Caption`、`Carousel`、`Chart`、`ProductCard`、`JourneyLine` 等组件组织解释、比较、选择与后续行动。图文内容由基础组件组合，交通通过 `JourneyLine` 与普通内容组件表达。图文集合使用容器默认布局；需要随可用宽度减少列数时，Grid 提供 `minChildWidth`，程序无需计算用户设备尺寸。
 
 后续修改在这里维护。需要向 CaseLab 同步时，应由其消费这些源文件；不要在两个仓库各改一份后再人工挑选。源项目采用 Thesys MIT 许可，本仓库现有第三方声明保留对应许可。
 
