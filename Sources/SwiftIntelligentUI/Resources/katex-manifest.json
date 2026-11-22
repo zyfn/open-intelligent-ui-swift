@@ -14,7 +14,7 @@
   "licenseSHA256": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3",
   "notice": "THIRD-PARTY-NOTICES.txt",
   "noticeSection": "KaTeX 0.18.2",
-  "noticesSHA256": "774520244a33ca7c3ebff4b71561331b9a6ce9e278ddbbfe358623a022c4b213",
+  "noticesSHA256": "0c460fe5efef463e9f0c70ae2e7f9dbd8f25dd1ac87fd3243ac894a4fad3884f",
   "output": "mathml",
   "stylesheetAndFonts": "not required by the native MathML renderer"
 }
