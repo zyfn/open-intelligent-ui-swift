@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.16 · 更新日期：2026-11-18
+文档版本：1.17 · 更新日期：2026-11-21
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -239,6 +239,7 @@ ElementErrorBoundary 以不可变元素快照的身份观察输入，保留同�
 - 适配层统一拥有运行机制。组件不另建 parser/Store/state，不重复观察整份文档，不绕过 Context 直接派发动作或写入业务状态。
 - OpenUIView 只组合宿主传入的 library/state，不在 body、拟合或测量中创建状态、反复提交源码。SwiftLangView 观察完整的只读呈现提交；轻量 OpenUIComponentHost 仍解析并观察最近 OpenUIState，内部内容边界持有节点订阅。两套 UI 的动作表面通过 Context 的现有作用域或独立挂载订阅读取；OpenUI 原生字段及 EditableTable、Intelligent UI 已注册的输入/选择/日期/计时/图表/折叠组件不再额外订阅未使用的整份 State。Intelligent UI 的 Column 阅读锚点与 InlineParagraph 附件宿主仍使用所需的环境 State；轻量注册 Host 与宿主观察也仍存在，不能描述为整棵树只观察一次。尺寸拟合不得产生新的语义更新；真实流式更新的求值、索引和组件刷新范围需单独验证，不能用相同缓冲区的拟合回归替代。
 - 组件注册同时提供有序参数、renderer 和结构/身份元数据；公共 renderer 不根据 TabItem 等名字猜测布局、身份或主题。
+- 组件库的包内呈现元信息复用类型化存储，随 renderer 保存在注册表中，与 Context 继承值和 Lang schema 分开。替换或删除 renderer 同时清除其元信息；保留 renderer 的定义扩展保留元信息；注册变更继续使用既有 renderRevision。SwiftLang 只负责存取和生命周期，具体尺寸约定、策略与算法属于组件库。
 - typed OpenUIContextValues 是通用扩展容器。主题、阅读宽度、占位视觉、图表颜色、媒体比例和动画规则由各组件库定义。
 - 通用资源 Context 管理地址、宿主 loader、鉴权作用域和文档生命周期；SwiftLang 的共享基础设施负责原生资源请求、图片解码和缓存预算。占位、裁剪、重试、预览和地图交互由所属组件库决定。原生图片通道的保证不扩展到 WebKit、Markdown 或 MapKit 的所有网络请求。
 - OpenIntelligentUI 的地图筛选、内部点位卡片、选中、全览与原生展开由 Map 自身管理；场景不补建另一套基本交互，组件不虚构导航或业务结果。

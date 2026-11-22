@@ -11,7 +11,7 @@ final class ObjectCardCompositionTests: XCTestCase {
     let library = try OpenUIComponents.library()
     let measured = ObjectCardFrames()
     var registry = library.registry
-    for name in ["ImageTextLarge", "BoldText", "Button", "Image"] {
+    for name in ["ImageTextLarge", "Text", "BoldText", "Button", "Image"] {
       let original = try XCTUnwrap(registry[name])
       registry[name] = { element, registry in
         AnyView(original(element, registry).background(GeometryReader { geometry in
@@ -59,21 +59,50 @@ final class ObjectCardCompositionTests: XCTestCase {
     """
   }
 
-  @MainActor func testSingleAndCollectionUseTheSameHeaderInsetsAndFooterGeometry() throws {
+  @MainActor func testSingleAndCollectionRespectTheirHeaderAndExplicitFooterInsets() throws {
+    let theme = OpenUIThemeValues.defaults
+    let border = OpenUIPresentation.defaults.borderWidth
+    let collectionInset = theme.componentStyle.panelInset
+    let singleFooterInset = 2 * border + theme.spaceL
     for width in [CGFloat(200), 344] {
       let one = try frames(single, width: width)
       let many = try frames(collection, width: width * 2 + 12)
-      for name in ["ImageTextLarge", "BoldText", "Button"] {
+      let header = try XCTUnwrap(one["ImageTextLarge"])
+      let collectionHeader = try XCTUnwrap(many["ImageTextLarge"])
+      // Keep the original Lang. Upstream card.scss (7b7a519) gives standard
+      // card no padding and a real border; its explicit clear footer adds
+      // horizontal space-l and its own border. CompositeCardItem retains its
+      // dedicated panel inset and leading-artwork presentation.
+      XCTAssertEqual(header.minX, border, accuracy: 1)
+      XCTAssertEqual(header.width, width - 2 * border, accuracy: 1)
+      XCTAssertEqual(collectionHeader.minX, collectionInset, accuracy: 1)
+      XCTAssertEqual(collectionHeader.width, width - 2 * collectionInset, accuracy: 1)
+      let naturalHeader = try XCTUnwrap(try frames("root=heading\n\(definitions)",
+        width: width - 2 * border)["ImageTextLarge"])
+      XCTAssertEqual(header.height, naturalHeader.height, accuracy: 1,
+        "Standard Card must not apply a hidden negative media inset to its header")
+
+      for name in ["BoldText", "Button"] {
         let a = try XCTUnwrap(one[name]), b = try XCTUnwrap(many[name])
-        XCTAssertEqual(a.minX, b.minX, accuracy: 1, "\(name), card width \(width)")
+        let inward = singleFooterInset - collectionInset
+        let shift = name == "Button" && width == 344 ? -inward : inward
+        XCTAssertEqual(a.minX, b.minX + shift, accuracy: 1, "\(name), card width \(width)")
         XCTAssertEqual(a.width, b.width, accuracy: 1, "\(name), card width \(width)")
         XCTAssertEqual(a.height, b.height, accuracy: 1, "\(name), card width \(width)")
-        // Normalize to the header so a hosting window's vertical origin is irrelevant.
-        XCTAssertEqual(a.minY - one["ImageTextLarge"]!.minY,
-          b.minY - many["ImageTextLarge"]!.minY, accuracy: 1, name)
       }
-      XCTAssertEqual(try XCTUnwrap(one["ImageTextLarge"]).minX, 16, accuracy: 1)
-      XCTAssertEqual(try XCTUnwrap(one["ImageTextLarge"]).width, width - 32, accuracy: 1)
+      for (measured, footerBorder) in [(one, border), (many, CGFloat.zero)] {
+        let heading = try XCTUnwrap(measured["ImageTextLarge"])
+        let copy = try XCTUnwrap(measured["Text"])
+        let amount = try XCTUnwrap(measured["BoldText"])
+        let button = try XCTUnwrap(measured["Button"])
+        // The wider standard header/body can wrap differently. Assert their
+        // actual content relationships instead of equating two different boxes.
+        XCTAssertEqual(copy.minY - heading.maxY, theme.spaceM, accuracy: 1)
+        XCTAssertEqual(min(amount.minY, button.minY) - copy.maxY,
+          theme.spaceM + footerBorder, accuracy: 1)
+      }
+      XCTAssertEqual(try XCTUnwrap(one["BoldText"]).minX, singleFooterInset, accuracy: 1)
+      XCTAssertEqual(try XCTUnwrap(many["BoldText"]).minX, collectionInset, accuracy: 1)
     }
   }
 
@@ -84,7 +113,10 @@ final class ObjectCardCompositionTests: XCTestCase {
       let amount = try XCTUnwrap(narrow["BoldText"]), button = try XCTUnwrap(narrow["Button"])
       XCTAssertGreaterThanOrEqual(button.minY, amount.maxY + 7)
       XCTAssertEqual(amount.height, try XCTUnwrap(wide["BoldText"]).height, accuracy: 1)
-      XCTAssertLessThanOrEqual(button.maxX, 184)
+      let theme = OpenUIThemeValues.defaults
+      let inset = source == single ? 2 * OpenUIPresentation.defaults.borderWidth + theme.spaceL
+        : theme.componentStyle.panelInset
+      XCTAssertLessThanOrEqual(button.maxX, 200 - inset)
       XCTAssertGreaterThan(button.width, 40)
       XCTAssertLessThan(try XCTUnwrap(wide["Button"]).minY, try XCTUnwrap(wide["BoldText"]).maxY)
     }
@@ -177,15 +209,30 @@ final class ObjectCardCompositionTests: XCTestCase {
       ("leading-banner", "root=Card([Stack([ImageTextLarge(\"\(imageSource)\",\"photo\",\"Title\")])],\"card\")"),
       ("leading-grid", "root=CompositeCardBlock([CompositeCardItem(\"a\",ImageTextLarge(\"\(imageSource)\",\"photo\",\"Title\"),[]),CompositeCardItem(\"b\",ImageTextLarge(\"\(imageSource)\",\"photo\",\"Title\"),[])],\"grid\",false)")
     ] {
-      let image = try bitmap(source, name: name, width: source.contains("CompositeCardBlock") ? 652 : 320)
+      let dedicated = source.contains("CompositeCardBlock")
+      let image = try bitmap(source, name: name, width: dedicated ? 652 : 320)
       let left = try sample(image, x: 5, y: 60), top = try sample(image, x: 60, y: 5)
-      XCTAssertTrue(left.isRed, "Leading image must reach the card's left edge; \(name): \(left.detail)")
-      XCTAssertTrue(top.isRed, "Leading image must reach the card's top edge; \(name): \(top.detail)")
+      XCTAssertTrue(left.isRed, "Leading artwork keeps its declared content width; \(name): \(left.detail)")
+      XCTAssertTrue(top.isRed, "Leading artwork keeps its declared content origin; \(name): \(top.detail)")
+      if !dedicated {
+        // Upstream card.scss (7b7a519) has zero card padding plus a real border.
+        // Standard Card adds no media bleed or top-only image corner treatment.
+        let borderLeft = try sample(image, x: 0, y: 60), borderTop = try sample(image, x: 60, y: 0)
+        XCTAssertFalse(borderLeft.isRed, "The transparent border still reserves horizontal space; \(borderLeft.detail)")
+        XCTAssertFalse(borderTop.isRed, "The transparent border still reserves vertical space; \(borderTop.detail)")
+        let imageHeight = (320 - 2 * presentation.borderWidth) / presentation.coverAspectRatio
+        let topCorner = try sample(image, x: 1, y: 1)
+        let bottomCorner = try sample(image, x: 1, y: Int(presentation.borderWidth + imageHeight) - 1)
+        XCTAssertFalse(topCorner.isRed, "The image retains its own top corner; \(name): \(topCorner.detail)")
+        XCTAssertFalse(bottomCorner.isRed, "The image retains its own bottom corner; \(name): \(bottomCorner.detail)")
+      }
     }
     let body = try bitmap("root=Card([CardHeader(\"Title\"),Image(\"body\",\"\(imageSource)\")],\"card\")", name: "body-image")
-    let outside = try sample(body, x: 5, y: 100), inside = try sample(body, x: 40, y: 100)
-    XCTAssertFalse(outside.isRed, "Body image must not extend through its surrounding content inset; \(outside.detail)")
-    XCTAssertTrue(inside.isRed, "Body image must render within its content inset; \(inside.detail)")
+    let border = try sample(body, x: 0, y: 100)
+    let nearEdge = try sample(body, x: 5, y: 100), inside = try sample(body, x: 40, y: 100)
+    XCTAssertFalse(border.isRed, "Body media cannot paint over the standard Card's border box; \(border.detail)")
+    XCTAssertTrue(nearEdge.isRed, "Zero card padding applies to body media as well as leading media; \(nearEdge.detail)")
+    XCTAssertTrue(inside.isRed, "Body image must render within its declared content box; \(inside.detail)")
 
     let missing = try bitmap("root=Card([Image(\"No source\"),CardHeader(\"Title\")],\"card\")", name: "missing-image")
     for (x, y) in [(5, 60), (60, 5), (160, 60)] {
@@ -250,7 +297,7 @@ final class ObjectCardCompositionTests: XCTestCase {
       "A banner still fills its declared photo slot rather than acquiring content-image margins")
   }
 
-  @MainActor func testWrappingCardsKeepReadingSpaceAndFillAnIncompleteRow() throws {
+  @MainActor func testWrappingCardsShareTheRowWithoutNativeReadingWidthBreakpoints() throws {
     func source(count: Int, detail: String) -> String {
       let cards = ["a", "b", "c"].prefix(count).map { key in
         #"Card([Image("\#(key)"),CardHeader("完整的图文对象标题 \#(key)","独立的辅助说明"),TextContent("\#(detail)")],"clear","column","xs")"#
@@ -258,16 +305,19 @@ final class ObjectCardCompositionTests: XCTestCase {
       return #"root=Stack([\#(cards.joined(separator: ","))],"row","m","start","start",true)"#
     }
     let detail = "说明保持完整换行，标题与图片一起参与同一张卡片的实际布局。"
-    let cases: [(CGFloat, [CGFloat])] = [(320, [320, 320, 320]),
-      (350, [169, 169, 350]), (530, [506 / 3, 506 / 3, 506 / 3])]
-    for (width, expected) in cases {
+    let clearInset = OpenUIThemeValues.defaults.spaceL + OpenUIPresentation.defaults.borderWidth
+    // Upstream flex:1/min-width:0 replaces the native 160 pt reading basis.
+    // Retain the historical Lang and test it at all of its original widths.
+    for width in [CGFloat(320), 350, 530] {
       let measured = try imageFrames(source(count: 3, detail: detail), width: width)
+      let first = try XCTUnwrap(measured["a"])
+      let cell = (width - 24) / 3
       for (index, key) in ["a", "b", "c"].enumerated() {
-        XCTAssertEqual(try XCTUnwrap(measured[key]).width, expected[index], accuracy: 1)
-      }
-      if width == 350 {
-        XCTAssertEqual(try XCTUnwrap(measured["a"]).minY, try XCTUnwrap(measured["b"]).minY, accuracy: 1)
-        XCTAssertGreaterThan(try XCTUnwrap(measured["c"]).minY, try XCTUnwrap(measured["a"]).maxY)
+        let frame = try XCTUnwrap(measured[key])
+        XCTAssertEqual(frame.width, cell - 2 * clearInset, accuracy: 1)
+        XCTAssertEqual(frame.minX, CGFloat(index) * (cell + 12) + clearInset, accuracy: 1)
+        XCTAssertEqual(frame.minY, first.minY, accuracy: 1,
+          "All three flexible cards fit; text wraps within each allocated content column")
       }
     }
     // A 390 pt preview with 20 pt side insets has 350 pt available. Two
@@ -275,11 +325,11 @@ final class ObjectCardCompositionTests: XCTestCase {
     for text in [detail, String(repeating: detail, count: 5)] {
       let measured = try imageFrames(source(count: 2, detail: text), width: 350)
       let first = try XCTUnwrap(measured["a"]), second = try XCTUnwrap(measured["b"])
-      XCTAssertEqual(first.width, 169, accuracy: 1)
-      XCTAssertEqual(second.width, 169, accuracy: 1)
+      XCTAssertEqual(first.width, 169 - 2 * clearInset, accuracy: 1)
+      XCTAssertEqual(second.width, 169 - 2 * clearInset, accuracy: 1)
       XCTAssertEqual(first.minY, second.minY, accuracy: 1,
         "Long titles and body copy must wrap inside the two allocated columns")
-      XCTAssertEqual(second.minX - first.maxX, 12, accuracy: 1)
+      XCTAssertEqual(second.minX - first.maxX - 2 * clearInset, 12, accuracy: 1)
     }
   }
 
@@ -311,11 +361,14 @@ final class ObjectCardCompositionTests: XCTestCase {
     var registry = library.registry
     let original = try XCTUnwrap(registry["Image"])
     let measured = ObjectCardFrames()
+    let mount = ObjectCardMountLog()
     registry["Image"] = { element, registry in
       AnyView(original(element, registry).background(GeometryReader { geometry in
         Color.clear.onAppear { measured.values[PropValue.string(element, "alt") ?? ""] = geometry.frame(in: .global) }
           .onChange(of: geometry.frame(in: .global)) { measured.values[PropValue.string(element, "alt") ?? ""] = $0 }
-      }))
+      }).background {
+        if PropValue.string(element, "alt") == "a" { ObjectCardMountMarker(log: mount) }
+      })
     }
     let state = OpenUIState(schema: library.library.toSchema())
     state.push("$surface=\"clear\"\nroot=Stack([a,b],\"row\",\"m\",\"start\",\"start\",true)\na=Card([Image(\"a\"),Form(\"draft\",Buttons([]),[FormControl(\"Note\",Input(\"note\"))])],$surface)\n")
@@ -332,35 +385,41 @@ final class ObjectCardCompositionTests: XCTestCase {
     state.push("b=Card([Image(\"b\"),copy],$surface)\ncopy=TextContent(\"Short")
     settle()
     let before = try XCTUnwrap(measured.values["a"])
-    XCTAssertEqual(before.width, 169, accuracy: 1)
-    XCTAssertEqual(before.height, 169 * 9 / 16, accuracy: 1,
+    let clearInset = OpenUIThemeValues.defaults.spaceL + OpenUIPresentation.defaults.borderWidth
+    XCTAssertEqual(before.width, 169 - 2 * clearInset, accuracy: 1)
+    XCTAssertEqual(before.height, before.width * 9 / 16, accuracy: 1,
       "An unknown source reserves the cover slot inside its allocated column")
+    let firstView = try XCTUnwrap(mount.view), mountCount = mount.created
     state.push(" copy that grows across many lines inside the same reading column.")
     settle()
     XCTAssertEqual(try XCTUnwrap(measured.values["a"]).width, before.width, accuracy: 1)
     XCTAssertEqual(try XCTUnwrap(measured.values["a"]).height, before.height, accuracy: 1)
     state.push("\")"); state.complete(); settle()
     XCTAssertEqual(try XCTUnwrap(measured.values["a"]).width, before.width, accuracy: 1)
+    XCTAssertTrue(mount.view === firstView)
+    XCTAssertEqual(mount.created, mountCount)
 
     // Layout fields can change through a component-local update after the
-    // document completes. The parent must reallocate its existing children.
+    // document completes. Surface padding changes within the same allocated
+    // columns; the removed 160/240 pt policy must not force a different row.
     let sourceRevision = state.sourceRevision, presentationRevision = state.presentationRevision
     state.setFieldValue(form: "draft", name: "note", value: .string("Keep this edit"))
     settle()
-    let inset = OpenUIThemeValues.defaults.componentStyle.panelInset
-    for (surface, expectedWidth) in [("card", 350 - 2 * inset), ("clear", CGFloat(169))] {
+    let theme = OpenUIThemeValues.defaults
+    for surface in ["card", "sunk", "clear"] {
       state.setState("$surface", value: .string(OpenUIString(surface))); settle()
       XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      let inset = OpenUIPresentation.defaults.borderWidth + (surface == "card" ? 0 : theme.spaceL)
+      let expectedWidth = 169 - 2 * inset
       let first = try XCTUnwrap(measured.values["a"]), second = try XCTUnwrap(measured.values["b"])
       XCTAssertEqual(first.width, expectedWidth, accuracy: 1)
       XCTAssertEqual(second.width, expectedWidth, accuracy: 1)
-      if surface == "card" {
-        XCTAssertEqual(first.minX, second.minX, accuracy: 1)
-        XCTAssertGreaterThan(second.minY, first.maxY, "The larger card basis must wrap the existing row")
-      } else {
-        XCTAssertEqual(first.minY, second.minY, accuracy: 1)
-        XCTAssertEqual(second.minX - first.maxX, 12, accuracy: 1)
-      }
+      XCTAssertEqual(first.height, first.width * 9 / 16, accuracy: 1,
+        "A standard Card gives the first image the same content box as its body")
+      XCTAssertEqual(first.minY, second.minY, accuracy: 1)
+      XCTAssertEqual(second.minX - first.maxX - 2 * inset, 12, accuracy: 1)
+      XCTAssertTrue(mount.view === firstView, "Surface changes keep the existing mounted image")
+      XCTAssertEqual(mount.created, mountCount)
       XCTAssertEqual(state.sourceRevision, sourceRevision)
       XCTAssertEqual(state.presentationRevision, presentationRevision, "Reflow must not replace the document")
       XCTAssertEqual(state.fieldValue(form: "draft", name: "note"), .string("Keep this edit"))
@@ -388,5 +447,20 @@ private final class ObjectCardImageLoader: OpenUIResourceLoading {
     guard request.url?.absoluteString == source else { throw URLError(.resourceUnavailable) }
     return bytes
   }
+}
+
+@MainActor private final class ObjectCardMountLog {
+  var view: NSView?
+  var created = 0
+}
+
+private struct ObjectCardMountMarker: NSViewRepresentable {
+  let log: ObjectCardMountLog
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    log.view = view; log.created += 1
+    return view
+  }
+  func updateNSView(_ view: NSView, context: Context) {}
 }
 #endif

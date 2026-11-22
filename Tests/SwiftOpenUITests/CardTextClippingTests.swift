@@ -48,16 +48,22 @@ final class CardTextClippingTests: XCTestCase {
     for title in ["岩质行星", "Retirement savings"] {
       let header = "CardHeader(\"\(title)\",\"水星 · 金星 · 地球 · 火星\")"
       let reference = try bitmap("root=Stack([\(header)])")
-      let padded = try bitmap("root=Stack([\(header)])",
-        horizontalInset: OpenUIThemeValues().spaceML, verticalInset: OpenUIThemeValues().spaceML)
+      // The standard Card's transparent border occupies space even with no padding.
+      let border = OpenUIPresentation().borderWidth
+      let cardReference = try bitmap("root=Stack([\(header)])",
+        horizontalInset: border, verticalInset: border)
       let card = try bitmap("root=Card([\(header)],\"card\")")
-      XCTAssertEqual(card.0, padded.0)
-      XCTAssertEqual(card.1, padded.1)
-      XCTAssertEqual(card.2, padded.2, "Default Card must retain all visible glyph strokes within its content inset: \(title)")
+      XCTAssertEqual(card.0, cardReference.0)
+      XCTAssertEqual(card.1, cardReference.1)
+      XCTAssertEqual(card.2, cardReference.2, "Default Card must retain all visible glyph strokes inside its transparent border: \(title)")
+      // Official clear Card retains horizontal space-l and zero vertical padding.
+      // Its transparent border occupies space separately from that padding.
+      let clearReference = try bitmap("root=Stack([\(header)])",
+        horizontalInset: OpenUIThemeValues().spaceL + border, verticalInset: border)
       let clear = try bitmap("root=Card([\(header)],\"clear\")")
-      XCTAssertEqual(clear.0, reference.0)
-      XCTAssertEqual(clear.1, reference.1)
-      XCTAssertEqual(clear.2, reference.2, "Clear Card must preserve every glyph without adding an inset: \(title)")
+      XCTAssertEqual(clear.0, clearReference.0)
+      XCTAssertEqual(clear.1, clearReference.1)
+      XCTAssertEqual(clear.2, clearReference.2, "Clear Card must preserve every glyph within its horizontal inset: \(title)")
       let bad = try bitmap("root=Stack([\(header)])", oldMask: true)
       let lostStrokes = zip(reference.2, bad.2).filter { $0.0 == 1 && $0.1 == 0 }.count
       XCTAssertGreaterThan(lostStrokes, 0, "Negative control must still detect the original corner-clipping defect")

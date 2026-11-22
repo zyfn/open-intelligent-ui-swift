@@ -7,6 +7,13 @@ import AppKit
 #endif
 
 final class StreamingLayoutContractTests: XCTestCase {
+  private func libraryWithFlexiblePanel() throws -> OpenUIComponentLibrary {
+    let card = try XCTUnwrap(OpenUIComponents.components.first { $0.definition.name == "Card" })
+    let panel = card.replacingDefinition(defineComponent(name: "Panel", description: "The same flexible renderer",
+      params: card.definition.params))
+    return try OpenUIComponents.library().extending(adding: [panel])
+  }
+
   @MainActor func testClosedLayoutCanStreamItsReferencedTextWithoutWaitingForWholeProgram() throws {
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
@@ -22,6 +29,27 @@ final class StreamingLayoutContractTests: XCTestCase {
     XCTAssertFalse(registry.presentationLayoutFields("Stack").isEmpty)
     registry["Stack"] = { _, _ in AnyView(Text("Custom")) }
     XCTAssertTrue(registry.presentationLayoutFields("Stack").isEmpty)
+  }
+
+  @MainActor func testRegisteredWidthContractAllowsStreamingUnderAnotherComponentName() throws {
+    let library = try libraryWithFlexiblePanel()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.push("root=Stack([panel],\"row\",\"m\",\"start\",\"start\",true)\npanel=Panel([copy],\"clear\")\ncopy=TextContent(\"Still growing")
+    let root = try XCTUnwrap(state.root)
+    let panel = try XCTUnwrap(PropValue.children(root).first)
+    XCTAssertFalse(panel.isSourceComplete)
+    let context = OpenUIComponentContext(element: root, registry: library.registry, state: state)
+    XCTAssertTrue(context.rowWidthReady,
+      "Declared width independence must not depend on the component being named Card")
+
+    var replacement = library.registry
+    replacement["Panel"] = library.registry["Panel"]
+    let replacedContext = OpenUIComponentContext(element: root, registry: replacement, state: state)
+    XCTAssertFalse(replacedContext.rowWidthReady,
+      "An unannotated replacement must wait for its potentially width-changing content")
+    state.push("\")"); state.complete()
+    let complete = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: replacement, state: state)
+    XCTAssertTrue(complete.rowWidthReady)
   }
 
   @MainActor func testChartDoesNotCommitItsDefaultHeightBeforeATrailingHeightArrives() throws {
@@ -70,9 +98,9 @@ final class StreamingLayoutContractTests: XCTestCase {
       "A terminal readable prefix must not append a generic Content is incomplete paragraph")
   }
 
-  @MainActor func testClearCardsShareColumnsWithoutAddingContentInsets() throws {
+  @MainActor func testCardVariantsShareColumnsUsingOnlyTheirDeclaredSurfaceInsets() throws {
     _ = NSApplication.shared
-    let library = try OpenUIComponents.library()
+    let library = try libraryWithFlexiblePanel()
     let state = OpenUIState(schema: library.library.toSchema())
     var registry = library.registry
     let original = try XCTUnwrap(registry["Image"])
@@ -84,7 +112,11 @@ final class StreamingLayoutContractTests: XCTestCase {
           .onChange(of: geometry.frame(in: .global)) { frames[key] = $0 }
       }))
     }
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry).frame(width: 320))
+    var presentation = OpenUIPresentation()
+    presentation.minimumTextColumnWidth = 1000
+    presentation.minimumCardWidth = 2000
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry)
+      .openUIPresentation(presentation).dynamicTypeSize(.accessibility3).frame(width: 320))
     let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 320, height: 600),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false; window.contentView = host
@@ -95,24 +127,101 @@ final class StreamingLayoutContractTests: XCTestCase {
       host.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.10))
       host.layoutSubtreeIfNeeded()
     }
-    for variant in ["clear", "card", "sunk"] {
-      for count in [2, 3] {
-        let children = (0..<count).map { "Card([Image(\"\($0)\",\"\")],\"\(variant)\")" }.joined(separator: ",")
-        // Explicit no-wrap still shares the offered width, even when an
-        // author deliberately chooses narrower columns than the reading basis.
-        settle("root=Stack([\(children)],\"row\",\"m\",\"start\",\"start\",false)")
-        let inset: CGFloat = variant == "clear" ? 0 : OpenUIThemeValues().componentStyle.panelInset
-        let cell = (320 - CGFloat(count - 1) * 12) / CGFloat(count)
-        for index in 0..<count {
-          let rect = try XCTUnwrap(frames[String(index)])
-          XCTAssertEqual(rect.width, cell - 2 * inset, accuracy: 1, "\(variant) \(count) columns")
-          XCTAssertEqual(rect.minX, CGFloat(index) * (cell + 12) + inset, accuracy: 1)
+    for name in ["Card", "Panel"] {
+      for variant in ["clear", "card", "sunk"] {
+        for count in [2, 3] {
+          let children = (0..<count).map { "\(name)([Image(\"\($0)\",\"\")],\"\(variant)\")" }.joined(separator: ",")
+          // Upstream Card uses flex:1/min-width:0. Large native reading-width
+          // overrides and Dynamic Type must not add variant-specific breakpoints.
+          for wrap in [false, true] {
+            settle("root=Stack([\(children)],\"row\",\"m\",\"start\",\"start\",\(wrap))")
+            // Upstream card.scss (7b7a519) gives card zero padding, clear
+            // horizontal space-l, and sunk space-l on all sides. Every
+            // variant's border participates in the outer box, even if clear.
+            let theme = OpenUIThemeValues.defaults
+            let inset = presentation.borderWidth + (variant == "card" ? 0 : theme.spaceL)
+            let cell = (320 - CGFloat(count - 1) * 12) / CGFloat(count)
+            let first = try XCTUnwrap(frames["0"])
+            for index in 0..<count {
+              let rect = try XCTUnwrap(frames[String(index)])
+              XCTAssertEqual(rect.width, cell - 2 * inset, accuracy: 1,
+                "\(name) \(variant), \(count) columns, wrap=\(wrap)")
+              XCTAssertEqual(rect.minX, CGFloat(index) * (cell + 12) + inset, accuracy: 1)
+              XCTAssertEqual(rect.height, rect.width * 9 / 16, accuracy: 1,
+                "A standard Card does not enlarge its first image through negative insets")
+              XCTAssertEqual(rect.minY, first.minY, accuracy: 1,
+                "Only actual outer insets constrain these flexible items; all fit on this row")
+            }
+          }
         }
       }
     }
     settle("root=Card([Card([Image(\"nested\",\"\")],\"clear\")],\"clear\")")
-    XCTAssertEqual(try XCTUnwrap(frames["nested"]).width, 320, accuracy: 1,
-      "Nested transparent layout units must not accumulate gutters")
+    let clearInset = OpenUIThemeValues.defaults.spaceL + presentation.borderWidth
+    let nested = try XCTUnwrap(frames["nested"])
+    XCTAssertEqual(nested.width, 320 - 4 * clearInset, accuracy: 1,
+      "Each explicit clear Card keeps its upstream horizontal padding and border, including nested cards")
+    XCTAssertEqual(nested.minX, 2 * clearInset, accuracy: 1)
+  }
+
+  @MainActor func testStandardCardBorderAndPaddingApplyEquallyToLeadingAndBodyImages() throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let theme = OpenUIThemeValues.defaults
+    // card.scss at upstream 7b7a519 defines a real border box and no special
+    // first-image treatment. An explicit host border width keeps that geometry.
+    for border in [CGFloat(1), 3] {
+      for variant in ["card", "clear", "sunk"] {
+        let state = OpenUIState(schema: library.library.toSchema())
+        state.setSource("root=Card([Image(\"first\"),Image(\"body\")],\"\(variant)\",\"column\",\"m\")")
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        var registry = library.registry
+        let original = try XCTUnwrap(registry["Image"])
+        var frames: [String: CGRect] = [:]
+        var outerFrame: CGRect?
+        registry["Image"] = { element, registry in
+          let key = PropValue.string(element, "alt") ?? "?"
+          return AnyView(original(element, registry).background(GeometryReader { geometry in
+            Color.clear.onAppear { frames[key] = geometry.frame(in: .named("standard-card")) }
+              .onChange(of: geometry.frame(in: .named("standard-card"))) { frames[key] = $0 }
+          }))
+        }
+        var presentation = OpenUIPresentation()
+        presentation.borderWidth = border
+        let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: registry)
+          .openUIPresentation(presentation).frame(width: 320)
+          .background(GeometryReader { geometry in
+            Color.clear.onAppear { outerFrame = geometry.frame(in: .named("standard-card")) }
+              .onChange(of: geometry.frame(in: .named("standard-card"))) { outerFrame = $0 }
+          })
+          .coordinateSpace(name: "standard-card").fixedSize(horizontal: false, vertical: true))
+        let window = NSWindow(contentRect: .init(x: 0, y: 0, width: 320, height: 700),
+          styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host
+        window.setFrameOrigin(.init(x: -10000, y: -10000)); window.orderFront(nil)
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        host.layoutSubtreeIfNeeded()
+
+        let outer = try XCTUnwrap(outerFrame)
+        let first = try XCTUnwrap(frames["first"]), body = try XCTUnwrap(frames["body"])
+        let horizontal = border + (variant == "card" ? 0 : theme.spaceL)
+        let vertical = border + (variant == "sunk" ? theme.spaceL : 0)
+        let imageWidth = 320 - 2 * horizontal
+        let imageHeight = imageWidth * 9 / 16
+        XCTAssertEqual(outer.width, 320, accuracy: 1)
+        XCTAssertEqual(outer.height, 2 * vertical + 2 * imageHeight + theme.spaceM, accuracy: 1,
+          "\(variant), border \(border): both padding and border occupy layout space")
+        for image in [first, body] {
+          XCTAssertEqual(image.minX - outer.minX, horizontal, accuracy: 1)
+          XCTAssertEqual(image.width, imageWidth, accuracy: 1)
+          XCTAssertEqual(image.height, imageHeight, accuracy: 1)
+        }
+        XCTAssertEqual(first.minY - outer.minY, vertical, accuracy: 1)
+        XCTAssertEqual(body.minY - first.maxY, theme.spaceM, accuracy: 1)
+        XCTAssertEqual(outer.maxY - body.maxY, vertical, accuracy: 1)
+      }
+    }
   }
 
   @MainActor func testLaterUnresolvedSiblingDoesNotRemoveOrRemountAnAlreadyVisibleText() throws {

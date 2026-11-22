@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.52 · 更新日期：2026-11-20
+文档版本：1.56 · 更新日期：2026-11-22
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -132,7 +132,7 @@ theme.markdownListItemSpacing = 15
 默认界面保持内容优先。资源失败、辅助阅读模式与控件能力不自动生成一段说明、徽标或额外工具栏；采用安静占位、原生滚动和无障碍语义。作者明确提供的标签、说明及用户可以处理的校验错误继续保留。
 
 - CardHeader 使用章节角色；InlineHeader 与图文对象保留对象标题角色。恢复原有 20 / 18 pt 默认值；宿主可以完整覆盖字体，容器不根据嵌套层数或文案长度改写文字角色。
-- 普通 Card 使用透明底和 1 pt 描边。宿主可用 OpenUIPresentation 的 cardBackgroundColor、cardBorderColor 和 borderWidth 设置底色、描边颜色和线宽。描边色默认来自主题的 borderDefault。图文行之间可使用 Separator 细线。
+- 普通 Card 默认透明底、透明 1 pt 边框、零 padding、零圆角和无阴影；透明边框仍参与尺寸计算。宿主可用 OpenUIPresentation 的 cardBackgroundColor、cardBorderColor 和 borderWidth 设置底色、描边颜色和线宽。clear 与 sunk 使用各自的表面规则，详见下文标准 Card 盒模型；图文行之间可使用 Separator 细线。
 - ImageGallery 拼图图块的默认间距为 1 pt。宿主通过 OpenUIPresentation 的 imageGallerySpacing 设置间距，单位为 pt。
 - Steps 的解释属于正文。ListItem 的 subtitle 继续表示辅助信息；需要多段核心解释时，组合 TextContent/Markdown，而不是把正文都放进小号副标题。
 - ListBlock 的图文模式使用统一的 3:4 竖图画框。每行共用按内容宽度分配的图片列宽，窄栏先缩小图片，图文横排空间不足时改为上下排。加载、失败和成功沿用同一画框。
@@ -225,10 +225,36 @@ Form 自己的 buttons 槽总共只有一个稳定声明的标准提交 Button �
 - 源码或布局未完成诊断仅保留在运行时，不作为可见正文或辅助朗读提示。Stack 在终态继续保留已可读的前缀，不追加诊断尾注；生成中的等待和真实组件、数据或资源失败仍保留相应反馈。未完成内容及动作不会因此被标记为完整或开放交互。容错前缀不代表完整答案，宿主按 [终态与诊断](../README.md#终态与诊断) 决定最终消息是否接受与展示。
 - 文本字段收到最后一段后，即使只有其它节点继续生成，也须继续推进到原生文本缓冲及 Markdown 准备链路。文字与流式状态使用同一次更新的值；48ms 呈现合并只降低重排频率，不能让字段等待 `complete` 才补全。读取与尺寸拟合仍不创建任务或发布状态。
 - 卡片、图片、图表、表格和窄屏行布局按本库规则等待必要尺寸或数据，不靠改写来源内容绕过就绪条件。
-- 标准 Card 的增长与最小列宽由父 Stack 在直属子项边界分配，不依赖多层动态 renderer 传递布局标记。clear Card 继续使用 160 pt 阅读列宽，其他表面使用既有卡片列宽，并沿用 body 字号缩放；默认字号、350 pt 有效宽和 12 pt 间距下，两张 clear Card 各占 169 pt，图片、长标题与正文在各列内排版。更窄或更大字号时按原规则换行，不强制双列；替换 Card renderer 的宿主继续拥有自己的布局约定。
+- 标准 Card 在组件注册处声明零内容基准的弹性子项约定。父 Stack 的空间分配与流式行宽就绪判断读取同一份声明，不按子项的组件名猜测；尺寸标记仍由父 Stack 挂在直属子项边界，不依赖多层动态 renderer 传递。仅实际左右 padding 与 border 构成外框几何下限；声明只读取布局字段、主题与宿主呈现配置，不依赖流入的子内容，也不执行状态写入。绘制与下限分配使用同一份盒模型，宿主覆盖 borderWidth 后两者同步。明确的零下限与未声明分开处理，前者不能回退到内容测量；没有声明的包装容器或自定义组件继续按自身内容参与测量。
+- 标准 Card 不再使用 minimumTextColumnWidth（默认 160 pt）或 minimumCardWidth（默认 240 pt）作为分行门槛，也不按 body 字号扩大该门槛。这两个宿主配置继续服务其它原生组件。横排 Card 分享实际可用外宽，允许换行时按实际外框下限分行；明确不换行且连真实内边距都无法容纳时，外框可以溢出，不能抹掉内边距来伪装为已适配。字号增大时正文自然换行及增高，不保证多列内容自动变成单列。
+- 标准 Card 的三种 variant 都保留实际 border 占位，并按下表提供 padding、背景与形状。每层嵌套 Card 都保留自己的盒模型；需要无内边距的普通分组使用 Stack。350 pt 有效宽和 12 pt 卡间距下，两张 Card 外宽各 169 pt；默认 card 内容区为 167 pt，clear/sunk 内容区为 131 pt。没有额外的首图负 padding 或整卡裁切；图片保持自身圆角，正文不能因表面圆角缺笔画。Carousel、Form 与专用对象卡使用各自表面规则。
+- 弹性声明随 renderer 的注册生命周期管理：直接替换、覆盖为新组件或删除 renderer 时清除；保留原 renderer 的定义扩展保留。没有待完成布局字段的显式弹性声明可直接参与宽度分配；尚未就绪的数组形状、兄弟引用和既有字段门控仍须满足。
 - 宽度、主题和 Dynamic Type 变化只改变布局与呈现，不产生新的文档身份。滚动容器和消息列表归宿主。
 
+标准 Card 盒模型（默认主题与宿主配置；padding 不包含 border）：
+
+| variant | 上下 padding | 左右 padding | border | 圆角 | 背景与阴影 |
+| --- | --- | --- | --- | --- | --- |
+| card（默认） | 0 | 0 | 1 pt，默认透明 | 0 | 透明，无阴影；显式 cardBackgroundColor / cardBorderColor 覆盖继续生效 |
+| clear | 0 | spaceL，默认 18 pt | 1 pt，透明 | radius3xl，默认 16 pt | 透明，无阴影 |
+| sunk | spaceL，默认 18 pt | spaceL，默认 18 pt | 1 pt，borderDefault | radius3xl，默认 16 pt | sunk 背景与 shadowM |
+
+borderWidth 改变所有标准 variant 的真实边框占位。默认外框最小宽度分别为 2 / 38 / 38 pt；这些值只是 padding 与 border 的几何下限，不是文字可读宽度，也不是新的固定卡宽。主题覆盖 spaceL 同时影响 clear/sunk 的内边距；空间分配始终依据当前父容器的实际提议。sunk 消费 shadowM；card 与 clear 不使用阴影。字体与图像采用原生渲染，表面规则一致不意味着跨平台逐像素相同。
+
+shadowM 默认是两层黑色外阴影，按下表顺序由前向后叠放。两层横向偏移均为 0；尺寸以原生逻辑点表达，blurRadius 使用 CSS 模糊半径语义。
+
+| 层 | 浅色不透明度 | 深色不透明度 | 向下偏移 | blurRadius | spread |
+| --- | --- | --- | --- | --- | --- |
+| 第一层 | 0.025 | 0.08 | 4 | 6 | -2 |
+| 第二层 | 0.05 | 0.12 | 2 | 2 | -2 |
+
+OpenUIShadow 使用 layers 与可选 darkLayers 表达完整阴影；绘制时读取最近的 colorScheme。darkLayers 为 nil 时复用 layers，空数组则明确关闭该外观。原单层 init(opacity:radius:x:y:) 仍可使用；radius 保持原生模糊半径单位，blurRadius = 2 × radius。单层便利属性读取浅色首层；对 opacity、radius、x、y 或 spread 写入会将整个值改为一层、清除独立深色配置，其余参数保留首层值。编辑多层参数时直接修改 layers / darkLayers。宿主设置 shadowM = OpenUIShadow() 或 shadowM.opacity = 0 均关闭整个阴影，不会被默认值回填。
+
+组件通过 openUIShadow(_:cornerRadius:) 消费完整值。阴影由独立背景画布从盒子轮廓产生，先对各层的轮廓应用 spread、偏移与模糊，再剔除原盒子内部；透明或半透明底色不影响投影来源，内容不会被投影或染暗。负 spread 只收缩阴影源，不改变布局、padding、命中区域或子内容身份。Canvas 的高斯标准差为 blurRadius / 2，绘制范围保留四个标准差的尾部；表面的原生连续圆角与光栅化仍需独立截图验收。共享卡面按各自已有规则读取 shadowM，浮层继续读取 shadowL；Gallery 阴影预览使用同一绘制入口。
+
 完成的长文档仍可因宽度、字体、Query、字段和资源变化重新布局，不能用 `complete` 冻结几何。Stack/Card 的 Flex 布局只在自身 `Layout.Cache` 中保留最近一次有效 proposal 的 frames；测量与放置条件一致时复用，布局或子视图变化时清空，实际放置宽高不同则重新计算。不保存子视图、Context 或整份文档，也不维护多尺寸缓存。
+
+标准 Carousel 的外层数组代表卡项，每个内层数组代表该卡的内容，不能跨卡展平。它使用既有原生卡带配置：最大卡宽 maximumCarouselCardWidth（默认 320 pt）、尾部露出 carouselPeek（默认 32 pt），卡间与卡内间距均为 m。实际容器约束卡宽；轨道保持原生逐项滑动与吸附，不按设备型号选择布局。前后导航覆盖在轨道边缘，不额外占一行高度，只在对应方向还有实际可达偏移时出现；全部卡项可完整展示时不显示导航。图片全屏预览继续使用满宽分页，其他卡片集合保留自己的配置。卡片采用稳定轨道高度，流式正文增长、宽度变化和页切换不替换已挂载的卡内子树。
 
 标准 Table 在一次 body 中取得一份当前列与分页派生值，布局、表头和单元格消费同一份结果。完整列的数据数组复用不可变 `OpenUIArray.values`；`stableColumns` 继续只用于数据等待、失败或源码未完整时的已读内容回退，正常完成后的状态与 Query 更新仍从当前 Context 读取。
 
@@ -375,6 +401,16 @@ python3 Tools/check_gallery_catalog.py
 纯注册与解析不能替代控件交互或视觉验收。涉及文字、选择、草稿、尺寸、主题或媒体时，在对应宽度、外观和字号运行原生场景，记录实际行为；图片、案例和模拟工具继续由 [Gallery](../Examples/Gallery/README.md) 管理。
 
 ### 实施与验收状态
+
+2026-11-22 在同一布局分支补齐 shadowM 的两层、浅深色强度与负 spread，替换单层阴影消费路径并同步 Gallery 预览；sunk 底色、字体、布局与 Lang 输入契约保持。默认参数依据同一固定上游的 [openui-defaults.scss](https://github.com/thesysdev/openui/blob/7b7a51985814d37201e16ece44d28a996bdfa528/packages/react-ui/src/openui-defaults.scss)。绘制语义依据 [CSS 外阴影](https://www.w3.org/TR/css-backgrounds-3/#shadow-shape)与 [Canvas 高斯模糊](https://developer.apple.com/documentation/swiftui/graphicscontext/filter/blur(radius:options:))；多层参数、显式关闭、透明表面、外框尺寸与共享卡面的回归加入既有主题和视觉测试。原生构建、XCTest 和实机视觉仍待 macOS / iOS 验收，本地检查结果另记于 outputs/verification/layout-p0/shadow-alignment-checks.log。
+
+本次 git diff --check、源代码与所有权检查、Gallery 目录/资源检查及本地化检查通过。swift test、模块边界与消费者构建均实际尝试，因环境缺少 Swift 工具链而受阻；新增 XCTest 尚未执行。浮层 shadowL 的默认数值保持，但已使用统一盒子投影路径，透明/材质浮层与原生模糊边缘也包含在待验收范围内。
+
+2026-11-21 的布局 P0 基于 main `7cd28658899b21d09059e5bb8cc94557d25b9125`：整理 Card 的包内弹性声明与流式宽度判断，移除标准 Card 的 160/240 阅读门槛，并将 card / clear / sunk 的 padding、真实 border 占位、背景、圆角与阴影按标准盒模型实现；标准 Card 不再给首图注入负 padding。标准 Carousel 接入原生卡带尺寸、m 间距及按实际范围显示的边缘导航。Lang 组件签名、主题 token 数值、历史 Lang 输入与 fixture、语言内核及 SwiftIntelligentUI 的实现保持。回归覆盖注册信息的复制与清理、组件改名后的布局与流式门控、明确零基准和外框下限、三种 variant 与宿主边框/主题覆盖、clear 嵌套与字形完整、首图和正文图片的相同内容边界、专用对象卡独立规则、Carousel 实际导航范围，以及流式追加、容器宽度和阅读方向变化时的子视图身份。此前将 clear 视为零内边距、将 160/240 视为分行依据、将标准 Card 视为带 panelInset 的对象卡等期待已按上述行为更新，原始 Lang 输入保留。
+
+此次几何与像素期待调整依据固定上游 `7b7a51985814d37201e16ece44d28a996bdfa528` 的 [Card 弹性声明](https://github.com/thesysdev/openui/blob/7b7a51985814d37201e16ece44d28a996bdfa528/packages/react-ui/src/genui-lib/Card/index.tsx)与 [Card 三种表面定义](https://github.com/thesysdev/openui/blob/7b7a51985814d37201e16ece44d28a996bdfa528/packages/react-ui/src/components/Card/card.scss)。标准 Card 已实现上述默认盒模型；宿主明确覆盖颜色、线宽和主题 token 时仍遵循覆盖值。原生字体、图片及平台绘制结果需要独立截图与尺寸验收。
+
+本环境已通过 `git diff --check`、`Tools/check_openui_integration.py` 的源代码与所有权检查，以及 `Tools/Presentation/catalog-compatibility.test.mjs` 的 7 项检查（覆盖固定目录的 84 个组件与 304 个参数）。新增流式用例的 Lang 输入也已用随包 JS 解析器核对。原生编译、XCTest、消费者构建与界面验收尚未完成；实际尝试 `swift test`、模块边界及产品消费者检查时因当前 Linux 环境没有 Swift/Xcode 而受阻，不能沿用下文历史 CI 的通过结论。当前日志位于 `outputs/verification/layout-p0/`；这些源代码与协议检查不替代 macOS/iOS 验收。
 
 当前实现保留此前图片、图库、Tabs、地图与表单/选项呈现调整及通用生成规则。此前基于 `22229873` 的图片修复使加载与失败占位互斥，并让单图和图库共用的预览说明按实际内容分配高度；随后加入按显示尺寸解码、失败恢复和首次 Markdown 准备优化。客户端复测收尾从 `1f070fe` 开始，整合遗漏的文档资源生命周期优化，修正字段启用状态的焦点登记、Overview 网格的直接子项布局角色，以及共享 Store 广播到节点构建的隔离边界。通用资源与节点订阅仍归 SwiftLang，边界见[架构](architecture.md)。收尾修复保持既有 Lang 输入契约、固定语言核心、历史案例与宿主接入 API；同时正常合并截至 `7d9b36a` 的主线 JourneyLine/时间线、中文强调与诊断呈现改动，验收绑定整合后的提交。用户后续提供的 17 项复测截图另包含 SwiftIntelligentUI 的 Markdown 标题字体差异，该单项在[独立库的文字规则](openintelligentui.md#22-文本列表与内容)内修正，不扩展为该库的整体视觉重做。
 

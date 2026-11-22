@@ -34,9 +34,11 @@ final class NativeAffordanceTests: XCTestCase {
         XCTAssertEqual(theme.objectTitleStyle().font, theme.textHeadingXs.resolved(for: .title))
     }
 
-    func testCardBorderUsesSurfaceDefaultAndSupportsIndependentOverride() {
+    func testSharedSurfaceBorderUsesThemeDefaultAndSupportsIndependentOverride() {
         let theme = OpenUIThemeValues.defaults
         let presentation = OpenUIPresentation()
+        // Shared native surfaces keep this public helper's theme fallback.
+        // Standard Card resolves its transparent/sunk variant border separately.
         XCTAssertEqual(presentation.resolvedCardBorderColor(with: theme), theme.borderDefault)
 
         var customized = presentation

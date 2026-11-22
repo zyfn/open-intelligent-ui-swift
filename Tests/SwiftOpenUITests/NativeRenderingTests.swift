@@ -207,9 +207,12 @@ import SwiftLang
                 XCTAssertEqual(try height(source, proposedHeight: 400), natural, accuracy: 1,
                     "A height proposal is a constraint, not a request to fill it")
                 let theme = OpenUIThemeValues()
-                let inset = variant == "clear" ? 0 : 2 * theme.spaceML
+                // Standard Card/clear have zero vertical padding; all variants
+                // retain their border box, and sunk additionally uses space-l.
+                let verticalPadding = variant == "sunk" ? theme.spaceL : 0
+                let inset = 2 * (verticalPadding + OpenUIPresentation().borderWidth)
                 XCTAssertEqual(natural, textHeight + inset, accuracy: 1,
-                    "Card height must include only its content and declared native inset")
+                    "Card height must include its content, variant padding and border box")
             }
         }
 

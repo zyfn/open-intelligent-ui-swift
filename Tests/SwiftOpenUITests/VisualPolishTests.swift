@@ -61,22 +61,52 @@ final class VisualPolishTests: XCTestCase {
     func count(_ matches: (UInt8, UInt8, UInt8) -> Bool) -> Int {
       stride(from: 0, to: pixels.count, by: 4).filter { matches(pixels[$0], pixels[$0 + 1], pixels[$0 + 2]) }.count
     }
+
+    func pixels(in rectangle: CGRect) -> Data {
+      let minX = max(0, Int(rectangle.minX.rounded(.up)))
+      let maxX = min(width, Int(rectangle.maxX.rounded(.down)))
+      let minY = max(0, Int(rectangle.minY.rounded(.up)))
+      let maxY = min(height, Int(rectangle.maxY.rounded(.down)))
+      var result = Data()
+      guard minX < maxX, minY < maxY else { return result }
+      for y in minY..<maxY {
+        result.append(contentsOf: pixels[((y * width + minX) * 4)..<((y * width + maxX) * 4)])
+      }
+      return result
+    }
+
+    func darkness(outside rectangle: CGRect) -> Int {
+      var result = 0
+      for y in 0..<height {
+        for x in 0..<width where !rectangle.contains(CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)) {
+          let i = (y * width + x) * 4
+          result += 765 - Int(pixels[i]) - Int(pixels[i + 1]) - Int(pixels[i + 2])
+        }
+      }
+      return result
+    }
   }
 
   @MainActor private func raster(_ source: String, theme: OpenUITheme = .init(),
-                                 presentation: OpenUIPresentation = .init(), width: CGFloat = 320) throws -> Raster {
+                                 presentation: OpenUIPresentation = .init(), width: CGFloat = 320,
+                                 scheme: ColorScheme = .light) throws -> Raster {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
     state.setSource(source)
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
-      .openUITheme(theme).openUIPresentation(presentation).dynamicTypeSize(.large).frame(width: width).padding(12).background(Color.white)
-      .environment(\.colorScheme, .light))
+    return try raster(OpenUIContentView(state: state, registry: library.registry)
+      .openUITheme(theme).openUIPresentation(presentation).dynamicTypeSize(.large).frame(width: width), scheme: scheme)
+  }
+
+  @MainActor private func raster<Content: View>(_ content: Content, scheme: ColorScheme = .light) throws -> Raster {
+    _ = NSApplication.shared
+    let host = NSHostingView(rootView: content.padding(12).background(Color.white)
+      .environment(\.colorScheme, scheme))
     let window = NSWindow(contentRect: NSRect(origin: .zero, size: host.fittingSize),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
-    window.appearance = NSAppearance(named: .aqua)
+    window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
     window.contentView = host
     window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
     defer { window.close() }
@@ -99,7 +129,81 @@ final class VisualPolishTests: XCTestCase {
       pixels: Data(bytes: try XCTUnwrap(canvas.data), count: image.width * image.height * 4))
   }
 
-  @MainActor func testSunkPaintsNoGroupingBorderWhileItsInputBoundaryRemainsVisible() throws {
+  @MainActor func testBoxShadowUsesItsTransparentBoxAndPreservesContentAndLayout() throws {
+    let box = Color.clear.frame(width: 120, height: 60)
+      .overlay { Color(red: 1, green: 0, blue: 0).frame(width: 24, height: 10) }
+    let disabled = try raster(box.openUIShadow(OpenUIShadow()))
+    let scale = CGFloat(disabled.width) / 144
+    let bounds = CGRect(x: 12 * scale, y: 12 * scale, width: 120 * scale, height: 60 * scale)
+    let interior = bounds.insetBy(dx: 2 * scale, dy: 2 * scale)
+    let baseDarkness = disabled.darkness(outside: bounds)
+    XCTAssertEqual(baseDarkness, 0)
+    var darkness: [Int] = []
+    for scheme in [ColorScheme.light, .dark] {
+      let shadowed = try raster(box.openUIShadow(OpenUIThemeValues().shadowM), scheme: scheme)
+      XCTAssertEqual(shadowed.width, disabled.width)
+      XCTAssertEqual(shadowed.height, disabled.height,
+        "Outer paint must not reserve layout space or change the box's proposal")
+      XCTAssertEqual(shadowed.pixels(in: interior), disabled.pixels(in: interior),
+        "The shadow must be excluded from the box interior and must not be cast by its red content")
+      let amount = shadowed.darkness(outside: bounds)
+      XCTAssertGreaterThan(amount, baseDarkness,
+        "A transparent box still casts its declared shadow; its fill alpha is not the caster")
+      darkness.append(amount)
+    }
+    XCTAssertGreaterThan(darkness[1], darkness[0],
+      "Dark appearance must resolve its stronger medium-shadow layers even on the same white test background")
+  }
+
+  @MainActor func testNegativeShadowSpreadShrinksTheCasterBeforeOffset() throws {
+    let box = Color.clear.frame(width: 120, height: 60)
+    let unspread = try raster(box.openUIShadow(OpenUIShadow(opacity: 1, radius: 0, x: 8)))
+    let inset = try raster(box.openUIShadow(OpenUIShadow(opacity: 1, radius: 0, x: 8, spread: -4)))
+    XCTAssertEqual(inset.width, unspread.width)
+    XCTAssertEqual(inset.height, unspread.height)
+    let scale = CGFloat(unspread.width) / 144
+    let bounds = CGRect(x: 12 * scale, y: 12 * scale, width: 120 * scale, height: 60 * scale)
+    let fullDarkness = unspread.darkness(outside: bounds)
+    let insetDarkness = inset.darkness(outside: bounds)
+    XCTAssertGreaterThan(insetDarkness, 0,
+      "The 8-point offset still exposes the right edge after a 4-point inset")
+    XCTAssertLessThan(Double(insetDarkness), Double(fullDarkness) * 0.75,
+      "Negative spread must reduce the caster, not merely be stored alongside an unchanged shadow")
+    XCTAssertEqual(inset.pixels(in: bounds.insetBy(dx: 2 * scale, dy: 2 * scale)),
+      try raster(box).pixels(in: bounds.insetBy(dx: 2 * scale, dy: 2 * scale)),
+      "Even an opaque, unblurred offset shadow stays outside the original border box")
+  }
+
+  @MainActor func testMediumShadowReachesSunkAndSharedPanelsWithoutChangingOtherVariants() throws {
+    var themed = OpenUITheme()
+    themed.sunk = .clear; themed.foreground = .clear; themed.borderDefault = .clear
+    themed.textNeutralPrimary = Color(red: 1, green: 0, blue: 0)
+    var disabled = themed; disabled.shadowM = OpenUIShadow()
+    let form = "Form(\"f\",Buttons([]),[FormControl(\"Field\",Input(\"x\",\"Value\"))])"
+    for (source, usesShadow) in [
+      ("root=Card([TextContent(\"Note\")],\"card\")", false),
+      ("root=Card([TextContent(\"Note\")],\"clear\")", false),
+      ("root=Card([TextContent(\"Note\")],\"sunk\")", true),
+      ("root=" + form, true)
+    ] {
+      let shadowed = try raster(source, theme: themed)
+      let unshadowed = try raster(source, theme: disabled)
+      XCTAssertEqual(shadowed.width, unshadowed.width, source)
+      XCTAssertEqual(shadowed.height, unshadowed.height, source)
+      if usesShadow {
+        let scale = CGFloat(shadowed.width) / 344
+        let bounds = CGRect(x: 12 * scale, y: 12 * scale, width: 320 * scale,
+          height: CGFloat(shadowed.height) - 24 * scale)
+        XCTAssertGreaterThan(shadowed.darkness(outside: bounds), unshadowed.darkness(outside: bounds),
+          "\(source): both standard sunk and shared native panels consume the same host-overridable token")
+      } else {
+        XCTAssertEqual(shadowed.pixels, unshadowed.pixels,
+          "\(source): standard card and clear do not gain the medium shadow")
+      }
+    }
+  }
+
+  @MainActor func testStandardCardAndMarkdownKeepTheirOwnSurfaceBordersAndVisibleInputs() throws {
     var theme = OpenUITheme()
     // Use fixed RGB primaries, not adaptive system red/blue swatches, so this
     // checks visible boundaries rather than platform color-space hue choices.
@@ -108,18 +212,30 @@ final class VisualPolishTests: XCTestCase {
     theme.interactiveAccentDefault = Color(red: 0, green: 0, blue: 1)
     let red: (UInt8, UInt8, UInt8) -> Bool = { $0 > 180 && $1 < 100 && $2 < 100 }
     let blue: (UInt8, UInt8, UInt8) -> Bool = { $2 > 180 && $0 < 100 && $1 < 100 }
-    for body in ["Card([TextContent(\"Note\")],VARIANT)", "MarkDownRenderer(\"Note\",VARIANT)"] {
+    for (body, standardCard) in [
+      ("Card([TextContent(\"Note\")],VARIANT)", true),
+      ("MarkDownRenderer(\"Note\",VARIANT)", false)
+    ] {
       let sunk = try raster("root=" + body.replacingOccurrences(of: "VARIANT", with: "\"sunk\""), theme: theme)
       let card = try raster("root=" + body.replacingOccurrences(of: "VARIANT", with: "\"card\""), theme: theme)
-      XCTAssertEqual(sunk.count(red), 0)
-      XCTAssertGreaterThan(card.count(red), 100, "The normal card is the visible-border positive control")
+      if standardCard {
+        // Official Card's sunk variant paints border-default; card keeps the
+        // shared transparent border box. Markdown owns its separate recipe.
+        XCTAssertGreaterThan(sunk.count(red), 100, "The standard sunk Card must paint its declared border")
+        XCTAssertEqual(card.count(red), 0, "The standard default Card has a transparent border")
+        let clear = try raster("root=" + body.replacingOccurrences(of: "VARIANT", with: "\"clear\""), theme: theme)
+        XCTAssertEqual(clear.count(red), 0, "The standard clear Card also has a transparent border")
+      } else {
+        XCTAssertEqual(sunk.count(red), 0)
+        XCTAssertGreaterThan(card.count(red), 100, "Markdown retains its visible-border positive control")
+      }
     }
     let form = "Form(\"f\",Buttons([]),[FormControl(\"Field\",Input(\"x\",\"Value\"))])"
     var presentation = OpenUIPresentation()
     presentation.formShowsCardSurface = false
     let nested = try raster("root=Card([\(form)],\"sunk\")", theme: theme, presentation: presentation)
-    XCTAssertEqual(nested.count(red), 0)
-    XCTAssertGreaterThan(nested.count(blue), 50, "Removing the content border must not erase editable field boundaries")
+    XCTAssertGreaterThan(nested.count(red), 100, "The enclosing sunk Card retains its grouping boundary")
+    XCTAssertGreaterThan(nested.count(blue), 50, "The enclosing surface must preserve editable field boundaries")
   }
 
   @MainActor func testFormKeepsItsPanelAndSupportsUnframedEmbedding() throws {
@@ -134,15 +250,19 @@ final class VisualPolishTests: XCTestCase {
     let cardSource = "root=Card([\(form)])"
     let composed = try raster(cardSource, theme: theme, presentation: embedded)
     XCTAssertEqual(panel.width, composed.width)
-    XCTAssertEqual(panel.height, composed.height)
+    XCTAssertGreaterThan(panel.height, composed.height,
+      "Form keeps its own panel padding; the standard default Card has no padding")
     let unframed = try raster("root=" + form, theme: theme, presentation: embedded)
+    let scale = CGFloat(composed.width) / (320 + 24)
+    XCTAssertEqual(CGFloat(composed.height - unframed.height), 2 * embedded.borderWidth * scale, accuracy: 1,
+      "The standard Card adds its transparent border box around the unframed Form")
     let red: (UInt8, UInt8, UInt8) -> Bool = { $0 > 180 && $1 < 100 && $2 < 100 }
     let blue: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 < 100 && $2 > 180 }
     let green: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 > 180 && $2 < 100 }
     XCTAssertGreaterThan(panel.count(red), 100)
-    XCTAssertGreaterThan(composed.count(red), 100, "The default Card retains a visible outline")
+    XCTAssertEqual(composed.count(red), 0, "The standard default Card does not paint a theme-border outline")
     XCTAssertGreaterThan(panel.count(green), composed.count(green), "The Form panel keeps its fill")
-    XCTAssertEqual(composed.count(green), unframed.count(green), "The outline adds no fill around the form")
+    XCTAssertEqual(composed.count(green), unframed.count(green), "The default Card adds no fill around the form")
     XCTAssertEqual(unframed.count(red), 0)
     XCTAssertGreaterThan(unframed.count(blue), 50, "A quiet Form must preserve editable field boundaries")
     XCTAssertGreaterThan(panel.height, unframed.height)

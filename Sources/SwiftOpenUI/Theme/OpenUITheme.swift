@@ -337,7 +337,7 @@ public struct OpenUIThemeValues {
     public var horizontalBarChartPalette: [Color]? = nil
     public var shadow0: OpenUIShadow = OpenUIShadow()
     public var shadowS: OpenUIShadow = OpenUIShadow(opacity: 0.05, radius: 2, y: 1)
-    public var shadowM: OpenUIShadow = OpenUIShadow()
+    public var shadowM: OpenUIShadow = .medium
     public var shadowL: OpenUIShadow = OpenUIShadow(opacity: 0.08, radius: 8, y: 3)
     public init() {}
 
@@ -377,13 +377,91 @@ public struct OpenUIThemeValues {
     }
 }
 
-/// A native shadow value; dimensions are points, not CSS strings.
+/// A box shadow, with the first layer painted on top. Dimensions are logical points.
+/// An explicit empty or transparent shadow disables elevation in every appearance.
 public struct OpenUIShadow: Equatable {
-    public var opacity: Double
-    public var radius: CGFloat
-    public var x: CGFloat
-    public var y: CGFloat
-    public init(opacity: Double = 0, radius: CGFloat = 0, x: CGFloat = 0, y: CGFloat = 0) {
-        self.opacity = opacity; self.radius = radius; self.x = x; self.y = y
+    public struct Layer: Equatable {
+        public var opacity: Double
+        /// CSS box-shadow blur radius; the Gaussian standard deviation is half this value.
+        public var blurRadius: CGFloat
+        public var x: CGFloat
+        public var y: CGFloat
+        /// Expands the shadow source, or contracts it when negative, without changing layout.
+        public var spread: CGFloat
+
+        public init(opacity: Double = 0, blurRadius: CGFloat = 0,
+                    x: CGFloat = 0, y: CGFloat = 0, spread: CGFloat = 0) {
+            self.opacity = opacity; self.blurRadius = blurRadius
+            self.x = x; self.y = y; self.spread = spread
+        }
     }
+
+    public var layers: [Layer]
+    /// Nil reuses `layers`; an empty array explicitly disables the dark appearance shadow.
+    public var darkLayers: [Layer]?
+
+    public init(layers: [Layer], darkLayers: [Layer]? = nil) {
+        self.layers = layers; self.darkLayers = darkLayers
+    }
+
+    /// Creates one appearance-independent layer using the existing native blur-radius API.
+    public init(opacity: Double = 0, radius: CGFloat = 0, x: CGFloat = 0, y: CGFloat = 0) {
+        self.init(opacity: opacity, radius: radius, x: x, y: y, spread: 0)
+    }
+
+    /// Creates one layer with an explicit spread, preserving the four-argument initializer.
+    public init(opacity: Double = 0, radius: CGFloat = 0, x: CGFloat = 0,
+                y: CGFloat = 0, spread: CGFloat) {
+        self.init(layers: [Layer(opacity: opacity, blurRadius: radius * 2, x: x, y: y, spread: spread)])
+    }
+
+    public func resolvedLayers(for colorScheme: ColorScheme) -> [Layer] {
+        colorScheme == .dark ? darkLayers ?? layers : layers
+    }
+
+    /// Reads the first light layer. Writing any single-layer convenience property
+    /// replaces the layer lists with one appearance-independent layer, retaining
+    /// its other values. Use `layers` and `darkLayers` to edit a layered shadow.
+    public var opacity: Double {
+        get { firstLayer.opacity }
+        set { updateSingleLayer { $0.opacity = newValue } }
+    }
+    /// Native blur radius (Gaussian sigma), half the first light layer's `blurRadius`.
+    /// Setting it creates one appearance-independent layer, as with `opacity`.
+    public var radius: CGFloat {
+        get { firstLayer.blurRadius / 2 }
+        set { updateSingleLayer { $0.blurRadius = newValue * 2 } }
+    }
+    /// Horizontal offset of the first light layer; setting it creates a single layer.
+    public var x: CGFloat {
+        get { firstLayer.x }
+        set { updateSingleLayer { $0.x = newValue } }
+    }
+    /// Vertical offset of the first light layer; setting it creates a single layer.
+    public var y: CGFloat {
+        get { firstLayer.y }
+        set { updateSingleLayer { $0.y = newValue } }
+    }
+    /// Spread of the first light layer; setting it creates a single layer.
+    public var spread: CGFloat {
+        get { firstLayer.spread }
+        set { updateSingleLayer { $0.spread = newValue } }
+    }
+
+    private var firstLayer: Layer { layers.first ?? Layer() }
+    private mutating func updateSingleLayer(_ update: (inout Layer) -> Void) {
+        var layer = firstLayer
+        update(&layer)
+        layers = [layer]
+        darkLayers = nil
+    }
+
+    // Pinned OpenUI defaults: 0 4px 6px -2px, 0 2px 2px -2px.
+    static let medium = OpenUIShadow(layers: [
+        Layer(opacity: 0.025, blurRadius: 6, y: 4, spread: -2),
+        Layer(opacity: 0.05, blurRadius: 2, y: 2, spread: -2)
+    ], darkLayers: [
+        Layer(opacity: 0.08, blurRadius: 6, y: 4, spread: -2),
+        Layer(opacity: 0.12, blurRadius: 2, y: 2, spread: -2)
+    ])
 }

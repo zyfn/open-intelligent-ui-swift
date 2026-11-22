@@ -1,6 +1,19 @@
 import SwiftLang
 import SwiftUI
 
+/// A registered flexible item shares row space from a zero content basis.
+/// Only its actual horizontal padding and border establish a minimum outer width; copy and
+/// font size do not introduce an additional line-breaking threshold. The parent
+/// attaches this value at its direct child boundary, and readiness consumes the
+/// same declaration without measuring arriving content.
+struct NativeFlexItemContract {
+  let minimumOuterWidth: (EvaluatedElement, OpenUIThemeValues, OpenUIPresentation) -> CGFloat
+}
+
+enum NativeFlexItemKey: OpenUIContextKey {
+  static let defaultValue: NativeFlexItemContract? = nil
+}
+
 /// Presentation dependencies of standard layout families. These are existing
 /// parameters, not additional Lang fields or a policy inferred from content.
 enum NativeLayoutContract {
@@ -35,8 +48,8 @@ enum NativeLayoutContract {
   }
 
   /// Every contributor to a row must be known before exposing fluid media.
-  /// Native Card has a copy-independent width basis, so its text can continue
-  /// streaming without holding back already allocated image regions.
+  /// Registered flexible items have a copy-independent width basis, so their
+  /// text can continue streaming inside already allocated image regions.
   static func rowWidthReady(_ value: Value, source: NativeSourceReadiness, registry: OpenUIComponentRegistry) -> Bool {
     switch value {
     case .array(let values):
@@ -46,7 +59,7 @@ enum NativeLayoutContract {
       return values.enumerated().allSatisfy { rowWidthReady($0.element, source: source[$0.offset], registry: registry) }
     case .element(let element):
       let fields = registry.presentationLayoutFields(element.typeName)
-      if element.typeName == "Card", !fields.isEmpty {
+      if registry.presentationValue(element.typeName, NativeFlexItemKey.self) != nil {
         return ready(element.sourceReadiness, fields: fields)
       }
       return element.isSourceComplete

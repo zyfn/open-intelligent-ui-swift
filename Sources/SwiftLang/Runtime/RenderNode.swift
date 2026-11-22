@@ -17,6 +17,7 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
     private var formControlLabelOwners = Set<String>()
     private var identityProperties: [String: [String]] = [:]
     private var placeholderProperties: [String: [String]] = [:]
+    private var presentationValues: [String: OpenUIContextValues] = [:]
     private var revision = NativeRegistryRevision()
     var renderRevision: ObjectIdentifier { ObjectIdentifier(revision) }
 
@@ -34,6 +35,7 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
             formControlLabelOwners.remove(name)
             identityProperties.removeValue(forKey: name)
             placeholderProperties.removeValue(forKey: name)
+            presentationValues.removeValue(forKey: name)
         }
     }
     package mutating func setPresentationPlaceholder(_ name: String, enabled: Bool) {
@@ -67,6 +69,14 @@ public struct OpenUIComponentRegistry: ExpressibleByDictionaryLiteral {
     }
     package func presentationPlaceholderFields(_ name: String) -> [String] {
         placeholderProperties[name] ?? []
+    }
+    package mutating func setPresentationValues(_ name: String, values: OpenUIContextValues) {
+        revision = NativeRegistryRevision()
+        presentationValues[name] = values
+    }
+    package func presentationValue<Key: OpenUIContextKey>(_ name: String, _ key: Key.Type) -> Key.Value {
+        guard let values = presentationValues[name] else { return Key.defaultValue }
+        return values[key]
     }
 }
 

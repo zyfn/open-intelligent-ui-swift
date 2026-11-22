@@ -66,6 +66,61 @@ final class ThemeOverrideTests: XCTestCase {
     XCTAssertEqual([theme.cardRadius(for: "Context"), theme.cardRadius(for: "Overview"), theme.cardRadius(for: "Composite")], [12, 14, 16])
   }
 
+  func testMediumShadowResolvesThePinnedReferenceLayersForEachAppearance() {
+    // openui 7b7a51985814d37201e16ece44d28a996bdfa528, openui-defaults.scss.
+    // These are CSS blur radii; the renderer converts them to Gaussian sigma.
+    let shadow = OpenUIThemeValues().shadowM
+    XCTAssertEqual(shadow.resolvedLayers(for: .light), [
+      OpenUIShadow.Layer(opacity: 0.025, blurRadius: 6, y: 4, spread: -2),
+      OpenUIShadow.Layer(opacity: 0.05, blurRadius: 2, y: 2, spread: -2)
+    ])
+    XCTAssertEqual(shadow.resolvedLayers(for: .dark), [
+      OpenUIShadow.Layer(opacity: 0.08, blurRadius: 6, y: 4, spread: -2),
+      OpenUIShadow.Layer(opacity: 0.12, blurRadius: 2, y: 2, spread: -2)
+    ])
+  }
+
+  func testMediumShadowHostOverridesPreserveSingleLayerRadiusAndExplicitNone() {
+    let makeShadow: (Double, CGFloat, CGFloat, CGFloat) -> OpenUIShadow = OpenUIShadow.init(opacity:radius:x:y:)
+    let native = makeShadow(0.31, 5, -3, 7)
+    for scheme in [ColorScheme.light, .dark] {
+      XCTAssertEqual(native.resolvedLayers(for: scheme), [
+        OpenUIShadow.Layer(opacity: 0.31, blurRadius: 10, x: -3, y: 7)
+      ], "The original four-argument initializer remains usable as a function value")
+    }
+    var overrides = OpenUITheme()
+    overrides.shadowM = OpenUIShadow(opacity: 0.31, radius: 5, x: -3, y: 7, spread: 1)
+    let expected = [OpenUIShadow.Layer(opacity: 0.31, blurRadius: 10, x: -3, y: 7, spread: 1)]
+    for scheme in [ColorScheme.light, .dark] {
+      XCTAssertEqual(overrides.resolved().shadowM.resolvedLayers(for: scheme), expected,
+        "The existing native-radius initializer remains a complete host override in either appearance")
+    }
+    overrides.shadowM = OpenUIShadow()
+    for scheme in [ColorScheme.light, .dark] {
+      XCTAssertTrue(overrides.resolved().shadowM.resolvedLayers(for: scheme).allSatisfy { $0.opacity == 0 },
+        "An explicit no-shadow value must never restore the default layered recipe")
+    }
+    var adaptive = OpenUIShadow(layers: expected)
+    XCTAssertEqual(adaptive.resolvedLayers(for: .dark), expected,
+      "An absent dark recipe inherits the host's light layers")
+    adaptive.darkLayers = []
+    XCTAssertEqual(adaptive.resolvedLayers(for: .dark), [],
+      "An explicit empty dark recipe disables shadows instead of falling back to the light recipe")
+    XCTAssertEqual(adaptive.resolvedLayers(for: .light), expected)
+  }
+
+  func testEditingTheExistingOpacityPropertyCanDisableTheWholeAdaptiveShadow() {
+    var shadow = OpenUIThemeValues().shadowM
+    shadow.opacity = 0
+    XCTAssertNil(shadow.darkLayers)
+    for scheme in [ColorScheme.light, .dark] {
+      let layers = shadow.resolvedLayers(for: scheme)
+      XCTAssertEqual(layers.count, 1)
+      XCTAssertEqual(layers.first?.opacity, 0,
+        "Changing the existing scalar API replaces the complete recipe, including its dark layers")
+    }
+  }
+
   func testOverridesResolveWithoutHiddenPaddingOrRadiusAliases() {
     var overrides = OpenUITheme()
     overrides.spaceM = 20; overrides.radius3xl = 22; overrides.radiusXl = 5
@@ -92,7 +147,8 @@ final class ThemeOverrideTests: XCTestCase {
         .openUITheme(theme).frame(width: 300)).fittingSize.height
     }
     let base = OpenUIThemeValues(); var custom = base
-    custom.spaceM = 22; custom.spaceML = 26
+    // Standard sunk Card takes its padding from space-l; the child gap uses m.
+    custom.spaceM = 22; custom.spaceL = 28
     let children = "[TextContent(\"A\"),TextContent(\"B\")]"
     XCTAssertEqual(try height("root=Stack(\(children))", custom) - height("root=Stack(\(children))", base), 10, accuracy: 0.5)
     XCTAssertEqual(try height("root=Card(\(children),\"sunk\")", custom) - height("root=Card(\(children),\"sunk\")", base), 30, accuracy: 0.5)

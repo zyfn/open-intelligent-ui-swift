@@ -22,6 +22,7 @@ final class PhotoCardGeometryTests: XCTestCase {
   }
 
   @MainActor private func withStreamingImage(
+    presentation: OpenUIPresentation = .init(),
     _ inspect: (OpenUIState, () -> Void, PhotoCardWidth) throws -> Void
   ) throws {
     _ = NSApplication.shared
@@ -35,7 +36,8 @@ final class PhotoCardGeometryTests: XCTestCase {
       }
     }])
     let state = OpenUIState(schema: library.library.toSchema())
-    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry).frame(width: 300))
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
+      .openUIPresentation(presentation).frame(width: 300))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 500),
       styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false; window.contentView = host
@@ -50,32 +52,47 @@ final class PhotoCardGeometryTests: XCTestCase {
   }
 
   @MainActor func testDefaultAndExplicitColumnsReserveTheSameImageWidthBeforeCompletion() throws {
-    try withStreamingImage { state, settle, measured in
-      let variants = [
-        ("Stack([picture,tail])", CGFloat(300)),
-        ("Stack([picture,tail],\"column\")", CGFloat(300)),
-        ("Card([picture,tail])", 300 - OpenUIThemeValues().spaceML * 2)
-      ]
-      for (container, expected) in variants {
-        state.setSource("root=\(container)\npicture=Image(\"photo\")\ntail=TextContent(\"still", streaming: true)
-        settle()
-        XCTAssertTrue(state.errors.isEmpty)
-        XCTAssertFalse(state.isComplete)
-        XCTAssertEqual(measured.mountedCount, 1,
-          "Replacing a root container must retire its previous image probe")
-        XCTAssertEqual(measured.sourceRevision, state.sourceRevision,
-          "The geometry must come from this document, not a replaced container")
-        XCTAssertTrue(measured.layoutReady, "A closed container must own its layout while its text streams")
-        XCTAssertEqual(measured.width, expected, accuracy: 1,
-          "A column's width must not wait for its unrelated trailing text; root=\(state.root?.typeName ?? "nil"), media inset=\(measured.mediaInset), sampled revision=\(measured.sourceRevision), current=\(state.sourceRevision)")
-        state.push(" arriving\")")
-        settle()
-        XCTAssertFalse(state.isComplete)
-        XCTAssertEqual(measured.width, expected, accuracy: 1)
-        state.complete()
-        settle()
-        XCTAssertEqual(measured.width, expected, accuracy: 1,
-          "Completing unchanged layout cannot resize the image")
+    let theme = OpenUIThemeValues()
+    for borderWidth in [CGFloat(1), 3] {
+      var presentation = OpenUIPresentation()
+      presentation.borderWidth = borderWidth
+      try withStreamingImage(presentation: presentation) { state, settle, measured in
+        // The standard Card supplies padding and a border; Image owns its ratio
+        // and corners. A leading image does not extend through those insets.
+        let variants = [
+          ("Stack([picture,tail])", CGFloat(300)),
+          ("Stack([picture,tail],\"column\")", CGFloat(300)),
+          ("Card([picture,tail])", 300 - borderWidth * 2),
+          ("Card([picture,tail],\"card\")", 300 - borderWidth * 2),
+          ("Card([picture,tail],\"clear\")", 300 - (theme.spaceL + borderWidth) * 2),
+          ("Card([picture,tail],\"sunk\")", 300 - (theme.spaceL + borderWidth) * 2)
+        ]
+        for (container, expected) in variants {
+          state.setSource("root=\(container)\npicture=Image(\"photo\")\ntail=TextContent(\"still", streaming: true)
+          settle()
+          XCTAssertTrue(state.errors.isEmpty)
+          XCTAssertFalse(state.isComplete)
+          XCTAssertEqual(measured.mountedCount, 1,
+            "Replacing a root container must retire its previous image probe")
+          XCTAssertEqual(measured.sourceRevision, state.sourceRevision,
+            "The geometry must come from this document, not a replaced container")
+          XCTAssertTrue(measured.layoutReady, "A closed container must own its layout while its text streams")
+          XCTAssertEqual(measured.width, expected, accuracy: 1,
+            "A column's width must not wait for its unrelated trailing text; container=\(container), border=\(borderWidth), sampled revision=\(measured.sourceRevision), current=\(state.sourceRevision)")
+          XCTAssertEqual(measured.height, expected / presentation.coverAspectRatio, accuracy: 1,
+            "Standard Card must not apply a negative top inset to its first image")
+          XCTAssertEqual(measured.mediaInset, 0, accuracy: 0.001,
+            "Standard containers must not opt Image into a dedicated card header's media treatment")
+          state.push(" arriving\")")
+          settle()
+          XCTAssertFalse(state.isComplete)
+          XCTAssertEqual(measured.width, expected, accuracy: 1)
+          state.complete()
+          settle()
+          XCTAssertEqual(measured.width, expected, accuracy: 1,
+            "Completing unchanged layout cannot resize the image")
+          XCTAssertEqual(measured.height, expected / presentation.coverAspectRatio, accuracy: 1)
+        }
       }
     }
   }
@@ -219,12 +236,14 @@ final class PhotoCardGeometryTests: XCTestCase {
 @MainActor private final class PhotoCardWidth {
   struct Sample: Equatable {
     let width: CGFloat
+    let height: CGFloat
     let inset: CGFloat
     let layoutReady: Bool
     let sourceRevision: Int
   }
   private var mounted: [ObjectIdentifier: Sample] = [:]
   var width: CGFloat = 0
+  var height: CGFloat = 0
   var mediaInset: CGFloat = 0
   var layoutReady = false
   var sourceRevision = -1
@@ -238,10 +257,11 @@ final class PhotoCardGeometryTests: XCTestCase {
     mounted.removeValue(forKey: ObjectIdentifier(observer))
     // During replacement SwiftUI can deliver an outgoing view's final geometry
     // after the new view appears. Keep only mounted samples, not the last callback.
-    apply(mounted.values.first ?? Sample(width: 0, inset: 0, layoutReady: false, sourceRevision: -1))
+    apply(mounted.values.first ?? Sample(width: 0, height: 0, inset: 0, layoutReady: false, sourceRevision: -1))
   }
   private func apply(_ sample: Sample) {
     width = sample.width
+    height = sample.height
     mediaInset = sample.inset
     layoutReady = sample.layoutReady
     sourceRevision = sample.sourceRevision
@@ -258,7 +278,7 @@ private struct PhotoCardImageGeometryProbe: View {
   @Environment(\.openUIAncestorLayoutReady) private var layoutReady
   var body: some View {
     GeometryReader { geometry in
-      let sample = PhotoCardWidth.Sample(width: geometry.size.width, inset: inset,
+      let sample = PhotoCardWidth.Sample(width: geometry.size.width, height: geometry.size.height, inset: inset,
         layoutReady: layoutReady, sourceRevision: sourceRevision)
       Color.clear.onAppear {
         observer.isMounted = true

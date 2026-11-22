@@ -86,6 +86,12 @@ public enum OpenUIComponents {
             OpenUIReference.component("Image") { NativeContentImage(context: $0) },
             OpenUIReference.component("Button") { OpenUINativeButton(context: $0) },
             OpenUIReference.component("Card") { OpenUIStyledCard(context: $0) }
+                .presentation(NativeFlexItemKey.self, value: NativeFlexItemContract { element, theme, presentation in
+                    let insets = OpenUIStandardCardSurface.insets(theme: theme,
+                        variant: PropValue.codeUnitString(element, "variant")?.displayString,
+                        borderWidth: presentation.borderWidth)
+                    return insets.leading + insets.trailing
+                })
         ]
         let byName = Dictionary(uniqueKeysWithValues: implementations.map { ($0.definition.name, $0) })
         let pinned = OpenUIReference.definitions.map { definition in

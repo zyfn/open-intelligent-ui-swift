@@ -10,6 +10,7 @@ public struct OpenUIComponent {
     package var ownsFormControlLabel = false
     package var presentationIdentityFields: [String]?
     package var presentationPlaceholderFields: [String] = []
+    package var presentationValues = OpenUIContextValues()
 
     public init<Content: View>(name: String, description: String, params: [ParamDef],
                                @ViewBuilder content: @escaping (OpenUIComponentContext) -> Content) {
@@ -45,6 +46,14 @@ public struct OpenUIComponent {
         return result
     }
 
+    /// Library-owned native metadata travels with its renderer. This typed
+    /// storage is separate from inherited Context values and the Lang schema.
+    package func presentation<Key: OpenUIContextKey>(_ key: Key.Type, value: Key.Value) -> OpenUIComponent {
+        var result = self
+        result.presentationValues[key] = value
+        return result
+    }
+
     /// Replace a typed contract while retaining the original native renderer.
     /// The builder still receives the final extended registry and shared state.
     public func replacingDefinition(_ definition: DefinedComponent) -> OpenUIComponent {
@@ -55,6 +64,7 @@ public struct OpenUIComponent {
         result.presentationLayoutFields = presentationLayoutFields.filter { declared.contains($0) }
         result.presentationIdentityFields = presentationIdentityFields.map { $0.filter { declared.contains($0) } }
         result.presentationPlaceholderFields = presentationPlaceholderFields.filter { declared.contains($0) }
+        result.presentationValues = presentationValues
         return result
     }
 
@@ -121,6 +131,7 @@ public struct OpenUIComponentLibrary {
             registry.setFormControlLabelOwner(component.definition.name, enabled: component.ownsFormControlLabel)
             registry.setIdentityFields(component.definition.name, fields: component.presentationIdentityFields)
             registry.setPlaceholderFields(component.definition.name, fields: component.presentationPlaceholderFields)
+            registry.setPresentationValues(component.definition.name, values: component.presentationValues)
         }
         self.library = library
         self.registry = registry
@@ -154,6 +165,7 @@ public struct OpenUIComponentLibrary {
             next.setFormControlLabelOwner(component.definition.name, enabled: component.ownsFormControlLabel)
             next.setIdentityFields(component.definition.name, fields: component.presentationIdentityFields)
             next.setPlaceholderFields(component.definition.name, fields: component.presentationPlaceholderFields)
+            next.setPresentationValues(component.definition.name, values: component.presentationValues)
         }
         return OpenUIComponentLibrary(library: extended, registry: next)
     }

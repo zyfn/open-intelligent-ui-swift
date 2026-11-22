@@ -5,16 +5,28 @@ import Foundation
 /// no result survives source, environment, proposal, or layout changes.
 enum NativeFlexRowWidths {
     static func proposals(ideal: [CGFloat], growing: [Bool], width: CGFloat, gap: CGFloat,
+                          minimums: [CGFloat?] = [],
                           measure: (Int, CGFloat) -> CGFloat) -> [CGFloat] {
         guard !ideal.isEmpty else { return [] }
-        var proposals = ideal.map { min(width, $0) }
+        let declared = ideal.indices.map { index -> CGFloat? in
+            guard minimums.indices.contains(index), let value = minimums[index], value.isFinite else { return nil }
+            return max(0, value)
+        }
+        let basis = ideal.indices.map { growing[$0] && declared[$0] != nil ? 0 : ideal[$0] }
+        var proposals = basis.map { min(width, $0) }
         let flexible = ideal.indices.filter { growing[$0] }
         var measuredWidths: [CGFloat?] = flexible.isEmpty ? [] : Array(repeating: nil, count: ideal.count)
-        // Keep the previous ordering and the exact proposals sent to each child.
+        // Declared zero-basis items reserve only their outer insets while
+        // intrinsic siblings negotiate. Streaming copy must not change their
+        // place in the measurement order or the space offered to a sibling.
         var remaining = max(0, width - gap * CGFloat(ideal.count - 1))
-        let order = ideal.indices.sorted { ideal[$0] < ideal[$1] }
+        let order = ideal.indices.sorted { basis[$0] < basis[$1] }
         for (position, index) in order.enumerated() {
-            let offered = min(ideal[index], remaining / CGFloat(order.count - position))
+            if growing[index], let minimum = declared[index] {
+                remaining = max(0, remaining - minimum)
+                continue
+            }
+            let offered = min(basis[index], remaining / CGFloat(order.count - position))
             proposals[index] = max(0, offered)
             let measured = measure(index, offered)
             remaining = max(0, remaining - measured)
@@ -28,10 +40,31 @@ enum NativeFlexRowWidths {
             let intrinsicWidth = ideal.indices.filter { !growing[$0] }.reduce(CGFloat.zero) { sum, index in
                 sum + (measuredWidths[index] ?? measure(index, proposals[index]))
             }
-            let share = max(0, width - gap * CGFloat(ideal.count - 1) - intrinsicWidth) / CGFloat(flexible.count)
-            for index in flexible { proposals[index] = share }
+            let widths = shares(available: width - gap * CGFloat(ideal.count - 1) - intrinsicWidth,
+                minimums: flexible.map { declared[$0] ?? 0 })
+            for (index, value) in zip(flexible, widths) { proposals[index] = value }
         }
         return proposals
+    }
+
+    /// Equal zero-basis flex factors share outer widths. Insets constrain the
+    /// result only when an equal share is too small; they are not added on top
+    /// of an equal share, which would bias mixed clear/card rows.
+    static func shares(available: CGFloat, minimums: [CGFloat]) -> [CGFloat] {
+        var widths = minimums
+        var flexible = Array(minimums.indices)
+        var remaining = max(0, available)
+        while !flexible.isEmpty {
+            let share = remaining / CGFloat(flexible.count)
+            let fixed = flexible.filter { minimums[$0] > share }
+            if fixed.isEmpty {
+                flexible.forEach { widths[$0] = share }
+                break
+            }
+            for index in fixed { remaining = max(0, remaining - minimums[index]) }
+            flexible.removeAll { fixed.contains($0) }
+        }
+        return widths
     }
 }
 

@@ -95,7 +95,7 @@ final class ThemeArchitectureTests: XCTestCase {
         var theme = OpenUIThemeValues(); theme.space000 = 99; theme.spaceM = 31
         for (source, inset) in [
             ("root=Stack([TextContent(\"A\"),TextContent(\"B\")],\"column\",\"none\")", CGFloat.zero),
-            ("root=Card([TextContent(\"A\"),TextContent(\"B\")],\"card\",\"column\",\"none\")", theme.spaceML * 2)
+            ("root=Card([TextContent(\"A\"),TextContent(\"B\")],\"card\",\"column\",\"none\")", OpenUIPresentation().borderWidth * 2)
         ] {
             let state = OpenUIState(schema: library.library.toSchema()); state.setSource(source)
             XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")

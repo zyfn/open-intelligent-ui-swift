@@ -48,17 +48,15 @@ struct NativeCardSurface: ViewModifier {
     let theme: OpenUIThemeValues
     var fill: Color? = nil
     var bordered = true
-    var usesStandardCardStyle = false
 
     func body(content: Content) -> some View {
-        let usesHairline = !usesStandardCardStyle && nativePresentation.borderWidth == OpenUIPresentation.defaults.borderWidth
+        let usesHairline = nativePresentation.borderWidth == OpenUIPresentation.defaults.borderWidth
         let borderWidth = usesHairline ? 1 / displayScale : nativePresentation.borderWidth
         content
             .background {
                 RoundedRectangle(cornerRadius: theme.radius3xl, style: .continuous)
-                    .fill(usesStandardCardStyle ? nativePresentation.cardBackgroundColor : fill ?? theme.foreground)
-                    .shadow(color: .black.opacity(bordered && !usesStandardCardStyle ? theme.shadowM.opacity : 0),
-                            radius: theme.shadowM.radius, x: theme.shadowM.x, y: theme.shadowM.y)
+                    .fill(fill ?? theme.foreground)
+                    .openUIShadow(bordered ? theme.shadowM : OpenUIShadow(), cornerRadius: theme.radius3xl)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: theme.radius3xl, style: .continuous)
@@ -88,6 +86,6 @@ struct NativeOverlaySurface: ViewModifier {
             else { shape.fill(theme.popoverBackground) }
         }
         .overlay(shape.strokeBorder(theme.componentStyle.surfaceBorder, lineWidth: nativePresentation.borderWidth))
-        .shadow(color: .black.opacity(theme.shadowL.opacity), radius: theme.shadowL.radius, x: theme.shadowL.x, y: theme.shadowL.y)
+        .openUIShadow(theme.shadowL, cornerRadius: compact ? theme.radius3xl : theme.radius5xl)
     }
 }

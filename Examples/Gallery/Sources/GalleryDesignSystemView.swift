@@ -180,13 +180,16 @@ struct GalleryDesignSystemView: View {
             heading("阴影")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 14)], alignment: .leading, spacing: 14) {
                 ForEach(scale, id: \.0) { label, shadow in
+                    let layers = shadow.resolvedLayers(for: scheme).filter { $0.opacity > 0 }
                     VStack(alignment: .leading, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 8).fill(values.foreground)
-                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.secondary.opacity(0.18)))
-                            .shadow(color: .black.opacity(shadow.opacity), radius: shadow.radius, x: shadow.x, y: shadow.y)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous).fill(values.foreground)
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.secondary.opacity(0.18)))
+                            .openUIShadow(shadow, cornerRadius: 8)
                             .frame(width: 74, height: 40)
                         Text(label).font(.caption.monospaced())
-                        Text("\(shadow.opacity.formatted(.percent)) · \(shadow.radius.formatted()) pt")
+                        Text(layers.isEmpty ? "无阴影" : layers.map {
+                            "\($0.opacity.formatted(.percent)) · \($0.blurRadius.formatted()) pt"
+                        }.joined(separator: "\n"))
                             .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

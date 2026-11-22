@@ -33,9 +33,12 @@ public struct OpenUIPresentation {
     public var mapBasemapCRS: OpenUIMapCoordinateSystem? = nil
     public var maximumCarouselCardWidth: CGFloat = 320
     public var carouselPeek: CGFloat = 32
+    /// Standard Card includes this logical width in its box, including transparent borders.
     public var borderWidth: CGFloat = 1
     /// Text actions are capsules by default. A finite radius is an independent host override.
     public var buttonCornerRadius: CGFloat? = nil
+    /// Optional card-surface override. Standard Card defaults to a transparent border;
+    /// dedicated native panels retain their own themed border defaults.
     public var cardBorderColor: Color?
     /// Fill for the standard Card surface. Form and the sunk and clear variants own their fills.
     public var cardBackgroundColor: Color = .clear

@@ -7,20 +7,26 @@ struct OpenUIFlexGrowKey: LayoutValueKey {
     static let defaultValue = false
 }
 
-/// Reading space owned by a flexible content unit. This is a native layout
-/// preference, not a new Lang parameter or a width inferred from its copy.
+/// Minimum outer geometry for a zero-basis flexible child. An explicit zero
+/// must stay zero; only an absent declaration falls back to content measurement.
 struct OpenUIFlexMinimumWidthKey: LayoutValueKey {
-    static let defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat? = nil
 }
 
 /// Pure placement is also used by tests; no global display state is consulted.
 enum OpenUIFlowPlacement {
     static func frames(sizes: [CGSize], width: CGFloat, gap: CGFloat, align: String, justify: String,
-                       wrap: Bool = true, baselines: [CGFloat] = [], crossExtent: CGFloat? = nil, rowGap: CGFloat? = nil) -> [CGRect] {
+                       wrap: Bool = true, baselines: [CGFloat] = [], crossExtent: CGFloat? = nil, rowGap: CGFloat? = nil,
+                       minimumWidths: [CGFloat] = []) -> [CGRect] {
         let width = max(0, width)
+        let itemWidths = sizes.indices.map { index -> CGFloat in
+            let minimum = minimumWidths.indices.contains(index) && minimumWidths[index].isFinite
+                ? max(0, minimumWidths[index]) : 0
+            return max(minimum, min(width, max(0, sizes[index].width)))
+        }
         var rows: [[Int]] = [], row: [Int] = [], used: CGFloat = 0
         for index in sizes.indices {
-            let itemWidth = min(width, max(0, sizes[index].width))
+            let itemWidth = itemWidths[index]
             if wrap && !row.isEmpty, used + gap + itemWidth > width { rows.append(row); row = []; used = 0 }
             used += (row.isEmpty ? 0 : gap) + itemWidth; row.append(index)
         }
@@ -32,7 +38,7 @@ enum OpenUIFlowPlacement {
             let height = max(!wrap ? crossExtent ?? 0 : 0, row.map {
                 align == "baseline" ? baseline + sizes[$0].height - (baselines.indices.contains($0) ? baselines[$0] : sizes[$0].height) : sizes[$0].height
             }.max() ?? 0)
-            let content = row.reduce(CGFloat.zero) { $0 + min(width, max(0, sizes[$1].width)) }
+            let content = row.reduce(CGFloat.zero) { $0 + itemWidths[$1] }
             let free = max(0, width - content - CGFloat(max(0, row.count - 1)) * gap)
             let extra: CGFloat
             let initial: CGFloat
@@ -46,7 +52,7 @@ enum OpenUIFlowPlacement {
             }
             var x = initial
             for index in row {
-                let size = CGSize(width: min(width, max(0, sizes[index].width)), height: sizes[index].height)
+                let size = CGSize(width: itemWidths[index], height: sizes[index].height)
                 let offset = align == "center" ? (height - size.height) / 2 : align == "end" ? height - size.height
                     : align == "baseline" ? baseline - (baselines.indices.contains(index) ? baselines[index] : size.height) : 0
                 frames[index] = CGRect(x: x, y: y + offset, width: size.width, height: align == "stretch" ? height : size.height)
@@ -116,14 +122,13 @@ struct OpenUIFlexLayout: Layout {
         let width = finite(proposal.width) ?? ideal.reduce(0) { $0 + $1.width } + gap * CGFloat(subviews.count - 1)
         var proposals = ideal.map { min(width, $0.width) }
         if wrap && subviews.contains(where: { $0[OpenUIFlexGrowKey.self] }) {
-            // flex:1 contributes its minimum to line breaking, then shares the
-            // line's available width. Intrinsic controls keep their own basis.
+            // flex:1 starts from a zero content basis. Actual outer insets
+            // constrain line breaking; intrinsic controls keep their own basis.
             let minimums = subviews.map { view in
-                let readingWidth = view[OpenUIFlexMinimumWidthKey.self]
-                // A declared reading basis is independent of arriving text.
-                // Measuring unfinished copy must not keep changing line breaks.
-                return readingWidth.isFinite && readingWidth > 0 ? readingWidth
-                    : view.sizeThatFits(ProposedViewSize(width: 0, height: nil)).width
+                if let declared = view[OpenUIFlexMinimumWidthKey.self], declared.isFinite {
+                    return max(0, declared)
+                }
+                return view.sizeThatFits(ProposedViewSize(width: 0, height: nil)).width
             }
             let growing = subviews.map { $0[OpenUIFlexGrowKey.self] }
             let rows = OpenUIWrappedFlexRows.allocate(ideal: ideal.map(\.width), minimums: minimums,
@@ -148,7 +153,8 @@ struct OpenUIFlexLayout: Layout {
                     sizes: zip(row, dimensions).map { CGSize(width: $0.0.width, height: $0.1.height) },
                     width: width, gap: gap, align: align,
                     justify: wrapJustifyBetweenAsStart && justify == "between" ? "start" : justify,
-                    wrap: false, baselines: dimensions.map { $0[.firstTextBaseline] })
+                    wrap: false, baselines: dimensions.map { $0[.firstTextBaseline] },
+                    minimumWidths: row.map { growing[$0.index] ? minimums[$0.index] : 0 })
                 for (item, frame) in zip(row, placed) { result[item.index] = frame.offsetBy(dx: 0, dy: y) }
                 y += (placed.map(\.maxY).max() ?? 0) + (rowGap ?? gap)
             }
@@ -157,7 +163,7 @@ struct OpenUIFlexLayout: Layout {
         if !wrap {
             proposals = NativeFlexRowWidths.proposals(
                 ideal: ideal.map(\.width), growing: subviews.map { $0[OpenUIFlexGrowKey.self] },
-                width: width, gap: gap
+                width: width, gap: gap, minimums: subviews.map { $0[OpenUIFlexMinimumWidthKey.self] }
             ) { index, offered in
                 subviews[index].sizeThatFits(ProposedViewSize(width: offered, height: nil)).width
             }
@@ -183,7 +189,8 @@ struct OpenUIFlexLayout: Layout {
         return OpenUIFlowPlacement.frames(sizes: dimensions.map { CGSize(width: $0.width, height: $0.height) },
             width: width, gap: gap, align: align,
             justify: wrap && wrapJustifyBetweenAsStart && justify == "between" ? "start" : justify,
-            wrap: wrap, baselines: dimensions.map { $0[.firstTextBaseline] }, crossExtent: finite(proposal.height), rowGap: rowGap)
+            wrap: wrap, baselines: dimensions.map { $0[.firstTextBaseline] }, crossExtent: finite(proposal.height), rowGap: rowGap,
+            minimumWidths: subviews.map { $0[OpenUIFlexMinimumWidthKey.self] ?? 0 })
     }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
@@ -207,8 +214,10 @@ enum OpenUIWrappedFlexRows {
     struct Item { let index: Int; var width: CGFloat }
     static func allocate(ideal: [CGFloat], minimums: [CGFloat], growing: [Bool],
                          width: CGFloat, gap: CGFloat) -> [[Item]] {
-        func bounded(_ value: CGFloat) -> CGFloat { value.isFinite ? min(max(0, width), max(0, value)) : 0 }
-        let basis = ideal.indices.map { bounded(growing[$0] ? minimums[$0] : ideal[$0]) }
+        func nonnegative(_ value: CGFloat) -> CGFloat { value.isFinite ? max(0, value) : 0 }
+        let basis = ideal.indices.map {
+            growing[$0] ? nonnegative(minimums[$0]) : min(max(0, width), nonnegative(ideal[$0]))
+        }
         var lines: [[Int]] = [], line: [Int] = [], used: CGFloat = 0
         for index in basis.indices {
             if !line.isEmpty && used + gap + basis[index] > width { lines.append(line); line = []; used = 0 }
@@ -217,18 +226,11 @@ enum OpenUIWrappedFlexRows {
         if !line.isEmpty { lines.append(line) }
         return lines.map { indices in
             var widths = Dictionary(uniqueKeysWithValues: indices.map { ($0, basis[$0]) })
-            var flexible = indices.filter { growing[$0] }
-            var remaining = max(0, width - CGFloat(max(0, indices.count - 1)) * gap
+            let flexible = indices.filter { growing[$0] }
+            let remaining = max(0, width - CGFloat(max(0, indices.count - 1)) * gap
                 - indices.filter { !growing[$0] }.reduce(0) { $0 + basis[$1] })
-            while !flexible.isEmpty {
-                let share = remaining / CGFloat(flexible.count)
-                let fixed = flexible.filter { basis[$0] > share }
-                if fixed.isEmpty {
-                    flexible.forEach { widths[$0] = share }; break
-                }
-                for index in fixed { widths[index] = basis[index]; remaining = max(0, remaining - basis[index]) }
-                flexible.removeAll { fixed.contains($0) }
-            }
+            let allocated = NativeFlexRowWidths.shares(available: remaining, minimums: flexible.map { basis[$0] })
+            for (index, value) in zip(flexible, allocated) { widths[index] = value }
             return indices.map { Item(index: $0, width: widths[$0] ?? 0) }
         }
     }

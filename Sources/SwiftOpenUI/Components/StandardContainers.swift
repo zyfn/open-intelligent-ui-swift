@@ -9,8 +9,8 @@ extension EnvironmentValues {
     }
 }
 
-/// Only the leading image owns the card's top corners. Body media retains its
-/// ordinary image corners and does not extend through surrounding text.
+/// Dedicated object cards may extend header media to their top corners.
+/// Standard Card never supplies this treatment; its images keep their own radius.
 struct NativeCardTopMediaShape: Shape {
     let radius: CGFloat
     var topOnly = false
@@ -26,36 +26,90 @@ struct OpenUIStyledCard: View {
 
     var body: some View {
         OpenUIStack(context: context)
-            .environment(\.openUICardMediaInset,
-                context.string("variant") == "clear" || context.string("variant") == "sunk"
-                    ? 0 : context.theme.componentStyle.panelInset)
-            .modifier(OpenUICardSurface(theme: context.theme, variant: context.string("variant"),
-                active: context.layoutConfigurationReady, isCardComponent: true))
+            .environment(\.openUICardMediaInset, 0)
+            .modifier(OpenUIStandardCardSurface(theme: context.theme, variant: context.string("variant"),
+                active: context.layoutConfigurationReady))
     }
 }
 
+/// The standard Card box includes its border even when that border is transparent.
+/// Its zero content flex basis and these physical insets share the same geometry.
+struct OpenUIStandardCardSurface: ViewModifier {
+    let theme: OpenUIThemeValues
+    let variant: String?
+    var active = true
+    @Environment(\.openUIPresentation) private var presentation
+    @Environment(\.openUIAncestorLayoutReady) private var parentLayoutReady
+
+    private static func resolvedBorderWidth(_ width: CGFloat) -> CGFloat {
+        width.isFinite ? max(0, width) : 0
+    }
+
+    static func insets(theme: OpenUIThemeValues, variant: String?, borderWidth: CGFloat) -> EdgeInsets {
+        let surface = NativeContentSurface(variant, fallback: .card)
+        let border = resolvedBorderWidth(borderWidth)
+        let horizontal = surface == .card ? 0 : theme.spaceL
+        let vertical = surface == .sunk ? theme.spaceL : 0
+        return EdgeInsets(top: vertical + border, leading: horizontal + border,
+            bottom: vertical + border, trailing: horizontal + border)
+    }
+
+    func body(content: Content) -> some View {
+        let surface = NativeContentSurface(variant, fallback: .card)
+        let ready = active && parentLayoutReady
+        let borderWidth = ready ? Self.resolvedBorderWidth(presentation.borderWidth) : 0
+        let insets = ready ? Self.insets(theme: theme, variant: variant, borderWidth: borderWidth) : EdgeInsets()
+        let radius = surface == .card ? 0 : theme.radius3xl
+        let fill: Color = !ready || surface == .clear ? .clear
+            : surface == .sunk ? theme.sunk : presentation.cardBackgroundColor
+        let border: Color = !ready || surface == .clear ? .clear
+            : surface == .sunk ? theme.borderDefault : presentation.cardBorderColor ?? .clear
+        content.environment(\.openUIActionDensity, .compact)
+            .padding(insets)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Paint the box without clipping its descendants or changing their
+            // identity. Images and controls continue to own their own corners.
+            .background {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(fill)
+                    .openUIShadow(ready && surface == .sunk ? theme.shadowM : OpenUIShadow(), cornerRadius: radius)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(border, lineWidth: borderWidth)
+                    .allowsHitTesting(false)
+            }
+    }
+}
+
+/// Form panels and Carousel items have their own surface contract.
 struct OpenUICardSurface: ViewModifier {
     let theme: OpenUIThemeValues
     let variant: String?
     var active = true
-    var isCardComponent = false
     @Environment(\.openUIAncestorLayoutReady) private var parentLayoutReady
+
+    static func insets(theme: OpenUIThemeValues, variant: String?) -> EdgeInsets {
+        if NativeContentSurface(variant, fallback: .card) == .clear {
+            return EdgeInsets()
+        }
+        let inset = theme.componentStyle.panelInset
+        return EdgeInsets(top: inset, leading: inset, bottom: inset, trailing: inset)
+    }
+
     func body(content: Content) -> some View {
         let surface = NativeContentSurface(variant, fallback: .card)
         let ready = active && parentLayoutReady
-        let inset = ready && surface != .clear ? theme.componentStyle.panelInset : 0
+        let insets = ready ? Self.insets(theme: theme, variant: variant) : EdgeInsets()
         content.environment(\.openUIActionDensity, .compact)
-            // Transparent layout units own allocation, not gutters. The parent
-            // supplies the gap; nested clear cards must not accumulate insets.
-            .padding(inset)
+            .padding(insets)
             .frame(maxWidth: .infinity, alignment: .leading)
             // Background and media own their corners; the open container must
             // not mask glyphs at the edge of its unpadded content.
             .modifier(NativeCardSurface(
                 theme: theme,
                 fill: ready ? surface.fill(theme) : .clear,
-                bordered: ready && surface.bordered,
-                usesStandardCardStyle: ready && isCardComponent && surface == .card))
+                bordered: ready && surface.bordered))
     }
 }
 
@@ -76,7 +130,6 @@ struct OpenUIStack: View {
     @Environment(\.openUIMediaWidthReady) private var parentMediaWidthReady
     @Environment(\.openUIAncestorLayoutReady) private var parentLayoutReady
     @Environment(\.openUICardMediaInset) private var cardMediaInset
-    @ScaledMetric(relativeTo: .body) private var readingScale: CGFloat = 1
     let context: OpenUIComponentContext
     // Upstream Stack normalizes wrapped space-between; upstream Card does not.
     var wrapJustifyBetweenAsStart = false
@@ -108,7 +161,7 @@ struct OpenUIStack: View {
                         layoutReady && direction == "column" && child.id == first ? cardMediaInset : 0)
                     .environment(\.openUIAncestorLayoutReady, layoutReady)
                     // Unknown siblings can still change the whole row's width
-                    // allocation. Once all native Card roles are known, copy
+                    // allocation. Once all flexible item roles are known, copy
                     // can grow independently inside their stable columns.
                     .environment(\.openUIMediaWidthReady,
                         mediaWidthReady)
@@ -128,18 +181,15 @@ struct OpenUIStack: View {
     }
 
     @ViewBuilder private func renderChild(_ child: OpenUIRenderChild) -> some View {
-        if case .element(let element) = child.value, element.typeName == "Card",
-           !context.registry.presentationLayoutFields("Card").isEmpty {
-            let surface = NativeContentSurface(PropValue.codeUnitString(element, "variant")?.displayString,
-                fallback: .card)
-            let width = surface == .clear ? context.presentation.minimumTextColumnWidth
-                : context.presentation.minimumCardWidth
+        if case .element(let element) = child.value,
+           let contract = context.registry.presentationValue(element.typeName, NativeFlexItemKey.self) {
+            let width = contract.minimumOuterWidth(element, context.theme, context.presentation)
             // The parent owns allocation at its direct child boundary, outside
             // the dynamic renderer. Replaced renderers keep their own contract.
             context.render(child.value)
                 .layoutValue(key: OpenUIFlexGrowKey.self, value: true)
                 .layoutValue(key: OpenUIFlexMinimumWidthKey.self,
-                    value: max(0, width.isFinite ? width * readingScale : 0))
+                    value: max(0, width.isFinite ? width : 0))
         } else {
             context.render(child.value)
         }
