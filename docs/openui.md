@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.54 · 更新日期：2026-11-22
+文档版本：1.56 · 更新日期：2026-11-22
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -25,20 +25,7 @@ let view = OpenUIView(state: state, library: library)
 
 Gallery 按注册目录的 `componentGroups` 浏览，结构子项跟随父组件，组件用法默认展开。签名、位置参数和默认值以 library.specification 为准。原始参考目录在 [upstream-catalog.json](../Sources/SwiftOpenUI/Resources/upstream-catalog.json)，原生注册在 [Catalog](../Sources/SwiftOpenUI/Catalog/)。
 
-分组依据是组件在 Lang 中接收的主要输入和它的职责。
-
-| 分组 | 用途 | 代表组件 |
-| --- | --- | --- |
-| 布局与容器 | 排列、包裹或分隔已经构成的内容 | Stack、Card、Separator |
-| 浏览与切换 | 控制一组子内容如何切换或展开 | Tabs、Carousel、Accordion、Modal |
-| 文字与标记 | 呈现正文、标题、说明或标记 | TextContent、MarkDownRenderer、CardHeader、CodeBlock、Tag、Icon |
-| 媒体 | 展示图片资源及其浏览方式 | Image、ImageBlock、ImageGallery |
-| 列表与对象卡片 | 展示属性、重复条目、顺序或各自独立的对象 | EntityList、ListBlock、Steps、VisualCardBlock |
-| 表格、图表与指标 | 读数据明细、量化差异或指标 | Table、各类图表、MetricIndicatorWithStrikethrough |
-| 地图与图形 | 表达点位、交通方向或图示 | Map、SVG、JourneyLine |
-| 表单与操作 | 收集输入、提交或继续对话 | Form、输入控件、Button、FollowUpBlock |
-
-TabItem、StepsItem 等从属定义与父组件同组，共用数据定义 Series 随图表分组。通用 Card 是包裹子内容的容器，VisualCardBlock 接受有独立字段的卡项。
+标准组件使用锁定参考目录的原有分组、顺序和说明。已有的原生地图和图形组件归入扩展分组。Gallery 读取这份目录，表格与图表、表单与按钮各自在侧栏合并显示。
 
 只有实际实现并注册的定义进入生成契约。Swift 包名、文件归属和视觉调整不改变已支持的 Lang 组件名、参数顺序、绑定和枚举。
 
@@ -84,7 +71,7 @@ let view = OpenUIView(state: state, library: library)
 
 ### 生成与组合
 
-OpenUI 的通用组合建议和可解析示例维护在 [prompt-options.mjs](../Tools/Presentation/prompt-options.mjs)，由 [catalog.mjs](../Tools/Presentation/catalog.mjs) 连同固定上游 schema 生成资源；生成时检查全部示例可解析，并记录该输入的哈希。组件名、参数顺序、枚举、默认值与绑定没有随呈现建议改变。`OpenUILibrary.openUI()` 使用此组合预设；从底层组件库自行生成 prompt 时仍由调用方显式选择预设。
+OpenUI 的默认分组说明、生成规则和示例由 [catalog.mjs](../Tools/Presentation/catalog.mjs) 从固定上游提取。生成时检查示例中的 Lang 程序并记录上游提示词文件的哈希。Form 说明里的参数位置以实际签名为准，Buttons 是第二个参数。产品生成规则由宿主通过提示词选项提供。组件名、参数顺序、枚举、默认值与绑定没有随呈现建议改变。`OpenUILibrary.openUI()` 使用此组合预设；从底层组件库自行生成 prompt 时仍由调用方显式选择预设。
 
 连续解释使用 TextContent/Markdown，章节使用 Markdown 标题，对象使用已有对象标题入口。column Stack 的默认组合建议为：标题到内容用 `s`（8pt），相关段落用 `m`（12pt），章节之间用 `xl`（24pt）；SDK 保留输入显式 gap，不按标题文案或嵌套深度自动加边距。回复、普通章节、段落、图表与表格默认直接排版；具体对象需要独立比较、选择或操作边界时才使用 Card。一个标题或数字不足以成为建卡理由，已有表面的对象集合不再外套 Card。ListItem subtitle 承载辅助信息，核心解释使用正文。
 

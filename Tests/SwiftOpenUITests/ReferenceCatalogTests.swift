@@ -5,16 +5,55 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class ReferenceCatalogTests: XCTestCase {
-  func testCatalogGroupsCoverEachRegisteredComponentAndPreserveGuidance() throws {
-    let library = try OpenUIComponents.library()
-    let groups = try XCTUnwrap(library.library.toSpec().componentGroups)
+  func testCatalogRetainsReferenceGroupOrderMembershipAndGuidance() throws {
+    let spec = try OpenUIComponents.library().library.toSpec()
+    let groups = try XCTUnwrap(spec.componentGroups)
+    let reference = OpenUIReference.groups
+    let published = Array(groups.prefix(reference.count))
+
+    XCTAssertEqual(published.map(\.name), reference.map(\.name))
+    XCTAssertEqual(published.map(\.components), reference.map(\.components))
+    XCTAssertEqual(published.map(\.notes), reference.map(\.notes))
+    XCTAssertEqual(groups.count, reference.count + 1)
+    XCTAssertEqual(groups.last?.name, "Maps and Diagrams")
+    XCTAssertEqual(groups.last?.components, ["Map", "MapPoint", "SVG", "JourneyLine"])
+
     let grouped = groups.flatMap(\.components)
-    let registered = library.library.components.map(\.name)
-    XCTAssertEqual(grouped.count, registered.count)
-    XCTAssertEqual(Set(grouped), Set(registered))
-    let priorNotes = OpenUIReference.groups.flatMap { $0.notes ?? [] }
-    let publishedNotes = groups.filter { $0.name != "Maps and Diagrams" }.flatMap { $0.notes ?? [] }
-    XCTAssertEqual(publishedNotes.sorted(), priorNotes.sorted())
+    let registered = Set(spec.components.map(\.name))
+    XCTAssertEqual(grouped.count, Set(grouped).count)
+    XCTAssertTrue(Set(grouped).isSubset(of: registered))
+    let ungrouped = registered.subtracting(grouped)
+    XCTAssertEqual(ungrouped, Set(["FollowUpBlock", "FollowUpItem"]))
+    let prompt = generateSystemPrompt(library: spec)
+    let otherHeader = try XCTUnwrap(prompt.range(of: "\n### Other\n"))
+    for name in ungrouped {
+      XCTAssertTrue(prompt[otherHeader.upperBound...].contains("\(name)("), name)
+    }
+  }
+
+  func testPinnedDefaultPromptExamplesParseWithTheSDKLibrary() throws {
+    let source = try XCTUnwrap(OpenUIReference.catalog.field("promptSource"))
+    let path = "packages/react-ui/src/genui-lib/prompt-options/index.ts"
+    XCTAssertEqual(source.field("path")?.stringValue, path)
+    XCTAssertEqual(source.field("sha256")?.stringValue,
+                   OpenUIReference.catalog.field("sources")?.field(path)?.stringValue)
+
+    let library = try OpenUIComponents.library().library
+    let schema = library.toSchema()
+    let examples = try XCTUnwrap(OpenUIComponents.promptOptions.examples)
+    XCTAssertEqual(examples.count, 6)
+    for (index, example) in examples.enumerated() {
+      let lineBreak = try XCTUnwrap(example.firstIndex(of: "\n"))
+      XCTAssertTrue(example[..<lineBreak].hasPrefix("Example \(index + 1) — "))
+      let program = String(example[example.index(after: lineBreak)...])
+      let result = createParser(schema: schema).parse(program)
+      XCTAssertNotNil(result.root, "Example \(index + 1)")
+      XCTAssertTrue(result.meta.errors.isEmpty, "Example \(index + 1): \(result.meta.errors)")
+    }
+
+    let forms = try XCTUnwrap(library.toSpec().componentGroups?.first { $0.name == "Forms" })
+    let notes = try XCTUnwrap(forms.notes)
+    XCTAssertTrue(notes.contains { $0.contains("as the second Form argument.") })
   }
 
   // Zod's official JSON importer represents singleton enums as const. This is

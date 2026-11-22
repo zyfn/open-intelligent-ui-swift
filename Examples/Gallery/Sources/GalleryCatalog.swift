@@ -46,9 +46,21 @@ enum GallerySection: String, CaseIterable, Identifiable {
 
 enum GalleryComponentCategory: String, Codable, CaseIterable, Identifiable {
     case layout = "Layout", content = "Content", controls = "Controls"
-    case containers = "Layout and Containers", browsing = "Browsing and Switching", text = "Text and Labels"
-    case media = "Media", lists = "Lists and Object Cards", tablesAndCharts = "Tables, Charts and Metrics"
-    case maps = "Maps and Diagrams", formsAndActions = "Forms and Actions", data = "DataDisplay"
+    case tablesAndCharts = "TablesAndCharts", formsAndButtons = "FormsAndButtons", media = "Media"
+    case data = "DataDisplay", cards = "Cards", maps = "Maps and Diagrams"
+
+    init?(catalogName: String) {
+        switch catalogName {
+        case "Tables", "Charts (2D)", "Charts (1D)", "Charts (Scatter)":
+            self = .tablesAndCharts
+        case "Forms", "Buttons":
+            self = .formsAndButtons
+        case "Data Display":
+            self = .data
+        default:
+            self.init(rawValue: catalogName)
+        }
+    }
 
     var id: String { rawValue }
     var title: String {
@@ -56,15 +68,12 @@ enum GalleryComponentCategory: String, Codable, CaseIterable, Identifiable {
         case .layout: "布局"
         case .content: "内容"
         case .controls: "控件"
-        case .containers: "布局与容器"
-        case .browsing: "浏览与切换"
-        case .text: "文字与标记"
+        case .tablesAndCharts: "表格与图表"
+        case .formsAndButtons: "表单与按钮"
         case .media: "媒体"
-        case .lists: "列表与对象卡片"
-        case .tablesAndCharts: "表格、图表与指标"
-        case .maps: "地图与图形"
-        case .formsAndActions: "表单与操作"
         case .data: "数据展示"
+        case .cards: "卡片"
+        case .maps: "地图与图形"
         }
     }
 }
@@ -75,7 +84,7 @@ struct GalleryComponentExample: Decodable, Identifiable, Equatable {
     let program: String
 }
 
-/// OpenUI names, signatures and grouping come from the real library. Gallery supplies usages.
+/// The library supplies component definitions and order. Gallery supplies usages and display labels.
 struct GalleryComponent: Identifiable {
     let definition: LibrarySpecEntry
     let category: GalleryComponentCategory
@@ -106,7 +115,7 @@ struct GalleryComponent: Identifiable {
         var libraryCategories: [String: GalleryComponentCategory] = [:]
         var libraryOrder: [String: Int] = [:]
         for group in specification.componentGroups ?? [] {
-            guard let category = GalleryComponentCategory(rawValue: group.name) else {
+            guard let category = GalleryComponentCategory(catalogName: group.name) else {
                 throw GalleryFailure("\(kind.title) 有未知的组件分组 \(group.name)。")
             }
             for name in group.components {

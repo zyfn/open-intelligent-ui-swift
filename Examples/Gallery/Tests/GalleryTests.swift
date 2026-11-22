@@ -179,28 +179,26 @@ final class GalleryTests: XCTestCase {
                 XCTAssertEqual(items.count, 88)
                 XCTAssertTrue(items.contains { $0.name == "JourneyLine" })
                 let categories = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.category) })
-                XCTAssertEqual(items.map(\.name), library.specification.componentGroups?.flatMap(\.components))
-                XCTAssertEqual(categories["Stack"], .containers)
-                XCTAssertEqual(categories["Card"], .containers)
-                for name in ["Tabs", "Carousel", "Modal", "Accordion"] {
-                    XCTAssertEqual(categories[name], .browsing, name)
+                let grouped = try XCTUnwrap(library.specification.componentGroups).flatMap(\.components)
+                let ungrouped = Set(items.map(\.name)).subtracting(grouped).sorted()
+                XCTAssertEqual(items.map(\.name), grouped + ungrouped)
+                for name in ["Stack", "Steps", "Tabs", "Carousel", "Modal", "Accordion"] {
+                    XCTAssertEqual(categories[name], .layout, name)
                 }
-                for name in ["TextContent", "CardHeader", "Tag", "Icon"] {
-                    XCTAssertEqual(categories[name], .text, name)
+                for name in ["Card", "TextContent", "Image", "ImageBlock", "ImageGallery"] {
+                    XCTAssertEqual(categories[name], .content, name)
                 }
-                for name in ["Image", "ImageBlock", "ImageGallery"] {
-                    XCTAssertEqual(categories[name], .media, name)
+                for name in ["EntityList", "ListBlock", "Tag", "Icon"] {
+                    XCTAssertEqual(categories[name], .data, name)
                 }
-                for name in ["EntityList", "ListBlock", "Steps", "VisualCardBlock"] {
-                    XCTAssertEqual(categories[name], .lists, name)
-                }
+                XCTAssertEqual(categories["VisualCardBlock"], .cards)
                 for name in ["Table", "BarChart", "PieChart", "ScatterChart"] {
                     XCTAssertEqual(categories[name], .tablesAndCharts, name)
                 }
                 for name in ["Form", "Button", "FollowUpBlock"] {
-                    XCTAssertEqual(categories[name], .formsAndActions, name)
+                    XCTAssertEqual(categories[name], .formsAndButtons, name)
                 }
-                XCTAssertEqual(Set(categories.values).count, 8)
+                XCTAssertEqual(Set(categories.values).count, 7)
                 XCTAssertEqual(items.first { $0.name == "StepsItem" }?.container, "Steps")
                 XCTAssertEqual(items.first { $0.name == "Point" }?.container, "ScatterSeries")
             } else {

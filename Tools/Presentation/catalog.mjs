@@ -1,5 +1,4 @@
 import { prepareCoreSource, upstreamFile, upstreamFiles } from "../upstream.mjs";
-import { groupNotes, promptOptions } from './prompt-options.mjs';
 // Export the pinned upstream library's schemas. Rendering functions are erased
 // only in this build-time projection. The shared Zod export adapter preserves
 // historical union schemas without changing Zod runtime validation.
@@ -35,16 +34,18 @@ function eraseRender(source) {
   return source;
 }
 const tmp=join(root,'work/component-catalog'); mkdirSync(tmp,{recursive:true});
-const entry=`import {openuiLibrary} from 'catalog:library';
+const entry=`import {openuiLibrary,openuiPromptOptions} from 'catalog:library';
 import {FollowUpBlock} from 'catalog:followup-block';
 import {FollowUpItem} from 'catalog:followup-item';
 import {compileSchema,createParser} from '${join(root,'packages/lang-core/src/parser/parser.ts')}';
 import {isReactiveSchema} from '${join(root,'packages/lang-core/src/reactive.ts')}';
 const library=openuiLibrary.extend({components:{add:[FollowUpBlock,FollowUpItem]}});
-const notes=${JSON.stringify(groupNotes)};
-const componentGroups=library.componentGroups.map(group=>({...group,notes:notes[group.name]??group.notes}));
+// The pinned Forms note says third, while Form's schema and examples put buttons second.
+const componentGroups=library.componentGroups.map(group=>group.name==='Forms'
+  ? {...group,notes:group.notes?.map(note=>note.replace('as the third Form argument.','as the second Form argument.'))}
+  : group);
 const spec={...library.toSpec(),componentGroups}, compiled=compileSchema(spec.schema);
-const promptOptions=${JSON.stringify(promptOptions)};
+const promptOptions=openuiPromptOptions;
 export function parseReference(source){return createParser(spec.schema).parse(source).meta.errors;}
 export const catalog={revision:${JSON.stringify(pin)},root:library.root,componentGroups,components:Object.entries(library.components).map(([name,c])=>({name,description:c.description,params:compiled.get(name).params.map(p=>({name:p.name,required:p.required,hasDefault:Object.hasOwn(p.schema??{},'default'),defaultValue:p.defaultValue??null,isBindable:isReactiveSchema(c.props.shape[p.name]),schema:spec.schema.$defs[name].properties[p.name]}))})),spec,promptOptions};`;
 const result=await build({stdin:{contents:entry,resolveDir:root,loader:'ts'},bundle:true,write:false,platform:'node',format:'esm',target:'node20',nodePaths:[join(here,'../Core/node_modules')],plugins:[zodJSONSchemaCompatibilityPlugin(),{name:'reference-catalog',setup(b){
@@ -72,19 +73,23 @@ const {catalog,parseReference}=await import(modulePath+'?'+Date.now());
 // 82 pinned general-library components plus FollowUpBlock/FollowUpItem, which
 // upstream registers only in the chat preset; the native SDK adopts them too.
 if(catalog.components.length!==84)throw Error('Expected 84 default components');
-// Presentation guidance is local to OpenUI; schemas stay pinned upstream.
+// Keep the component definitions and default prompt preset pinned upstream.
 if(Object.keys(catalog.promptOptions).sort().join(',')!=='additionalRules,examples')
   throw Error('Review OpenUI prompt preset fields');
 for(const key of ['additionalRules','examples'])
   if(!Array.isArray(catalog.promptOptions[key]) || !catalog.promptOptions[key].every(value=>typeof value==='string'))
     throw Error('Invalid OpenUI prompt preset '+key);
 for(const [index,example] of catalog.promptOptions.examples.entries()){
-  const errors=parseReference(example);
+  // Upstream headings are display text. Validate the Lang program beneath each heading.
+  const source=example.replace(/^Example \d+ — [^\n]+:\n/, '');
+  const errors=parseReference(source);
   if(errors.length)throw Error(`OpenUI prompt example ${index+1} is invalid: ${JSON.stringify(errors)}`);
 }
 catalog.sources=Object.fromEntries([...inputs].sort());
-catalog.promptSource={path:'Tools/Presentation/prompt-options.mjs',
-  sha256:createHash('sha256').update(readFileSync(join(here,'prompt-options.mjs'))).digest('hex')};
+const promptPath=prefix+'prompt-options/index.ts';
+const promptHash=inputs.get(promptPath);
+if(!promptHash)throw Error('Missing pinned OpenUI prompt source');
+catalog.promptSource={path:promptPath,sha256:promptHash};
 const destination=resolve(here,'../../Sources/SwiftOpenUI/Resources/upstream-catalog.json');
 const text=JSON.stringify(catalog,null,2)+'\n';
 if(process.argv.includes('--check')){if(!existsSync(destination)||readFileSync(destination,'utf8')!==text)throw Error('Catalog differs from reference');}
