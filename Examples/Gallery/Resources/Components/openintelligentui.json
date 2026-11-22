@@ -625,21 +625,6 @@
       }
     ]
   },
-  "TransportCard": {
-    "category": "DataDisplay",
-    "examples": [
-      {
-        "id": "basic",
-        "title": "直达行程",
-        "program": "root = Col([TransportCard({id:\"rail-example\",legs:[{mode:\"train\",from:\"杭州东\",to:\"苏州\",departureDate:\"2026-11-15\",arrivalDate:\"2026-11-15\",departureTime:\"09:00\",arrivalTime:\"10:40\",durationText:\"1 小时 40 分钟\",serviceNumber:\"演示班次\"}],priceNote:\"行程布局示例，不是实时班次\"})])"
-      },
-      {
-        "id": "connections",
-        "title": "中转 / 换站",
-        "program": "root = Col([TransportCard({id:\"transfer\",legs:[{mode:\"flight\",from:\"上海虹桥\",to:\"北京首都\",departureTime:\"08:10\",arrivalTime:\"10:25\"},{mode:\"train\",from:\"北京南\",to:\"天津\",departureTime:\"14:10\",arrivalTime:\"14:45\"}],connections:[{afterLeg:0,changeStation:true,location:\"北京\",durationText:\"3 小时 45 分钟\",notice:\"预留机场至火车站时间\"}],separateTickets:true,badge:\"中转示例\"})])"
-      }
-    ]
-  },
   "Circle": {
     "container": "Svg"
   },
