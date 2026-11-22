@@ -43,7 +43,7 @@ extension OpenIntelligentUIComponents {
                 "Explicit Box.flex uses a zero basis before authored dimensions. Row wrap distributes flex per line; definite-height columns distribute it vertically. Direct Row photos use responsive media width and a 4:3 ratio, so ordinary image/text composition needs no private sizing recipe.",
                 "Colors accept semantic tokens, HEX, RGB(A), HSL(A) and CSS named colors. Advanced CSS color spaces and relative/inherited color expressions are not supported; native palette and system typography remain host-configurable.",
                 "Image and optional SearchImage expose the upstream framing fields to new generation; component definitions generate spec and prompt together. Removed components are not registered for generation or runtime reading.",
-                "Image, Title, Text and Caption compose through Col, Row, Box or Grid; no special-purpose ImageText component is required.",
+                "Image, Title, Text and Caption compose through Col, Row, Box or Grid.",
                 "Component names, positional arguments and bindings are retained. Layout/color/spacing schemas remove private ranges and enums to follow the pinned upstream contract; components still handle invalid finite values according to their rendering rules.",
                 "Generation validation uses the advertised writer profile; historical validation keeps the complete reader. Presentation warnings are non-blocking.",
                 "This manifest describes implemented contracts, not exhaustive device or model acceptance."
