@@ -62,7 +62,7 @@ import SwiftLang
 }
 enum SearchImageComponent {
     static func component(provider: OpenIntelligentUIImageSearch) -> OpenUIComponent {
-        OpenUIComponent(name: "SearchImage", description: "Image search through the caller-provided service. Shows loading, error and retry. No search provider or credentials are bundled.", params: [
+        OpenUIComponent(name: "SearchImage", description: "Image search through the caller-provided service. Framing defaults to a 3:2 cover and lg radius. As a direct child of a horizontal Row or the sole child of its Box, it uses responsive media width and 4:3 framing, which takes priority over aspectRatio. Shows loading, error and retry. No search provider or credentials are bundled.", params: [
             OpenUIParameter.string("query"), Parameter.number("aspectRatio"), Parameter.radius(),
             OpenUIParameter.string("fit", required: false, values: ["cover", "contain"])
         ]) { SearchImageView(context: $0, provider: provider) }

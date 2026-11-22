@@ -3,7 +3,7 @@ import SwiftLang
 
 enum ImageComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Image", description: "Image from a supplied HTTP(S) URL or exact caller-provided image key. Optional aspectRatio, radius and fit control framing; defaults are a 3:2 cover and lg radius. A direct Row photo or a Row's photo-only Box uses the library's responsive media width and 4:3 ratio. Loading and retryable failure preserve geometry. Never invent a source URL; no implicit search or substitution.", params: [
+        OpenUIComponent(name: "Image", description: "Image from a supplied HTTP(S) URL or exact caller-provided image key. Optional aspectRatio, radius and fit control framing; defaults are a 3:2 cover and lg radius. In a horizontal Row, direct photos and photo-only Boxes use responsive width and 4:3 framing, which takes priority over aspectRatio. Loading and retryable failure preserve geometry. Never invent a source URL; no implicit search or substitution.", params: [
             OpenUIParameter.string("src"), OpenUIParameter.string("alt"),
             Parameter.number("aspectRatio"),
             Parameter.radius(),

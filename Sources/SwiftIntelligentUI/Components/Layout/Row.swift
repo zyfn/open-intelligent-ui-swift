@@ -3,7 +3,7 @@ import SwiftLang
 
 enum RowComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Row", description: "Horizontal flex layout: gap defaults to 2 theme units, align center, justify start, wrap false. Box flex shares each line's free space. A direct Image/SearchImage sets gap 16 points and align start. A direct photo or a Box containing only one direct photo uses a fixed one-third width clamped to 120–200 points and photo ratio 4:3. Accessibility reading rows may stack natively.", params: [
+        OpenUIComponent(name: "Row", description: "Horizontal flex layout: defaults are gap 2 theme units, align center, justify start and wrap false. Box flex shares each line's free space. In horizontal photo compositions, a direct Image/SearchImage overrides gap and align with 16 points and start. A direct photo or a Box containing only one direct photo uses one-third width clamped to 120–200 points; its 4:3 framing takes priority over the image's explicit aspectRatio. Narrow widths alone do not stack a Row; wrap true wraps items, and accessibility reading rows may stack natively.", params: [
             OpenUIParameter.slot("children", required: true), Parameter.number("gap"),
             OpenUIParameter.string("align", required: false, values: ["start", "center", "end", "stretch"]),
             OpenUIParameter.string("justify", required: false, values: ["start", "center", "end", "between"]),

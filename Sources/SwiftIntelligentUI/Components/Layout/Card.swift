@@ -3,7 +3,7 @@ import SwiftLang
 
 enum CardComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Card", description: "A restrained content group. Single ProductCard/TransportCard children reuse their own surface; in Map the SDK summary card owns presentation instead of nested borders. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units; negative values become zero.", params: [
+        OpenUIComponent(name: "Card", description: "A restrained content group. A single ProductCard or TransportCard reuses its own surface. variant defaults to outline; padding defaults to 16 points on iOS and 20 on macOS (16 when nested). Omitted gap uses nested editorial flow; text keeps its declared role. Explicit padding and gap use 4-point theme units; negative values become zero.", params: [
             OpenUIParameter.slot("children", required: true),
             OpenUIParameter.string("variant", required: false, values: ["outline", "soft"]),
             Parameter.number("gap"),

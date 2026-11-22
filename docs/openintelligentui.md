@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.11 · 更新日期：2026-11-22
+文档版本：1.12 · 更新日期：2026-11-22
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -186,7 +186,7 @@ ProductCard 接受一个 product 对象和 layout，每张卡对应一个商品�
 - 必填：id、title、images；图片项包含 url、alt。
 - 价格：price 为来源非负金额，可配合 ISO currency 或货币/金额字符串；priceNote 保存单位、条件和范围说明。priceText 仅用于历史读取，不在新生成契约中推荐。
 - 可选：specification、merchant、condition、availability、observedAt、purchaseURL、sourceURL、actionLabel、tags。
-- 布局：vertical、horizontal 或 compact；compact 用于地图等紧凑位置，缩略图在左、内容在右。窄屏横排和无障碍大字号重排为纵向。
+- 布局：vertical、horizontal 或 compact；compact 用于紧凑摘要或列表位置，缩略图在左、内容在右。窄屏横排和无障碍大字号重排为纵向。
 
 商品大图默认采用组件内部的 3:2 比例，horizontal/compact 缩略图保持 1:1。imageFit 默认为 cover；contain 在固定区域保留完整原图，背景由边缘低频取色并柔和过渡，不复制商品轮廓，也不承诺任意素材无缝。预览仍展示原图。
 
@@ -231,13 +231,13 @@ python3 Tools/check_lang_compatibility.py
 
 iOS Gallery 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 OpenUIGallery；支持 iPhone/iPad。Gallery 是独立开发包，通过本地 Swift Package 引用当前根 SDK，并同时展示标准 UI 与 Intelligent UI。精选案例、专项诊断、源码编辑和预览尺寸在同一个入口管理，见 [Gallery 指南](../Examples/Gallery/README.md)。消费者只选择根包的 SDK 库产品。
 
-Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。它包含语法、59 个默认生成组件的签名与行为、内置及注册函数、动作、视觉与事实约束，以及同日记录、稳定任务、消费确认、封面图文、自动图文 Row、网格与表面分离、普通内容横滑、已知联程、独立去返、地图联动与表单计算共 11 个完整示例。排除相关组件时只移除依赖它的规则与示例；不为 ImageText 增设生成开关。示例数据与链接仅用于解释语法，不作为真实推荐。
+Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。默认内容包括官方语言模板、59 个生成组件的签名与行为、内置及注册函数、动作、本库 35 条追加规则和 11 个完整示例；注入图片搜索服务后增加 SearchImage 及其规则。示例覆盖同日记录、稳定任务、消费确认、封面图文、图文 Row、网格与表面分离、普通内容横滑、已知联程、独立去返、地图联动与表单计算。排除相关组件时只移除依赖它的规则与示例；不为 ImageText 增设生成开关。示例数据与链接仅用于解释语法，不作为真实推荐。
 
 生成原则：
 
 1. 输出纯 openui-lang，不添加 Markdown fence；宿主若用 JSON program 字段包装，应在传输层解包。
 2. 使用已注册组件、位置参数与显式状态；响应式派生数据放普通变量。状态声明里的表达式只计算初值，不会替代后续 Store 状态。
-3. 保留来源字段名、事实、原始 URL、实体 id、价格范围和不确定性，不将解析成功当作事实正确。
+3. 保留来源字段名、事实、原始 URL、实体 id、价格范围和不确定性，不将解析成功当作事实正确。用户要求预算、合计或分摊时，使用币种和范围相容的已知输入，将计算结果或估算与原始报价分开展示；不补造缺失价格、费用或汇率。
 4. 用基础组件组合内容；卡片只表达真实对象或分组，不生成页面模板。图片由布局负责尺寸与比例，署名在相邻紧凑 Text 中保留来源和 Citation。
 5. 交互控件必须有明确动作或状态结果，不生成装饰性按钮、虚构进度或无来源表单反馈。不依赖流式中间帧的固定显示顺序。
 
@@ -249,9 +249,9 @@ swift run --package-path Tools/ContractExport ContractExport --validate "$PWD/pa
 swift run --package-path Tools/ContractExport ContractExport --reader-contract --include-search "$PWD/outputs/reader-contract"
 ```
 
-`sourceIssues(in:)` 检查源码标识符等问题；`validationIssues(in:source:)` 汇总源码、运行时、组件与 Map 数据关系问题；`validationIssues(in:)` 检查求值树。原有 Swift 调用默认使用 historical，新增 profile: .generation 显式按 writer 检查排除组件与兼容字段；CLI 的 --validate 默认使用 generation，--historical 用于旧记录。`presentationWarnings(in:)` 是独立的非阻断语义提示，不是实测对比度审计。诊断不替代事实审查或真实 UI 验收。
+`sourceIssues(in:)` 检查源码标识符等问题；`validationIssues(in:source:)` 汇总源码、运行时和组件契约问题；`validationIssues(in:)` 检查求值树。原有 Swift 调用默认使用 historical，profile: .generation 显式按 writer 检查排除组件与兼容字段；CLI 的 --validate 默认使用 generation，--historical 用于旧记录。普通渲染入口不自动执行 writer 校验或模型纠错；调用方按任务使用诊断。`presentationWarnings(in:)` 是独立的非阻断语义提示，不是实测对比度审计。诊断不替代事实审查或真实 UI 验收。
 
-生成规则按显式组件依赖组织，全局事实/URL/动作约束不随单个组件排除而丢失。writer spec、签名与 Prompt 同源；共享语言生成器的 Prompt 中关于无动作按钮的通用默认说明，仍保留一处精确的策略文字替换，以符合本库“无动作禁用”的既有实现，不再用文字替换修改组件签名或 schema。
+生成规则按显式组件依赖组织，全局事实/URL/动作约束不随单个组件排除而丢失。writer spec、签名与 Prompt 同源；共享语言生成器的 Prompt 中关于无动作按钮的通用默认说明，仍保留一处精确的策略文字替换，以符合本库“无动作禁用”的既有实现，不再用文字替换修改组件签名或 schema。默认 bindings=true、toolCalls=false 控制生成说明，不是运行时语法的禁用开关。
 
 可选模型验证使用 `python3 Validation/Generation/run.py --model gpt-6.1-terra`，通过指定 Codex 账户执行真实调用。保存请求、原始输出、解析与运行时结果，不静默换型；结果写入 `outputs/generation`。已纳入回归的六份未改写程序保存在 `Tests/SwiftIntelligentUITests/Fixtures/GeneratedPrograms`，由 XCTest 检查当前运行时兼容性，不与 Gallery 的人工视觉验收混用。性能工作负载另归 `Benchmarks/LanguageRuntime`。
 

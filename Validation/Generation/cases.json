@@ -16,7 +16,7 @@
   },
   {
     "id": "editorial",
-    "task": "用现有组件生成图文阅读内容：开头用 Image 放一张封面，然后用两个 ImageText 展示两条信息，来源用 Citation。只使用以下资料：A 标题建筑观察，正文观察建筑形制，图片 https://example.com/photo-a.jpg，alt 建筑，来源 /source/a；B 标题器物观察，正文观察器物纹饰，图片 https://example.com/photo-b.jpg，alt 器物，来源 /source/b。封面复用图片A。保留原始URL，不补地点、开放时间、排名或票务事实。",
+    "task": "用现有组件生成图文阅读内容：开头用 Image 放一张封面，然后用两组 Row 展示两条信息；每组 Row 直接放 Image 和 Col，Col 内用 Title 展示标题、Text 展示正文，来源用 Citation。只使用以下资料：A 标题建筑观察，正文观察建筑形制，图片 https://example.com/photo-a.jpg，alt 建筑，来源 /source/a；B 标题器物观察，正文观察器物纹饰，图片 https://example.com/photo-b.jpg，alt 器物，来源 /source/b。封面复用图片A。保留原始URL，不补地点、开放时间、排名或票务事实。",
     "mode": "guided"
   },
   {
