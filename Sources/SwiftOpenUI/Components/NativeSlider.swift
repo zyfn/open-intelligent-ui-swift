@@ -44,9 +44,7 @@ struct NativeSliderConfiguration: Equatable {
     guard values.indices.contains(index) else { return nil }
     let value = values[index]
     if !value.isFinite { return "Invalid number" }
-    if value < minimum || value > maximum {
-      return "Value must be between \(jsNumberString(minimum)) and \(jsNumberString(maximum))"
-    }
+    if value < minimum { return "Value must be at least \(jsNumberString(minimum))" }
     if index == 0, values.count > 1, value > values[1] { return "Min must be less than max" }
     return nil
   }
@@ -184,7 +182,6 @@ struct NativeSliderField: View {
   }
   @State private var pendingWriteOwner = UUID()
   @State private var registeredPendingName: OpenUIString?
-  @State private var picker: NativeSliderPickerRequest?
   @FocusState private var focusedValue: Int?
   private var field: NativeFieldState { .init(context: context) }
   private var configuration: NativeSliderConfiguration {
@@ -232,35 +229,16 @@ struct NativeSliderField: View {
     .onChange(of: external) { draft.receive($0) }
     .onChange(of: draft.text) { _ in refreshPresentedValidation() }
     .onReceive(validation?.$focusRequest.eraseToAnyPublisher() ?? Empty<NativeFormValidation.FocusRequest?, Never>().eraseToAnyPublisher()) { request in
-      guard request?.name == field.name, canEdit, draft.validationError() != nil, !configuration.discrete else { return }
-      focusedValue = draft.text.indices.first { index in
-        let value = Double(draft.text[index].trimmingCharacters(in: .whitespacesAndNewlines))
-        return value?.isFinite != true || configuration.error(for: draft.values, index: index) != nil
-      } ?? 0
+      guard request?.name == field.name, canEdit, draft.validationError() != nil else { return }
+      focusedValue = draft.text.indices.first { draft.error(at: $0, configuration: configuration) != nil } ?? 0
     }
     .onChange(of: focusedValue) { if $0 == nil { draft.flush() } }
-    .onChange(of: context.presentationSourceRevision) { _ in picker = nil }
-    .onChange(of: canEdit) { ready in if !ready { picker = nil } }
-    .onChange(of: draft.values.count) { count in if let picker, picker.index >= count { self.picker = nil } }
     .onDisappear {
       draft.flush()
       if let name = registeredPendingName {
         validation?.unregisterPendingWrite(name, owner: pendingWriteOwner)
       }
       registeredPendingName = nil
-    }
-    .sheet(item: $picker) { request in
-      if draft.values.indices.contains(request.index) {
-        NativeSliderPicker(configuration: configuration, current: draft.values[request.index],
-          lower: request.index == 1 ? draft.values.first : nil,
-          upper: request.index == 0 && draft.values.count > 1 ? draft.values[1] : nil,
-          label: endpointLabel(request.index)) { value in
-            guard canEdit else { return }
-            draft.select(value, at: request.index)
-            draft.flush()
-            picker = nil
-          }
-      }
     }
   }
   private func refreshPresentedValidation() {
@@ -331,11 +309,9 @@ struct NativeSliderField: View {
         if canEdit && draft.values.indices.contains(index) {
           valueControl(index)
         } else {
-          HStack(spacing: context.theme.spaceXs) {
-            Text(jsNumberString(external[index])).monospacedDigit()
-              .frame(maxWidth: .infinity, alignment: .trailing)
-            valueAccessorySpace
-          }.padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
+          Text(jsNumberString(external[index])).monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
             .foregroundStyle(canEdit ? context.theme.textNeutralPrimary : context.theme.textNeutralTertiary)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(endpointLabel(index)).accessibilityValue(jsNumberString(external[index]))
@@ -343,39 +319,18 @@ struct NativeSliderField: View {
       }.openUIFont(context.theme.textNumbersDefaultHeavy, role: .metric)
     }.accessibilityIdentifier("openui.slider.endpoint.\(field.name.displayString).\(index)")
   }
-  @ViewBuilder private func valueControl(_ index: Int) -> some View {
-    VStack(alignment: .leading, spacing: context.theme.spacing("2xs")) {
-      if configuration.discrete {
-        Button { picker = .init(index: index) } label: {
-          HStack(spacing: context.theme.spaceXs) {
-            Text(jsNumberString(draft.values[index])).monospacedDigit()
-              .frame(maxWidth: .infinity, alignment: .trailing)
-            Image(systemName: "chevron.up.chevron.down").openUIFont(context.theme.textBodyXs, role: .caption)
-              .foregroundStyle(context.theme.textNeutralSecondary)
-              .frame(width: context.theme.textBodyXs.size)
-          }.padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
-        }.buttonStyle(NativeQuietButtonStyle(theme: context.theme, cornerRadius: context.theme.radiusS))
-          .accessibilityLabel(endpointLabel(index)).accessibilityValue(jsNumberString(draft.values[index]))
-          .accessibilityIdentifier("openui.slider.choice.\(field.name.displayString).\(index)")
-      } else {
-        HStack(spacing: context.theme.spaceXs) {
-          TextField("", text: Binding(get: { draft.text.indices.contains(index) ? draft.text[index] : "" },
-            set: { context.recordUserInteraction(); draft.edit($0, at: index) }))
-            .textFieldStyle(.plain).monospacedDigit().nativeSliderKeyboard()
-            .focused($focusedValue, equals: index).submitLabel(index == 0 && external.count > 1 ? .next : .done)
-            .onSubmit { draft.flush(); focusedValue = index == 0 && external.count > 1 ? 1 : nil }
-            .multilineTextAlignment(.trailing).accessibilityLabel(endpointLabel(index))
-            .accessibilityIdentifier("openui.slider.input.\(field.name.displayString).\(index)")
-          valueAccessorySpace
-        }.padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
-          .background(focusedValue == index ? context.theme.sunk : .clear,
-            in: RoundedRectangle(cornerRadius: context.theme.radiusS))
-      }
-    }.frame(maxWidth: .infinity)
-  }
-  private var valueAccessorySpace: some View {
-    Color.clear.frame(width: context.theme.textBodyXs.size)
-      .accessibilityHidden(true).allowsHitTesting(false)
+  private func valueControl(_ index: Int) -> some View {
+    TextField("", text: Binding(get: { draft.text.indices.contains(index) ? draft.text[index] : "" },
+      set: { context.recordUserInteraction(); draft.edit($0, at: index) }))
+      .textFieldStyle(.plain).monospacedDigit().nativeSliderKeyboard()
+      .focused($focusedValue, equals: index).submitLabel(index == 0 && external.count > 1 ? .next : .done)
+      .onSubmit { draft.flush(); focusedValue = index == 0 && external.count > 1 ? 1 : nil }
+      .multilineTextAlignment(.trailing).accessibilityLabel(endpointLabel(index))
+      .accessibilityIdentifier("openui.slider.input.\(field.name.displayString).\(index)")
+      .padding(.horizontal, context.theme.spaceXs).openUIControlTarget()
+      .background(focusedValue == index ? context.theme.sunk : .clear,
+        in: RoundedRectangle(cornerRadius: context.theme.radiusS))
+      .frame(maxWidth: .infinity)
   }
 }
 
@@ -423,67 +378,6 @@ struct NativeSliderEndpointsLayout: Layout {
       view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
         anchor: .topLeading, proposal: .init(frame.size))
     }
-  }
-}
-
-private struct NativeSliderPickerRequest: Identifiable { let index: Int; var id: Int { index } }
-
-/// A virtualized native choice list keeps every discrete value reachable without
-/// allocating a view for every step in a potentially enormous numeric domain.
-private struct NativeSliderPicker: View {
-  let configuration: NativeSliderConfiguration
-  let current: Double
-  let lower: Double?
-  let upper: Double?
-  let label: String
-  let select: (Double) -> Void
-  @Environment(\.dismiss) private var dismiss
-  @State private var firstIndex: Double = 0
-  @State private var search = ""
-  private var indices: [Double] {
-    (0..<100).map { firstIndex + Double($0) }.filter { $0 <= configuration.lastIndex }
-  }
-  var body: some View {
-    NavigationView {
-      List {
-        TextField(text: $search) { Text("Value", bundle: NativeControlResources.bundle) }
-          .nativeSliderKeyboard().accessibilityIdentifier("openui.slider.search")
-        if !search.isEmpty {
-          let number = toNumber(.string(search))
-          if number.isFinite, number >= configuration.minimum, number <= configuration.maximum {
-            let value = configuration.snapped(number)
-            if lower.map({ value > $0 }) ?? true, upper.map({ value < $0 }) ?? true {
-              Button(jsNumberString(value)) { select(value) }.accessibilityIdentifier("openui.slider.use-value")
-            }
-          }
-        }
-        ForEach(Array(indices.enumerated()), id: \.offset) { _, index in
-          let value = configuration.value(at: index)
-          if lower.map({ value > $0 }) ?? true, upper.map({ value < $0 }) ?? true {
-            Button(jsNumberString(value)) { select(value) }.accessibilityIdentifier("openui.slider.option." + jsNumberString(value))
-          }
-        }
-        HStack {
-          Button { firstIndex = max(0, firstIndex - 100) } label: { Text("Previous page", bundle: NativeControlResources.bundle) }.disabled(firstIndex <= 0)
-          Spacer()
-          Button { firstIndex += 100 } label: { Text("Next page", bundle: NativeControlResources.bundle) }.disabled(firstIndex + 100 > configuration.lastIndex)
-        }
-      }.navigationTitle(label)
-        .toolbar { ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Text("Cancel", bundle: NativeControlResources.bundle) } } }
-    }
-      #if os(iOS)
-      .navigationViewStyle(.stack)
-      #endif
-      .onAppear {
-        let index = floor(((current - configuration.minimum) / configuration.step) / 100) * 100
-        firstIndex = index.isFinite ? max(0, min(configuration.lastIndex, index)) : 0
-      }
-      .onChange(of: search) { text in
-        let value = toNumber(.string(text))
-        guard value.isFinite else { return }
-        let index = floor((value - configuration.minimum) / configuration.step)
-        firstIndex = index.isFinite ? max(0, min(configuration.lastIndex, index)) : 0
-      }
   }
 }
 

@@ -6,6 +6,30 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class SliderFeedbackRenderingTests: XCTestCase {
+  @MainActor func testDiscreteSliderAcceptsInlineInputAboveItsTrackMaximum() throws {
+    _ = NSApplication.shared
+    let library = try OpenUIComponents.library()
+    let state = OpenUIState(schema: library.library.toSchema())
+    state.setSource("""
+      $amount=[10]
+      root=Form("qa",Buttons([]),[FormControl("Budget",Slider("budget","discrete",0,100,5,[10],"Budget",null,$amount))])
+      """)
+    XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+    let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry).frame(width: 320))
+    let window = mount(host, width: 320, height: 240)
+    defer { window.close() }
+    pump(host)
+    XCTAssertEqual(try numericInput(in: host).stringValue, "10")
+    try edit("151", in: host, window: window)
+    let draft: NativeSliderDraft = try XCTUnwrap(state.existingEditingRecord(kind: "slider", form: "qa", name: "budget"))
+    draft.flush()
+    pump(host)
+    XCTAssertEqual(try numericInput(in: host).stringValue, "151")
+    XCTAssertEqual(state.stateValue("$amount"), .array([.number(151)]))
+    XCTAssertEqual(state.fieldValue(form: "qa", name: "budget"), .array([.number(151)]))
+    XCTAssertNil(draft.validationError())
+  }
+
   @MainActor func testMountedReactiveBindingAcceptsANormalizedValueEqualToItsPreviousValue() throws {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
@@ -332,11 +356,11 @@ final class SliderFeedbackRenderingTests: XCTestCase {
     pump(host)
     let draft = state.editingRecord(kind: "slider", form: "qa", name: "budget", create: NativeSliderDraft.init)
     XCTAssertEqual(draft.values, [10], "Use the actual mounted field's record")
-    draft.edit("150", at: 0)
+    draft.edit("-1", at: 0)
     XCTAssertFalse(validation.validateAll())
     pump(host)
-    XCTAssertEqual(validation.errors["budget"], "Value must be between 0 and 100")
-    try snapshot(host, name: "feedback-submitted-150")
+    XCTAssertEqual(validation.errors["budget"], "Value must be at least 0")
+    try snapshot(host, name: "feedback-submitted-minus-1")
     for invalid in ["", "1e", "-"] {
       draft.edit(invalid, at: 0)
       pump(host)
@@ -344,12 +368,12 @@ final class SliderFeedbackRenderingTests: XCTestCase {
       XCTAssertEqual(state.fieldValue(form: "qa", name: "budget"), .array([.number(10)]))
       if invalid.isEmpty { try snapshot(host, name: "feedback-empty-before-submit") }
     }
-    draft.edit("37", at: 0)
+    draft.edit("137", at: 0)
     pump(host)
-    XCTAssertNil(validation.errors["budget"], "A valid draft clears stale feedback before its delayed Store write")
-    try snapshot(host, name: "feedback-valid-37-before-submit")
+    XCTAssertNil(validation.errors["budget"], "A value above the track clears stale feedback before its delayed Store write")
+    try snapshot(host, name: "feedback-valid-137-before-submit")
     XCTAssertTrue(validation.validateAll())
-    XCTAssertEqual(state.fieldValue(form: "qa", name: "budget"), .array([.number(37)]))
+    XCTAssertEqual(state.fieldValue(form: "qa", name: "budget"), .array([.number(137)]))
   }
 
   @MainActor func testNativeMouseDragUsesRTLAndLTRRangeCoordinates() throws {

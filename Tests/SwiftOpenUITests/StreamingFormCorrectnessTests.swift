@@ -119,20 +119,23 @@ final class StreamingFormCorrectnessTests: XCTestCase {
     }
   }
 
-  @MainActor func testBoundsAndInvertedRangesAreNotWrittenByTimerOrSubmitFlush() {
+  @MainActor func testRangeDraftChecksMinimumAndOrderWhileAcceptingManualValuesAboveTheTrack() {
     let draft = NativeSliderDraft()
     draft.configuration = NativeSliderConfiguration(minimum: 0, maximum: 100, step: 1, discrete: false)
     var writes: [[Double]] = []
     draft.commit = { value, complete in writes.append(value); complete(value) }
     draft.receive([10, 50])
-    draft.edit("110", at: 0); draft.flush()
+    draft.edit("-1", at: 0); draft.flush()
     XCTAssertTrue(writes.isEmpty)
-    XCTAssertNotNil(draft.validationError())
+    XCTAssertEqual(draft.validationError(), "Value must be at least 0")
     draft.edit("60", at: 0); draft.flush()
     XCTAssertTrue(writes.isEmpty)
     XCTAssertEqual(draft.validationError(), "Min must be less than max")
     draft.edit("20", at: 0); draft.flush()
     XCTAssertEqual(writes, [[20, 50]])
+    draft.edit("151", at: 1); draft.flush()
+    XCTAssertEqual(writes, [[20, 50], [20, 151]])
+    XCTAssertNil(draft.validationError())
   }
 
   @MainActor func testDeclarationOrderAndUnmountedFieldsParticipateInValidation() throws {
@@ -385,6 +388,8 @@ extension StreamingFormCorrectnessTests {
       XCTAssertGreaterThan(b.upperBound - b.lowerBound, 0)
       XCTAssertEqual(rtl.value(at: -100), 80)
       XCTAssertEqual(rtl.value(at: width + 100), -20)
+      XCTAssertEqual(ltr.x(for: 151), ltr.x(for: 80))
+      XCTAssertEqual(rtl.x(for: 151), rtl.x(for: 80))
     }
   }
 
