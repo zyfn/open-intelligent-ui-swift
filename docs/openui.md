@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.56 · 更新日期：2026-11-22
+文档版本：1.57 · 更新日期：2026-11-22
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -82,6 +82,16 @@ OpenUI 的默认分组说明、生成规则和示例由 [catalog.mjs](../Tools/P
 ## 主题与呈现
 
 OpenUITheme 定义语义 token，OpenUIThemeValues 提供当前解析结果；OpenUIPresentation 管理呈现选择。OpenIntelligentUI 的主题不通过本库配置。
+
+`OpenUITheme` 和 `OpenUIThemeValues` 按相同的顺序组织字段。调用方直接读取或设置字段，例如 `theme.background` 或 `theme.spaceM`。
+
+| 分组 | 包含的主题字段 |
+| --- | --- |
+| 颜色 | 表面与状态底色、文字色、操作状态色、边框色和图表色板 |
+| 布局 | 间距与圆角刻度 |
+| 字体 | 正文、标题、标签、数字和代码字体 |
+| 效果 | 阴影刻度 |
+| 原生外观扩展 | 图片占位底色、表格外观、Markdown 列表间距和 Markdown 强调字体 |
 
 ~~~swift
 OpenUIView(state: state, library: library)

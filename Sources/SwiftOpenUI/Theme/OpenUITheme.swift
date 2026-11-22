@@ -25,36 +25,35 @@ public struct OpenUITableAppearance {
 /// Partial overrides using the pinned React Theme names. Nil keeps the SDK default.
 /// Typography roles are complete values; overriding one never mutates another role.
 public struct OpenUITheme {
-    public var textNeutralPrimary: Color?
-    public var textNeutralSecondary: Color?
-    public var textNeutralTertiary: Color?
-    public var textNeutralLink: Color?
+    // MARK: - Color
+
+    // Surfaces
     public var background: Color?
     public var foreground: Color?
     public var popoverBackground: Color?
-    public var sunk: Color?
-    /// Image loading and reveal background; nil inherits the shared theme or SDK default.
-    public var imagePlaceholderBackground: Color?
     public var sunkLight: Color?
+    public var sunk: Color?
     public var highlight: Color?
-    public var borderDefault: Color?
-    public var borderInteractive: Color?
-    public var borderAccent: Color?
-    public var borderDanger: Color?
-    public var tableAppearance: OpenUITableAppearance?
-    public var markdownListItemSpacing: CGFloat?
-    /// Optional emphasis face; its size is inherited from the surrounding text.
-    public var markdownEmphasisFont: OpenUIFont?
     public var invertedBackground: Color?
-    public var textInfoPrimary: Color?
-    public var textSuccessPrimary: Color?
-    public var textAlertPrimary: Color?
-    public var textDangerPrimary: Color?
-    public var textDangerTertiary: Color?
     public var infoBackground: Color?
     public var successBackground: Color?
     public var alertBackground: Color?
     public var dangerBackground: Color?
+
+    // Text
+    public var textNeutralPrimary: Color?
+    public var textNeutralSecondary: Color?
+    public var textNeutralTertiary: Color?
+    public var textNeutralLink: Color?
+    public var textAccentPrimary: Color?
+    public var textSuccessPrimary: Color?
+    public var textAlertPrimary: Color?
+    public var textDangerPrimary: Color?
+    public var textDangerTertiary: Color?
+    public var textDangerInvertedPrimary: Color?
+    public var textInfoPrimary: Color?
+
+    // Interactive states
     public var interactiveAccentDefault: Color?
     public var interactiveAccentHover: Color?
     public var interactiveAccentPressed: Color?
@@ -67,8 +66,26 @@ public struct OpenUITheme {
     public var interactiveDestructiveAccentHover: Color?
     public var interactiveDestructiveAccentPressed: Color?
     public var interactiveDestructiveAccentDisabled: Color?
-    public var textAccentPrimary: Color?
-    public var textDangerInvertedPrimary: Color?
+
+    // Borders
+    public var borderDefault: Color?
+    public var borderInteractive: Color?
+    public var borderAccent: Color?
+    public var borderDanger: Color?
+
+    // Chart palettes
+    public var defaultChartPalette: [Color]?
+    public var barChartPalette: [Color]?
+    public var lineChartPalette: [Color]?
+    public var areaChartPalette: [Color]?
+    public var pieChartPalette: [Color]?
+    public var radarChartPalette: [Color]?
+    public var radialChartPalette: [Color]?
+    public var horizontalBarChartPalette: [Color]?
+
+    // MARK: - Layout
+
+    // Spacing
     public var space000: CGFloat?
     public var space3xs: CGFloat?
     public var space2xs: CGFloat?
@@ -81,6 +98,8 @@ public struct OpenUITheme {
     public var spaceXl: CGFloat?
     public var space2xl: CGFloat?
     public var space3xl: CGFloat?
+
+    // Corner radii
     public var radiusNone: CGFloat?
     public var radius3xs: CGFloat?
     public var radius2xs: CGFloat?
@@ -98,33 +117,46 @@ public struct OpenUITheme {
     public var radius8xl: CGFloat?
     public var radius9xl: CGFloat?
     public var radiusFull: CGFloat?
-    public var textHeadingMd: OpenUIFont?
-    public var textHeadingSm: OpenUIFont?
-    public var textHeadingXs: OpenUIFont?
-    public var textBodyDefault: OpenUIFont?
-    public var textBodyDefaultHeavy: OpenUIFont?
+
+    // MARK: - Typography
+
+    // Body
+    public var textBodyXs: OpenUIFont?
     public var textBodySm: OpenUIFont?
     public var textBodySmHeavy: OpenUIFont?
+    public var textBodyDefault: OpenUIFont?
+    public var textBodyDefaultHeavy: OpenUIFont?
     public var textBodyLg: OpenUIFont?
     public var textBodyLgHeavy: OpenUIFont?
+
+    // Headings
+    public var textHeadingXs: OpenUIFont?
+    public var textHeadingSm: OpenUIFont?
+    public var textHeadingMd: OpenUIFont?
+
+    // Labels, numbers, and code
     public var textLabelSm: OpenUIFont?
-    public var textBodyXs: OpenUIFont?
-    public var textNumbersDefaultHeavy: OpenUIFont?
     public var textLabelSmHeavy: OpenUIFont?
     public var textLabelDefaultHeavy: OpenUIFont?
+    public var textNumbersDefaultHeavy: OpenUIFont?
     public var textCodeDefault: OpenUIFont?
-    public var defaultChartPalette: [Color]?
-    public var barChartPalette: [Color]?
-    public var lineChartPalette: [Color]?
-    public var areaChartPalette: [Color]?
-    public var pieChartPalette: [Color]?
-    public var radarChartPalette: [Color]?
-    public var radialChartPalette: [Color]?
-    public var horizontalBarChartPalette: [Color]?
+
+    // MARK: - Effects
+
     public var shadow0: OpenUIShadow?
     public var shadowS: OpenUIShadow?
     public var shadowM: OpenUIShadow?
     public var shadowL: OpenUIShadow?
+
+    // MARK: - Native appearance extensions
+
+    /// Image loading and reveal background; nil inherits the shared theme or SDK default.
+    public var imagePlaceholderBackground: Color?
+    public var tableAppearance: OpenUITableAppearance?
+    public var markdownListItemSpacing: CGFloat?
+    /// Optional emphasis face; its size is inherited from the surrounding text.
+    public var markdownEmphasisFont: OpenUIFont?
+
     public init() {}
 
     /// Resolve this override set against the SDK defaults. Colors remain appearance-aware.
@@ -240,35 +272,35 @@ public struct OpenUITheme {
 public struct OpenUIThemeValues {
     // Dynamic Color providers are reused across scope resolution and stream updates.
     static let defaults = OpenUIThemeValues()
-    public var tableAppearance: OpenUITableAppearance? = nil
-    public var markdownListItemSpacing: CGFloat? = nil
-    public var markdownEmphasisFont: OpenUIFont? = nil
-    public var textNeutralPrimary: Color = NativeControlPalette.adaptive(light: 0x303036, dark: 0xE4E4E7, highContrastLight: 0x000000, highContrastDark: 0xFFFFFF)
-    public var textNeutralSecondary: Color = NativeControlPalette.adaptive(light: 0x64646E, dark: 0xA1A1AA, highContrastLight: 0x50505A, highContrastDark: 0xC4C4CE)
-    public var textNeutralTertiary: Color = NativeControlPalette.adaptive(light: 0xAAAAB4, dark: 0x686874)
-    public var textNeutralLink: Color = NativeControlPalette.adaptive(light: 0x202024, dark: 0xF4F4F5, highContrastLight: 0x000000, highContrastDark: 0xFFFFFF)
+    // MARK: - Color
+
+    // Surfaces
     public var background: Color = NativeControlPalette.adaptive(light: 0xFFFFFF, dark: 0x0B0B0D)
     public var foreground: Color = NativeControlPalette.adaptive(light: 0xFFFFFF, dark: 0x17171B)
     public var popoverBackground: Color = NativeControlPalette.adaptive(light: 0xFFFFFF, dark: 0x242429)
-    public var sunk: Color = NativeControlPalette.adaptive(light: 0xF5F5F7, dark: 0x1F1F24)
-    /// Image loading and reveal background, independently configurable from sunk.
-    public var imagePlaceholderBackground: Color = NativeControlPalette.adaptive(light: 0xF5F5F7, dark: 0x1F1F24)
     public var sunkLight: Color = NativeControlPalette.adaptive(light: 0xFAFAFC, dark: 0x17171B)
+    public var sunk: Color = NativeControlPalette.adaptive(light: 0xF5F5F7, dark: 0x1F1F24)
     public var highlight: Color = NativeControlPalette.adaptive(light: 0xF1F1F4, dark: 0x2A2A30)
-    public var borderDefault: Color = NativeControlPalette.adaptive(light: 0xE0E0E5, dark: 0x393940, highContrastLight: 0xCBCBD3, highContrastDark: 0x5A5A64)
-    public var borderInteractive: Color = NativeControlPalette.adaptive(light: 0x8A8A94, dark: 0x767680, highContrastLight: 0x64646F, highContrastDark: 0x9898A4)
-    public var borderAccent: Color = NativeControlPalette.ink.opacity(0.08)
-    public var borderDanger: Color = NativeControlPalette.error.opacity(0.08)
     public var invertedBackground: Color = NativeControlPalette.adaptive(light: 0x202024, dark: 0xF4F4F5, highContrastLight: 0x000000, highContrastDark: 0xFFFFFF)
-    public var textInfoPrimary: Color = NativeControlPalette.info
-    public var textSuccessPrimary: Color = NativeControlPalette.success
-    public var textAlertPrimary: Color = NativeControlPalette.warning
-    public var textDangerPrimary: Color = NativeControlPalette.error
-    public var textDangerTertiary: Color = NativeControlPalette.error.opacity(0.2)
     public var infoBackground: Color = NativeControlPalette.info.opacity(0.12)
     public var successBackground: Color = NativeControlPalette.success.opacity(0.12)
     public var alertBackground: Color = NativeControlPalette.warning.opacity(0.12)
     public var dangerBackground: Color = NativeControlPalette.error.opacity(0.12)
+
+    // Text
+    public var textNeutralPrimary: Color = NativeControlPalette.adaptive(light: 0x303036, dark: 0xE4E4E7, highContrastLight: 0x000000, highContrastDark: 0xFFFFFF)
+    public var textNeutralSecondary: Color = NativeControlPalette.adaptive(light: 0x64646E, dark: 0xA1A1AA, highContrastLight: 0x50505A, highContrastDark: 0xC4C4CE)
+    public var textNeutralTertiary: Color = NativeControlPalette.adaptive(light: 0xAAAAB4, dark: 0x686874)
+    public var textNeutralLink: Color = NativeControlPalette.adaptive(light: 0x202024, dark: 0xF4F4F5, highContrastLight: 0x000000, highContrastDark: 0xFFFFFF)
+    public var textAccentPrimary: Color? = nil
+    public var textSuccessPrimary: Color = NativeControlPalette.success
+    public var textAlertPrimary: Color = NativeControlPalette.warning
+    public var textDangerPrimary: Color = NativeControlPalette.error
+    public var textDangerTertiary: Color = NativeControlPalette.error.opacity(0.2)
+    public var textDangerInvertedPrimary: Color? = nil
+    public var textInfoPrimary: Color = NativeControlPalette.info
+
+    // Interactive states
     public var interactiveAccentDefault: Color = NativeControlPalette.adaptive(light: 0x202024, dark: 0xF4F4F5, highContrastLight: 0x000000, highContrastDark: 0xFFFFFF)
     public var interactiveAccentHover: Color = NativeControlPalette.adaptive(light: 0x3D3D43, dark: 0xDEDEE3)
     public var interactiveAccentPressed: Color = NativeControlPalette.adaptive(light: 0x101014, dark: 0xE4E4EA)
@@ -281,8 +313,26 @@ public struct OpenUIThemeValues {
     public var interactiveDestructiveAccentHover: Color = NativeControlPalette.error.opacity(0.8)
     public var interactiveDestructiveAccentPressed: Color = NativeControlPalette.error
     public var interactiveDestructiveAccentDisabled: Color = NativeControlPalette.error.opacity(0.4)
-    public var textAccentPrimary: Color? = nil
-    public var textDangerInvertedPrimary: Color? = nil
+
+    // Borders
+    public var borderDefault: Color = NativeControlPalette.adaptive(light: 0xE0E0E5, dark: 0x393940, highContrastLight: 0xCBCBD3, highContrastDark: 0x5A5A64)
+    public var borderInteractive: Color = NativeControlPalette.adaptive(light: 0x8A8A94, dark: 0x767680, highContrastLight: 0x64646F, highContrastDark: 0x9898A4)
+    public var borderAccent: Color = NativeControlPalette.ink.opacity(0.08)
+    public var borderDanger: Color = NativeControlPalette.error.opacity(0.08)
+
+    // Chart palettes
+    public var defaultChartPalette: [Color]? = nil
+    public var barChartPalette: [Color]? = nil
+    public var lineChartPalette: [Color]? = nil
+    public var areaChartPalette: [Color]? = nil
+    public var pieChartPalette: [Color]? = nil
+    public var radarChartPalette: [Color]? = nil
+    public var radialChartPalette: [Color]? = nil
+    public var horizontalBarChartPalette: [Color]? = nil
+
+    // MARK: - Layout
+
+    // Spacing
     public var space000: CGFloat = 0
     public var space3xs: CGFloat = 2
     public var space2xs: CGFloat = 4
@@ -295,6 +345,8 @@ public struct OpenUIThemeValues {
     public var spaceXl: CGFloat = 24
     public var space2xl: CGFloat = 36
     public var space3xl: CGFloat = 48
+
+    // Corner radii
     public var radiusNone: CGFloat = 0
     public var radius3xs: CGFloat = 1
     public var radius2xs: CGFloat = 2
@@ -312,33 +364,45 @@ public struct OpenUIThemeValues {
     public var radius8xl: CGFloat = 40
     public var radius9xl: CGFloat = 48
     public var radiusFull: CGFloat = 9999
-    public var textHeadingMd: OpenUIFont = OpenUIFont(size: 26, weight: .semibold)
-    public var textHeadingSm: OpenUIFont = OpenUIFont(size: 20, weight: .semibold)
-    public var textHeadingXs: OpenUIFont = OpenUIFont(size: 18, weight: .semibold)
-    public var textBodyDefault: OpenUIFont = OpenUIFont(size: 16, weight: .regular)
-    public var textBodyDefaultHeavy: OpenUIFont = OpenUIFont(size: 16, weight: .semibold)
+
+    // MARK: - Typography
+
+    // Body
+    public var textBodyXs: OpenUIFont = OpenUIFont(size: 13, weight: .regular)
     public var textBodySm: OpenUIFont = OpenUIFont(size: 14, weight: .regular)
     public var textBodySmHeavy: OpenUIFont = OpenUIFont(size: 14, weight: .semibold)
+    public var textBodyDefault: OpenUIFont = OpenUIFont(size: 16, weight: .regular)
+    public var textBodyDefaultHeavy: OpenUIFont = OpenUIFont(size: 16, weight: .semibold)
     public var textBodyLg: OpenUIFont = OpenUIFont(size: 18, weight: .regular)
     public var textBodyLgHeavy: OpenUIFont = OpenUIFont(size: 18, weight: .semibold)
+
+    // Headings
+    public var textHeadingXs: OpenUIFont = OpenUIFont(size: 18, weight: .semibold)
+    public var textHeadingSm: OpenUIFont = OpenUIFont(size: 20, weight: .semibold)
+    public var textHeadingMd: OpenUIFont = OpenUIFont(size: 26, weight: .semibold)
+
+    // Labels, numbers, and code
     public var textLabelSm: OpenUIFont = OpenUIFont(size: 14, weight: .regular)
-    public var textBodyXs: OpenUIFont = OpenUIFont(size: 13, weight: .regular)
-    public var textNumbersDefaultHeavy: OpenUIFont = OpenUIFont(size: 16, weight: .medium).monospacedDigit()
     public var textLabelSmHeavy: OpenUIFont = OpenUIFont(size: 14, weight: .medium)
     public var textLabelDefaultHeavy: OpenUIFont = OpenUIFont(size: 16, weight: .medium)
+    public var textNumbersDefaultHeavy: OpenUIFont = OpenUIFont(size: 16, weight: .medium).monospacedDigit()
     public var textCodeDefault: OpenUIFont = OpenUIFont(size: 14, weight: .regular, design: .monospaced)
-    public var defaultChartPalette: [Color]? = nil
-    public var barChartPalette: [Color]? = nil
-    public var lineChartPalette: [Color]? = nil
-    public var areaChartPalette: [Color]? = nil
-    public var pieChartPalette: [Color]? = nil
-    public var radarChartPalette: [Color]? = nil
-    public var radialChartPalette: [Color]? = nil
-    public var horizontalBarChartPalette: [Color]? = nil
+
+    // MARK: - Effects
+
     public var shadow0: OpenUIShadow = OpenUIShadow()
     public var shadowS: OpenUIShadow = OpenUIShadow(opacity: 0.05, radius: 2, y: 1)
     public var shadowM: OpenUIShadow = OpenUIShadow()
     public var shadowL: OpenUIShadow = OpenUIShadow(opacity: 0.08, radius: 8, y: 3)
+
+    // MARK: - Native appearance extensions
+
+    /// Image loading and reveal background, independently configurable from sunk.
+    public var imagePlaceholderBackground: Color = NativeControlPalette.adaptive(light: 0xF5F5F7, dark: 0x1F1F24)
+    public var tableAppearance: OpenUITableAppearance? = nil
+    public var markdownListItemSpacing: CGFloat? = nil
+    public var markdownEmphasisFont: OpenUIFont? = nil
+
     public init() {}
 
     public func spacing(_ token: String?) -> CGFloat {
