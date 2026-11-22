@@ -30,7 +30,7 @@ struct OpenUIStyledCard: View {
                 context.string("variant") == "clear" || context.string("variant") == "sunk"
                     ? 0 : context.theme.componentStyle.panelInset)
             .modifier(OpenUICardSurface(theme: context.theme, variant: context.string("variant"),
-                active: context.layoutConfigurationReady, isCardComponent: true))
+                active: context.layoutConfigurationReady, usesStandardCardStyle: true))
     }
 }
 
@@ -38,7 +38,7 @@ struct OpenUICardSurface: ViewModifier {
     let theme: OpenUIThemeValues
     let variant: String?
     var active = true
-    var isCardComponent = false
+    var usesStandardCardStyle = false
     @Environment(\.openUIAncestorLayoutReady) private var parentLayoutReady
     func body(content: Content) -> some View {
         let surface = NativeContentSurface(variant, fallback: .card)
@@ -55,7 +55,7 @@ struct OpenUICardSurface: ViewModifier {
                 theme: theme,
                 fill: ready ? surface.fill(theme) : .clear,
                 bordered: ready && surface.bordered,
-                usesStandardCardStyle: ready && isCardComponent && surface == .card))
+                usesStandardCardStyle: ready && usesStandardCardStyle && surface == .card))
     }
 }
 

@@ -32,7 +32,6 @@ extension EnvironmentValues {
         get { self[NativeFormActionsKey.self] }
         set { self[NativeFormActionsKey.self] = newValue }
     }
-    @Entry var openUIFormActionGroup: ObjectIdentifier? = nil
     var openUIFieldError: String? {
         get { self[NativeFieldErrorKey.self] }
         set { self[NativeFieldErrorKey.self] = newValue }

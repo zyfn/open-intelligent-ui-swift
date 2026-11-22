@@ -111,7 +111,7 @@ final class ButtonLayoutContractTests: XCTestCase {
     }
   }
 
-  @MainActor func testSingleFormSubmissionFillsTheFieldColumnIncludingExplicitRow() throws {
+  @MainActor func testFormSubmissionFillsTheFieldColumnIncludingExplicitRow() throws {
     for direction in ["", ",\"row\"", ",\"column\""] {
       for (variant, role) in [("primary", "normal"), ("secondary", "normal"), ("tertiary", "destructive")] {
         let source = "root=Form(\"f\",Buttons([Button(\"Send\",@ToAssistant(\"Full message\"),\"\(variant)\",\"\(role)\")]\(direction)),[FormControl(\"Email\",Input(\"email\"))])"
@@ -119,44 +119,48 @@ final class ButtonLayoutContractTests: XCTestCase {
           let button = try XCTUnwrap(values.rects["Send"]), field = try XCTUnwrap(values.field)
           XCTAssertEqual(button.minX, field.minX, accuracy: 1)
           XCTAssertEqual(button.maxX, field.maxX, accuracy: 1,
-            "A single Form submission fills its field column without promoting \(variant)/\(role)")
+            "A Form submission fills its field column without promoting \(variant)/\(role)")
         }
       }
     }
   }
 
-  @MainActor func testFormNavigationAndLocalEditsDoNotGainSubmissionWidth() throws {
+  @MainActor func testFormNavigationAndLocalEditsFillTheFieldColumn() throws {
     for action in ["@OpenUrl(\"https://example.invalid\")", "@Reset($x)", "@Set($x,2)"] {
       let source = "$x=1\nroot=Form(\"f\",Buttons([Button(\"Do\",\(action))],\"row\"),[FormControl(\"Field\",Input(\"x\"))])"
       try inspect(source) { _, values, _ in
         let button = try XCTUnwrap(values.rects["Do"]), field = try XCTUnwrap(values.field)
-        XCTAssertLessThan(button.width, field.width - 40)
+        XCTAssertEqual(button.minX, field.minX, accuracy: 1)
+        XCTAssertEqual(button.maxX, field.maxX, accuracy: 1)
       }
     }
   }
 
-  @MainActor func testMultipleFormActionsAndOutsideRowsKeepTheirExistingWidths() throws {
+  @MainActor func testMultipleFormActionsStackFullWidthAndOutsideRowsStayCompact() throws {
     let source = "$x=1\nroot=Stack([Form(\"f\",Buttons([Button(\"Send\",@ToAssistant(\"send\")),Button(\"Reset\",@Reset($x),\"secondary\")],\"row\"),[FormControl(\"Field\",Input(\"x\"))]),Buttons([Button(\"Outside\",@ToAssistant(\"outside\"))],\"row\")])"
     try inspect(source) { _, values, _ in
       let field = try XCTUnwrap(values.field)
-      for label in ["Send", "Reset", "Outside"] {
-        XCTAssertLessThan(try XCTUnwrap(values.rects[label]).width, field.width - 20)
+      let send = try XCTUnwrap(values.rects["Send"])
+      let reset = try XCTUnwrap(values.rects["Reset"])
+      for button in [send, reset] {
+        XCTAssertEqual(button.minX, field.minX, accuracy: 1)
+        XCTAssertEqual(button.maxX, field.maxX, accuracy: 1)
       }
-      XCTAssertEqual(try XCTUnwrap(values.rects["Send"]).minY,
-                     try XCTUnwrap(values.rects["Reset"]).minY, accuracy: 1)
+      XCTAssertGreaterThanOrEqual(abs(send.midY - reset.midY), (send.height + reset.height) / 2)
+      XCTAssertLessThan(try XCTUnwrap(values.rects["Outside"]).width, field.width - 20)
     }
   }
 
-  @MainActor func testChangingSingleActionIntentDoesNotRemountItsButton() throws {
+  @MainActor func testChangingFormActionKeepsItsWidthAndIdentity() throws {
     let source = "$submit=false\n$x=1\nroot=Form(\"f\",Buttons([Button(\"Do\",$submit?@ToAssistant(\"send\"):@Reset($x))],\"row\"),[FormControl(\"Field\",Input(\"x\"))])"
     try inspect(source) { state, values, settle in
       let field = try XCTUnwrap(values.field)
-      XCTAssertLessThan(try XCTUnwrap(values.rects["Do"]).width, field.width - 40)
+      XCTAssertEqual(try XCTUnwrap(values.rects["Do"]).width, field.width, accuracy: 1)
       state.setState("$submit", value: .boolean(true)); settle()
       XCTAssertEqual(try XCTUnwrap(values.rects["Do"]).width, field.width, accuracy: 1)
       state.setState("$submit", value: .boolean(false)); settle()
-      XCTAssertLessThan(try XCTUnwrap(values.rects["Do"]).width, field.width - 40)
-      XCTAssertEqual(values.mounts["Do"], 1, "Only layout/label changes; the action control retains its identity")
+      XCTAssertEqual(try XCTUnwrap(values.rects["Do"]).width, field.width, accuracy: 1)
+      XCTAssertEqual(values.mounts["Do"], 1, "Action changes keep the button mounted")
     }
   }
 }

@@ -550,8 +550,8 @@ struct NativeSliderTrack: View {
           }.allowsHitTesting(false)
         }
         ForEach(values.indices, id: \.self) { index in
-          Circle().fill(theme.foreground).overlay(Circle().strokeBorder(theme.interactiveAccentDefault, lineWidth: 2))
-            .frame(width: 28, height: 28).shadow(color: .black.opacity(0.08), radius: 2, y: 1)
+          Circle().fill(theme.foreground).overlay(Circle().strokeBorder(theme.interactiveAccentDefault, lineWidth: 1.5))
+            .frame(width: 22, height: 22).shadow(color: .black.opacity(0.08), radius: 2, y: 1)
             .frame(width: 44, height: 44).offset(x: track.x(for: values[index]) - 22)
             .accessibilityRepresentation {
               Slider(value: Binding(get: { min(configuration.maximum, max(configuration.minimum, values[index])) },

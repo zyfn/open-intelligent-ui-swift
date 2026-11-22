@@ -122,7 +122,7 @@ final class VisualPolishTests: XCTestCase {
     XCTAssertGreaterThan(nested.count(blue), 50, "Removing the content border must not erase editable field boundaries")
   }
 
-  @MainActor func testFormKeepsItsPanelAndSupportsUnframedEmbedding() throws {
+  @MainActor func testFormSharesTheStandardCardAppearanceAndSupportsUnframedEmbedding() throws {
     var theme = OpenUITheme()
     let panelFill = Color(red: 0, green: 1, blue: 0)
     theme.foreground = panelFill
@@ -141,7 +141,7 @@ final class VisualPolishTests: XCTestCase {
     let green: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 > 180 && $2 < 100 }
     XCTAssertGreaterThan(panel.count(red), 100)
     XCTAssertGreaterThan(composed.count(red), 100, "The default Card retains a visible outline")
-    XCTAssertGreaterThan(panel.count(green), composed.count(green), "The Form panel keeps its fill")
+    XCTAssertEqual(panel.count(green), composed.count(green), "Form uses the same transparent fill as Card by default")
     XCTAssertEqual(composed.count(green), unframed.count(green), "The outline adds no fill around the form")
     XCTAssertEqual(unframed.count(red), 0)
     XCTAssertGreaterThan(unframed.count(blue), 50, "A quiet Form must preserve editable field boundaries")
@@ -152,7 +152,12 @@ final class VisualPolishTests: XCTestCase {
     customized.borderWidth = 3
     let tinted = try raster(cardSource, theme: theme, presentation: customized)
     XCTAssertGreaterThan(tinted.count(green), composed.count(green), "The host can fill the standard Card")
-    XCTAssertGreaterThan(tinted.count { $0 > 180 && $1 < 100 && $2 > 180 }, 100, "The host can supply its own outline color")
+    let magenta: (UInt8, UInt8, UInt8) -> Bool = { $0 > 180 && $1 < 100 && $2 > 180 }
+    XCTAssertGreaterThan(tinted.count(magenta), 100, "The host can supply its own outline color")
+    customized.formShowsCardSurface = true
+    let tintedForm = try raster("root=" + form, theme: theme, presentation: customized)
+    XCTAssertEqual(tintedForm.count(green), tinted.count(green))
+    XCTAssertEqual(tintedForm.count(magenta), tinted.count(magenta))
   }
 
   @MainActor func testImageGallerySpacingIsIndependentOfTheBorderWidth() throws {

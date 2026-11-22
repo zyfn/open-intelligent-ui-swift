@@ -5,17 +5,10 @@ import SwiftUI
 struct OpenUINativeForm: View {
     let context: OpenUIComponentContext
     @StateObject private var validation = NativeFormValidation()
-    private var actionGroup: ObjectIdentifier? {
-        guard case .element(let group) = context.value("buttons"), group.typeName == "Buttons" else { return nil }
-        return ObjectIdentifier(group)
-    }
     var body: some View {
-        // Keep one field/action subtree. An optional enclosing surface reuses
-        // Card's recipe; it does not add a second form or change submission.
         VStack(alignment: .leading, spacing: context.theme.spacing("ml")) {
             ForEach(context.children("fields")) { context.render($0.value) }
             context.slot("buttons").environment(\.openUIFormActions, true)
-                .environment(\.openUIFormActionGroup, actionGroup)
         }
         .environment(\.openUIFieldPresentation, .standalone)
         .environment(\.openUIExactFormName, context.codeUnitString("name"))
@@ -23,7 +16,7 @@ struct OpenUINativeForm: View {
         .environment(\.openUIFormValidation, validation)
         .modifier(OpenUICardSurface(theme: context.theme,
             variant: context.presentation.formShowsCardSurface ? "card" : "clear",
-            active: context.layoutConfigurationReady))
+            active: context.layoutConfigurationReady, usesStandardCardStyle: true))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(context.string("name") ?? "Form")
         .onAppear { updateDeclarations() }
@@ -93,11 +86,10 @@ struct OpenUINativeFormControl: View {
 struct OpenUINativeButtons: View {
     let context: OpenUIComponentContext
     @Environment(\.layoutDirection) private var direction
-    @Environment(\.openUIFormActionGroup) private var formActionGroup
+    @Environment(\.openUIFormActions) private var formActions
+
     private var column: Bool {
-        context.string("direction") == "column"
-            || (formActionGroup == ObjectIdentifier(context.element)
-                && NativeActionPresentation.fillsSingleFormSubmission(context.element))
+        formActions || context.string("direction") == "column"
     }
     var body: some View {
         NativeButtonsLayout(column: column,
