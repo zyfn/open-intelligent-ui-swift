@@ -6,7 +6,7 @@ enum TextComponent {
         OpenUIComponent(name: "Text", description: "Inline Markdown text or mixed strings/components. Sizes are only xs/sm/md/lg; xl and 2xl belong to Title, not Text. Prominent amounts/statistics use lg with semibold and tabularNums true. Defaults: size md, color ink, weight normal, italic false, lineThrough false, tabularNums false, unlimited lines. Positive maxLines applies to string segments. Mixed strings and inline components share a native TextKit paragraph, including last-line wrapping; no HTML interpretation.", params: [
             Parameter.textOrChildren("text"),
             OpenUIParameter.string("size", required: false, values: ["xs", "sm", "md", "lg"]),
-            OpenUIParameter.string("color", required: false, values: Parameter.colors),
+            Parameter.color(),
             OpenUIParameter.string("weight", required: false, values: ["normal", "medium", "semibold"]),
             OpenUIParameter.flag("italic"), OpenUIParameter.flag("lineThrough"),
             OpenUIParameter.flag("tabularNums"), Parameter.number("maxLines", minimum: 0, maximum: 1000)

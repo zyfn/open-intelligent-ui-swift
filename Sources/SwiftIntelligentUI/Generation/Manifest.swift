@@ -23,7 +23,7 @@ public struct OpenIntelligentUIManifest: Codable, Sendable {
 extension OpenIntelligentUIComponents {
     public var manifest: OpenIntelligentUIManifest {
         let web: Set<String> = ["HtmlView", "YouTube", "Svg", "Circle", "Ellipse", "Rect", "Line", "Path", "Polyline", "Polygon", "G", "SvgText", "Math"]
-        return OpenIntelligentUIManifest(version: "0.1.0-preview.29-design-revamp", profile: components.library.id ?? "openintelligentui",
+        return OpenIntelligentUIManifest(version: "0.1.0-preview.33-map-official", profile: components.library.id ?? "openintelligentui",
             upstreamCommit: "16ef26475999e3a021a50b1607a03717c0721255", runtimeCommit: "f3dfa1d0b479c131b6d4268e81961186f22ff09c",
             components: specification.components.map { .init(name: $0.name, rendering: web.contains($0.name) ? "local-webkit-or-embedded-media" : $0.name == "Map" ? "mapkit" : "swiftui", contract: $0.description) },
             functions: specification.functions.map(\.name), actions: specification.actions.map(\.name),
@@ -34,13 +34,18 @@ extension OpenIntelligentUIComponents {
                 "SearchImage is registered only with an explicit caller service.",
                 "Content and citations present caller-supplied facts; this library does not retrieve or invent them.",
                 "TransportCard displays supplied local clock/date/zone and fare text; no inferred elapsed duration, through-ticket or total price.",
-                "Map route requests ordered Apple MKDirections automobile routes on MapKit; loading, unavailable and oversized cases use visually distinct dashed direct connectors. Routing is not turn-by-turn navigation.",
+                "Map routes use ordered Apple MKDirections automobile routes for 2–25 visible markers. Inline and expanded views share one route lifecycle; complete road results replace the direct-connection overview. Loading, failed and unavailable routes keep that overview. This is not turn-by-turn navigation.",
+                "Map owns category filtering, overview, label selection and native expansion using the pinned Map / MapMarker fields. Duplicate labels keep distinct rendered markers and share label selection. Filtering and recentering do not rewrite the selected value. Place search, business data, location permission and bookings remain host responsibilities.",
                 "Map basemap and remote media depend on external network resources.",
                 "HTML has no native bridge; inline scripts are isolated and network is restricted.",
                 "Functions execute pinned upstream computation code in JavaScriptCore; JSON data values only.",
-                "Native Box and Svg dimensions accept numbers, px, percent, em/rem with SwiftUI proposal semantics; viewport-relative CSS units and arbitrary expressions are not silently simulated. Semantic colors and system fonts remain native.",
+                "Positional contracts follow demo 53df45b4231aabab1a0e932733e117937ff2b41c. Layout/property behavior follows intelligent-ui-library 0.0.1 at openui c531b0dfe83dc828241f71dbe77e689ebdbf05f7; this is not a claim of complete browser CSS or pixel parity.",
+                "Box supports numeric lengths, numeric strings, px, percent, Dynamic Type-scaled em/rem and vw/vh from the enclosing visible container. Percent uses parent constraints; unavailable viewport geometry stays unresolved. Invalid CSS width/height units and expressions are not simulated.",
+                "Explicit Box.flex uses a zero basis before authored dimensions. Row wrap distributes flex per line; definite-height columns distribute it vertically. Direct Row photos use responsive media width and a 4:3 ratio, so ordinary image/text composition needs no private sizing recipe.",
+                "Colors accept semantic tokens, HEX, RGB(A), HSL(A) and CSS named colors. Advanced CSS color spaces and relative/inherited color expressions are not supported; native palette and system typography remain host-configurable.",
                 "Image and optional SearchImage expose the upstream framing fields to new generation; writer definitions generate spec and prompt together. Legacy priceText fields remain in the historical reader.",
-                "Existing component names, positional parameters, bindings and reader schemas are retained. Visual defaults and invalid-value feedback are refined without a new language.",
+                "ImageText is available only to historical reading. New output composes Image, Title, Text and Caption with Col, Row, Box or Grid; the writer catalog, prompt and generation validation use the same boundary.",
+                "Component names, positional arguments and bindings are retained. Layout/color/spacing schemas remove private ranges and enums to follow the pinned upstream contract; components still handle invalid finite values according to their rendering rules.",
                 "Generation validation uses the advertised writer profile; historical validation keeps the complete reader. Presentation warnings are non-blocking.",
                 "This manifest describes implemented contracts, not exhaustive device or model acceptance."
             ])

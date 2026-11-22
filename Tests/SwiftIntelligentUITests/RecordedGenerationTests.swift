@@ -15,6 +15,13 @@ final class RecordedGenerationTests: XCTestCase {
             XCTAssertTrue(state.errors.isEmpty, "\(name): \(state.errors)")
             XCTAssertNotNil(state.root, name)
             XCTAssertTrue(library.validationIssues(in: try XCTUnwrap(state.root)).isEmpty, name)
+            if name == "editorial" {
+                let issues = library.validationIssues(in: try XCTUnwrap(state.root), profile: .generation)
+                XCTAssertEqual(issues, [
+                    "root.Col.children[1].ImageText: component is not available in this validation profile",
+                    "root.Col.children[2].ImageText: component is not available in this validation profile"
+                ])
+            }
             if name == "budget" {
                 state.setState("$total", value: .number(90))
                 let text = strings(.element(try XCTUnwrap(state.root))).joined(separator: " ")

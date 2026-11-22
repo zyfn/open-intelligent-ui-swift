@@ -52,12 +52,14 @@ extension OpenIntelligentUIComponents {
         .init("A supplied price remains its supplied amount, currency and scope. Use source field definitions for quote ownership; an earlier assistant explanation is not additional evidence. Preserve known amounts and corrections on later turns. Never sum, split, reprice, invent stock, ratings or cancellation conditions. Missing conditions do not justify discarding a known amount. Do not infer a round-trip total from a round URL or number of legs."),
         .init("Use the default semantic typography and colors. Leave body weight at normal; emphasize only short key phrases when useful. Do not make entire paragraphs semibold or mute primary prose. Avoid equivalent solid foreground/background colors. Status backgrounds are soft tints. Explicit component parameters express intent; wrapping content does not redefine its meaning."),
         .init("Use typed calculations: numeric Min/Max do not consume clock strings. Same-date/same-zone zero-padded clocks can be sorted then the owning record selected. FormatDate has no locale argument; its named styles are English, iso is language-neutral. Plural defaults to English. Keep monetary rounding and source duration scope explicit."),
-        .init("Use Card for a real object or coherent group. Ordinary paragraphs and chapters keep open reading layout. Avoid redundant nested surfaces and display headings inside every card.", requires: ["Card"]),
+        .init("Use Card when a real object or coherent group needs one visible surface. Its children form a vertical group; ordinary paragraphs and chapters can keep open reading layout. Do not add a surface merely to arrange content or repeat a heading inside every card.", requires: ["Card"]),
         .init("Title labels real headings; Text is the reading body; Caption is supporting text. Text sizes are xs/sm/md/lg only. Do not wrap headings in Markdown bold. Choose an explicit supporting role when intended rather than relying on an item's position.", requires: ["Title", "Text", "Caption"]),
-        .init("Grid columns retain their declared meaning. Supply minChildWidth for adaptive readable columns. Box width/height accept point numbers, px, percentages of a measured parent and em/rem. Do not emit vw/vh/fr or arbitrary CSS functions; these do not have reliable native message-layout semantics.", requires: ["Grid"]),
-        .init("Image(src, alt, aspectRatio?, radius?, fit?) accepts a real supplied URL, meaningful alt, and optional explicit framing. Use 3:4 (0.75) for portraits, 3:2 for editorial photos, and 16:9 for widescreen when the subject benefits; the native theme owns defaults and controls. Never invent a URL or attribution.", requires: ["Image"]),
+        .init("Grid arranges ordinary children in equal-width columns independently of their surfaces. columns is the fixed count when minChildWidth is omitted; with minChildWidth it is the maximum count. Choose a readable minChildWidth for the content and let the container determine the actual columns.", requires: ["Grid"]),
+        .init("Box supplies explicit sizing, padding, background and borders when the content needs them. Ordinary compositions can use the layout defaults; explicit layout arguments are optional controls, not a required wrapper pattern.", requires: ["Box"]),
+        .init("For a photo beside text, place the image and a Col of text directly in Row. Row supplies its default media sizing and alignment. Choose the content structure without calculating device widths or requiring fixed-width and flex wrappers for this common case.", requires: ["Row", "Col", "Image"]),
+        .init("Image(src, alt, aspectRatio?, radius?, fit?) accepts a real supplied URL and meaningful alt. Leave optional framing unset for ordinary use; specify it when the content calls for it, and let the containing layout supply its defaults. Never invent a URL or attribution.", requires: ["Image"]),
         .init("SearchImage(query, aspectRatio?, radius?, fit?) requires an explicitly configured caller search service. Give an exact subject; framing arguments are optional. Do not fabricate attribution.", requires: ["SearchImage"]),
-        .init("Use Col for covers, Row for leading/trailing thumbnails, Grid for tiles and Carousel for a short visual collection. Choose structure from the information relationship. No decorative page numbers or current/total counters.", requires: ["Image", "Col", "Row", "Grid", "Carousel"]),
+        .init("Use Col for vertical reading, Row for a horizontal group, Grid for equal-width columns and Carousel for horizontal browsing. Each arranges ordinary child components. Choose the layout from the information relationship; do not add decorative page numbers or current/total counters.", requires: ["Col", "Row", "Grid", "Carousel"]),
         .init("Keep a figure and its attribution in one compact Col([Image(src,alt), Text([suppliedCredit, Citation(suppliedSources)], \"xs\", \"muted\")], 2). Preserve supplied author/license facts. Add references only where supported and useful; do not fabricate attribution or add an empty source entry.", requires: ["Image", "Col", "Text", "Citation"]),
         .init("References attached to a sentence belong in mixed Text([text, Citation(...)]) so they share paragraph flow; standalone source lists remain valid. Do not append sources around consumer cards by default.", requires: ["Citation", "Text"]),
         .init("Use Link for intentional navigation such as an official site or full guide; avoid duplicate standalone source links when a source entry already serves that purpose.", requires: ["Link"]),
@@ -71,7 +73,7 @@ extension OpenIntelligentUIComponents {
         .init("Popover trigger content is presentation-only. Put independent controls and links inside the opened content, not inside the trigger.", requires: ["Popover"]),
         .init("Use ProductCard for supplied purchasable goods or bookable services, including accommodation. Preserve known price, all supplied images, exact purchase/booking destination and stable entity identity. Filtering, confirmation or adding a checklist must keep selected entities as cards; use a compact layout when useful. Do not generate legacy priceText, offers, marketing prefixes or inferred units. Put supplied conditions in priceNote.", requires: ["ProductCard"]),
         .init("Use TransportCard for transport. One card represents one source journey/direction and only its supplied ordered segments. Independent journeys, outbound/return and alternatives remain separate cards. Preserve parent quote ownership. Price and navigation belong in journey fields. An unclear shared quote is preserved once in the first related journey's priceNote, with price empty, rather than duplicated or assigned an unsupported scope. Use supplied fromCity/toCity and full from/to names without trimming or guessing. Only supplied connection facts justify transfer labels. Do not generate legacy priceText or inferred units.", requires: ["TransportCard"]),
-        .init("Build Map markers from supplied names, coordinates and optional category/emoji icon. Map owns its category filter, overview, selectable place cards and expanded native view. Do not recreate these controls around the map. Map.selected holds the clicked marker label; empty means overview. Built-in place cards use only marker labels, categories and icons; never invent photos, addresses or business details. Additional supplied rich content may appear in the surrounding document. route requests driving paths with MKDirections in supplied marker order; loading, unsupported and failed legs fall back to dashed direct connectors. This is an overview, not navigation or an inferred visit order.", requires: ["Map", "MapMarker"]),
+        .init("Build Map markers only from supplied names and coordinates, with optional source category and emoji icon. Never invent coordinates or place facts. Map handles category filtering, recentering, expansion and responsive sizing. selected stores the clicked marker label, including when labels repeat. route follows the supplied marker order when street routing is available; an overview does not imply turn-by-turn navigation or an inferred visit order.", requires: ["Map", "MapMarker"]),
         .init("ListItem.description is a secondary summary; put substantial reading content in children. Timeline times and stages use the existing marker field.", requires: ["ListItem"]),
         .init("Use Svg for a diagram; always provide its short accessible label. Svg children must be drawing shapes (G may group shapes), not arbitrary UI. Preserve source coordinates and readable text, with equivalent native explanation. Explicit source colors retain meaning; semantic colors follow the SwiftUI theme.", requires: ["Svg"]),
         .init("Flashcard is a learning surface, not decoration. Both faces are presentation-only; keep independent interactive operations outside the flipping surface.", requires: ["Flashcard"]),
@@ -83,7 +85,10 @@ extension OpenIntelligentUIComponents {
         ["Col", "Title", "Text", "Button"],
         ["Col", "SegmentedControl", "List", "ListItem", "Checkbox", "Disclosure", "Text"],
         ["Col", "ProductCard", "Checkbox", "Button", "Text"],
-        ["Col", "Title", "Image", "Text", "Citation", "Row"],
+        ["Col", "Title", "Image", "Text", "Citation"],
+        ["Col", "Row", "Image", "Title", "Text"],
+        ["Col", "Grid", "Card", "Title", "Text"],
+        ["Col", "Carousel", "Image", "Title", "Caption"],
         ["Col", "TransportCard"],
         ["Col", "TransportCard"],
         ["Col", "Map", "MapMarker"],
@@ -115,9 +120,27 @@ extension OpenIntelligentUIComponents {
         product = {id:record.id, title:record.title, images:record.images, price:record.price, currency:record.currency, purchaseURL:originalURL}
         """,
         """
-        Editorial cover with compact supplied attribution and inline source, then an independent image/text row:
-        root = Col([Title("建筑观察", "xl"), Col([Image("https://example.com/cover.jpg", "建筑封面"),Text(["图片：示例摄影者 · 示例许可 ",Citation([{title:"封面图片来源与许可",url:"https://example.com/cover-source"}])],"xs","muted")],2), Row([Image(article.image.url,article.image.alt),Col([Title(article.title),Text(article.body)])])])
-        article = {image:{url:"https://example.com/building.jpg", alt:"建筑细节"}, title:"观察建筑形制", body:"从输入资料中的建筑细节展开说明。"}
+        Editorial cover with compact supplied attribution and adjacent reading content:
+        root = Col([Title("建筑观察", "xl"), figure, Text("从输入资料中的建筑细节展开说明。")])
+        figure = Col([Image("https://example.com/cover.jpg", "建筑封面", 1.5),Text(["图片：示例摄影者 · 示例许可 ",Citation([{title:"封面图片来源与许可",url:"https://example.com/cover-source"}])],"xs","muted")],2)
+        """,
+        """
+        Photo beside reading content; Row supplies its default media layout:
+        root = Col([Row([photo, copy])])
+        photo = Image("https://example.com/detail.jpg", "建筑细节")
+        copy = Col([Title("观察建筑形制"), Text("从来源提供的屋檐与门窗细节理解这座建筑。")])
+        """,
+        """
+        Equal columns without card surfaces, followed by one deliberately grouped card:
+        root = Col([Title("比较两种安排", "lg"), Grid([shortPlan, slowPlan], 2, 160), Card([Title("共同条件"), Text("两种安排都以来源确认的开放时间为准。")], "soft")])
+        shortPlan = Col([Title("紧凑安排"), Text("集中观察一个主题。")])
+        slowPlan = Col([Title("从容安排"), Text("在同一地点留出更多阅读时间。")])
+        """,
+        """
+        Horizontal browsing of ordinary figure groups; each direct child is one carousel item:
+        root = Col([Title("建筑细节", "lg"), Carousel([roof, window], 240)])
+        roof = Col([Image("https://example.com/roof.jpg", "屋檐细节", 1.5), Caption("观察屋檐的层次。")], 2)
+        window = Col([Image("https://example.com/window.jpg", "窗格细节", 1.5), Caption("观察窗格的结构。")], 2)
         """,
         """
         A supplied overnight train/flight connection with separate booking URLs; no invented total:
@@ -132,7 +155,7 @@ extension OpenIntelligentUIComponents {
         return = {id:"return",legs:[{mode:"train",from:"B站",to:"A站",fromCity:"B市",toCity:"A市",departureDate:"2026-11-23",arrivalDate:"2026-11-23",departureTime:"19:55",arrivalTime:"20:49",serviceNumber:"T2"}]}
         """,
         """
-        Map owns filtering, selectable place cards, overview and native expansion. Supply source names, coordinates and categories once; no extra card/filter DSL is needed:
+        Supplied coordinates in a street map with category filtering and expansion. Keep selection in the optional label binding:
         root = Col([Map(markers, false, $selected)])
         $selected = ""
         markers = @Each(places, "p", MapMarker(p.title, p.latitude, p.longitude, p.category, "🏛️"))

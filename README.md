@@ -1,6 +1,6 @@
 # OpenUI Swift SDK
 
-文档版本：1.3 · 更新日期：2026-11-18
+文档版本：1.7 · 更新日期：2026-11-22
 
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择OpenUI 或 OpenIntelligentUI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
@@ -134,7 +134,7 @@ let specJSON = library.specificationJSON
 
 这两个属性在所有库中都相同，内容自动对应选中的组件目录。组件名、位置参数和生成规则继续由各库定义；客户端无需分别拼装 Prompt、schema、函数和 registry。
 
-`readerSpecification` 提供完整读取契约，用于历史数据检查。状态工厂总是使用完整 reader；OpenIntelligentUI 的 `excludingComponents` 只限制新生成内容。默认 OpenIntelligentUI Prompt 不宣告工具查询，宿主需要工具生成时仍须明确其工具策略；传入 ToolProvider 负责执行已经声明的调用。
+`readerSpecification` 提供完整读取契约，用于历史数据检查。状态工厂总是使用完整 reader；OpenIntelligentUI 的 `excludingComponents` 只限制新生成内容。`ImageText` 已默认退出新生成目录，普通图文可用 `Row([Image(...), Col([...])])` 组合，图片尺寸和对齐由 Row 的默认媒体布局处理。需要响应式多列时给 Grid 提供 `minChildWidth`，Agent 无需计算设备宽度；已有 `ImageText` 消息仍由完整 reader 读取，无需改写存量源码。具体用法见 [OpenIntelligentUI 组件指南](docs/openintelligentui.md)。默认 OpenIntelligentUI Prompt 不宣告工具查询，宿主需要工具生成时仍须明确其工具策略；传入 ToolProvider 负责执行已经声明的调用。
 
 ### 4. 切换组件库
 
@@ -152,6 +152,8 @@ OpenUIView(state: state, library: library)
 ~~~
 
 OpenIntelligentUI 的原生图片、内联图片与预览也遵循这份资源 context；仍可通过 `openIntelligentUIImages` 按精确 source key 提供已加载的 SwiftUI 图片。库各自管理裁剪、布局、预览与加载视觉。Markdown/WebKit/MapKit 内部请求有其各自的实现边界，不把它们宣称为原生图片通道的一部分。
+
+OpenIntelligentUI 的地图使用 `Map` / `MapMarker` 表达地点坐标、分类、顺序和可选 label 绑定，组件管理筛选、全览与展开，并使用 MapKit 绘制底图及驾车道路概览。地点名称和坐标由宿主提供；尺寸适配与地图交互由组件完成。参数、选中规则及平台边界见[地图与平台桥接](docs/openintelligentui.md#25-地图与平台桥接)。
 
 标准主题使用 `openUITheme`；OpenIntelligentUI 使用 `openIntelligentUITheme`。这些是各设计系统的可选定制，普通客户端接入不需要分别处理它们。
 

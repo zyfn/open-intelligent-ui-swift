@@ -79,7 +79,7 @@ private struct SliderView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     if canEdit {
                         Button(SDKStrings.text("controls.slider.use_value", locale: locale, formatted(projected))) { context.binding("value")?.wrappedValue = .number(projected) }
-                            .buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.actionAccent, size: "sm"))
+                            .buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.surfaceAccent, size: "sm"))
                     }
                 }
                 let marks = ValueReading.array(context.value("marks")).compactMap { value -> (Double, Double, String)? in

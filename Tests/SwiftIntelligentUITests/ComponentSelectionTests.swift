@@ -10,7 +10,7 @@ final class ComponentSelectionTests: XCTestCase {
         let full = try OpenIntelligentUIComponents()
         let selected = try OpenIntelligentUIComponents(excludingComponents: excluded)
         let expected = Set(full.specification.components.map(\.name)).subtracting(excluded)
-        XCTAssertEqual(full.specification.components.count, 60)
+        XCTAssertEqual(full.specification.components.count, 59)
         XCTAssertEqual(expected.count, 57)
         XCTAssertEqual(Set(selected.specification.components.map(\.name)), expected)
         XCTAssertEqual(Set(selected.manifest.components.map(\.name)), expected)
@@ -31,6 +31,22 @@ final class ComponentSelectionTests: XCTestCase {
             let state = selected.makeState(); state.setSource(source)
             XCTAssertEqual(selected.validationIssues(in: state, source: source), [])
         }
+    }
+
+    func testImageTextIsReaderOnlyByDefaultAndItsExplicitExclusionIsIdempotent() throws {
+        let standard = try OpenIntelligentUIComponents()
+        let explicit = try OpenIntelligentUIComponents(excludingComponents: ["ImageText"])
+        let writer = Set(standard.specification.components.map(\.name))
+        let reader = Set(standard.readerSpecification.components.map(\.name))
+        XCTAssertEqual(reader.subtracting(writer), ["ImageText"])
+        XCTAssertEqual(writer.subtracting(reader), [])
+        XCTAssertNil(standard.components.registry["ImageText"])
+        XCTAssertNotNil(standard.readerComponents.registry["ImageText"])
+        XCTAssertFalse(standard.specificationJSON.contains("ImageText"))
+        XCTAssertFalse(standard.systemPrompt.contains("ImageText"))
+        XCTAssertEqual(explicit.specificationJSON, standard.specificationJSON)
+        XCTAssertEqual(explicit.readerSpecification.jsonString(), standard.readerSpecification.jsonString())
+        XCTAssertEqual(explicit.systemPrompt, standard.systemPrompt)
     }
 
     @MainActor func testExistingMessagesRemainReadableWithSelectedContracts() throws {
@@ -56,7 +72,7 @@ final class ComponentSelectionTests: XCTestCase {
     @MainActor func testSelectionRejectsUnknownNamesAndRootAndKeepsOptionalSearchIndependent() throws {
         XCTAssertThrowsError(try OpenIntelligentUIComponents(excludingComponents: ["Typo"]))
         XCTAssertThrowsError(try OpenIntelligentUIComponents(excludingComponents: ["Col"]))
-        XCTAssertEqual(try OpenIntelligentUIComponents(excludingComponents: ["SearchImage"]).specification.components.count, 60)
+        XCTAssertEqual(try OpenIntelligentUIComponents(excludingComponents: ["SearchImage"]).specification.components.count, 59)
         let service = OpenIntelligentUIImageSearch { _ in .init(url: "https://example.com/photo.jpg", alt: "来源") }
         XCTAssertEqual(try OpenIntelligentUIComponents(imageSearch: service, excludingComponents: excluded).specification.components.count, 58)
         XCTAssertEqual(try OpenIntelligentUIComponents(imageSearch: service, excludingComponents: excluded.union(["SearchImage"])).specification.components.count, 57)

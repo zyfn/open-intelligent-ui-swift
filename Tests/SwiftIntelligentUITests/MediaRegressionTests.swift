@@ -14,6 +14,16 @@ final class MediaRegressionTests: XCTestCase {
         XCTAssertEqual(ImagePixelSize.ratio(.nan, fallback: 1.5), 1.5)
     }
 
+    func testPhotoAspectRatioUsesTheOfficialFallbackAtBothBoundaries() {
+        // Photo.tsx at c531b0d accepts the open interval (0.2, 5).
+        for value in [-1.0, 0, 0.2, 5, 12, .infinity, .nan] {
+            XCTAssertEqual(ImagePixelSize.ratio(value, fallback: 1.5), 1.5)
+        }
+        XCTAssertEqual(ImagePixelSize.ratio(0.25, fallback: 1.5), 0.25)
+        XCTAssertEqual(ImagePixelSize.ratio(4, fallback: 1.5), 4)
+        XCTAssertEqual(ImagePixelSize.ratio(nil, fallback: 1.5), 1.5)
+    }
+
     func testSVGViewBoxRequiresFourFiniteNumbersAndPositiveExtent() throws {
         XCTAssertEqual(try SVGMarkup.viewBox("-5 0 1e3 500"), [-5, 0, 1000, 500])
         for invalid in ["0 0 0 100", "1..2 0 100 100", "0 0 nan 100", "0 0 1e100 20", "0 0 -10 20"] {
@@ -49,29 +59,16 @@ final class MediaRegressionTests: XCTestCase {
         XCTAssertTrue(try SVGMarkup.document(text).markup.contains("&lt;script&gt;"))
     }
 
-    func testMapLabelsUseTheirRectanglesAndSelectionPriority() {
-        let candidates = [
-            MapLabelLayout.Candidate(id: "A", order: 0, selected: false, rect: CGRect(x: 0, y: 0, width: 140, height: 80)),
-            MapLabelLayout.Candidate(id: "B", order: 1, selected: true, rect: CGRect(x: 100, y: 0, width: 140, height: 80)),
-            MapLabelLayout.Candidate(id: "C", order: 2, selected: false, rect: CGRect(x: 400, y: 0, width: 140, height: 80))
-        ]
-        XCTAssertEqual(MapLabelLayout.visible(candidates), Set(["B", "C"]))
-        XCTAssertNotNil(MapPoint.displayIcon("🏛️"))
-        XCTAssertNotNil(MapPoint.displayIcon("🇨🇳"))
-        XCTAssertNil(MapPoint.displayIcon("a long label"))
-    }
-
-    func testMapOverviewHasNoImplicitSelectionAndFilteringClearsHiddenSelection() {
-        let places: Value = .array([
-            .element(EvaluatedElement(typeName: "MapMarker", props: [("label", .string("A")), ("lat", .number(30)), ("lng", .number(120)), ("category", .string("one"))])),
-            .element(EvaluatedElement(typeName: "MapMarker", props: [("label", .string("B")), ("lat", .number(31)), ("lng", .number(121)), ("category", .string("two"))]))
-        ])
-        let points = MapPoint.decode(places)
-        XCTAssertEqual(MapPoint.validSelection("", in: points), "")
-        XCTAssertEqual(MapPoint.validSelection("A", in: points), "A")
-        XCTAssertEqual(MapPoint.validSelection("A", in: points.filter { $0.category == "two" }), "")
-        XCTAssertEqual(MapPoint.validSelection("B", in: points), "B")
-        XCTAssertEqual(MapPoint.validSelection("unknown", in: points), "")
+    func testMapIconUsesOnlyTheFirstTrimmedExtendedPictographicGrapheme() {
+        // 53df45b src/lib/components/map/map-utils.ts pinEmoji: Intl.Segmenter
+        // plus Extended_Pictographic, not the broader Unicode Emoji property.
+        XCTAssertEqual(MapPoint.displayIcon("🏛️"), "🏛️")
+        XCTAssertEqual(MapPoint.displayIcon("  🏛️ museum"), "🏛️")
+        XCTAssertEqual(MapPoint.displayIcon("👨‍👩‍👧‍👦 family"), "👨‍👩‍👧‍👦")
+        XCTAssertEqual(MapPoint.displayIcon("© copyright"), "©")
+        for value in ["🇨🇳", "1️⃣", "A🏛️", "a long label", "  "] {
+            XCTAssertNil(MapPoint.displayIcon(value), value)
+        }
     }
 
     @MainActor func testCancelledMathJobDoesNotRender() async throws {

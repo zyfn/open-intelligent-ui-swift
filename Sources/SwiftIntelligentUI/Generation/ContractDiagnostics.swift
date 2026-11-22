@@ -107,12 +107,6 @@ extension OpenIntelligentUIComponents {
             guard depth < 64 else { return }
             switch value {
             case .element(let element):
-                if element.typeName == "Map" {
-                    let markers = element.props.first { $0.0 == "markers" }?.1
-                    if MapPoint.decode(markers).isEmpty { issues.append(path + ".Map.markers: at least one valid supplied place marker is required") }
-                    let duplicates = MapPoint.duplicateLabels(markers)
-                    if !duplicates.isEmpty { issues.append(path + ".Map.markers: duplicate labels cannot be selected independently: " + duplicates.joined(separator: ", ")) }
-                }
                 if ["ProductCard", "TransportCard"].contains(element.typeName) {
                     let key = element.typeName == "ProductCard" ? "product" : "journey"
                     if let price = ValueReading.field(element.props.first { $0.0 == key }?.1, "price"), !PricePresentation.valid(price) {

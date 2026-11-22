@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Optional host presentation for a source. Existing Lang presentation arguments take precedence.
+/// Optional host presentation for a source. Lang arguments take precedence;
+/// the library's responsive Row photo framing is applied after both.
 public struct OpenIntelligentUIImagePresentation: Equatable, Sendable {
     public enum Fit: String, Sendable { case cover, contain }
     public var aspectRatio: Double?
@@ -43,7 +44,9 @@ enum ImagePixelSize {
     }
 
     static func ratio(_ value: Double?, fallback: CGFloat) -> CGFloat {
-        guard let value, value.isFinite else { return fallback }
-        return CGFloat(min(5, max(0.2, value)))
+        // Photo.tsx at the pinned upstream revision uses an open interval,
+        // falling back rather than clamping invalid authored aspect ratios.
+        guard let value, value.isFinite, value > 0.2, value < 5 else { return fallback }
+        return CGFloat(value)
     }
 }

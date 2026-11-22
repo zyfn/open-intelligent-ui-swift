@@ -121,7 +121,6 @@
 "image.loading_short" = "Loading image";
 "image.searching" = "Finding image";
 "image.retry_short" = "Try again";
-"map.place_count" = "%ld places";
 "map.overview" = "Show overview";
 "map.expand" = "Expand map";
 "map.close" = "Close map";
@@ -141,14 +140,8 @@
 "image.zoom.value" = "%d%%";
 "image.source" = "View image source";
 "image.search_failed" = "Could not retrieve image";
-"map.place" = "Place";
-"map.no_coordinates" = "No valid place coordinates";
-"map.preparing" = "Preparing map";
-"map.fit_all" = "Show all places";
-"map.fit_filtered" = "Fit filtered places";
 "map.all_places" = "All places";
 "map.filter_category" = "Filter by category";
-"map.empty_category" = "No places in this category";
 "math.failed" = "Could not typeset formula";
 "math.preparing" = "Typesetting formula";
 "svg.preparing" = "Preparing diagram";
@@ -169,3 +162,10 @@
 "video.open" = "Open in YouTube";
 "controls.input.pending" = "This draft has not been applied. Current value: %@";
 
+"map.info" = "About this map";
+"map.controls" = "Map controls";
+"map.info.instructions" = "Drag to explore and select a place to highlight it.";
+"map.route.loading" = "Street routing is loading. The line connects places in order.";
+"map.route.roads" = "The line follows driving routes in place order. It is an overview, not turn-by-turn directions.";
+"map.route.direct" = "Street routing is unavailable. The line connects places in order.";
+"map.route.overview" = "Route overview";

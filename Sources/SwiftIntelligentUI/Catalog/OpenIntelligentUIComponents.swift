@@ -39,7 +39,11 @@ public struct OpenIntelligentUIComponents {
         readerComponents = complete
         excludedComponentNames = excludingComponents
         components = try OpenUIComponentLibrary(
-            components: supplied.filter { !excludingComponents.contains($0.definition.name) }.map(WriterContract.project),
+            // Keep stored ImageText programs readable; new output composes
+            // Image and text with the ordinary layout components.
+            components: supplied.filter {
+                $0.definition.name != "ImageText" && !excludingComponents.contains($0.definition.name)
+            }.map(WriterContract.project),
             functions: functions, actions: complete.library.actions,
             root: complete.library.root, id: complete.library.id
         )

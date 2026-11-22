@@ -11,6 +11,11 @@
         "id": "alignment",
         "title": "留白与对齐",
         "program": "root = Col([Col([Caption(\"紧凑 · center\"), Badge(\"湖边\"), Badge(\"老街\")], 1, \"center\"), Col([Caption(\"疏朗 · stretch\"), Card([Text(\"第一站\")]), Card([Text(\"第二站\")])], 6, \"stretch\")])"
+      },
+      {
+        "id": "image-reading",
+        "title": "上图下文 · 基础组件组合",
+        "program": "root = Col([photo, description], 3)\nphoto = Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\", \"相机正面\")\ndescription = Col([Title(\"旅行摄影\"), Badge(\"摄影\"), Text(\"留住喜欢的瞬间，记录沿途的风景。\")], 2)"
       }
     ]
   },
@@ -26,6 +31,11 @@
         "id": "alignment",
         "title": "对齐与换行",
         "program": "root = Col([Caption(\"两端对齐\"), Row([Text(\"出发\"),Text(\"到达\")], 3, \"center\", \"between\"), Caption(\"内容过长时换行\"), Row([Badge(\"湖边散步\"),Badge(\"有室内空间的博物馆\"),Badge(\"适合休息的咖啡馆\"),Badge(\"天气好的时候去\")], 2, \"center\", \"start\", true)])"
+      },
+      {
+        "id": "image-reading",
+        "title": "图文并排 · 默认媒体布局",
+        "program": "root = Col([Row([photo, description])])\nphoto = Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\", \"相机正面\")\ndescription = Col([Title(\"旅行摄影\"), Badge(\"摄影\"), Caption(\"出发前准备\"), Text(\"检查相机和存储卡。\"), Caption(\"Wolfgang Moroder · CC BY-SA 3.0\"), Button(\"记录准备事项\", @ToAssistant(\"记录摄影准备事项\"), \"outline\")])"
       }
     ]
   },
@@ -35,12 +45,17 @@
       {
         "id": "basic",
         "title": "基础用法",
-        "program": "root = Col([Grid([Card([Title(\"湖边\",\"sm\"),Text(\"轻松散步\")]),Card([Title(\"老城\",\"sm\"),Text(\"街巷闲逛\")])],2,140,4)])"
+        "program": "root = Col([Grid([Col([Title(\"湖边\",\"sm\"),Text(\"轻松散步\")],2),Col([Title(\"老城\",\"sm\"),Text(\"街巷闲逛\")],2)],2,140,4)])"
       },
       {
         "id": "adaptive",
-        "title": "列数与最小宽度",
-        "program": "root = Col([Caption(\"两列 · 窄屏回落\"), Grid(items, 2, 140, 3), Caption(\"三列 · 小单元\"), Grid(items, 3, 85, 2)])\nitems = [Card([Text(\"湖边\")]),Card([Text(\"巷子\")]),Card([Text(\"博物馆\")]),Card([Text(\"餐厅\")])]"
+        "title": "固定列数与自适应列数",
+        "program": "root = Col([Caption(\"固定两列 · 不按宽度减列\"), Grid(items, 2), Caption(\"两列 · 窄屏回落\"), Grid(items, 2, 140, 3), Caption(\"三列 · 小单元\"), Grid(items, 3, 85, 2)])\nitems = [Card([Text(\"湖边\")]),Card([Text(\"巷子\")]),Card([Text(\"博物馆\")]),Card([Text(\"餐厅\")])]"
+      },
+      {
+        "id": "image-reading",
+        "title": "图文网格 · 无卡片外框",
+        "program": "root = Col([Grid([photography, lakeside], 2, 160, 4)])\nphotography = Col([Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\", \"相机正面\", 1.5, \"md\", \"contain\"), Title(\"旅行摄影\", \"sm\"), Text(\"留住喜欢的瞬间，记录沿途的风景。\")], 2)\nlakeside = Col([Image(\"https://img1.qunarzz.com/travel/d0/1508/b5/86a1839a0346a8.jpg_r_720x480x95_04ad6f0a.jpg\", \"西湖苏堤沿湖步道与柳树实景\", 1.5, \"md\", \"contain\"), Title(\"湖边漫步\", \"sm\"), Text(\"沿湖步道与柳树，走一段喜欢的风景。\")], 2)"
       }
     ]
   },
@@ -61,6 +76,11 @@
         "id": "palette",
         "title": "全部主题背景色",
         "program": "root = Col([Grid([Col([Box([], \"col\", 0, 4, \"ink\", \"md\", true, null, 44),Caption(\"ink\")]),Col([Box([], \"col\", 0, 4, \"muted\", \"md\", true, null, 44),Caption(\"muted\")]),Col([Box([], \"col\", 0, 4, \"faint\", \"md\", true, null, 44),Caption(\"faint\")]),Col([Box([], \"col\", 0, 4, \"surface\", \"md\", true, null, 44),Caption(\"surface\")]),Col([Box([], \"col\", 0, 4, \"info\", \"md\", true, null, 44),Caption(\"info\")]),Col([Box([], \"col\", 0, 4, \"success\", \"md\", true, null, 44),Caption(\"success\")]),Col([Box([], \"col\", 0, 4, \"warning\", \"md\", true, null, 44),Caption(\"warning\")]),Col([Box([], \"col\", 0, 4, \"danger\", \"md\", true, null, 44),Caption(\"danger\")]),Col([Box([], \"col\", 0, 4, \"purple\", \"md\", true, null, 44),Caption(\"purple\")]),Col([Box([], \"col\", 0, 4, \"pink\", \"md\", true, null, 44),Caption(\"pink\")]),Col([Box([], \"col\", 0, 4, \"chart1\", \"md\", true, null, 44),Caption(\"chart1\")]),Col([Box([], \"col\", 0, 4, \"chart2\", \"md\", true, null, 44),Caption(\"chart2\")]),Col([Box([], \"col\", 0, 4, \"chart3\", \"md\", true, null, 44),Caption(\"chart3\")]),Col([Box([], \"col\", 0, 4, \"chart4\", \"md\", true, null, 44),Caption(\"chart4\")]),Col([Box([], \"col\", 0, 4, \"chart5\", \"md\", true, null, 44),Caption(\"chart5\")]),Col([Box([], \"col\", 0, 4, \"chart6\", \"md\", true, null, 44),Caption(\"chart6\")])], 3, 85, 2)])"
+      },
+      {
+        "id": "transparent-border",
+        "title": "透明背景与边框",
+        "program": "root = Col([Box([Title(\"周末计划\",\"sm\"),Text(\"沿湖散步，留一点时间休息。\")],\"col\",3,4,null,\"lg\",true)])"
       }
     ]
   },
@@ -287,21 +307,6 @@
       }
     ]
   },
-  "ImageText": {
-    "category": "Content",
-    "examples": [
-      {
-        "id": "basic",
-        "title": "上图下文",
-        "program": "root = Col([ImageText({title:\"旅行摄影\",image:{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},body:\"留住喜欢的瞬间，记录沿途的风景。\",badge:\"摄影\"},\"top\")])"
-      },
-      {
-        "id": "leading",
-        "title": "左图右文与底部动作",
-        "program": "root = Col([ImageText({title:\"旅行摄影\",image:{url:\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",alt:\"相机正面\"},subtitle:\"出发前准备\",body:\"检查相机和存储卡。\",caption:\"Wolfgang Moroder · CC BY-SA 3.0\",badge:\"摄影\"},\"leading\",[Button(\"记录准备事项\",@ToAssistant(\"记录摄影准备事项\"),\"outline\")])])"
-      }
-    ]
-  },
   "SearchImage": {
     "category": "Media",
     "examples": [
@@ -314,6 +319,11 @@
         "id": "states",
         "title": "搜索中 / 失败重试",
         "program": "root = Col([Caption(\"搜索中\"),SearchImage(\"gallery-loading\"),Caption(\"首次失败后可重试\"),SearchImage(\"gallery-retry\")])"
+      },
+      {
+        "id": "image-reading",
+        "title": "搜索图文并排 · 默认媒体布局",
+        "program": "root = Col([Row([SearchImage(\"gallery-camera\"), Col([Title(\"旅行摄影\"), Text(\"本地模拟图片搜索，使用随 Gallery 打包的相机照片。\")])])])"
       }
     ]
   },
@@ -329,6 +339,21 @@
         "id": "route",
         "title": "路线、选点与高度",
         "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"风景\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],true,$selection,220)])\n$selection = \"\""
+      },
+      {
+        "id": "selected-place",
+        "title": "预选地点与绑定",
+        "program": "root = Col([Map([MapMarker(\"南宋官窑博物馆\",30.21183,120.150447,\"第一天\"),MapMarker(\"南宋德寿宫遗址博物馆\",30.2412,120.16862,\"第一天\"),MapMarker(\"南宋遗址陈列馆\",30.23219,120.1652,\"第一天\"),MapMarker(\"岳王庙\",30.25474,120.12977,\"第二天\"),MapMarker(\"孤山放鹤亭附近\",30.2542,120.138013,\"第二天\")],false,$selection),Text(\"当前选中：\" + $selection)])\n$selection = \"孤山放鹤亭附近\""
+      },
+      {
+        "id": "literal-selection",
+        "title": "初始地点与后续选择",
+        "program": "root = Col([Map([MapMarker(\"西湖\",30.242637,120.134544,\"散步\",\"🌿\"),MapMarker(\"德寿宫\",30.2412,120.16862,\"历史\",\"🏛️\")],false,\"德寿宫\")])"
+      },
+      {
+        "id": "duplicate-labels",
+        "title": "同名标记",
+        "program": "root = Col([Caption(\"同名测试：在两个已有坐标显示相同演示名称。\"),Map([MapMarker(\"演示标记\",30.242637,120.134544),MapMarker(\"演示标记\",30.2412,120.16862)],false,$selection),Text(\"当前选中：\" + $selection)])\n$selection = \"演示标记\""
       }
     ]
   },

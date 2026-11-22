@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.15 · 更新日期：2026-11-22
+文档版本：1.16 · 更新日期：2026-11-22
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -38,7 +38,7 @@ App 打包由 Xcode 处理，包括 Gallery 与依赖 SDK 的资源，不依靠�
 
 [Muse token 快照](Resources/DesignSystem/muse.tokens.json) 记录来源修订，从 `base.tokens.json` 与 `liquid-sphere.overrides.json` 取客户端传给 SDK 的配色、文字与尺寸。Gallery 通过同一份 `OpenUITheme` 映射预览组件并生成色卡，SDK 的默认值补齐其余主题项。刷新快照时沿用 Muse 的浅深色覆盖、字体属性合并和尺寸别名解析结果。
 
-所有外部动作和链接仅在 Gallery 本地记录，不连接 Agent、不导航、不上传表单或执行交易。原专项诊断资源保留给回归验证及 CLI，不出现在浏览入口。组件示例存于 `Resources/Components/`，不进入 SDK 产品。
+经 SDK action 回调派发的外部动作和链接只在 Gallery 本地记录，不连接 Agent、不上传表单或执行交易。原专项诊断资源保留给回归验证及 CLI，不出现在浏览入口。组件示例存于 `Resources/Components/`，不进入 SDK 产品。
 
 ## 导入现有源码
 
@@ -76,6 +76,8 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 `Components/Card` 用同一份标题和正文对照 `card`、`sunk`、`clear`。在「用法」中选「图文卡片与分隔线」可查看图文行与 EntityList 的组合。
 
 `Components/EntityList` 展示上游的两列排版、两种尺寸和数字字样。`Components/Stack` 的「两端对齐 · 键值行」可用流式播放查看先给布局、再给文案的组合。
+
+`OpenIntelligentUI / Components/Map` 的「预选地点与绑定」直接显示选中 label，可核对筛选和全览不改写绑定、展开后点选标记会关闭展开；「初始地点与后续选择」检查字面量初值后的交互。「同名标记」在两个既有坐标使用明确的演示名称，检查两点都保留且按同一 label 高亮。切换窄宽画布与大字号核对地图高度、标记名称和控件可访问性；道路示例检查加载及失败时的直连概览与成功后的道路。参数与平台边界见[地图说明](../../docs/openintelligentui.md#25-地图与平台桥接)。
 
 可选参数还有 `--locale system|en|zh-Hans|ar`。`--help` 列出全部参数。外部文件限制为 1 MiB 以内的 UTF-8 文本。
 

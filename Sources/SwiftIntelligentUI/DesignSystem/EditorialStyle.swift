@@ -40,18 +40,6 @@ enum EditorialNode {
         return readingEdge(children[0], depth: depth + 1)
     }
 
-    static func isProse(_ value: Value) -> Bool {
-        ["Text", "Title", "Caption", "Markdown", "Col", "ImageText"].contains(kind(readingEdge(value)))
-    }
-
-    static func isSourceParagraph(_ value: Value) -> Bool {
-        guard kind(value) == "Text" else { return false }
-        let segments = ValueReading.array(ValueReading.field(value, "text"))
-        return segments.contains { kind($0) == "Citation" } && segments.allSatisfy {
-            if case .string = $0 { return true }
-            return kind($0) == "Citation"
-        }
-    }
 }
 
 enum InlineTypography {
@@ -70,15 +58,13 @@ enum InlineTypography {
 enum EditorialSpacing {
     static func section(_ theme: OpenIntelligentUITheme) -> CGFloat { theme.sectionSpacing + theme.spacingUnit }
     static func between(_ previous: Value, _ next: Value, opening: Bool = false, theme: OpenIntelligentUITheme, nested: Bool = false) -> CGFloat {
-        let leading = EditorialNode.readingEdge(previous), trailing = EditorialNode.readingEdge(next)
-        let before = EditorialNode.kind(leading), after = EditorialNode.kind(trailing)
-        let figures = ["Image", "SearchImage", "Chart", "Table", "Svg", "YouTube", "Map", "Math", "HtmlView"]
-        if ["Text", "Markdown"].contains(before) && figures.contains(after) { return theme.paragraphSpacing }
-        if figures.contains(before) && (["Caption", "Citation"].contains(after) || EditorialNode.isSourceParagraph(trailing)) { return theme.innerSpacing }
+        // These are direct-sibling relationships in upstream flow.styles.ts
+        // (c531b0d). A wrapper is a block, not an implicit media/text recipe.
+        let before = EditorialNode.kind(previous), after = EditorialNode.kind(next)
         if before == "Caption" && after == "Title" { return theme.spacingUnit }
-        let badgeRow = after == "Row" && ValueReading.array(ValueReading.field(trailing, "children")).contains { EditorialNode.kind($0) == "Badge" }
-        if before == "Title" && (["Text", "Caption", "Markdown"].contains(after) || badgeRow) { return theme.innerSpacing }
-        if before == "Title" || nested || (["Text", "Markdown"].contains(before) && ["Text", "Markdown"].contains(after)) { return theme.paragraphSpacing }
+        let badgeRow = after == "Row" && ValueReading.array(ValueReading.field(next, "children")).contains { EditorialNode.kind($0) == "Badge" }
+        if before == "Title" && (["Text", "Caption"].contains(after) || badgeRow) { return theme.innerSpacing }
+        if before == "Title" || nested || (before == "Text" && after == "Text") { return theme.paragraphSpacing }
         return section(theme)
     }
 }

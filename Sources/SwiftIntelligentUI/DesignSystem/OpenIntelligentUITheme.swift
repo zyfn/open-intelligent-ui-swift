@@ -9,8 +9,10 @@ import AppKit
 public struct OpenIntelligentUITheme: Equatable {
     public var primaryText: Color = .primary
     public var secondaryText: Color = .secondary
+    public var faintText: Color = .secondary.opacity(0.6)
     public var canvas: Color = NativeColors.canvas
     public var surface: Color = NativeColors.surface
+    public var surfaceStrong: Color = NativeColors.surfaceStrong
     public var separator: Color = NativeColors.separator
     public var accent: Color = .accentColor
     public var actionAccent: Color = .primary
@@ -69,6 +71,19 @@ public struct OpenIntelligentUITheme: Equatable {
     public var minimumControlHeight: CGFloat = NativeColors.minimumControlHeight
     // Optional native partners for TextKit on systems that cannot resolve Font.
     var nativeTextFonts: [OpenIntelligentUITextFontRole: OpenIntelligentUINativeFont] = [:]
+    // Native fields and outline/soft buttons own an opaque theme surface.
+    // Keep that surface's original text roles when onBackground changes text
+    // on the surrounding raw-color surface. This is not a model-facing option.
+    private struct OpaqueSurfaceColors: Equatable {
+        let primary: Color
+        let secondary: Color
+        let accent: Color
+    }
+    private var opaqueSurfaceColors: OpaqueSurfaceColors?
+    var fieldText: Color { opaqueSurfaceColors?.primary ?? primaryText }
+    var fieldSecondaryText: Color { opaqueSurfaceColors?.secondary ?? secondaryText }
+    var surfaceAccent: Color { opaqueSurfaceColors?.accent ?? actionAccent }
+    var fieldAccent: Color { surfaceAccent }
     public init() {}
 
     func headingScale(_ level: Int) -> Double {
@@ -76,11 +91,19 @@ public struct OpenIntelligentUITheme: Equatable {
     }
 
     func textColor(_ token: String?) -> Color {
-        if let token, let index = Int(token.dropFirst(5)), token.hasPrefix("chart"), chartColors.indices.contains(index - 1) {
-            return chartColors[index - 1]
-        }
+        guard let token else { return primaryText }
+        return foregroundToken(token) ?? CSSColor.parse(token)?.color ?? primaryText
+    }
+
+    /// Foreground and background have distinct upstream token maps. In
+    /// particular, muted/faint keep their paint when used as a background;
+    /// only status backgrounds are replaced by their soft tint.
+    private func foregroundToken(_ token: String) -> Color? {
         switch token {
-        case "muted", "faint": return secondaryText
+        case "ink": return primaryText
+        case "muted": return secondaryText
+        case "faint": return faintText
+        case "canvas": return canvas
         case "surface": return surface
         case "info": return info
         case "warning": return warning
@@ -88,24 +111,75 @@ public struct OpenIntelligentUITheme: Equatable {
         case "pink": return .pink
         case "success": return success
         case "danger": return danger
-        default: return primaryText
+        default:
+            if token.hasPrefix("chart"), let index = Int(token.dropFirst(5)),
+               (1...6).contains(index), token == "chart\(index)", chartColors.indices.contains(index - 1) {
+                return chartColors[index - 1]
+            }
+            return nil
         }
     }
 
     func backgroundColor(_ token: String) -> Color {
-        if ["faint", "muted"].contains(token) { return surface }
-        if ["info", "success", "warning", "danger", "purple", "pink"].contains(token) { return textColor(token).opacity(0.12) }
-        return textColor(token)
+        switch token {
+        case "surface-strong": return surfaceStrong
+        case "border": return fieldBorder
+        case "info", "success", "warning", "danger", "purple", "pink":
+            return textColor(token).opacity(0.12)
+        default: return foregroundToken(token) ?? CSSColor.parse(token)?.color ?? .clear
+        }
+    }
+
+    /// Upstream onColor changes text roles on recognized raw backgrounds.
+    /// Passing a theme token preserves this theme. Explicit child CSS colors
+    /// still resolve independently through textColor(_:).
+    func onBackground(_ value: String?) -> OpenIntelligentUITheme {
+        guard let value, foregroundToken(value) == nil,
+              !["surface-strong", "border"].contains(value),
+              let ink = CSSColor.contrastInk(on: value) else { return self }
+        var result = self
+        result.opaqueSurfaceColors = opaqueSurfaceColors
+            ?? OpaqueSurfaceColors(primary: primaryText, secondary: secondaryText, accent: actionAccent)
+        result.primaryText = ink.color
+        result.secondaryText = ink.color.opacity(0.72)
+        result.faintText = ink.color.opacity(0.55)
+        result.actionAccent = ink.color
+        result.actionForeground = ink.red < 1
+            ? Color(.sRGB, red: 1, green: 1, blue: 1)
+            : Color(.sRGB, red: 13.0 / 255, green: 13.0 / 255, blue: 13.0 / 255)
+        return result
+    }
+
+    /// Only the native opaque variants need the saved surface accent. Explicit
+    /// status colors keep their existing paint; solid/ghost follow onBackground.
+    func buttonAccent(_ color: String?, variant: String) -> Color {
+        switch color {
+        case "danger": return danger
+        case "success": return success
+        default: return variant == "outline" || variant == "soft" ? surfaceAccent : actionAccent
+        }
+    }
+
+    /// Values and fallback count theme units. Like upstream space(), negative
+    /// inputs become zero; no model-facing maximum is imposed. Non-finite
+    /// values or overflowing arithmetic use the finite default instead.
+    func spacing(_ value: Double?, fallback: CGFloat = 0) -> CGFloat {
+        let unit = spacingUnit.isFinite ? max(0, spacingUnit) : 4
+        let defaultPoints = max(0, fallback.isFinite ? fallback : 0) * unit
+        let safeDefault = defaultPoints.isFinite ? defaultPoints : 0
+        guard let value, value.isFinite else { return safeDefault }
+        let points = CGFloat(max(0, value)) * unit
+        return points.isFinite ? points : safeDefault
     }
 
     func radius(named name: String?, points: Double? = nil, fallback: CGFloat? = nil) -> CGFloat {
-        if let points, points.isFinite { return CGFloat(min(10_000, max(0, points))) }
+        if let points, points.isFinite { return CGFloat(max(0, points)) }
         switch name {
         case "sm": return radiusSM
         case "md": return radiusMD
         case "lg": return radiusLG
         case "xl": return radiusXL
-        case "full": return 10_000
+        case "full": return 999
         default: return fallback ?? cornerRadius
         }
     }
@@ -155,11 +229,13 @@ private enum NativeColors {
     #if canImport(UIKit)
     static var canvas: Color { Color(uiColor: .systemBackground) }
     static var surface: Color { Color(uiColor: .secondarySystemBackground) }
+    static var surfaceStrong: Color { Color(uiColor: .tertiarySystemBackground) }
     static var separator: Color { Color(uiColor: .separator) }
     static let minimumControlHeight: CGFloat = 44
     #else
     static var canvas: Color { Color(nsColor: .windowBackgroundColor) }
     static var surface: Color { Color(nsColor: .controlBackgroundColor) }
+    static var surfaceStrong: Color { Color(nsColor: .underPageBackgroundColor) }
     static var separator: Color { Color(nsColor: .separatorColor) }
     static let minimumControlHeight: CGFloat = 28
     #endif

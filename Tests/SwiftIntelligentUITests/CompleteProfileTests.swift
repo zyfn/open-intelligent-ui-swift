@@ -7,7 +7,10 @@ final class CompleteProfileTests: XCTestCase {
     @MainActor func testSearchCapabilityRequiresExplicitProvider() throws {
         let provider = OpenIntelligentUIImageSearch { _ in .init(url: "https://example.com/photo.jpg", alt: "来源") }
         let enabled = try OpenIntelligentUIComponents(imageSearch: provider)
-        XCTAssertEqual(enabled.specification.components.count, 61)
+        XCTAssertEqual(enabled.specification.components.count, 60)
+        XCTAssertEqual(enabled.readerSpecification.components.count, 61)
+        XCTAssertEqual(Set(enabled.readerSpecification.components.map(\.name))
+            .subtracting(enabled.specification.components.map(\.name)), ["ImageText"])
         XCTAssertNotNil(enabled.components.registry["SearchImage"])
         XCTAssertNil(try OpenIntelligentUIComponents().components.registry["SearchImage"])
         XCTAssertEqual(enabled.specification.functions.count, 59)
@@ -45,7 +48,11 @@ final class CompleteProfileTests: XCTestCase {
         XCTAssertEqual(CalendarDate.parse("2026-11-03").map(CalendarDate.string), "2026-11-03")
         XCTAssertNil(YouTubeVideo.id("https://not-youtube.example/watch?v=abcdefghijk"))
         XCTAssertEqual(YouTubeVideo.id("https://youtu.be/abcdefghijk"), "abcdefghijk")
-        let invalid: Value = .array([.object([.init(key: "label", value: .string("A")), .init(key: "lat", value: .number(91)), .init(key: "lng", value: .number(120))])])
+        // 53df45b map.tsx consumes marker elements; map-utils.ts rejects
+        // latitude outside [-90, 90] during rendering, not through the schema.
+        let invalid: Value = .array([.element(EvaluatedElement(typeName: "MapMarker", props: [
+            ("label", .string("A")), ("lat", .number(91)), ("lng", .number(120))
+        ]))])
         XCTAssertTrue(MapPoint.decode(invalid).isEmpty)
     }
     func testChartOmitsUnknownValuesRatherThanInventingZero() {

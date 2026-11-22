@@ -34,14 +34,17 @@ final class LinkedPresentationTests: XCTestCase {
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         let context = OpenUIComponentContext(element: try XCTUnwrap(state.root), registry: library.components.registry, state: state)
         let points = MapPoint.decode(context.value("markers"))
-        XCTAssertEqual(points.map(\.id), ["南宋德寿宫遗址博物馆", "胡雪岩旧居（胡雪岩故居）"])
+        XCTAssertEqual(points.map(\.label), ["南宋德寿宫遗址博物馆", "胡雪岩旧居（胡雪岩故居）"])
+        XCTAssertEqual(Set(points.map(\.id)).count, points.count)
         XCTAssertEqual(points.map(\.icon), ["🏛️", "🏛️"])
         XCTAssertEqual(ValueReading.boundString(context, "selected"), "胡雪岩旧居（胡雪岩故居）")
         XCTAssertNil(PropValue.value(try XCTUnwrap(state.root), "content"))
         XCTAssertNil(context.binding("visibleIds"))
     }
 
-    @MainActor func testMapInvalidSelectionReturnsToOverviewWithoutSelectingAnUnchosenPlace() throws {
+    @MainActor func testRenderingMapPreservesAnUnmatchedSelectionBinding() throws {
+        // 53df45b src/lib/components/map/map.tsx compares each label with
+        // selected; it never rewrites an unmatched value during rendering.
         #if os(macOS)
         let library = try OpenIntelligentUIComponents(), state = library.makeState()
         state.setSource(#"""
@@ -50,23 +53,33 @@ final class LinkedPresentationTests: XCTestCase {
         """#)
         let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library).frame(width: 360, height: 500))
         XCTAssertNotNil(renderer.nsImage)
-        XCTAssertEqual(state.stateValue("$selected"), .string(""))
+        XCTAssertEqual(state.stateValue("$selected"), .string("已失效的地点"))
         #endif
     }
 
-    @MainActor func testMapWithoutPlaceFactsIsRejectedInsteadOfAcceptedAsEmptyMap() throws {
+    @MainActor func testOfficialEmptyMarkerArrayIsAcceptedByBothProfiles() throws {
+        // 53df45b src/lib/components/map/map.tsx: z.array(MapMarker.ref)
+        // has no minimum count; an empty Map is valid input.
         let library = try OpenIntelligentUIComponents(), state = library.makeState()
         let source = "root=Map([])"
         state.setSource(source)
-        XCTAssertTrue(library.validationIssues(in: state, source: source).contains { $0.contains("Map.markers: at least one valid supplied place marker") })
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        XCTAssertEqual(library.validationIssues(in: state, source: source, profile: .historical), [])
+        XCTAssertEqual(library.validationIssues(in: state, source: source, profile: .generation), [])
+        XCTAssertTrue(MapPoint.decode(PropValue.value(try XCTUnwrap(state.root), "markers")).isEmpty)
     }
 
-    @MainActor func testMapDuplicateLabelsAreDiagnosedInsteadOfSilentlyDropped() throws {
+    @MainActor func testOfficialDuplicateLabelsRemainTwoPlacesWithoutExtraRejection() throws {
+        // 53df45b src/lib/components/map/map.tsx: placesOf keeps repeated
+        // labels; only rendering keys differ, while selection stores the label.
         let library = try OpenIntelligentUIComponents(), state = library.makeState()
         let source = #"root=Map([MapMarker("同名地点",30.1,120.1),MapMarker("同名地点",30.2,120.2)])"#
         state.setSource(source)
-        XCTAssertEqual(MapPoint.duplicateLabels(PropValue.value(try XCTUnwrap(state.root), "markers")), ["同名地点"])
-        XCTAssertTrue(library.validationIssues(in: state, source: source).contains { $0.contains("duplicate labels cannot be selected independently") })
+        let points = MapPoint.decode(PropValue.value(try XCTUnwrap(state.root), "markers"))
+        XCTAssertEqual(points.map(\.label), ["同名地点", "同名地点"])
+        XCTAssertEqual(Set(points.map(\.id)).count, 2)
+        XCTAssertEqual(library.validationIssues(in: state, source: source, profile: .historical), [])
+        XCTAssertEqual(library.validationIssues(in: state, source: source, profile: .generation), [])
     }
 
     @MainActor func testDynamicListUsesRuntimePositionalIdentityWithoutCustomID() throws {
@@ -115,7 +128,7 @@ final class LinkedPresentationTests: XCTestCase {
         XCTAssertEqual(MapPoint.decode(map.value("markers")).map(\.label), ["南宋德寿宫遗址博物馆", "胡雪岩旧居（胡雪岩故居）"])
         XCTAssertEqual(ValueReading.boundString(map, "selected"), "")
         XCTAssertNil(PropValue.value(mapElement, "content"))
-        XCTAssertEqual(children.map(\.typeName), ["Map"], "The SDK supplies cards and controls inside the map")
+        XCTAssertEqual(children.map(\.typeName), ["Map"], "The official map example needs no extra card or detail components")
         XCTAssertTrue(library.validationIssues(in: state, source: String(example[start.lowerBound...])).isEmpty)
     }
 

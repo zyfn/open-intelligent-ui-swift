@@ -100,7 +100,7 @@ private struct TimerView: View {
             if let initial { context.binding("seconds")?.wrappedValue = .number(initial) }
             initial = nil
         }
-        .buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.actionAccent))
+        .buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.surfaceAccent))
         .disabled(initial == nil)
     }
 }

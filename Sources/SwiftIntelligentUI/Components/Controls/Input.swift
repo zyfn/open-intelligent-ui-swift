@@ -142,7 +142,7 @@ private struct InputView: View {
                 guard context.canInteract, let binding = context.binding("value") else { return }
                 binding.wrappedValue = parsed
                 draft.discard()
-            }.buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.actionAccent, size: "sm"))
+            }.buttonStyle(UpstreamButtonStyle(variant: "outline", tint: theme.surfaceAccent, size: "sm"))
         }
     }
 }

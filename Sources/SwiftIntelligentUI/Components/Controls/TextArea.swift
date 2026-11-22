@@ -34,7 +34,7 @@ private struct TextAreaView: View {
                     .scrollDismissesKeyboard(.interactively)
                     #endif
                 if text.wrappedValue.isEmpty, let placeholder = context.string("placeholder") {
-                    Text(placeholder).font(theme.bodyFont).foregroundStyle(theme.secondaryText)
+                    Text(placeholder).font(theme.bodyFont).foregroundStyle(theme.fieldSecondaryText)
                         .padding(.horizontal, 5).padding(.vertical, 8)
                         .allowsHitTesting(false).accessibilityHidden(true)
                 }

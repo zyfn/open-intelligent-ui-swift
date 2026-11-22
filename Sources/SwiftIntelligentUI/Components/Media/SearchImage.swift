@@ -63,7 +63,7 @@ import SwiftLang
 enum SearchImageComponent {
     static func component(provider: OpenIntelligentUIImageSearch) -> OpenUIComponent {
         OpenUIComponent(name: "SearchImage", description: "Image search through the caller-provided service. Shows loading, error and retry. No search provider or credentials are bundled.", params: [
-            OpenUIParameter.string("query"), Parameter.number("aspectRatio", minimum: 0.2, maximum: 5), Parameter.radius(),
+            OpenUIParameter.string("query"), Parameter.number("aspectRatio"), Parameter.radius(),
             OpenUIParameter.string("fit", required: false, values: ["cover", "contain"])
         ]) { SearchImageView(context: $0, provider: provider) }
     }
@@ -78,15 +78,19 @@ private struct SearchImageView: View {
     @State private var retry = 0
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.openIntelligentUIEditorial) private var editorial
+    @Environment(\.openIntelligentUIRowMediaAspectRatio) private var rowMediaRatio
     @Environment(\.openIntelligentUIImageRevisions) private var revisions
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
-    private var ratio: CGFloat { CGFloat(context.number("aspectRatio").map { min(5, max(0.2, $0)) } ?? Double(editorial.mediaRatio ?? theme.coverImageAspectRatio)) }
+    private var ratio: CGFloat {
+        rowMediaRatio ?? ImagePixelSize.ratio(context.number("aspectRatio"),
+                                              fallback: editorial.mediaRatio ?? theme.coverImageAspectRatio)
+    }
     private var query: String { context.string("query") ?? "" }
     var body: some View {
         VStack(alignment: .leading, spacing: theme.innerSpacing) {
             if let result, resultQuery == query {
                 SourceImage(source: result.url, alt: result.alt, ratio: ratio,
-                            radius: theme.radius(named: context.string("radius"), points: context.number("radius")), fit: context.string("fit") == "contain" ? .fit : .fill,
+                            radius: theme.radius(named: context.string("radius"), points: context.number("radius"), fallback: theme.radiusLG), fit: context.string("fit") == "contain" ? .fit : .fill,
                             sourceReady: context.element.isSourceComplete, reloadSource: { retry &+= 1 })
                     .environment(\.openIntelligentUIImageRevisions, result.revision.isEmpty ? revisions : revisions.merging([result.url: result.revision], uniquingKeysWith: { _, new in new }))
                 if let attribution = result.attribution, !attribution.isEmpty {
@@ -109,7 +113,7 @@ private struct SearchImageView: View {
                                                     stage: SDKStrings.text("image.searching", locale: locale))
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"))))
+                    .clipShape(RoundedRectangle(cornerRadius: theme.radius(named: context.string("radius"), points: context.number("radius"), fallback: theme.radiusLG)))
             }
         }
         .task(id: query + "#" + String(describing: ObjectIdentifier(provider)) + "#" + String(retry) + "#" + String(context.element.isSourceComplete)) {

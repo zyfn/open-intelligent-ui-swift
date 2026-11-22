@@ -6,7 +6,7 @@ enum TitleComponent {
         OpenUIComponent(name: "Title", description: "Accessible heading. size defaults to md; uses Dynamic Type.", params: [
             OpenUIParameter.string("text"),
             OpenUIParameter.string("size", required: false, values: ["sm", "md", "lg", "xl", "2xl", "3xl"]),
-            OpenUIParameter.string("color", required: false, values: Parameter.colors)
+            Parameter.color()
         ]) { TitleView(context: $0) }
     }
 }

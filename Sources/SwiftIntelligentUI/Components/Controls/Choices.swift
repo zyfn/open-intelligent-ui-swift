@@ -85,7 +85,7 @@ private struct SelectView: View {
                 Text(options.first { $0.id == selection.wrappedValue }?.label ?? context.string("placeholder") ?? SDKStrings.text("controls.choice.placeholder", locale: locale))
                 Spacer(minLength: theme.innerSpacing)
                 Image(systemName: "chevron.down").font(theme.captionFont).accessibilityHidden(true)
-            }.foregroundStyle(selection.wrappedValue == nil ? theme.secondaryText : theme.primaryText)
+            }.foregroundStyle(selection.wrappedValue == nil ? theme.fieldSecondaryText : theme.fieldText)
                 .modifier(FieldSurface(focused: focused))
                 .contentShape(Rectangle())
         }

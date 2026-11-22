@@ -3,9 +3,9 @@ import SwiftLang
 
 enum ImageComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Image", description: "Image from a supplied HTTP(S) URL or exact caller-provided image key. Optional aspectRatio, radius and fit control authored framing; when omitted, a 3:2 cover and the native theme radius apply. Loading and retryable failure preserve the same geometry. Never invent a source URL; no implicit search or substitution.", params: [
+        OpenUIComponent(name: "Image", description: "Image from a supplied HTTP(S) URL or exact caller-provided image key. Optional aspectRatio, radius and fit control framing; defaults are a 3:2 cover and lg radius. A direct Row photo or a Row's photo-only Box uses the library's responsive media width and 4:3 ratio. Loading and retryable failure preserve geometry. Never invent a source URL; no implicit search or substitution.", params: [
             OpenUIParameter.string("src"), OpenUIParameter.string("alt"),
-            Parameter.number("aspectRatio", minimum: 0.2, maximum: 5),
+            Parameter.number("aspectRatio"),
             Parameter.radius(),
             OpenUIParameter.string("fit", required: false, values: ["cover", "contain"])
         ]) { context in
@@ -19,17 +19,18 @@ private struct SourceImageComponentView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.openIntelligentUIEditorial) private var editorial
+    @Environment(\.openIntelligentUIRowMediaAspectRatio) private var rowMediaRatio
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
     @Environment(\.openIntelligentUIImagePresentations) private var presentations
     private var presentation: OpenIntelligentUIImagePresentation? { presentations[context.string("src") ?? ""] }
     private var ratio: CGFloat {
-        ImagePixelSize.ratio(context.number("aspectRatio") ?? presentation?.aspectRatio,
-                             fallback: editorial.mediaRatio ?? theme.coverImageAspectRatio)
+        rowMediaRatio ?? ImagePixelSize.ratio(context.number("aspectRatio") ?? presentation?.aspectRatio,
+                                              fallback: editorial.mediaRatio ?? theme.coverImageAspectRatio)
     }
     var body: some View {
         SourceImage(source: context.string("src"), alt: context.string("alt") ?? SDKStrings.text("image.default_label", locale: locale),
                     ratio: ratio,
-                    radius: theme.radius(named: context.string("radius"), points: context.number("radius"), fallback: theme.cornerRadius),
+                    radius: theme.radius(named: context.string("radius"), points: context.number("radius"), fallback: theme.radiusLG),
                     fit: (context.string("fit") ?? presentation?.fit?.rawValue) == "contain" ? .fit : .fill,
                     allowsPreview: !interactive, sourceReady: context.element.isSourceComplete)
     }

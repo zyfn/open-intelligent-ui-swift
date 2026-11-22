@@ -8,6 +8,20 @@ import AppKit
 #endif
 
 final class LibraryFacadeTests: XCTestCase {
+    @MainActor func testDefaultFacadeKeepsImageTextOnlyInItsHistoricalReader() throws {
+        let library = try OpenUILibrary.openIntelligentUI()
+        let explicit = try OpenUILibrary.openIntelligentUI(excludingComponents: ["ImageText"])
+        XCTAssertEqual(library.specificationJSON, explicit.specificationJSON)
+        XCTAssertEqual(library.systemPrompt, explicit.systemPrompt)
+        XCTAssertFalse(library.specification.components.contains { $0.name == "ImageText" })
+        XCTAssertTrue(library.readerSpecification.components.contains { $0.name == "ImageText" })
+        let source = #"root = Col([ImageText({title: "Archived title", subtitle: "Stored content"})])"#
+        let state = library.makeState()
+        state.setSource(source)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        XCTAssertEqual(PropValue.children(try XCTUnwrap(state.root)).map(\.typeName), ["ImageText"])
+    }
+
     @MainActor func testExcludedWriterComponentsRemainReadableThroughTheUnifiedView() throws {
         let library = try OpenUILibrary.openIntelligentUI(excludingComponents: ["ImageText"])
         let original = try OpenIntelligentUIComponents(excludingComponents: ["ImageText"])
