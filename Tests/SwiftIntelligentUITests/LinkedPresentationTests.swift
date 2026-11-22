@@ -116,7 +116,7 @@ final class LinkedPresentationTests: XCTestCase {
     }
 
     @MainActor func testGenerationMapExampleUsesBuiltInPresentationWithoutExtraLangControls() throws {
-        let library = try OpenIntelligentUIComponents(excludingComponents: ["ImageText", "YouTube", "Timer"])
+        let library = try OpenIntelligentUIComponents(excludingComponents: ["YouTube", "Timer"])
         let example = try XCTUnwrap(library.selectedGenerationExamples.first { $0.contains("MapMarker(") })
         let start = try XCTUnwrap(example.range(of: "root = Col("))
         let state = library.makeState()

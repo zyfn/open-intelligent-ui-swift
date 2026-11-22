@@ -24,7 +24,7 @@ enum CarouselMetrics {
             return EditorialNode.kind(value)
         }
         let kind = surfaceKind(first)
-        return ["ProductCard", "TransportCard"].contains(kind) && values.allSatisfy { surfaceKind($0) == kind }
+        return kind == "ProductCard" && values.allSatisfy { surfaceKind($0) == kind }
     }
     static func width(preferred: CGFloat, available: CGFloat, accessibility: Bool) -> CGFloat {
         let preferred = preferred.isFinite ? min(640, max(80, preferred)) : 240

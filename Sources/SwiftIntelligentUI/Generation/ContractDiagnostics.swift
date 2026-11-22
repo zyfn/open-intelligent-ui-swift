@@ -107,14 +107,15 @@ extension OpenIntelligentUIComponents {
             guard depth < 64 else { return }
             switch value {
             case .element(let element):
-                if ["ProductCard", "TransportCard"].contains(element.typeName) {
-                    let key = element.typeName == "ProductCard" ? "product" : "journey"
-                    if let price = ValueReading.field(element.props.first { $0.0 == key }?.1, "price"), !PricePresentation.valid(price) {
-                        issues.append(path + "." + element.typeName + "." + key + ".price: use a nonnegative amount or currency/amount string only; put units/conditions in priceNote")
+                if element.typeName == "ProductCard" {
+                    let product = element.props.first { $0.0 == "product" }?.1
+                    if let price = ValueReading.field(product, "price"), !PricePresentation.valid(price) {
+                        issues.append(path + ".ProductCard.product.price: use a nonnegative amount or currency/amount string only; put units/conditions in priceNote")
+                    }
+                    if ProductCardData(product) == nil {
+                        issues.append(path + ".ProductCard.product: incomplete product data")
                     }
                 }
-                if element.typeName == "TransportCard", TransportData(element.props.first { $0.0 == "journey" }?.1) == nil { issues.append(path + ".TransportCard.journey: invalid route, time/date or connection data") }
-                if element.typeName == "ProductCard", ProductCardData(element.props.first { $0.0 == "product" }?.1) == nil { issues.append(path + ".ProductCard.product: incomplete product data") }
                 for (name, child) in element.props { visit(child, path: path + "." + name, depth: depth + 1) }
             case .array(let array): for (index, child) in array.enumerated() { visit(child, path: path + "[\(index)]", depth: depth + 1) }
             case .object(let object): for field in object.fields { visit(field.value, path: path + "." + field.key.displayString, depth: depth + 1) }

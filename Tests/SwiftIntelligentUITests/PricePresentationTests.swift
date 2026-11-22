@@ -24,12 +24,11 @@ final class PricePresentationTests: XCTestCase {
         XCTAssertFalse(PricePresentation.valid(.string("查询报价 ¥360")))
         XCTAssertTrue(PricePresentation.valid(.string("¥360")))
     }
-    @MainActor func testTransportPriceNeverInfersScopeFromRoundLinkOrLegCount() throws {
+    @MainActor func testProductPriceValidationKeepsConditionsInPriceNote() throws {
         let library = try OpenIntelligentUIComponents(), state = library.makeState()
-        state.setSource(#"root=TransportCard({id:"t",legs:[{mode:"train",from:"A",to:"B"},{mode:"train",from:"B",to:"A"}],price:"63.00",currency:"CNY",priceNote:"成人销售价",bookingURL:"https://example.com/round?x=1"})"#)
-        let data = try XCTUnwrap(TransportData(PropValue.value(try XCTUnwrap(state.root), "journey")))
-        XCTAssertEqual(data.price.text, "¥63.00")
-        XCTAssertEqual(data.price.note, "成人销售价")
+        state.setSource(#"root=ProductCard({id:"p",title:"住宿",images:[],price:"63.00",currency:"CNY",priceNote:"每晚"})"#)
         XCTAssertTrue(library.validationIssues(in: state, source: "").isEmpty)
+        state.setSource(#"root=ProductCard({id:"p",title:"住宿",images:[],price:"¥63.00 每晚"})"#)
+        XCTAssertTrue(library.validationIssues(in: state, source: "").contains { $0.contains(".ProductCard.product.price:") })
     }
 }

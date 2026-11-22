@@ -114,7 +114,7 @@ final class UpstreamParityTests: XCTestCase {
 
     @MainActor func testEditorialRowsRenderLeadingAndTrailingMedia() throws {
         #if os(macOS)
-        let library = try OpenIntelligentUIComponents(excludingComponents: ["ImageText", "YouTube", "Timer"])
+        let library = try OpenIntelligentUIComponents(excludingComponents: ["YouTube", "Timer"])
         for leading in [true, false] {
             let state = library.makeState()
             let picture = #"Image("local-photo","原地点照片")"#

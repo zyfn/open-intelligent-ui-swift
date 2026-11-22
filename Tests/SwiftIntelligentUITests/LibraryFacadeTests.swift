@@ -18,14 +18,14 @@ final class LibraryFacadeTests: XCTestCase {
         }
     }
 
-    @MainActor func testFacadeRendersAtomicImageTextAndJourneyLineComposition() throws {
+    @MainActor func testFacadeRendersAtomicImageAndTextAndJourneyLineComposition() throws {
         let library = try OpenUILibrary.openIntelligentUI()
         let source = #"root = Col([Row([Image("https://example.com/photo.jpg", "建筑"), Col([Title("建筑观察"), Text("观察建筑形制")])]), Row([Col([Text("08:30"), Text("北京南站")]), JourneyLine("train"), Col([Text("13:15"), Text("上海虹桥站")])])])"#
         let state = library.makeState()
         state.setSource(source)
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         XCTAssertTrue(library.recognizesUI(in: source))
-        XCTAssertEqual(library.validationIssues(in: state, source: source), [])
+        XCTAssertEqual(try OpenIntelligentUIComponents().validationIssues(in: state, source: source), [])
         XCTAssertEqual(PropValue.children(try XCTUnwrap(state.root)).map(\.typeName), ["Row", "Row"])
         #if os(macOS)
         _ = NSApplication.shared

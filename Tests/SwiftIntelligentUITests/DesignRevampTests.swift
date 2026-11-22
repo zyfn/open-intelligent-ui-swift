@@ -124,10 +124,10 @@ final class DesignRevampTests: XCTestCase {
 
     func testCarouselOnlyEqualizesComparableEntityCards() {
         XCTAssertTrue(CarouselMetrics.comparable([node("ProductCard"), node("ProductCard")]))
-        XCTAssertTrue(CarouselMetrics.comparable([node("Card", [("children", .array([node("TransportCard")]))]), node("TransportCard")]))
+        XCTAssertTrue(CarouselMetrics.comparable([node("Card", [("children", .array([node("ProductCard")]))]), node("ProductCard")]))
         XCTAssertFalse(CarouselMetrics.comparable([node("Card"), node("Card")]))
         XCTAssertFalse(CarouselMetrics.comparable([node("Text"), node("Text")]))
-        XCTAssertFalse(CarouselMetrics.comparable([node("ProductCard"), node("TransportCard")]))
+        XCTAssertFalse(CarouselMetrics.comparable([node("ProductCard"), node("Text")]))
     }
 
     func testLongListMarkersBelongToTheirOwnRowHeader() {
@@ -156,8 +156,8 @@ final class DesignRevampTests: XCTestCase {
         XCTAssertFalse(text.contains("photo-only"))
         XCTAssertFalse(text.contains("旧报价"))
         XCTAssertTrue(text.contains("相机图片"))
-        let editorial = Value.object([.init(key: "title", value: .string("济州岛")), .init(key: "body", value: .string("海景"))])
-        XCTAssertEqual(PresentationText.summary(node("ImageText", [("content", editorial)])), "济州岛，海景")
+        let editorial = Value.array([node("Title", [("text", .string("济州岛"))]), node("Text", [("text", .string("海景"))])])
+        XCTAssertEqual(PresentationText.summary(node("Col", [("children", editorial)])), "济州岛，海景")
         XCTAssertEqual(PresentationText.summary(node("List", [("items", .array([node("ListItem", [("title", .string("第一项"))])]))])), "第一项")
     }
 

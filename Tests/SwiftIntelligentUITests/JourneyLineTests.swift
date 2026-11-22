@@ -27,7 +27,7 @@ final class JourneyLineTests: XCTestCase {
         XCTAssertEqual(JourneyLineComponent.symbol(for: "train"), "tram.fill")
         XCTAssertEqual(JourneyLineComponent.symbol(for: "bus"), "bus.fill")
         XCTAssertEqual(JourneyLineComponent.symbol(for: "taxi"), "car.fill")
-        XCTAssertEqual(JourneyLineComponent.symbol(for: "ferry"), "ferry.fill")
+        XCTAssertNil(JourneyLineComponent.symbol(for: "ferry"))
         XCTAssertNil(JourneyLineComponent.symbol(for: "unknown"))
     }
 }

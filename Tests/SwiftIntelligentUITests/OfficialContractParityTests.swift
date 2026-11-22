@@ -95,7 +95,7 @@ final class OfficialContractParityTests: XCTestCase {
         XCTAssertNil(library.components.registry["SearchImage"])
         XCTAssertFalse(library.systemPrompt.contains("SearchImage("))
         XCTAssertEqual(library.components.library.components.count, 59)
-        XCTAssertEqual(library.readerSpecification.components.count, 60)
+        XCTAssertEqual(library.readerSpecification.components.count, 59)
     }
 
     func testMapDefinitionsMatchTheCompleteOfficialNestedSchema() throws {
@@ -195,7 +195,7 @@ final class OfficialContractParityTests: XCTestCase {
     func testViewportOnlyAcceptsVisibleFiniteGeometry() {
         XCTAssertEqual(IntelligentUIViewportGeometry.valid(CGSize(width: 420, height: 720)), CGSize(width: 420, height: 720))
         XCTAssertNil(IntelligentUIViewportGeometry.valid(.zero))
-        XCTAssertNil(IntelligentUIViewportGeometry.valid(CGSize(width: .infinity, height: 720)))
+        XCTAssertNil(IntelligentUIViewportGeometry.valid(CGSize(width: CGFloat.infinity, height: 720)))
         XCTAssertNil(IntelligentUIViewportGeometry.valid(CGSize(width: 420, height: -1)))
     }
 

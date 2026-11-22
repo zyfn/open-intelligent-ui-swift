@@ -7,7 +7,7 @@ enum WriterContract {
     static func project(_ component: OpenUIComponent) -> OpenUIComponent {
         var definition = component.definition
         switch definition.name {
-        case "ProductCard", "TransportCard":
+        case "ProductCard":
             definition.params = definition.params.map { original in
                 var parameter = original
                 parameter.schema = original.schema.map(withoutLegacyPrice)

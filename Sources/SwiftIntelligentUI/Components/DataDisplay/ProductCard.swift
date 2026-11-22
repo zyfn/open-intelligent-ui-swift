@@ -5,6 +5,43 @@ private enum ProductCardMetrics {
     static let mediaAspectRatio: CGFloat = 1.5
     static let thumbnailWidth: CGFloat = 160
     static let compactThumbnailWidth: CGFloat = 76
+    static let minimumRowWidth: CGFloat = 260
+}
+
+private struct ProductCardHorizontalLayout: Layout {
+    let gap: CGFloat
+    let rightToLeft: Bool
+    let idealWidth: CGFloat
+
+    static var layoutProperties: LayoutProperties {
+        var properties = LayoutProperties()
+        properties.stackOrientation = .horizontal
+        return properties
+    }
+
+    private func columns(width: CGFloat) -> (image: CGFloat, text: CGFloat) {
+        let width = max(1, width)
+        let image = min(ProductCardMetrics.thumbnailWidth, width * 0.34)
+        return (image, max(1, width - image - max(0, gap)))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? idealWidth
+        let columns = columns(width: width)
+        let textHeight = subviews.count > 1 ? subviews[1].sizeThatFits(.init(width: columns.text, height: nil)).height : 0
+        return CGSize(width: width, height: max(columns.image, textHeight))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        let columns = columns(width: bounds.width)
+        let imageX = rightToLeft ? bounds.maxX - columns.image : bounds.minX
+        let textX = rightToLeft ? bounds.minX : bounds.minX + columns.image + gap
+        subviews[0].place(at: CGPoint(x: imageX, y: bounds.minY), anchor: .topLeading,
+                          proposal: .init(width: columns.image, height: columns.image))
+        subviews[1].place(at: CGPoint(x: textX, y: bounds.minY), anchor: .topLeading,
+                          proposal: .init(width: columns.text, height: bounds.height))
+    }
 }
 
 enum ProductCardComponent {
@@ -124,10 +161,11 @@ private struct ProductCardView: View {
                 }.padding(theme.controlHorizontalPadding)
             } else if context.string("layout") == "horizontal" && !typeSize.isAccessibilitySize {
                 ViewThatFits(in: .horizontal) {
-                    EditorialRowLayout(preferredImageWidth: ProductCardMetrics.thumbnailWidth, ratio: 1, gap: theme.groupSpacing, rightToLeft: direction == .rightToLeft, idealWidth: max(1, EditorialMetrics.minimumRowWidth - 2 * theme.controlHorizontalPadding)) {
+                    ProductCardHorizontalLayout(gap: theme.groupSpacing, rightToLeft: direction == .rightToLeft,
+                                                idealWidth: max(1, ProductCardMetrics.minimumRowWidth - 2 * theme.controlHorizontalPadding)) {
                         picture(radius: theme.controlRadius, thumbnail: true)
                         information
-                    }.padding(theme.controlHorizontalPadding).frame(minWidth: EditorialMetrics.minimumRowWidth)
+                    }.padding(theme.controlHorizontalPadding).frame(minWidth: ProductCardMetrics.minimumRowWidth)
                     vertical
                 }
             } else { vertical }

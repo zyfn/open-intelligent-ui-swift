@@ -64,7 +64,7 @@ final class LayoutTests: XCTestCase {
     }
 
     func testLayoutGeometryRejectsNonfiniteMeasurements() {
-        let row = RowGeometry(sizes: [CGSize(width: .nan, height: 20), CGSize(width: 40, height: .infinity)],
+        let row = RowGeometry(sizes: [CGSize(width: CGFloat.nan, height: 20), CGSize(width: 40, height: CGFloat.infinity)],
                               width: 100, gap: -.infinity, alignment: "stretch", justification: "start", wraps: true)
         XCTAssertEqual(row.size, CGSize(width: 100, height: 20))
         XCTAssertTrue(row.frames.allSatisfy { $0.minX.isFinite && $0.minY.isFinite && $0.width.isFinite && $0.height.isFinite })

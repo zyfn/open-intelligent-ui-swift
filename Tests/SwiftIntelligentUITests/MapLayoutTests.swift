@@ -102,7 +102,6 @@ final class MapLayoutTests: XCTestCase {
                     return selectionState.select(label, in: context, points: visible)
                 }, onCategory: { _ in }, onOverview: {}, onExpansion: {}, onInfo: {})
                 .environment(\.locale, Locale(identifier: "en"))
-                .environment(\.accessibilityReduceMotion, true)
                 .frame(width: size.width, height: size.height))
         }
         let host = NSHostingView(rootView: scene(points, selected: "A"))
