@@ -187,6 +187,7 @@ final class LayoutTests: XCTestCase {
         waitUntil { fields(host).count == 2 }
         let input = try XCTUnwrap(fields(host).first { $0.stringValue == "before" })
         let marker = try XCTUnwrap(fields(host).first { $0.stringValue == "start" })
+        let initialTextAlignment = input.alignment
         input.selectText(nil)
         waitUntil { input.currentEditor() != nil }
         let editor = try XCTUnwrap(input.currentEditor() as? NSTextView)
@@ -201,7 +202,7 @@ final class LayoutTests: XCTestCase {
         func identity(_ object: AnyObject?) -> String {
             object.map { "\(type(of: $0)):\(ObjectIdentifier($0))" } ?? "nil"
         }
-        for alignment in ["stretch", "end"] {
+        for alignment in ["stretch", "end", "center", "start"] {
             state.setState("$alignment", value: .string(OpenUIString(alignment)))
             // A separate field observes completion without changing the active
             // field's placeholder or any other input presentation property.
@@ -211,9 +212,61 @@ final class LayoutTests: XCTestCase {
                 + " attached=\(input.window === window) enabled=\(input.isEnabled)"
             XCTAssertTrue(fields(host).first === input, "Changing width policy must retain the native field; \(context)")
             XCTAssertTrue(input.currentEditor() === editor, "Changing width policy must retain the active editor; \(context)")
+            XCTAssertEqual(input.alignment, initialTextAlignment, "A column's reading-text alignment must not reconfigure the editor; \(context)")
             XCTAssertEqual(endedEditing, 0, "Changing layout must not end and restart editing; \(context)")
             XCTAssertEqual(editor.string, "edited", context)
             XCTAssertEqual(state.stateValue("$value"), .string("edited"), context)
+        }
+    }
+
+    @MainActor func testTextAreaKeepsItsEditingAlignmentWhenColumnAlignmentChanges() throws {
+        _ = NSApplication.shared
+        let library = try OpenIntelligentUIComponents()
+        for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+            let state = library.makeState()
+            defer { state.reset() }
+            state.setSource("""
+            root = Col([TextArea($note, "Notes", null, 2), Input($alignment, "Layout")], null, $alignment)
+            $note = "Line one\\nLine two"
+            $alignment = "start"
+            """)
+            XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+            let host = NSHostingView(rootView: OpenIntelligentUIContentView(state: state, library: library)
+                .environment(\.layoutDirection, direction).frame(width: 320, height: 240, alignment: .topLeading))
+            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 240),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+            defer { window.close() }
+            func textArea(_ view: NSView) -> NSTextView? {
+                if let editor = view as? NSTextView, editor.isEditable, !editor.isFieldEditor { return editor }
+                return view.subviews.lazy.compactMap(textArea).first
+            }
+            func field(_ view: NSView) -> NSTextField? {
+                if let field = view as? NSTextField, field.isEditable { return field }
+                return view.subviews.lazy.compactMap(field).first
+            }
+            func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
+                let deadline = Date().addingTimeInterval(2)
+                repeat {
+                    host.layoutSubtreeIfNeeded()
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+                    host.layoutSubtreeIfNeeded()
+                    if condition() { return }
+                } while Date() < deadline
+                XCTAssertTrue(condition(), "The mounted controls did not update in \(direction)", file: file, line: line)
+            }
+            waitUntil { textArea(host) != nil && field(host)?.stringValue == "start" }
+            let editor = try XCTUnwrap(textArea(host)), marker = try XCTUnwrap(field(host))
+            let initialTextAlignment = editor.alignment
+            for alignment in ["end", "center", "stretch"] {
+                state.setState("$alignment", value: .string(OpenUIString(alignment)))
+                waitUntil { marker.stringValue == alignment }
+                let context = "alignment=\(alignment) direction=\(direction)"
+                XCTAssertTrue(textArea(host) === editor, context)
+                XCTAssertEqual(editor.alignment, initialTextAlignment, context)
+                XCTAssertEqual(editor.string, "Line one\nLine two", context)
+                XCTAssertEqual(state.stateValue("$note"), .string("Line one\nLine two"), context)
+            }
         }
     }
 

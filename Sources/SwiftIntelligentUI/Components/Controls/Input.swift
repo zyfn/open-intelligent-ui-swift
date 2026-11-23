@@ -105,6 +105,9 @@ private struct InputView: View {
             if !label.isEmpty { Text(label).font(theme.labelFont) }
             TextField(context.string("placeholder") ?? "", text: binding)
                 .font(theme.bodyFont).textFieldStyle(.plain)
+                // HTML inputs keep their own start alignment. In SwiftUI an
+                // inherited paragraph alignment also reconfigures the editor.
+                .multilineTextAlignment(.leading)
                 .focused($focused)
                 .submitLabel(.done)
                 .onSubmit { if numeric { draft.finish(current: value) }; focused = false }

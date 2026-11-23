@@ -227,9 +227,11 @@ final class OfficialContractParityTests: XCTestCase {
             .frame(width: 200, height: 200, alignment: .topLeading))
         renderer.scale = 1
         let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
+        // CSSColor authors hex colors in sRGB. Compare in that same fixed space;
+        // a device RGB conversion can change the components of the same paint.
         let paintedRows = (0..<bitmap.pixelsHigh).filter { y in
             (0..<bitmap.pixelsWide).contains { x in
-                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return false }
                 return color.alphaComponent > 0.9 && color.redComponent > 0.9
                     && color.greenComponent < 0.1 && color.blueComponent < 0.1
             }

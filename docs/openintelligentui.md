@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.13 · 更新日期：2026-11-23
+文档版本：1.14 · 更新日期：2026-11-23
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -90,7 +90,7 @@ Box 的可选裁剪仍有独立验收边界：从未提供 radius 切换到提�
 
 - Button、IconButton、Pressable 使用原生按钮语义、胶囊/圆形/轻量表面及选中提示；没有动作时禁用，不自动发送助手消息。Pressable 和 Popover 的触发内容用于展示，避免嵌套交互控件。
 - 输入绑定到显式变量，字面量只读。容器的显式背景可改变默认文字色；原生不透明输入框和 outline / soft 按钮仍使用自身表面的文字、光标与操作色，避免外层白色文字在内部白色画布上失去可读性。数值草稿保留中间输入，空值写入 null；未失焦时也显示尚未生效的草稿与当前有效值，失焦后提供错误反馈与明确恢复/采用操作。外部状态更新不静默丢弃草稿。最新版 rules 支持 required、email、url、numeric、min/max、minLength/maxLength、pattern；Form 收集已挂载的字段并在 @ToAssistant 提交前校验，失败时显示字段错误并阻止提交，其余局部动作不被误拦截。
-- Input 和 TextArea 共享 FieldSurface，使用原生编辑控件、统一边框、内边距、焦点与错误状态。Input/Select 使用胶囊形字段，TextArea 使用连续 18 点圆角；边框为主题 fieldBorder 的固定 1 点描边。
+- Input 和 TextArea 共享 FieldSurface，使用原生编辑控件、统一边框、内边距、焦点与错误状态。编辑区保持阅读方向起始端对齐，不随外层 Col / Box 的段落对齐重配活动编辑器；字段标签和普通阅读文字仍遵循父级对齐规则。Input/Select 使用胶囊形字段，TextArea 使用连续 18 点圆角；边框为主题 fieldBorder 的固定 1 点描边。
 - Select 和选择组使用首个同值选项，未知值保持未选择。短选项使用原生分段 Picker，窄屏或大字号时重排。RadioGroup pills 使用胶囊互斥选择，选中实色底上的说明继承操作前景；cards 使用有轻边界的说明型自适应选项，选中通过既有主题表面和边框表达。普通单选保留圆形指示与字重，不强制所有控件绘成同一种胶囊。
 - Slider 显示来源原值，越界时只将滑块投影到安全位置；实际调整或明确采用才写回。密集 marks 分行避让，保留每个标记。Checkbox 保留勾选框与整行触达。DatePicker 在空值、已有值和错误状态保持同一字段外壳与标签位置，进入既有日期面板后经确认才写回；有效日期按 locale、Gregorian 与 UTC 显示，非法值与越界值保留来源和错误反馈。取消不写入，协议编解码继续使用 Gregorian、UTC、POSIX 和 YYYY-MM-DD。
 - Timer 使用单调经过时间递减，取消隐式一年截值，提供运行、暂停、完成和无效状态。Flashcard 只挂载可见一面，避免隐藏媒体继续执行；仅显示作者提供的 hint，翻面说明保留为无障碍提示。Celebration 保留原有 false→true 与减少动态效果规则。
@@ -272,11 +272,13 @@ makeState() 使用 `SwiftLang` 中 `OpenUIState` 的默认创建方式，不另�
 
 自动检查通过不等于所有设备、全部模型任务或所有流式时序已接受。外部视频、完整 VoiceOver 听读、真实业务动作和物理设备覆盖需要独立验证。
 
-当前回归覆盖 writer / reader 分离、官方 flex 与宽度优先级、数字宽度不收缩与字符串宽度收缩、Row / column Box 换行分配、Col 的确定高度与内容最小高度、直接照片与纯照片 Box 的作用范围、百分比高度在换行 / stretch / RTL 下的稳定基准、Card 包装中的尺寸作用域、根视图百分比高度，以及颜色、间距、圆角和原生表面可读性。几何测试包裹实际注册的 Box / Image renderer，不用替身布局代替生产组件；这些 XCTest（包括像素检查）尚未编译或执行。
+当前回归覆盖 writer / reader 分离、官方 flex 与宽度优先级、数字宽度不收缩与字符串宽度收缩、Row / column Box 换行分配、Col 的确定高度与内容最小高度、直接照片与纯照片 Box 的作用范围、百分比高度在换行 / stretch / RTL 下的稳定基准、Card 包装中的尺寸作用域、根视图百分比高度，以及颜色、间距、圆角和原生表面可读性。几何测试包裹实际注册的 Box / Image renderer，不用替身布局代替生产组件。2026-11-23 的 macOS CI 已实际编译并执行本轮布局、生成与媒体回归；不再沿用此前本地缺少工具链的“未执行”状态。
 
 源码归属、Gallery 目录与资源、本地化及 `git diff --check` 已实际通过。11 个生成示例的组件依赖已静态核对；新增普通 Row、Grid 固定/自适应与 SearchImage Row 等程序已用固定官方 schema 和随包 JS parser 解析，均没有解析错误。该解析不代替 Swift writer 导出、原生渲染或真实 Agent 生成验收。
 
-当前环境没有 Swift / Xcode，实际尝试的 `swift test`、SwiftPM 模块检查及独立消费者构建检查均因工具链缺失而未完成。Chromium 参考几何脚本也在启动时受环境 socket 权限限制阻止，没有取得浏览器实测结果。原生 Gallery、布局截图、焦点与交互仍待 Mac / iOS 验收。实际日志、固定官方源码与解析证据位于忽略的 `outputs/verification/intelligent-ui-primitives/`；这些限制不能被写成“全部官方实现或全部设备已验收”。
+本地 Linux 环境没有 Swift / Xcode，原生验证通过 GitHub Actions 的 macOS 15、Xcode 26.3 执行。[`f36b891` 的第二轮原生结果](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/45109613645)中，Gallery 的 22 个测试全部通过，包含完整来源保全与 13 张实际截图；组件定向回归执行 56 个测试，其中 55 个通过，剩余失败定位到 Col 从 stretch 改为 end 时原生输入编辑器丢失焦点。原有四个 Row / Box 几何失败已通过，新增 SVG 尺寸、ProductCard 和 Slider 的 RTL 用例也通过。根节点 trace 与原始 PNG 均已确认 200 点宿主中的 50% 高度为 100 点；同轮像素断言使用设备 RGB 观测得到错误的零行，后续修订改用与输入一致的 sRGB，保留原阈值和 100 行断言复验。
+
+Gallery 截图覆盖两篇完整阅读场景的 320 / 390 点宽、深浅色、一个辅助字号环境，以及照片 Row；它们是 macOS 窄宽度呈现，不代表真实 iPhone 验收。辅助字号环境触发了 Grid 单列、图表明细和 SVG 原生标签，但这组 macOS 截图中的正文与标题没有随之放大，不能据此验收 iPhone 大字排版。SVG 自然比例修正后，320 点宽热泵与代码隔离页面分别减少 53 点与 90 点非内容空白，正文、图形和图注完整保留。图内小字不独立随 Dynamic Type 放大，复杂表格和长代码仍需横向滚动；构图、真机交互、VoiceOver 与实际模型生成质量仍有独立验收范围。当前截图、日志与元数据保存在忽略的 `outputs/verification/composition-ci-45109613645/`，后续完整门禁以分支对应提交的 CI 结果为准，不能将定向通过写成“全部官方实现或全部设备已验收”。
 
 2026-11-22 的地图对齐候选覆盖固定输入 schema、同名标记保留、label 绑定、筛选和全览不写选中值、响应式高度，以及路线复用、取消和整条路线降级。已移除自定义地点卡片、详情和地点对象注入路径，其专用回归不再作为当前能力。五个 Gallery 用法和五个边界程序均已通过固定官方 schema 与随包 JS parser 的语法检查，没有解析错误或未完成标记。三个产品的源码归属检查、Gallery 目录与资源检查（35 个场景程序，OpenIntelligentUI 60 个组件／80 个用法，OpenUI 88 个组件／109 个用法）、三语言本地化检查（170 个键、150 个字面量调用键）及 `git diff --check` 实际通过；源码归属检查不代表 Swift 构建通过。实际运行 `swift test` 返回 127，因为环境没有 Swift；SwiftPM 模块检查和独立消费者构建也因工具链缺失而阻塞。地图 XCTest、Swift 构建、MapKit 网络响应、VoiceOver、窗口调整和原生画面尚未验收。实际日志与解析证据位于忽略的 `outputs/verification/intelligent-ui-map-alignment/`。
 
