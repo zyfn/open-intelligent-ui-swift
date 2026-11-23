@@ -1,0 +1,71 @@
+name: Streaming layout diagnostics
+
+on:
+  push:
+    branches: ['diagnostics/streaming-layout-20261123']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: streaming-layout-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-streaming:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute mounted streaming and typography in Debug and Release
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          root = Path('outputs/verification/streaming-diagnostics').resolve()
+          root.mkdir(parents=True)
+          pattern = 'ObjectCardCompositionTests|SemanticTypographyTests|MountedStreamingTextProgressTests'
+          result = {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'configurations': []}
+          failed = False
+          for configuration in ('debug', 'release'):
+              output = root/configuration
+              output.mkdir()
+              visual = output/'visual'
+              env = dict(os.environ, OPENUI_SNAPSHOT_DIR=str(visual))
+              command = ['swift', 'test', '--configuration', configuration, '--filter', pattern]
+              with (output/'tests.log').open('w') as log:
+                  process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+                  for line in process.stdout:
+                      print(line, end='', flush=True)
+                      log.write(line)
+                  code = process.wait()
+              content = (output/'tests.log').read_text()
+              cases = re.findall(r"Test Case '-\[([^ ]+) ([^\]]+)\]' (passed|failed|skipped)", content)
+              identities = {(target, name) for target, name, _ in cases}
+              images = sorted(path.name for path in visual.rglob('table-font-*.png'))
+              expected_images = sorted(f'table-font-{slot}-{stage}.png' for slot in ('header', 'body') for stage in ('large', 'accessibility2', 'updated-theme', 'restored'))
+              success = code == 0 and len(cases) == len(identities) == 27 and all(state == 'passed' for _, _, state in cases) and images == expected_images
+              entry = {'configuration': configuration, 'command': command, 'exitCode': code, 'cases': cases, 'images': images, 'passed': success}
+              (output/'evidence.json').write_text(json.dumps(entry, indent=2)+'\n')
+              result['configurations'].append(entry)
+              failed |= not success
+          result['passed'] = not failed
+          (root/'evidence.json').write_text(json.dumps(result, indent=2)+'\n')
+          raise SystemExit(1 if failed else 0)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: streaming-layout-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/streaming-diagnostics/
+          if-no-files-found: error
+          retention-days: 7
