@@ -59,11 +59,12 @@ final class IOSNativeLayoutTests: XCTestCase {
 
     @MainActor func testWrappingContentCardsFillTheIncompleteRowAtPhoneWidths() async throws {
         let detail = "The full explanation wraps inside the card without taking space from its neighbour."
-        for (width, expected) in [
-            (CGFloat(320), [CGFloat(320), 320, 320]),
+        let cases: [(CGFloat, [CGFloat])] = [
+            (320, [320, 320, 320]),
             (350, [169, 169, 350]),
             (530, [506 / 3, 506 / 3, 506 / 3]),
-        ] {
+        ]
+        for (width, expected) in cases {
             let library = try OpenUIComponents.library()
             let measured = IOSLayoutObservations()
             let registry = try observing(library.registry, names: ["Image"], measured: measured)
