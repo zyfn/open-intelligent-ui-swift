@@ -92,6 +92,18 @@ def registry():
     """The sole command definitions used by local runs and the native SDK CI."""
     typography_images = tuple(("{visual}/semantic-typography/table-font-" + slot + "-*.png", "file")
                               for slot in ("header", "body"))
+    ios_images = tuple(("{visual}/ios-native/" + name + ".png", "file") for name in (
+        "cards-320-large", "cards-600-large", "cards-600-accessibility",
+        "buttons-reflow", "options-reflow",
+        "image-wide-loading", "image-wide-loaded", "image-square-loading", "image-square-loaded",
+        "image-portrait-loading", "image-portrait-loaded",
+        "input-owner-update", "textarea-external-update", "switch-and-select-store-update",
+        "radio-and-checkbox-selection", "form-invalid-focused", "form-valid-submitted",
+        "slider-invalid-draft", "slider-valid-submitted", "modal-sm-presented", "modal-lg-presented",
+        "product-vertical-large", "product-horizontal-large", "product-compact-large",
+        "product-horizontal-accessibility2", "product-compact-accessibility2",
+        "product-album-front", "product-album-rear", "product-album-updated",
+    ))
     checks = [
         Check("module-graph", "portable", (
             command("python3", "Tools/check_module_boundaries.py"),
@@ -185,7 +197,7 @@ def registry():
     checks += [Check(c.id, c.profile, c.commands, c.required, "Darwin") for c in mac]
     checks.append(Check("ios-native", "ios", (
         command("python3", "Validation/SDK/ios.py", "--output", "{output}/ios", timeout=3600),
-    ), (("ios/summary.json", "ios"),) + typography_images, "Darwin"))
+    ), (("ios/summary.json", "ios"),) + typography_images + ios_images, "Darwin"))
     return checks
 
 

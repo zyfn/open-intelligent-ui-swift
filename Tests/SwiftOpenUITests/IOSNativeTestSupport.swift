@@ -1,0 +1,125 @@
+#if os(iOS)
+import SwiftUI
+import UIKit
+import XCTest
+
+/// Real UIKit hosting for the iOS-specific SDK regressions. Each test owns its
+/// window, waits for observable content, and tears it down without a host app.
+@MainActor final class IOSNativeTestHost {
+    let window: UIWindow
+    let controller: UIHostingController<AnyView>
+    private weak var previousKeyWindow: UIWindow?
+
+    init<Content: View>(_ content: Content, width: CGFloat = 390, height: CGFloat = 1400) {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        previousKeyWindow = scenes.flatMap(\.windows).first(where: \.isKeyWindow)
+        controller = UIHostingController(rootView: AnyView(content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .ignoresSafeArea()))
+        let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        if let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first {
+            window = UIWindow(windowScene: scene)
+            window.frame = bounds
+        } else {
+            // Package framework tests do not necessarily create an app scene.
+            window = UIWindow(frame: bounds)
+        }
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        layout()
+    }
+
+    func layout() {
+        window.layoutIfNeeded()
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+    }
+
+    func close() {
+        window.endEditing(true)
+        window.isHidden = true
+        window.rootViewController = nil
+        previousKeyWindow?.makeKey()
+    }
+
+    func waitUntil(_ message: String, timeout: TimeInterval = 5,
+        file: StaticString = #filePath, line: UInt = #line,
+        _ condition: @MainActor () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            layout()
+            if condition() {
+                await Task.yield()
+                layout()
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        } while Date() < deadline
+        let label = String(message.map { $0.isLetter || $0.isNumber ? $0 : "-" }.prefix(80))
+        try? saveSnapshot(name: "timeout-" + label)
+        XCTFail("Timed out: \(message). Rendered text: \(renderedText())", file: file, line: line)
+        throw ObservationFailure.timeout
+    }
+
+    func descendants<T: UIView>(of type: T.Type) -> [T] {
+        func visit(_ view: UIView) -> [T] {
+            ((view as? T).map { [$0] } ?? []) + view.subviews.flatMap(visit)
+        }
+        return visit(window)
+    }
+
+    func accessibilityElements() -> [NSObject] {
+        var result: [NSObject] = []
+        var visited = Set<ObjectIdentifier>()
+        func visit(_ value: NSObject) {
+            guard visited.insert(ObjectIdentifier(value)).inserted else { return }
+            result.append(value)
+            if let children = value.accessibilityElements {
+                for child in children { if let object = child as? NSObject { visit(object) } }
+            }
+            let count = value.accessibilityElementCount()
+            if count > 0 && count != NSNotFound {
+                for index in 0..<count {
+                    if let child = value.accessibilityElement(at: index) as? NSObject { visit(child) }
+                }
+            }
+            if let view = value as? UIView { view.subviews.forEach(visit) }
+        }
+        visit(window)
+        return result
+    }
+
+    func renderedText() -> String {
+        accessibilityElements().flatMap { value in
+            [value.accessibilityLabel, value.accessibilityValue,
+                (value as? UILabel)?.text, (value as? UITextField)?.text, (value as? UITextView)?.text]
+                .compactMap { $0 }
+        }.joined(separator: "\n")
+    }
+
+    func snapshot(view: UIView? = nil) -> UIImage {
+        layout()
+        let capturedView = view ?? controller.view!
+        capturedView.layoutIfNeeded()
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(bounds: capturedView.bounds, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(capturedView.bounds)
+            // Framework XCTest has no render-server host app. Software layer
+            // capture still observes the mounted native text and decoded images.
+            capturedView.layer.render(in: context.cgContext)
+        }
+    }
+
+    func saveSnapshot(name: String, view: UIView? = nil) throws {
+        guard let output = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"], !output.isEmpty else { return }
+        let directory = URL(fileURLWithPath: output).appendingPathComponent("ios-native", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try XCTUnwrap(snapshot(view: view).pngData()).write(to: directory.appendingPathComponent(name + ".png"))
+    }
+
+    private enum ObservationFailure: Error { case timeout }
+}
+#endif
