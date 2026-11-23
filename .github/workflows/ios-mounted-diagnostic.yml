@@ -1,4 +1,4 @@
-name: iOS mounted test diagnostic
+name: iOS native interaction diagnostic
 on:
   push:
     branches: ['diagnostic/ios-mounted-tests-20261123']
@@ -9,101 +9,8 @@ concurrency:
   group: ios-mounted-diagnostic
   cancel-in-progress: true
 jobs:
-  mounted:
-    runs-on: macos-15-intel
-    timeout-minutes: 35
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
-      TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
-      TEST_RUNNER_OPENUI_SNAPSHOT_DIR: ${{ github.workspace }}/outputs/ios-mounted-diagnostic/visual
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: b7a5695fcc3de6030b5881a1e10df68442550dd5
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Select and boot the standard iPhone Simulator
-        run: |
-          mkdir -p outputs/ios-mounted-diagnostic
-          git rev-parse HEAD > outputs/ios-mounted-diagnostic/source-sha.txt
-          python3 - <<'PY'
-          import importlib.util, json, os, pathlib, subprocess
-          spec = importlib.util.spec_from_file_location('ios_validation', 'Validation/SDK/ios.py')
-          module = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(module)
-          inventory = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']))
-          device = module.choose_device(inventory)
-          pathlib.Path('outputs/ios-mounted-diagnostic/device.json').write_text(json.dumps(device, indent=2))
-          if device['state'] != 'Booted':
-              subprocess.run(['xcrun', 'simctl', 'boot', device['udid']], check=True)
-          subprocess.run(['xcrun', 'simctl', 'bootstatus', device['udid'], '-b'], check=True)
-          with open(os.environ['GITHUB_ENV'], 'a') as stream:
-              stream.write('IOS_DIAGNOSTIC_DEVICE=' + device['udid'] + '\n')
-          PY
-      - name: Execute the new mounted regressions
-        run: |
-          set -o pipefail
-          xcodebuild test -project Examples/Gallery/OpenUIGallery.xcodeproj -scheme OpenUIGallery \
-            -destination "platform=iOS Simulator,id=$IOS_DIAGNOSTIC_DEVICE" -destination-timeout 120 \
-            -derivedDataPath "$RUNNER_TEMP/ios-mounted-derived-data" \
-            -resultBundlePath outputs/ios-mounted-diagnostic/tests.xcresult \
-            -parallel-testing-enabled NO -enableCodeCoverage NO CODE_SIGNING_ALLOWED=NO \
-            -only-testing:OpenUIGalleryNativeTests \
-            2>&1 | tee outputs/ios-mounted-diagnostic/test.log
-      - name: Preserve actual XCTest results
-        if: always()
-        run: |
-          python3 - <<'PY'
-          import json, os, pathlib, plistlib, shutil
-          products = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ios-mounted-derived-data' / 'Build/Products/Debug-iphonesimulator'
-          destination = pathlib.Path('outputs/ios-mounted-diagnostic') / 'bundle-info'
-          destination.mkdir(parents=True, exist_ok=True)
-          values = {}
-          for name, relative in {
-              'app': 'OpenUIGallery.app/Info.plist',
-              'native-tests': 'OpenUIGallery.app/PlugIns/OpenUIGalleryNativeTests.xctest/Info.plist',
-              'ui-tests': 'OpenUIGalleryUITests-Runner.app/PlugIns/OpenUIGalleryUITests.xctest/Info.plist',
-              'ui-runner': 'OpenUIGalleryUITests-Runner.app/Info.plist',
-          }.items():
-              path = products / relative
-              if path.is_file():
-                  shutil.copyfile(path, destination / (name + '.plist'))
-                  try:
-                      values[name] = plistlib.loads(path.read_bytes())
-                  except Exception as error:
-                      values[name] = {'error': str(error)}
-              else:
-                  values[name] = {'missing': relative}
-          (destination / 'metadata.json').write_text(json.dumps(values, indent=2, default=str) + '\n')
-          PY
-          xcrun swift - "$RUNNER_TEMP/ios-mounted-derived-data/Build/Products/Debug-iphonesimulator/OpenUIGallery.app" <<'SWIFT' > outputs/ios-mounted-diagnostic/bundle-info/foundation.json
-          import Foundation
-          let appURL = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
-          let bundle = Bundle(url: appURL)
-          let resources = bundle?.url(forResource: "Resources", withExtension: nil, subdirectory: "GalleryResources")
-          let result: [String: Any] = [
-              "bundleIdentifier": bundle?.bundleIdentifier ?? "",
-              "resourceURL": bundle?.resourceURL?.path ?? "",
-              "galleryResourcesURL": resources?.path ?? "",
-              "galleryResourcesExist": resources.map { FileManager.default.fileExists(atPath: $0.path) } ?? false,
-              "reservedRootResourcesExist": FileManager.default.fileExists(atPath: appURL.appendingPathComponent("Resources").path)
-          ]
-          print(String(data: try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]), encoding: .utf8)!)
-          SWIFT
-          xcrun xcresulttool get test-results summary --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/summary.json
-          xcrun xcresulttool get test-results tests --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/tests.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ios-mounted-diagnostic-${{ github.run_id }}
-          path: outputs/ios-mounted-diagnostic/
-          if-no-files-found: error
-          retention-days: 7
   interaction:
-    runs-on: macos-15-intel
+    runs-on: macos-15
     timeout-minutes: 35
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
@@ -113,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: b7a5695fcc3de6030b5881a1e10df68442550dd5
+          ref: e974462be96867906b514fd6dc18d8a9868fcdc5
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -137,6 +44,7 @@ jobs:
               stream.write('IOS_DIAGNOSTIC_DEVICE=' + device['udid'] + '\n')
           PY
       - name: Execute real Gallery app interactions
+        id: interactions
         run: |
           set -o pipefail
           xcodebuild test -project Examples/Gallery/OpenUIGallery.xcodeproj -scheme OpenUIGallery \
@@ -188,6 +96,12 @@ jobs:
           SWIFT
           xcrun xcresulttool get test-results summary --path outputs/ios-ui-diagnostic/tests.xcresult > outputs/ios-ui-diagnostic/summary.json
           xcrun xcresulttool get test-results tests --path outputs/ios-ui-diagnostic/tests.xcresult > outputs/ios-ui-diagnostic/tests.json
+      - name: Export actual failed-run attachments with Apple's tool
+        if: ${{ always() && steps.interactions.outcome == 'failure' }}
+        run: |
+          xcrun xcresulttool export attachments \\
+            --path outputs/ios-ui-diagnostic/tests.xcresult \\
+            --output-path outputs/ios-ui-diagnostic/attachments
       - uses: actions/upload-artifact@v4
         if: always()
         with:
