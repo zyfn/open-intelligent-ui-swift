@@ -1,6 +1,6 @@
 # SDK 验证
 
-文档版本：1.7 · 更新日期：2026-11-23
+文档版本：1.8 · 更新日期：2026-11-23
 
 本目录只负责组织验证的执行与证据。SDK 行为断言保留在各产品的 `Tests`，`run.py` 调度这些测试及已有构建、资源、安全和性能工具，CI 调用同一个入口。固定输入验证不调用模型，也不评测 Agent 或 Skill。
 
@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `Tests/SwiftLangTests`、`SwiftOpenUITests`、`SwiftIntelligentUITests` | SDK 语义、组件、交互、布局与生命周期的可执行断言 | 对应产品的行为只有一份测试实现 |
 | `Examples/Gallery/Tests` | Gallery 集成、双库完整页面与截图回归 | 真实案例和展示资源留在示例包 |
-| `Examples/Gallery/NativeTests` | App 宿主内的 UIKit 事件、焦点、原生身份、布局和图片像素 | 使用现有 Gallery 的 Unit Test Bundle；必须有真实应用 scene，不在无 App 的 framework runner 中派发控件事件 |
+| `Examples/Gallery/NativeTests` | App 打包资源，以及宿主内的 UIKit 事件、焦点、原生身份、布局和图片像素 | 使用现有 Gallery 的 Unit Test Bundle；必须有真实应用 scene，不在无 App 的 framework runner 中派发控件事件 |
 | `Examples/Gallery/UITests` | iPhone App 内的真实点击、输入、滚动、系统访问树和动作回执 | 使用现有 Gallery 的 UI Testing Bundle；固定场景通过公开 SDK 入口渲染 |
 | `Tests/ValidationTools` | 验证脚本的错误处理、结果识别和报告汇总测试 | 确认验证工具自身不会错误放行 |
 | `Validation/SDK` | 选择检查、调用工具、记录结果、收集证据 | 不再维护一套 case schema、断言清单或测试状态机 |
@@ -52,7 +52,7 @@ python3 Validation/SDK/run.py --check gallery-tests --check gallery-programs \
 
 每次执行输出 `report.json`、`summary.md`、逐命令日志以及相关截图、契约、覆盖率或性能产物。报告记录实际提交、工作区指纹、操作系统、工具链、完整参数、耗时、退出状态和产物 SHA-256。原生筛选测试先发现用例并要求非空，测试执行还须有真实非零结果；失败、阻塞、超时、取消和未执行分别保留，独立检查仍尽量继续收集证据。
 
-macOS 全量 XCTest 使用独立覆盖率构建目录，导出 SwiftPM 原始 JSON；iOS 分别保存 SDK 与 Gallery App 的 `.xcresult`、Apple 工具输出的 summary/tests 和 `xccov` 原始 JSON。两次执行必须使用同一个已记录的 Simulator。三个 SDK target 均须有真实成功执行；Gallery 结果必须同时包含 App 宿主 Unit Test Bundle 和 UI Test Bundle，各自的三个测试类均须成功执行，不能以 skipped 或 expected failure 通过。覆盖率用于发现缺口，不设没有依据的百分比门槛，也不把执行行数解释为语义或视觉正确率。
+macOS 全量 XCTest 使用独立覆盖率构建目录，导出 SwiftPM 原始 JSON；iOS 分别保存 SDK 与 Gallery App 的 `.xcresult`、Apple 工具输出的 summary/tests 和 `xccov` 原始 JSON。两次执行必须使用同一个已记录的 Simulator。三个 SDK target 均须有真实成功执行；Gallery 结果必须同时包含 App 宿主 Unit Test Bundle 和 UI Test Bundle，宿主单元测试的四个类与 UI 测试的三个类均须成功执行，不能以 skipped 或 expected failure 通过。覆盖率用于发现缺口，不设没有依据的百分比门槛，也不把执行行数解释为语义或视觉正确率。
 
 两平台的完整测试还必须保留表头与正文的字体回归截图。iOS 入口通过 Xcode 的 `TEST_RUNNER_` 约定转发 SDK 快照目录及遥测设置，其他宿主变量不自动增加该前缀。缺图仍判失败，不能仅凭测试命令返回成功替代渲染证据。
 

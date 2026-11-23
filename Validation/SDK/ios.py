@@ -30,7 +30,7 @@ SDK_BUNDLES = {target: "Unit test bundle" for target in TARGETS}
 APP_BUNDLES = {"OpenUIGalleryNativeTests": "Unit test bundle",
                "OpenUIGalleryUITests": "UI test bundle"}
 APP_SUITES = {
-    "OpenUIGalleryNativeTests": ("IOSNativeControlTests", "IOSNativeLayoutTests", "IOSNativePagerTests"),
+    "OpenUIGalleryNativeTests": ("GalleryBundleTests", "IOSNativeControlTests", "IOSNativeLayoutTests", "IOSNativePagerTests"),
     "OpenUIGalleryUITests": ("GalleryNativeControlUITests", "GalleryNativeLayoutUITests", "GalleryProductCardUITests"),
 }
 RESULT_BUCKETS = {"Passed": "passed", "Failed": "failed", "Skipped": "skipped",

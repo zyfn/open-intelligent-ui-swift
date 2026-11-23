@@ -1,7 +1,7 @@
 import XCTest
 
 /// Real app automation. Geometry/identity tests that need in-process UIKit
-/// access remain in the SDK targets; this target observes the app's real AX.
+/// access run in the App-hosted unit target; this target observes the app's real AX.
 class GalleryNativeUITestCase: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false

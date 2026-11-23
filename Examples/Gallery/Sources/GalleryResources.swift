@@ -11,7 +11,13 @@ enum GalleryResources {
     }
 
     static func root() throws -> URL {
-        guard let url = bundle.url(forResource: "Resources", withExtension: nil) else {
+        #if SWIFT_PACKAGE
+        let url = bundle.url(forResource: "Resources", withExtension: nil)
+        #else
+        // Keep the iOS app's root free of the reserved Resources directory.
+        let url = bundle.url(forResource: "Resources", withExtension: nil, subdirectory: "GalleryResources")
+        #endif
+        guard let url else {
             throw GalleryFailure("Gallery Resources 未打包；请使用 Gallery package 或 Xcode project 构建。")
         }
         return url
