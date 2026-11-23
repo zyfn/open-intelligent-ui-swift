@@ -193,7 +193,10 @@ final class IOSProductCardRenderingTests: XCTestCase {
             .environment(\.locale, Locale(identifier: "en_US"))
             .environment(\.colorScheme, .light)
             .environment(\.dynamicTypeSize, typeSize)
-            .environment(\.accessibilityReduceMotion, true)
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
             .frame(width: 320).fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color.white).ignoresSafeArea()
@@ -225,6 +228,9 @@ final class IOSProductCardRenderingTests: XCTestCase {
         func visit(_ value: NSObject) {
             guard visited.insert(ObjectIdentifier(value)).inserted else { return }
             result.append(value)
+            if let children = value.accessibilityElements {
+                children.compactMap { $0 as? NSObject }.forEach(visit)
+            }
             let count = value.accessibilityElementCount()
             if count > 0 && count != NSNotFound {
                 for index in 0..<count {
