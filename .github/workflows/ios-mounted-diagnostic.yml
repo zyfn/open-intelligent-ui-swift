@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: a47e260bf364ac4fecb381689080e55e700fd941
+          ref: acbaa05c6ac4d5596525af1dc59cd9a39d5af3f4
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -56,6 +56,29 @@ jobs:
       - name: Preserve actual XCTest results
         if: always()
         run: |
+          python3 - <<'PY'
+          import json, os, pathlib, plistlib, shutil
+          products = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ios-mounted-derived-data' / 'Build/Products/Debug-iphonesimulator'
+          destination = pathlib.Path('outputs/ios-mounted-diagnostic') / 'bundle-info'
+          destination.mkdir(parents=True, exist_ok=True)
+          values = {}
+          for name, relative in {
+              'app': 'OpenUIGallery.app/Info.plist',
+              'native-tests': 'OpenUIGallery.app/PlugIns/OpenUIGalleryNativeTests.xctest/Info.plist',
+              'ui-tests': 'OpenUIGalleryUITests-Runner.app/PlugIns/OpenUIGalleryUITests.xctest/Info.plist',
+              'ui-runner': 'OpenUIGalleryUITests-Runner.app/Info.plist',
+          }.items():
+              path = products / relative
+              if path.is_file():
+                  shutil.copyfile(path, destination / (name + '.plist'))
+                  try:
+                      values[name] = plistlib.loads(path.read_bytes())
+                  except Exception as error:
+                      values[name] = {'error': str(error)}
+              else:
+                  values[name] = {'missing': relative}
+          (destination / 'metadata.json').write_text(json.dumps(values, indent=2, default=str) + '\n')
+          PY
           xcrun xcresulttool get test-results summary --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/summary.json
           xcrun xcresulttool get test-results tests --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/tests.json
       - uses: actions/upload-artifact@v4
@@ -76,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: a47e260bf364ac4fecb381689080e55e700fd941
+          ref: acbaa05c6ac4d5596525af1dc59cd9a39d5af3f4
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -112,6 +135,29 @@ jobs:
       - name: Preserve actual XCTest results
         if: always()
         run: |
+          python3 - <<'PY'
+          import json, os, pathlib, plistlib, shutil
+          products = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ios-ui-derived-data' / 'Build/Products/Debug-iphonesimulator'
+          destination = pathlib.Path('outputs/ios-ui-diagnostic') / 'bundle-info'
+          destination.mkdir(parents=True, exist_ok=True)
+          values = {}
+          for name, relative in {
+              'app': 'OpenUIGallery.app/Info.plist',
+              'native-tests': 'OpenUIGallery.app/PlugIns/OpenUIGalleryNativeTests.xctest/Info.plist',
+              'ui-tests': 'OpenUIGalleryUITests-Runner.app/PlugIns/OpenUIGalleryUITests.xctest/Info.plist',
+              'ui-runner': 'OpenUIGalleryUITests-Runner.app/Info.plist',
+          }.items():
+              path = products / relative
+              if path.is_file():
+                  shutil.copyfile(path, destination / (name + '.plist'))
+                  try:
+                      values[name] = plistlib.loads(path.read_bytes())
+                  except Exception as error:
+                      values[name] = {'error': str(error)}
+              else:
+                  values[name] = {'missing': relative}
+          (destination / 'metadata.json').write_text(json.dumps(values, indent=2, default=str) + '\n')
+          PY
           xcrun xcresulttool get test-results summary --path outputs/ios-ui-diagnostic/tests.xcresult > outputs/ios-ui-diagnostic/summary.json
           xcrun xcresulttool get test-results tests --path outputs/ios-ui-diagnostic/tests.xcresult > outputs/ios-ui-diagnostic/tests.json
       - uses: actions/upload-artifact@v4
