@@ -262,10 +262,11 @@ private struct ProductCardView: View {
             }
         }
     }
-    private var action: some View { purchaseAction(compact: true) }
-    @ViewBuilder private func purchaseAction(compact: Bool) -> some View {
+    @ViewBuilder private var action: some View {
         if let url = product.purchaseURL, SourceURL.isActionable(url) {
-            PrimaryLinkButton(context: context, label: product.actionLabel ?? SDKStrings.text("product.buy", locale: locale), url: url, compact: compact, symbol: "arrow.up.right")
+            let label = product.actionLabel ?? SDKStrings.text("product.buy", locale: locale)
+            ActionButtonView(context: context, label: label, action: OpenUIActions.openURL(url), size: "sm")
+                .accessibilityLabel(label)
         }
     }
 }

@@ -10,40 +10,65 @@ enum ButtonComponent {
             OpenUIParameter.string("size", required: false, values: ["sm", "md", "lg"]),
             OpenUIParameter.string("icon", required: false),
             OpenUIParameter.flag("disabled"), OpenUIParameter.flag("block")
-        ]) { ActionButtonView(context: $0) }
+        ]) { context in
+            ActionButtonView(
+                context: context,
+                label: context.string("label") ?? "",
+                action: context.action(),
+                variant: context.string("variant") ?? "solid",
+                color: context.string("color"),
+                size: context.string("size") ?? "md",
+                icon: context.string("icon"),
+                disabled: context.flag("disabled") == true,
+                block: context.flag("block") == true
+            )
+        }
     }
 }
 
-private struct ActionButtonView: View {
+struct ActionButtonView: View {
     let context: OpenUIComponentContext
+    let label: String
+    let action: ActionPlan?
+    var variant = "solid"
+    var color: String? = nil
+    var size = "md"
+    var icon: String? = nil
+    var disabled = false
+    var block = false
+
     @Environment(\.openIntelligentUITheme) private var theme
+
     private var tint: Color {
-        theme.buttonAccent(context.string("color"), variant: context.string("variant") ?? "solid")
+        theme.buttonAccent(color, variant: variant)
     }
     private var foreground: Color {
-        guard (context.string("variant") ?? "solid") == "solid" else { return tint }
-        return context.string("color") == nil || context.string("color") == "primary"
-            ? theme.actionForeground : theme.onAccent
+        guard variant == "solid" else { return tint }
+        return color == nil || color == "primary" ? theme.actionForeground : theme.onAccent
     }
-    @ViewBuilder var body: some View {
-        let variant = context.string("variant") ?? "solid"
-        surface.buttonStyle(UpstreamButtonStyle(variant: variant, tint: tint, size: context.string("size") ?? "md"))
-        .font(context.string("size") == "sm" ? theme.compactActionFont : theme.labelFont)
-        .tint(tint)
-        .controlSize(context.string("size") == "sm" ? .small : context.string("size") == "lg" ? .large : .regular)
-        .frame(minHeight: theme.minimumControlHeight)
-        .contentShape(Rectangle())
-        .disabled(context.flag("disabled") == true || context.action() == nil)
+
+    var body: some View {
+        let isSmall = size == "sm"
+        let hitShape = isSmall ? AnyShape(Capsule()) : AnyShape(Rectangle())
+        return surface
+            .buttonStyle(UpstreamButtonStyle(variant: variant, tint: tint, size: size))
+            .font(isSmall ? theme.compactActionFont : theme.labelFont)
+            .tint(tint)
+            .controlSize(isSmall ? .small : size == "lg" ? .large : .regular)
+            .frame(minHeight: isSmall ? nil : theme.minimumControlHeight)
+            .contentShape(hitShape)
+            .disabled(disabled || action == nil)
     }
+
     private var surface: some View {
-        OpenIntelligentUIActionSurface(context: context, action: context.action() ?? ActionPlan(),
+        OpenIntelligentUIActionSurface(context: context, action: action ?? ActionPlan(),
             showsProgress: true, progressTint: foreground) {
             HStack(spacing: theme.iconSpacing) {
-                if let symbol = IconCatalog.symbol(context.string("icon")) { Image(systemName: symbol).accessibilityHidden(true) }
-                Text(context.string("label") ?? "").fixedSize(horizontal: false, vertical: true)
+                if let symbol = IconCatalog.symbol(icon) { Image(systemName: symbol).accessibilityHidden(true) }
+                Text(label).fixedSize(horizontal: false, vertical: true)
             }
             .foregroundStyle(foreground)
-            .frame(maxWidth: context.flag("block") == true ? .infinity : nil)
+            .frame(maxWidth: block ? .infinity : nil)
         }
     }
 }
@@ -57,11 +82,15 @@ struct UpstreamButtonStyle: ButtonStyle {
     @Environment(\.isFocused) private var focused
     @Environment(\.openIntelligentUITheme) private var theme
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let isSmall = size == "sm"
+        let minimumHeight = max(theme.minimumControlHeight, size == "lg" ? 44 : 0)
+        let horizontalPadding = isSmall ? theme.controlHorizontalPadding : (size == "lg" ? 20 : 16)
+        let verticalPadding = isSmall ? theme.controlVerticalPadding : (size == "lg" ? 10 : 8)
+        return configuration.label
             .foregroundStyle(variant == "solid" ? theme.actionForeground : tint)
-            .padding(.horizontal, size == "sm" ? 12 : size == "lg" ? 20 : 16)
-            .padding(.vertical, size == "sm" ? 6 : size == "lg" ? 10 : 8)
-            .frame(minHeight: max(theme.minimumControlHeight, size == "lg" ? 44 : 0))
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .frame(minHeight: isSmall ? nil : minimumHeight)
             .contentShape(Capsule())
             .background(variant == "solid" ? tint : variant == "soft" ? theme.surface : variant == "outline" ? theme.canvas : .clear, in: Capsule())
             .overlay(Capsule().strokeBorder(variant == "outline" ? theme.fieldBorder : .clear))

@@ -1,28 +1,6 @@
 import SwiftUI
 import SwiftLang
 
-/// Shared card navigation action; public arbitrary actions remain Button.
-struct PrimaryLinkButton: View {
-    let context: OpenUIComponentContext
-    let label: String
-    let url: String
-    var compact = false
-    var symbol: String? = nil
-    @Environment(\.openIntelligentUITheme) private var theme
-    var body: some View {
-        OpenIntelligentUIActionSurface(context: context, action: OpenUIActions.openURL(url),
-            showsProgress: true, progressTint: theme.actionForeground) {
-            HStack(spacing: theme.spacingUnit) {
-                Text(label)
-                if let symbol { Image(systemName: symbol).accessibilityHidden(true) }
-            }.font(compact ? theme.compactActionFont : theme.labelFont).foregroundStyle(theme.actionForeground)
-        }
-        .buttonStyle(UpstreamButtonStyle(tint: theme.actionAccent, size: compact ? "sm" : "md"))
-        .controlSize(compact ? .small : .regular).tint(theme.actionAccent)
-        .frame(minHeight: theme.minimumControlHeight).contentShape(Rectangle()).accessibilityLabel(label)
-    }
-}
-
 enum IconButtonComponent {
     static var component: OpenUIComponent {
         OpenUIComponent(name: "IconButton", description: "Native icon button with accessible label. variant defaults to outline. Missing actions are disabled.", params: [

@@ -84,6 +84,111 @@ final class ProductCardTests: XCTestCase {
         XCTAssertEqual(events.map { $0.params.first { $0.0 == "url" }?.1 }, [.string("/buy?item=camera")])
     }
 
+    @MainActor func testProductDetailsShareSmallButtonCapsuleAndCompactLayout() throws {
+        let library = try OpenIntelligentUIComponents()
+        var theme = OpenIntelligentUITheme()
+        theme.canvas = .white
+        theme.primaryText = .black
+        theme.actionAccent = Color(.sRGB, red: 1, green: 0, blue: 0)
+        theme.actionForeground = Color(.sRGB, red: 0, green: 0, blue: 1)
+        theme.surface = Color(.sRGB, red: 0, green: 1, blue: 0)
+        theme.fieldBorder = theme.surface
+        theme.cornerRadius = 0
+        theme.controlRadius = 0
+        theme.minimumControlHeight = 48
+        let scale: CGFloat = 2
+
+        func paint(_ source: String, theme: OpenIntelligentUITheme) throws
+            -> (accentPixels: Int, foregroundPixels: Int, unexpectedPixels: Int, capsule: CGRect, roundEnds: Bool, height: Int) {
+            let state = library.makeState()
+            state.setSource(source)
+            XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+            let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
+                .openIntelligentUITheme(theme)
+                .environment(\.colorScheme, .light)
+                .environment(\.dynamicTypeSize, .large)
+                .frame(width: 320))
+            renderer.scale = scale
+            let image = try XCTUnwrap(renderer.cgImage)
+            let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+            let bitmap = try XCTUnwrap(CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                                                bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo))
+            bitmap.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            let pixels = try XCTUnwrap(bitmap.data).assumingMemoryBound(to: UInt8.self)
+            func dominantChannel(x: Int, y: Int) -> Int? {
+                let offset = y * bitmap.bytesPerRow + x * 4
+                let red = Int(pixels[offset]), green = Int(pixels[offset + 1]), blue = Int(pixels[offset + 2])
+                if red > max(green, blue) + 100 { return 0 }
+                if green > max(red, blue) + 100 { return 1 }
+                if blue > max(red, green) + 100 { return 2 }
+                return nil
+            }
+            var accentPixels = 0
+            var foregroundPixels = 0
+            var unexpectedPixels = 0
+            var capsule = CGRect.null
+            let inset = Int(2 * scale) // Exclude the card's square outer border.
+            for y in 0..<image.height {
+                for x in 0..<image.width {
+                    switch dominantChannel(x: x, y: y) {
+                    case 0:
+                        accentPixels += 1
+                        capsule = capsule.union(CGRect(x: x, y: y, width: 1, height: 1))
+                    case 1 where x >= inset && x < image.width - inset && y >= inset && y < image.height - inset:
+                        unexpectedPixels += 1
+                    case 2: foregroundPixels += 1
+                    default: break
+                    }
+                }
+            }
+
+            // Sample relative to the detected fill, independent of card location.
+            var roundEnds = false
+            if !capsule.isNull {
+                let y = Int(capsule.minY + capsule.height * 0.12)
+                let corner = max(1, Int(capsule.height * 0.07))
+                roundEnds = dominantChannel(x: Int(capsule.midX), y: y) == 0
+                    && dominantChannel(x: Int(capsule.minX) + corner, y: y) != 0
+                    && dominantChannel(x: Int(capsule.maxX) - 1 - corner, y: y) != 0
+            }
+            return (accentPixels, foregroundPixels, unexpectedPixels, capsule, roundEnds, image.height)
+        }
+
+        let product = #"root = Col([ProductCard({id:"ticket",title:"Day ticket",images:[],price:408,purchaseURL:"https://example.com/ticket",actionLabel:"View details"})])"#
+        let smallButton = #"root = Col([Button("View details", @OpenUrl("https://example.com/ticket"), "solid", "primary", "sm")])"#
+        let mediumButton = #"root = Col([Button("View details", @OpenUrl("https://example.com/ticket"), "solid", "primary", "md")])"#
+        let details = try paint(product, theme: theme)
+        let small = try paint(smallButton, theme: theme)
+        let medium = try paint(mediumButton, theme: theme)
+        XCTAssertGreaterThan(medium.accentPixels, 1_000, "The medium Button retains its solid action fill")
+        XCTAssertEqual(medium.capsule.height / scale, theme.minimumControlHeight, accuracy: 2)
+        XCTAssertEqual(details.capsule.width, small.capsule.width, accuracy: scale)
+        XCTAssertEqual(details.capsule.height, small.capsule.height, accuracy: scale)
+
+        var tallerControls = theme
+        tallerControls.minimumControlHeight += 16
+        let tallerMedium = try paint(mediumButton, theme: tallerControls)
+        XCTAssertEqual(tallerMedium.capsule.height / scale, tallerControls.minimumControlHeight, accuracy: 2)
+
+        var widerControls = theme
+        widerControls.controlHorizontalPadding += 8
+        for (source, rendered) in [(product, details), (smallButton, small)] {
+            XCTAssertGreaterThan(rendered.accentPixels, 1_000, "A small capsule retains the original action fill")
+            XCTAssertGreaterThan(rendered.foregroundPixels, 30, "The label retains the solid-action foreground")
+            XCTAssertEqual(rendered.unexpectedPixels, 0, "No border or soft fill is painted on the action")
+            XCTAssertTrue(rendered.roundEnds, "The capsule fills the upper middle while both upper corners stay clear")
+            XCTAssertLessThan(rendered.capsule.height / scale, 44)
+
+            let taller = try paint(source, theme: tallerControls)
+            XCTAssertEqual(taller.capsule.height, rendered.capsule.height, accuracy: scale,
+                           "The small capsule does not grow with the theme's minimum control height")
+            XCTAssertEqual(taller.height, rendered.height, "The small layout stays as compact as its capsule")
+            let wider = try paint(source, theme: widerControls)
+            XCTAssertEqual((wider.capsule.width - rendered.capsule.width) / scale, 16, accuracy: 2,
+                           "The small action honors the theme's horizontal control padding")
+        }
+    }
+
     @MainActor func testProductLayoutsRenderWithInjectedImages() throws {
         let library = try OpenIntelligentUIComponents()
         let state = library.makeState()
