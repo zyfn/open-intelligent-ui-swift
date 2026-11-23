@@ -58,6 +58,46 @@ def cases(tree, index=0):
     return bundles(tree)[index]["children"][0]["children"]
 
 
+def ui_results():
+    summary, tree = results()
+    tree["testNodes"][0]["children"] = [{
+        "name": ios.UI_TARGETS[0], "nodeType": "UI test bundle", "result": "Passed",
+        "children": [{"name": suite, "nodeType": "Test Suite", "result": "Passed",
+                      "children": [case(suite + "/testNativeInteraction()")]} for suite in ios.UI_SUITES],
+    }]
+    return summary, tree
+
+
+def validate_ui(summary, tree):
+    return ios.validate_results(summary, tree, device(), required_targets=ios.UI_TARGETS,
+                                bundle_type="UI test bundle", required_suites=ios.UI_SUITES)
+
+
+class UIResultEvidenceTests(unittest.TestCase):
+    def test_each_required_ui_suite_must_execute_in_the_ui_bundle(self):
+        summary, tree = ui_results()
+        self.assertEqual(validate_ui(summary, tree)["passedTests"], len(ios.UI_SUITES))
+        bundles(tree)[0]["nodeType"] = "Unit test bundle"
+        with self.assertRaisesRegex(ValueError, "UI test bundle"):
+            validate_ui(summary, tree)
+
+    def test_a_missing_ui_suite_cannot_hide_behind_valid_total_counts(self):
+        summary, tree = ui_results()
+        bundles(tree)[0]["children"].pop()
+        summary.update(totalTestCount=2, passedTests=2)
+        with self.assertRaisesRegex(ValueError, ios.UI_SUITES[-1]):
+            validate_ui(summary, tree)
+
+    def test_skipped_or_expected_ui_failures_cannot_pass(self):
+        for status, bucket in (("Skipped", "skippedTests"), ("Expected Failure", "expectedFailures")):
+            with self.subTest(status=status):
+                summary, tree = ui_results()
+                cases(tree)[0]["result"] = status
+                summary.update(passedTests=2, **{bucket: 1})
+                with self.assertRaisesRegex(ValueError, "cannot be skipped"):
+                    validate_ui(summary, tree)
+
+
 class ResultEvidenceTests(unittest.TestCase):
     def test_all_three_products_require_executed_cases(self):
         summary, tree = results()
@@ -308,6 +348,36 @@ class RunnerEvidenceTests(unittest.TestCase):
                  patch.object(run, "json_command", side_effect=lambda name, *args: data[name]):
                 with self.assertRaisesRegex(RuntimeError, "exited 65"):
                     run.tests(Path(directory), None)
+
+    def test_ui_xcode_failure_cannot_be_replaced_by_a_successful_result_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = ios.IOSRun(Path(directory))
+            run.report["device"] = device()
+            summary, tree = ui_results()
+            data = {"ui-test-summary": summary, "ui-test-tree": tree, "ui-coverage": {"targets": [{}]}}
+            def command(name, *args, **kwargs):
+                if name == "gallery-ui-tests":
+                    raise RuntimeError("UI xcodebuild exited 65")
+                return Path(directory) / (name + ".log")
+            with patch.object(run, "command", side_effect=command), \
+                 patch.object(run, "json_command", side_effect=lambda name, *args: data[name]):
+                with self.assertRaisesRegex(RuntimeError, "UI xcodebuild exited 65"):
+                    run.ui_tests(Path(directory))
+
+    def test_passing_sdk_tests_and_builds_cannot_replace_ui_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "evidence"
+            def sdk_tests(run, *args):
+                run.report["testResults"] = ios.validate_results(*results(), device())
+            with patch("sys.argv", ["ios.py", "--output", str(output)]), \
+                 patch("sys.stdout", new_callable=io.StringIO), \
+                 patch.object(ios.signal, "signal"), patch.object(ios.platform, "system", return_value="Darwin"), \
+                 patch.object(ios.IOSRun, "tests", sdk_tests), patch.object(ios.IOSRun, "ui_tests"), \
+                 patch.object(ios.IOSRun, "builds"):
+                self.assertEqual(ios.main(), 1)
+            report = json.loads((output / "summary.json").read_text())
+            self.assertNotIn("No validated iOS test execution evidence", report["failures"])
+            self.assertIn("No validated Gallery UI interaction evidence", report["failures"])
 
     def test_a_stage_without_validated_test_results_cannot_pass(self):
         with tempfile.TemporaryDirectory() as directory:
