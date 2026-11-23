@@ -101,26 +101,43 @@ private struct NativeMarkdownTableCell: View {
   let configuration: TableCellConfiguration
   @Environment(\.nativeMarkdownTableLayout) private var layout
   @Environment(\.openUITheme) private var theme
-  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
   var body: some View {
     let alignment = layout.alignments.indices.contains(configuration.column)
       ? layout.alignments[configuration.column].frameAlignment : .leading
     let font = configuration.row == 0 ? theme.tableAppearance?.headerFont : theme.tableAppearance?.bodyFont
-    configuration.label
-      .markdownTextStyle {
-        if let font {
-          FontFamily(font.family.map(FontProperties.Family.custom) ?? .system(font.design))
-          FontSize(font.size)
-          FontWeight(font.weight)
-        } else if configuration.row == 0 { FontWeight(.medium) }
-        BackgroundColor(nil)
-      }
-      .fixedSize(horizontal: false, vertical: true)
-      .frame(minHeight: font.map { $0.resolved(for: .body).measuredLineHeight(scale: scale) }, alignment: .top)
-      .padding(.horizontal, 8)
-      .padding(.vertical, 12)
-      .frame(minWidth: configuration.row == 0 ? layout.minimumColumnWidth : nil, alignment: alignment)
+    return NativeMarkdownFontSizeReader(size: font?.size ?? 0) { resolvedSize in
+      let scale = font.map { $0.size > 0 ? resolvedSize / $0.size : 1 } ?? 1
+      configuration.label
+        .markdownTextStyle {
+          if let font {
+            FontFamily(font.family.map(FontProperties.Family.custom) ?? .system(font.design))
+            // Cell overrides replace the root size, so scale the override itself.
+            FontSize(resolvedSize)
+            FontWeight(font.weight)
+          } else if configuration.row == 0 { FontWeight(.medium) }
+          BackgroundColor(nil)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(minHeight: font.map { $0.resolved(for: .body).measuredLineHeight(scale: scale) }, alignment: .top)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 12)
+        .frame(minWidth: configuration.row == 0 ? layout.minimumColumnWidth : nil, alignment: alignment)
+    }
   }
+}
+
+/// The parent resolves theme and inherited fonts on every update. This reader
+/// scales that current point size without caching a font or replacing its child.
+private struct NativeMarkdownFontSizeReader<Content: View>: View {
+  @ScaledMetric private var resolvedSize: CGFloat
+  let content: (CGFloat) -> Content
+
+  init(size: CGFloat, @ViewBuilder content: @escaping (CGFloat) -> Content) {
+    _resolvedSize = ScaledMetric(wrappedValue: size, relativeTo: .body)
+    self.content = content
+  }
+
+  var body: some View { content(resolvedSize) }
 }
 
 /// Shared native Markdown presentation. Remark owns text parsing and extensions;
@@ -139,7 +156,6 @@ struct NativeMarkdownText: View {
   @Environment(\.openUIActivationIntent) private var activationIntent
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.multilineTextAlignment) private var textAlignment
-  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
   @StateObject private var math = NativeMathRenderer()
   @StateObject private var streamText = NativeStreamingTextBuffer()
   @StateObject private var document = NativeMarkdownDocument()
@@ -153,9 +169,8 @@ struct NativeMarkdownText: View {
     }
   }
   private var font: OpenUIFont { style.resolvedFont(theme: theme, inherited: inheritedFont) }
-  private var mathSize: CGFloat { font.size * scale }
   private var mathColor: String { NativeCSSColor.css(foreground, scheme: colorScheme) }
-  private var markdownTheme: Theme {
+  private func markdownTheme(font: OpenUIFont, scale: CGFloat) -> Theme {
     var result = Theme.basic
     if let table = theme.tableAppearance {
       result = result.table { configuration in
@@ -184,12 +199,18 @@ struct NativeMarkdownText: View {
   private var visibleText: String {
     streamText.text(for: text, streaming: streamActive)
   }
-  private var request: NativeRichTextRequest {
-    .init(source: OpenUIString(visibleText), mode: mode, sources: sources, fontSize: Double(mathSize), color: mathColor)
+  var body: some View {
+    NativeMarkdownFontSizeReader(size: font.size) { resolvedSize in
+      markdown(resolvedSize: resolvedSize)
+    }
   }
 
-  var body: some View {
-    MarkdownUI.Markdown(document.content(for: request),
+  private func markdown(resolvedSize: CGFloat) -> some View {
+    let font = self.font
+    let scale = font.size > 0 ? resolvedSize / font.size : 1
+    let request = NativeRichTextRequest(source: OpenUIString(visibleText), mode: mode,
+      sources: sources, fontSize: Double(resolvedSize), color: mathColor)
+    return MarkdownUI.Markdown(document.content(for: request),
       baseURL: resources.baseURL, imageBaseURL: resources.baseURL)
       .markdownTextStyle {
         ForegroundColor(foreground)
@@ -197,7 +218,7 @@ struct NativeMarkdownText: View {
         // MarkdownUI applies the shared body scale once to this base size.
         FontSize(font.size)
         FontWeight(font.weight)
-        TextTracking(font.letterSpacing * mathSize)
+        TextTracking(font.letterSpacing * resolvedSize)
         FontDigitVariant(style.numeric || font.monospacedDigits ? .monospaced : .normal)
       }
       .markdownTextStyle(\.link) { ForegroundColor(theme.textNeutralLink); UnderlineStyle(.single) }
@@ -232,9 +253,9 @@ struct NativeMarkdownText: View {
           language: OpenUIString(NativeMarkdownCode.language(configuration.language)), theme: theme)
           .markdownMargin(top: theme.spacing("s"), bottom: theme.spacing("s"))
       }
-      .markdownTheme(markdownTheme)
-      .markdownImageProvider(NativeMarkdownImageProvider(math: math, fontSize: mathSize, color: mathColor))
-      .markdownInlineImageProvider(NativeMarkdownInlineImages(math: math, fontSize: mathSize, color: mathColor, resources: resources))
+      .markdownTheme(markdownTheme(font: font, scale: scale))
+      .markdownImageProvider(NativeMarkdownImageProvider(math: math, fontSize: resolvedSize, color: mathColor))
+      .markdownInlineImageProvider(NativeMarkdownInlineImages(math: math, fontSize: resolvedSize, color: mathColor, resources: resources))
       .textSelection(.enabled)
       .frame(maxWidth: .infinity, alignment: frameAlignment)
       .background(alignment: .topLeading) {
@@ -269,19 +290,22 @@ struct NativeMarkdownText: View {
   }
   private func heading<Content: View>(_ content: Content, level: Int, before: CGFloat) -> some View {
     let headingFont = theme.markdownHeadingStyle(level).font
-    return content
-      .fixedSize(horizontal: false, vertical: true)
-      // The text-style modifier must surround this relative-size reader so its
-      // em units use the heading's font, including custom leading and tracking.
-      .relativeLineSpacing(.em(headingFont.additionalLineSpacing() / max(1, headingFont.size)))
-      .markdownTextStyle {
-        FontFamily(headingFont.family.map(FontProperties.Family.custom) ?? .system(headingFont.design))
-        FontSize(.em(headingFont.size / max(1, font.size)))
-        FontWeight(headingFont.weight)
-        TextTracking(headingFont.letterSpacing * headingFont.size * scale)
-        FontDigitVariant(headingFont.monospacedDigits ? .monospaced : .normal)
-      }
-      .markdownMargin(top: before, bottom: theme.spaceS)
+    return NativeMarkdownFontSizeReader(size: headingFont.size) { resolvedSize in
+      content
+        .fixedSize(horizontal: false, vertical: true)
+        // The text-style modifier must surround this relative-size reader so its
+        // em units use the heading's font, including custom leading and tracking.
+        .relativeLineSpacing(.em(headingFont.additionalLineSpacing() / max(1, headingFont.size)))
+        .markdownTextStyle {
+          FontFamily(headingFont.family.map(FontProperties.Family.custom) ?? .system(headingFont.design))
+          // A block's absolute size replaces MarkdownUI's scaled body size.
+          FontSize(resolvedSize)
+          FontWeight(headingFont.weight)
+          TextTracking(headingFont.letterSpacing * resolvedSize)
+          FontDigitVariant(headingFont.monospacedDigits ? .monospaced : .normal)
+        }
+        .markdownMargin(top: before, bottom: theme.spaceS)
+    }
   }
 }
 

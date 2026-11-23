@@ -1,17 +1,19 @@
 """Exercise the orchestration failure boundaries using disposable local commands."""
-from contextlib import redirect_stdout
+from contextlib import chdir, redirect_stdout
 import importlib.util
 import io
 import json
 import os
 from pathlib import Path
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from unittest.mock import patch
+import zlib
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / "Validation/SDK/run.py"
 SPEC = importlib.util.spec_from_file_location("sdk_validation_runner", MODULE_PATH)
@@ -231,6 +233,37 @@ sys.exit(m.execute(checks,Path({str(output)!r}),root=Path({str(self.repo)!r}),re
         self.assertEqual(self.collection(inputs[:-1], "missing")[0], 1)
         self.assertEqual(self.collection(inputs + inputs[:1], "duplicate")[0], 1)
         self.assertEqual(self.collection(inputs, "wrong-sha", "0" * 40)[0], 1)
+
+    def test_collect_relative_cli_inputs_retain_required_visual_evidence(self):
+        def chunk(kind, data):
+            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+        png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0))
+               + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00\xff")) + chunk(b"IEND", b""))
+        first = self.checks[0]
+        script = ("from pathlib import Path; p=Path('{visual}')/'gallery-editorial'; p.mkdir(parents=True); "
+                  f"(p/'openui-fixture.png').write_bytes({png!r}); "
+                  "(p/'openui-fixture.json').write_text('{\"fixture\":true}')")
+        self.checks[0] = runner.Check(first.id, first.profile, (self.python(script),), (
+            ("{visual}/gallery-editorial/openui-*.png", "file"),
+            ("{visual}/gallery-editorial/openui-*.json", "json"),
+        ))
+        inputs = self.prepared_collection()
+        arguments = ["collect", "--expected-sha", self.sha, "--output", "relative-collection"]
+        for path in inputs:
+            arguments.extend(["--input", path.relative_to(self.directory).as_posix()])
+        with chdir(self.directory), patch.object(runner, "registry", return_value=self.checks):
+            code = runner.main(arguments)
+        report = json.loads((self.directory / "relative-collection/report.json").read_text())
+        self.assertEqual(code, 0, report["errors"])
+        artifacts = report["checks"][0]["artifacts"]
+        self.assertTrue(any(item["path"].endswith("openui-fixture.png") for item in artifacts))
+        image = inputs[0] / "visual" / first.id / "gallery-editorial/openui-fixture.png"
+        image.write_bytes(png + b"tampered")
+        arguments[arguments.index("--output") + 1] = "relative-tampered"
+        with chdir(self.directory), patch.object(runner, "registry", return_value=self.checks):
+            self.assertEqual(runner.main(arguments), 1)
+        tampered = json.loads((self.directory / "relative-tampered/report.json").read_text())
+        self.assertTrue(any("Artifact size/hash mismatch" in error for error in tampered["errors"]))
 
     def test_collect_rejects_modified_or_missing_artifacts(self):
         inputs = self.prepared_collection()

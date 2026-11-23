@@ -90,6 +90,8 @@ def filtered_tests(pattern, *, configuration="debug", extra=(), modules=(), env=
 
 def registry():
     """The sole command definitions used by local runs and the native SDK CI."""
+    typography_images = tuple(("{visual}/semantic-typography/table-font-" + slot + "-*.png", "file")
+                              for slot in ("header", "body"))
     checks = [
         Check("module-graph", "portable", (
             command("python3", "Tools/check_module_boundaries.py"),
@@ -152,7 +154,7 @@ def registry():
                     "--enable-code-coverage", kind="xctest", modules=MODULES, timeout=1800),
             command("swift", "test", "--configuration", "debug", "--scratch-path", "{scratch}/native-coverage",
                     "--show-codecov-path", kind="coverage", timeout=120),
-        ), (("coverage/coverage.json", "coverage"),)),
+        ), (("coverage/coverage.json", "coverage"),) + typography_images),
         Check("consumers", "macos", (
             command("python3", "Tools/check_product_consumers.py", "--scratch-root", "{scratch}/native-consumers", timeout=1800),
         )),
@@ -183,7 +185,7 @@ def registry():
     checks += [Check(c.id, c.profile, c.commands, c.required, "Darwin") for c in mac]
     checks.append(Check("ios-native", "ios", (
         command("python3", "Validation/SDK/ios.py", "--output", "{output}/ios", timeout=3600),
-    ), (("ios/summary.json", "ios"),), "Darwin"))
+    ), (("ios/summary.json", "ios"),) + typography_images, "Darwin"))
     return checks
 
 
@@ -602,7 +604,9 @@ def collect(inputs, output, expected_sha, checks=None):
     known, seen = {c.id: c for c in checks}, set()
     paths = []
     for source in inputs:
-        source = Path(source)
+        # An expanded {visual} path must not be mistaken for a path relative
+        # to the check directory when the caller supplies a relative input.
+        source = Path(source).resolve()
         paths += [source] if source.is_file() else sorted(source.rglob("report.json"))
     if not paths:
         report["errors"].append("No execution reports found")

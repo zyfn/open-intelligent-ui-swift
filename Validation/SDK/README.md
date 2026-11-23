@@ -1,6 +1,6 @@
 # SDK 验证
 
-文档版本：1.3 · 更新日期：2026-11-23
+文档版本：1.4 · 更新日期：2026-11-23
 
 本目录只负责组织验证的执行与证据。SDK 行为断言保留在各产品的 `Tests`，`run.py` 调度这些测试及已有构建、资源、安全和性能工具，CI 调用同一个入口。固定输入验证不调用模型，也不评测 Agent 或 Skill。
 
@@ -51,6 +51,8 @@ python3 Validation/SDK/run.py --check gallery-tests --check gallery-programs \
 每次执行输出 `report.json`、`summary.md`、逐命令日志以及相关截图、契约、覆盖率或性能产物。报告记录实际提交、工作区指纹、操作系统、工具链、完整参数、耗时、退出状态和产物 SHA-256。原生筛选测试先发现用例并要求非空，测试执行还须有真实非零结果；失败、阻塞、超时、取消和未执行分别保留，独立检查仍尽量继续收集证据。
 
 macOS 全量 XCTest 使用独立覆盖率构建目录，导出 SwiftPM 原始 JSON；iOS 保存 `.xcresult`、Apple 工具输出的 summary/tests 和 `xccov` 原始 JSON。覆盖率用于发现缺口，不设没有依据的百分比门槛，也不把执行行数解释为语义或视觉正确率。
+
+两平台的完整测试还必须保留表头与正文的字体回归截图。iOS 入口通过 Xcode 的 `TEST_RUNNER_` 约定转发 SDK 快照目录及遥测设置，其他宿主变量不自动增加该前缀。缺图仍判失败，不能仅凭测试命令返回成功替代渲染证据。
 
 [CI](../../.github/workflows/native-sdk.yml) 直接调用同一份 runner。四个 profile 分别上传完整输出目录；原始日志与截图位于 `sdk-validation-<profile>-<run_id>-<attempt>` artifact。最终 `Native SDK acceptance` 下载本次四份产物并调用：
 

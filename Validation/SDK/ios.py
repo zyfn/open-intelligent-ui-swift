@@ -203,9 +203,11 @@ class IOSRun:
         temporary.write_text(json.dumps(self.report, ensure_ascii=False, indent=2) + "\n")
         temporary.replace(self.output / "summary.json")
 
-    def command(self, name: str, argv: list[str], timeout: int = 900) -> Path:
+    def command(self, name: str, argv: list[str], timeout: int = 900,
+                *, env: dict[str, str] | None = None) -> Path:
         log = self.output / f"{name}.log"
         record = {"id": name, "argv": argv, "log": log.name, "timeoutSeconds": timeout}
+        environment = {**os.environ, **env} if env is not None else None
         self.report["commands"].append(record)
         self.save()
         print(f"[ios] {name}", flush=True)
@@ -213,7 +215,7 @@ class IOSRun:
         try:
             with log.open("wb") as stream:
                 self.process = subprocess.Popen(argv, cwd=ROOT, stdout=stream,
-                                                stderr=subprocess.STDOUT, start_new_session=True)
+                                                stderr=subprocess.STDOUT, start_new_session=True, env=environment)
                 try:
                     code = self.process.wait(timeout=timeout)
                 except (subprocess.TimeoutExpired, KeyboardInterrupt):
@@ -273,13 +275,19 @@ class IOSRun:
             self.command("boot", ["xcrun", "simctl", "boot", device["udid"]], 180)
         self.command("boot-status", ["xcrun", "simctl", "bootstatus", device["udid"], "-b"], 300)
         bundle = self.output / "sdk-tests.xcresult"
+        test_environment = {}
+        # xcodebuild strips this prefix when forwarding variables to XCTest.
+        # Only these SDK-owned settings need to cross into the test process.
+        for name in ("OPENUI_SNAPSHOT_DIR", "OPENUI_RUNTIME_TELEMETRY_ENABLED"):
+            if value := os.environ.get(name):
+                test_environment[f"TEST_RUNNER_{name}"] = value
         test_error = None
         try:
             self.command("sdk-tests", ["xcodebuild", "test", "-scheme", SCHEME,
                 "-destination", f"platform=iOS Simulator,id={device['udid']}",
                 "-destination-timeout", "120", "-derivedDataPath", str(scratch / "tests"),
                 "-resultBundlePath", str(bundle), "-parallel-testing-enabled", "NO",
-                "-enableCodeCoverage", "YES", "CODE_SIGNING_ALLOWED=NO"], 2700)
+                "-enableCodeCoverage", "YES", "CODE_SIGNING_ALLOWED=NO"], 2700, env=test_environment)
         except Exception as error:
             test_error = error
         # Preserve results even when XCTest fails; a failed command stays failed.

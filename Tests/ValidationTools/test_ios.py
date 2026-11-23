@@ -220,6 +220,53 @@ class DeviceSelectionTests(unittest.TestCase):
 
 
 class RunnerEvidenceTests(unittest.TestCase):
+    def test_sdk_environment_is_forwarded_only_to_the_xcode_test_process(self):
+        environment = {"PATH": "/test/toolchain", "HOST_ONLY": "host-value",
+                       "OPENUI_SNAPSHOT_DIR": "/test/evidence/visual",
+                       "OPENUI_RUNTIME_TELEMETRY_ENABLED": "0",
+                       "TEST_RUNNER_OPENUI_SNAPSHOT_DIR": "/stale/evidence"}
+        calls = self.run_tests_with_environment(environment)
+        test_calls = [call for call in calls if call.args[0][:2] == ["xcodebuild", "test"]]
+        self.assertEqual(len(test_calls), 1)
+        expected = {**environment,
+                    "TEST_RUNNER_OPENUI_SNAPSHOT_DIR": "/test/evidence/visual",
+                    "TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED": "0"}
+        self.assertEqual(test_calls[0].kwargs["env"], expected)
+        self.assertNotIn("TEST_RUNNER_HOST_ONLY", test_calls[0].kwargs["env"])
+        for call in calls:
+            if call is not test_calls[0]:
+                self.assertIsNone(call.kwargs["env"], "Other commands must retain ordinary environment inheritance")
+
+    def test_unconfigured_sdk_environment_does_not_create_test_runner_values(self):
+        for environment in ({"HOST_ONLY": "host-value"},
+                            {"OPENUI_SNAPSHOT_DIR": "", "OPENUI_RUNTIME_TELEMETRY_ENABLED": ""}):
+            with self.subTest(environment=environment):
+                calls = self.run_tests_with_environment(environment)
+                test_call = next(call for call in calls if call.args[0][:2] == ["xcodebuild", "test"])
+                self.assertEqual(test_call.kwargs["env"], environment)
+                self.assertNotIn("TEST_RUNNER_OPENUI_SNAPSHOT_DIR", test_call.kwargs["env"])
+                self.assertNotIn("TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED", test_call.kwargs["env"])
+
+    def run_tests_with_environment(self, environment):
+        with tempfile.TemporaryDirectory() as directory:
+            run = ios.IOSRun(Path(directory))
+            summary, tree = results()
+            data = {"schemes": {"workspace": {"schemes": [ios.SCHEME]}},
+                    "devices": {"devices": {RUNTIME: [device()]}},
+                    "test-summary": summary, "test-tree": tree, "coverage": {"targets": [{}]}}
+            child = Mock(returncode=0)
+            child.wait.return_value = 0
+            with patch.dict(ios.os.environ, environment, clear=True), \
+                 patch.object(run, "json_command", side_effect=lambda name, *args: data[name]), \
+                 patch.object(ios.subprocess, "Popen", return_value=child) as spawn, \
+                 patch("sys.stdout", new_callable=io.StringIO):
+                original = dict(ios.os.environ)
+                run.tests(Path(directory), None)
+                # The shared command path must also leave build subprocesses alone.
+                run.command("unrelated-build", ["xcodebuild", "build"])
+                self.assertEqual(dict(ios.os.environ), original)
+                return spawn.call_args_list
+
     def test_interruption_terminates_the_child_group_and_records_its_exit(self):
         with tempfile.TemporaryDirectory() as directory:
             run = ios.IOSRun(Path(directory))
@@ -253,7 +300,7 @@ class RunnerEvidenceTests(unittest.TestCase):
             data = {"schemes": {"workspace": {"schemes": [ios.SCHEME]}},
                     "devices": {"devices": {RUNTIME: [device()]}},
                     "test-summary": summary, "test-tree": tree, "coverage": {"targets": [{}]}}
-            def command(name, *args):
+            def command(name, *args, **kwargs):
                 if name == "sdk-tests":
                     raise RuntimeError("xcodebuild exited 65")
                 return Path(directory) / (name + ".log")

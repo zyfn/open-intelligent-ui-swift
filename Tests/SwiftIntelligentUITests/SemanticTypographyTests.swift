@@ -9,11 +9,20 @@ import AppKit
 final class SemanticTypographyTests: XCTestCase {
     private let copy = "Readable content keeps its role when a layout wraps it. 中文正文应保持相同层级，并随系统字号自然换行。"
 
+    private var headingTypeSizes: [DynamicTypeSize] {
+        #if os(iOS)
+        return [.large, .accessibility2, .accessibility5]
+        #else
+        return [.large, .accessibility2]
+        #endif
+    }
+
     @MainActor private func height(_ component: String, library: OpenIntelligentUIComponents,
                                    theme: OpenIntelligentUITheme = .init(), size: DynamicTypeSize = .large,
                                    scheme: ColorScheme = .light, copyText: String? = nil) throws -> Double {
         let state = library.makeState()
-        state.setSource("root = Col([\(component)])\n$copy = \"\(copyText ?? copy)\"")
+        let literal = String(decoding: try JSONEncoder().encode(copyText ?? copy), as: UTF8.self)
+        state.setSource("root = Col([\(component)])\n$copy = \(literal)")
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
             .openIntelligentUITheme(theme).environment(\.dynamicTypeSize, size)
@@ -59,6 +68,8 @@ final class SemanticTypographyTests: XCTestCase {
         for size in [DynamicTypeSize.large, .accessibility2] {
             XCTAssertEqual(try height("Markdown($copy)", library: library, size: size),
                            try height("Text($copy)", library: library, size: size), accuracy: 2, "body at \(size)")
+        }
+        for size in headingTypeSizes {
             for (prefix, titleSize) in [("# ", "xl"), ("## ", "lg"), ("### ", "md")] {
                 XCTAssertEqual(try height("Markdown(\"\(prefix)\" + $copy)", library: library, size: size),
                                try height("Title($copy,\"\(titleSize)\")", library: library, size: size), accuracy: 2, "heading \(prefix) at \(size)")
@@ -69,8 +80,8 @@ final class SemanticTypographyTests: XCTestCase {
     @MainActor func testLongMarkdownHeadingsKeepTitleMetricsAcrossColdAndWarmRendering() throws {
         let library = try OpenIntelligentUIComponents()
         let longCopy = Array(repeating: copy, count: 3).joined(separator: " ")
-        for size in [DynamicTypeSize.large, .accessibility2] {
-            for text in [copy, longCopy] {
+        for size in headingTypeSizes {
+            for text in ["Heading", "This heading keeps its native role when it wraps", copy, longCopy] {
                 for (prefix, titleSize) in [("# ", "xl"), ("## ", "lg"), ("### ", "md")] {
                     #if os(macOS)
                     MarkdownTypography.headingSpacingCache.removeAll()
@@ -85,7 +96,7 @@ final class SemanticTypographyTests: XCTestCase {
                                    "Cold SDK rendering must resolve both fonts synchronously: \(context)")
                     #endif
                     XCTAssertEqual(try height(component, library: library, size: size, copyText: text),
-                                   first, "Cached metrics must preserve the first rendered height: \(context)")
+                                   first, "Repeated rendering must preserve the first rendered height: \(context)")
                 }
             }
         }
@@ -99,6 +110,53 @@ final class SemanticTypographyTests: XCTestCase {
             XCTAssertEqual(try height("Markdown($copy)", library: library, theme: theme, size: size),
                            try height("Text($copy)", library: library, theme: theme, size: size), accuracy: 2)
         }
+    }
+
+    @MainActor func testFixedNativeBodyPartnerKeepsMarkdownBodyBlocksStableAcrossDynamicType() throws {
+        let library = try OpenIntelligentUIComponents()
+        var theme = OpenIntelligentUITheme()
+        theme.setTextFont(PlatformFont.monospacedSystemFont(ofSize: 25, weight: .regular), for: .body)
+        let samples = [
+            ("paragraph", "Reading content keeps its fixed font. 中文正文。"),
+            ("quote", "> Reading content\n>\n> More quoted content"),
+            ("bulleted list", "- Reading content\n- More content\n  - Nested content"),
+            ("ordered list", "1. Reading content\n2. More content\n   1. Nested content"),
+            ("task list", "- [ ] Reading content\n- [x] Completed content"),
+            ("table header", "| Header |\n| --- |"),
+            ("table body", "| Header |\n| --- |\n| Reading content |\n| More content |"),
+            ("inline code", "Reading `let value = 42` after code")
+        ]
+        for (name, markdown) in samples {
+            let standard = try height("Markdown($copy)", library: library, theme: theme,
+                                      size: .large, copyText: markdown)
+            let accessible = try height("Markdown($copy)", library: library, theme: theme,
+                                        size: .accessibility2, copyText: markdown)
+            XCTAssertEqual(accessible, standard, accuracy: 2,
+                           "\(name) must retain the supplied 25-point body font, including its inherited and relative styles")
+        }
+    }
+
+    @MainActor func testMarkdownCodeBlocksKeepTheirIndependentDynamicCodeFontWithFixedBody() throws {
+        let library = try OpenIntelligentUIComponents()
+        var theme = OpenIntelligentUITheme()
+        theme.setTextFont(PlatformFont.monospacedSystemFont(ofSize: 25, weight: .regular), for: .body)
+        // MarkdownUI 2.4.1 CodeBlockView removes one terminal newline before
+        // passing configuration.content to the SDK's native Code renderer.
+        let code = "let value = 42"
+        var codeHeights: [Double] = []
+        for size in [DynamicTypeSize.large, .accessibility2] {
+            let markdown = try height("Markdown($copy)", library: library, theme: theme,
+                                      size: size, copyText: "```swift\n\(code)\n```")
+            let native = try height("Code($copy,\"swift\")", library: library, theme: theme,
+                                    size: size, copyText: code)
+            XCTAssertEqual(markdown, native, accuracy: 2,
+                           "A fenced block must retain the native Code component's font and controls at \(size)")
+            codeHeights.append(markdown)
+        }
+        #if os(iOS)
+        XCTAssertGreaterThan(codeHeights[1], codeHeights[0],
+                             "Fixing the body font must not freeze the code block's semantic Dynamic Type font")
+        #endif
     }
 
     func testMarkdownHeadingScaleOverridesAndHistoricalDeepLevelsRemainAvailable() {
