@@ -175,7 +175,7 @@ jobs:
             --filter 'OfficialContractParityTests/testRootPercentageHeightUsesTheActualFiniteHostProposal' \
             2>&1 | tee outputs/verification/intelligent-ui-root-layout.log || failed=1
           swift test --skip-build --configuration debug \
-            --filter 'SwiftIntelligentUITests\.(LayoutTests|GenerationContractTests|ComponentSelectionTests)/' \
+            --filter 'SwiftIntelligentUITests\.(LayoutTests|SVGLayoutTests|ProductCardTests|SliderTests|GenerationContractTests|ComponentSelectionTests)/' \
             2>&1 | tee outputs/verification/intelligent-ui-composition.log || failed=1
           exit "$failed"
       - name: Standalone Gallery tests
@@ -197,6 +197,7 @@ jobs:
             outputs/verification/intelligent-ui-*.log
             outputs/verification/gallery-tests.log
             outputs/verification/visual/gallery-editorial/
+            outputs/verification/visual/root-percentage/
           if-no-files-found: warn
           retention-days: 7
       - name: Release rendering, streaming and resource regressions
@@ -217,7 +218,7 @@ jobs:
           filter+='|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceCacheBudgetTests'
           filter+='|SharedCoreBridgeTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests'
           filter+='|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|FieldSelectionRenderingTests'
-          filter+='|SwiftIntelligentUITests\.(LayoutTests|GenerationContractTests|ComponentSelectionTests)/'
+          filter+='|SwiftIntelligentUITests\.(LayoutTests|SVGLayoutTests|ProductCardTests|SliderTests|GenerationContractTests|ComponentSelectionTests)/'
           filter+='|testRefetchDuringFlightQueuesAndRefreshTimerStops|SemanticTypographyTests'
           swift test list --configuration release \
             2>&1 | tee outputs/verification/native-release-test-list.log

@@ -10,7 +10,6 @@ private enum ProductCardMetrics {
 
 private struct ProductCardHorizontalLayout: Layout {
     let gap: CGFloat
-    let rightToLeft: Bool
     let idealWidth: CGFloat
 
     static var layoutProperties: LayoutProperties {
@@ -35,8 +34,8 @@ private struct ProductCardHorizontalLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         guard subviews.count == 2 else { return }
         let columns = columns(width: bounds.width)
-        let imageX = rightToLeft ? bounds.maxX - columns.image : bounds.minX
-        let textX = rightToLeft ? bounds.minX : bounds.minX + columns.image + gap
+        let imageX = bounds.minX
+        let textX = bounds.minX + columns.image + gap
         subviews[0].place(at: CGPoint(x: imageX, y: bounds.minY), anchor: .topLeading,
                           proposal: .init(width: columns.image, height: columns.image))
         subviews[1].place(at: CGPoint(x: textX, y: bounds.minY), anchor: .topLeading,
@@ -140,7 +139,6 @@ private struct ProductCardView: View {
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Environment(\.layoutDirection) private var direction
     @State private var selectedImageURL: String?
     private var photoIndex: Int { product.images.firstIndex { $0.url == selectedImageURL } ?? 0 }
     private var photo: ProductCardData.Photo? { product.images.indices.contains(photoIndex) ? product.images[photoIndex] : nil }
@@ -163,7 +161,7 @@ private struct ProductCardView: View {
                 }.padding(theme.controlHorizontalPadding)
             } else if context.string("layout") == "horizontal" && !typeSize.isAccessibilitySize {
                 ViewThatFits(in: .horizontal) {
-                    ProductCardHorizontalLayout(gap: theme.groupSpacing, rightToLeft: direction == .rightToLeft,
+                    ProductCardHorizontalLayout(gap: theme.groupSpacing,
                                                 idealWidth: max(1, ProductCardMetrics.minimumRowWidth - 2 * theme.controlHorizontalPadding)) {
                         picture(radius: theme.controlRadius, thumbnail: true)
                         information

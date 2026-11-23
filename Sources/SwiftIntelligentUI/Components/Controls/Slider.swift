@@ -40,7 +40,6 @@ private struct SliderView: View {
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.locale) private var locale
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Environment(\.layoutDirection) private var direction
     private var current: Double? { ValueReading.number(context.binding("value")?.wrappedValue ?? context.value("value")) }
     private var canEdit: Bool { context.canInteract && context.binding("value") != nil }
     private func formatted(_ number: Double) -> String {
@@ -87,7 +86,7 @@ private struct SliderView: View {
                     return ((n - range.bounds.lowerBound) / (range.bounds.upperBound - range.bounds.lowerBound), n, ValueReading.string(ValueReading.field(value, "label")))
                 }
                 if !marks.isEmpty {
-                    SliderMarkLayout(positions: marks.map(\.0), rightToLeft: direction == .rightToLeft, gap: theme.innerSpacing) {
+                    SliderMarkLayout(positions: marks.map(\.0), gap: theme.innerSpacing) {
                         ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
                             Text(mark.2).font(theme.captionFont).foregroundStyle(theme.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -150,12 +149,12 @@ enum SliderMarkGeometry {
 
 private struct SliderMarkLayout: Layout {
     let positions: [Double]
-    let rightToLeft: Bool
     let gap: CGFloat
     private func frames(width: CGFloat, subviews: Subviews) -> [CGRect] {
+        // LayoutSubview.place consumes logical coordinates; SwiftUI mirrors RTL.
         SliderMarkGeometry.frames(width: width,
             sizes: subviews.map { $0.sizeThatFits(.init(width: width, height: nil)) },
-            positions: positions, rightToLeft: rightToLeft, gap: gap)
+            positions: positions, rightToLeft: false, gap: gap)
     }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 240

@@ -157,7 +157,7 @@ final class LayoutTests: XCTestCase {
         let state = library.makeState()
         defer { state.reset() }
         state.setSource("""
-        root = Col([Input($value, "Value", "text", $alignment)], null, $alignment)
+        root = Col([Input($value, "Value"), Input($alignment, "Alignment")], null, $alignment)
         $value = "before"
         $alignment = "start"
         """)
@@ -168,33 +168,52 @@ final class LayoutTests: XCTestCase {
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
         defer { window.close() }
-        func field(_ view: NSView) -> NSTextField? {
-            if let field = view as? NSTextField, field.isEditable { return field }
-            return view.subviews.lazy.compactMap(field).first
+        func fields(_ view: NSView) -> [NSTextField] {
+            let current = (view as? NSTextField).flatMap { $0.isEditable ? $0 : nil }
+            return (current.map { [$0] } ?? []) + view.subviews.flatMap(fields)
         }
         func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
             let deadline = Date().addingTimeInterval(2)
             repeat {
                 host.layoutSubtreeIfNeeded()
-                if condition() { return }
+                // Store writes and selectText can complete synchronously before
+                // SwiftUI has processed its focus binding and native updates.
                 RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+                host.layoutSubtreeIfNeeded()
+                if condition() { return }
             } while Date() < deadline
             XCTAssertTrue(condition(), "The mounted control did not receive its update", file: file, line: line)
         }
-        waitUntil { field(host)?.placeholderString == "start" }
-        let input = try XCTUnwrap(field(host))
+        waitUntil { fields(host).count == 2 }
+        let input = try XCTUnwrap(fields(host).first { $0.stringValue == "before" })
+        let marker = try XCTUnwrap(fields(host).first { $0.stringValue == "start" })
         input.selectText(nil)
         waitUntil { input.currentEditor() != nil }
         let editor = try XCTUnwrap(input.currentEditor() as? NSTextView)
         editor.insertText("edited", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
         waitUntil { state.stateValue("$value") == .string("edited") }
+        XCTAssertTrue(input.currentEditor() === editor, "The editing session must settle before changing layout")
+        XCTAssertTrue(window.firstResponder === editor, "The original editor must own focus before changing layout")
+        var endedEditing = 0
+        let observer = NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification,
+            object: input, queue: .main) { _ in endedEditing += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        func identity(_ object: AnyObject?) -> String {
+            object.map { "\(type(of: $0)):\(ObjectIdentifier($0))" } ?? "nil"
+        }
         for alignment in ["stretch", "end"] {
             state.setState("$alignment", value: .string(OpenUIString(alignment)))
-            waitUntil { field(host)?.placeholderString == alignment }
-            XCTAssertTrue(field(host) === input, "Changing width policy must retain the native field")
-            XCTAssertTrue(input.currentEditor() === editor, "Changing width policy must retain the active editor")
-            XCTAssertEqual(editor.string, "edited")
-            XCTAssertEqual(state.stateValue("$value"), .string("edited"))
+            // A separate field observes completion without changing the active
+            // field's placeholder or any other input presentation property.
+            waitUntil { marker.stringValue == alignment }
+            let context = "alignment=\(alignment) firstResponder=\(identity(window.firstResponder))"
+                + " currentEditor=\(identity(input.currentEditor())) expectedEditor=\(identity(editor))"
+                + " attached=\(input.window === window) enabled=\(input.isEnabled)"
+            XCTAssertTrue(fields(host).first === input, "Changing width policy must retain the native field; \(context)")
+            XCTAssertTrue(input.currentEditor() === editor, "Changing width policy must retain the active editor; \(context)")
+            XCTAssertEqual(endedEditing, 0, "Changing layout must not end and restart editing; \(context)")
+            XCTAssertEqual(editor.string, "edited", context)
+            XCTAssertEqual(state.stateValue("$value"), .string("edited"), context)
         }
     }
 

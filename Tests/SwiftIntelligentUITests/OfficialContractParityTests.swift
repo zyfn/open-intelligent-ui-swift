@@ -234,6 +234,14 @@ final class OfficialContractParityTests: XCTestCase {
                     && color.greenComponent < 0.1 && color.blueComponent < 0.1
             }
         }
+        if paintedRows.count != 100,
+           let path = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"], !path.isEmpty {
+            let directory = URL(fileURLWithPath: path).appendingPathComponent("root-percentage", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                .write(to: directory.appendingPathComponent("finite-host.png"))
+            print("Root percentage diagnostic: \(bitmap.pixelsWide)x\(bitmap.pixelsHigh), painted rows=\(paintedRows.count), sample=\(String(describing: bitmap.colorAt(x: 10, y: 10)))")
+        }
         XCTAssertEqual(paintedRows.count, 100, "The root's 50% is relative to the 200-point host, not its own content height")
     }
     #endif

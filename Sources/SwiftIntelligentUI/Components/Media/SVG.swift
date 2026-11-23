@@ -20,7 +20,7 @@ enum SVGComponents {
             ("SvgText", [OpenUIParameter.string("text")] + numbers(["x", "y"]) + [Parameter.number("size", minimum: 0), OpenUIParameter.string("fill", required: false), OpenUIParameter.string("anchor", required: false, values: ["start", "middle", "end"]), OpenUIParameter.string("weight", required: false, values: ["normal", "medium", "semibold"])])
         ]
         return shapes.map { name, params in
-            let detail = name == "Svg" ? " viewBox defines drawing coordinates; displayed width/height can scale the whole diagram. Keep essential labels at least about 14 display points on phones; put detailed/accessibility explanations in native text outside the drawing." : name == "SvgText" ? " size is in viewBox units, not guaranteed display points: size * displayedWidth / viewBoxWidth estimates the rendered size when width-constrained. Avoid tiny labels; text does not independently grow with Dynamic Type." : ""
+            let detail = name == "Svg" ? " viewBox defines drawing coordinates. Omitted height follows the viewBox ratio; omitted width fills the column up to max(280 points, 1.5 times the viewBox width). Explicit width remains constrained to the column. Keep essential labels at least about 14 display points on phones; put detailed/accessibility explanations in native text outside the drawing." : name == "SvgText" ? " size is in viewBox units, not guaranteed display points: size * displayedWidth / viewBoxWidth estimates the rendered size when width-constrained. Avoid tiny labels; text does not independently grow with Dynamic Type." : ""
             return OpenUIComponent(name: name, description: "SVG drawing element rendered in a script-free local WebKit bridge. Numeric attributes use drawing coordinates; shapes accept finite values and safe paint/transform attributes only." + detail, params: params) { context in
                 SVGView(context: context)
             }
@@ -195,6 +195,37 @@ enum SVGMarkup {
     }
 }
 
+/// The drawing owns its natural height before WebKit is mounted. Measuring a
+/// GeometryReader or feeding a measured height back through State would reserve
+/// an unrelated viewport and separate the visible figure from its caption.
+private struct SVGCanvasLayout: Layout {
+    let viewBox: CGSize
+    let width: IntelligentUILength?
+    let height: IntelligentUILength?
+    let maximumWidth: CGFloat?
+    let fontUnit: CGFloat
+    let viewport: CGSize?
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let offered = proposal.width.flatMap { $0.isFinite ? max(0, $0) : nil }
+        let requested = width?.resolve(relativeTo: offered, em: fontUnit, viewport: viewport)
+        let preferred = requested ?? offered ?? viewBox.width
+        let width = min(preferred, offered ?? preferred, maximumWidth ?? preferred)
+        let requestedHeight = height?.resolve(relativeTo: nil, em: fontUnit, viewport: viewport)
+        // Keep the existing explicit-height bounds. Auto height has no minimum:
+        // a wide, short drawing should not acquire a 40-point letterbox.
+        let naturalHeight = width / viewBox.width * viewBox.height
+        let height = requestedHeight.map { min(2400, max(40, $0)) } ?? min(2400, naturalHeight)
+        return CGSize(width: width, height: height.isFinite ? max(0, height) : 2400)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        // The bounds already contain the resolved percentage width. Do not
+        // resolve that percentage again against its own result during placement.
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(bounds.size))
+    }
+}
+
 private struct SVGView: View {
     @Environment(\.locale) private var locale
     let context: OpenUIComponentContext
@@ -203,9 +234,17 @@ private struct SVGView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.openIntelligentUIViewportSize) private var viewport
     @ScaledMetric(relativeTo: .body) private var fontUnit: CGFloat = 17
-    private var height: CGFloat {
-        let requested = IntelligentUILength.read(context.value("height"))?.resolve(relativeTo: nil, em: fontUnit, viewport: viewport)
-        return min(2400, max(40, requested ?? 240))
+    private var canvas: SVGCanvasLayout {
+        let root = context.element.typeName == "Svg"
+        let source = context.string("viewBox") ?? ""
+        let box = (try? SVGMarkup.viewBox(source.isEmpty ? "0 0 100 100" : source)) ?? [0, 0, 100, 100]
+        let width = context.value("width")
+        return SVGCanvasLayout(viewBox: CGSize(width: box[2], height: box[3]),
+            width: IntelligentUILength.read(width),
+            // Standalone paint elements retain their existing preview extent.
+            height: IntelligentUILength.read(context.value("height")) ?? (root ? nil : .points(240)),
+            maximumWidth: root && (width?.isNullish ?? true) ? max(280, CGFloat(box[2]) * 1.5) : nil,
+            fontUnit: fontUnit, viewport: viewport)
     }
     private var document: Result<SVGMarkup.Document, Error> {
         Result {
@@ -225,12 +264,11 @@ private struct SVGView: View {
                     let source = context.element.typeName == "Svg" ? document.markup
                         : "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" style=\"width:100%;height:100%\">\(document.markup)</svg>"
                     VStack(alignment: .leading, spacing: theme.innerSpacing) {
-                        GeometryReader { geometry in
-                            let preferred = IntelligentUILength.read(context.value("width"))?.resolve(relativeTo: geometry.size.width, em: fontUnit, viewport: viewport)
-                            WebContent(context: context, content: source, height: height)
-                                .frame(width: min(geometry.size.width, preferred ?? geometry.size.width))
-                                .frame(maxWidth: .infinity)
-                        }.frame(height: height)
+                        canvas {
+                            GeometryReader { geometry in
+                                WebContent(context: context, content: source, height: geometry.size.height)
+                            }
+                        }.frame(maxWidth: .infinity)
                         if typeSize.isAccessibilitySize, !document.labels.isEmpty {
                             Text(document.labels.joined(separator: " · ")).font(theme.bodyFont).fixedSize(horizontal: false, vertical: true)
                         }
@@ -244,11 +282,12 @@ private struct SVGView: View {
     }
 
     private func placeholder(status: String) -> some View {
-        theme.surface.overlay {
-            Image(systemName: "square.on.circle")
-                .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.35))
-        }
-        .frame(height: height)
+        canvas {
+            theme.surface.overlay {
+                Image(systemName: "square.on.circle")
+                    .font(.title3).foregroundStyle(theme.secondaryText.opacity(0.35))
+            }
+        }.frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(context.string("label") ?? SDKStrings.text("svg.label", locale: locale))
         .accessibilityValue(SDKStrings.text(status, locale: locale))
