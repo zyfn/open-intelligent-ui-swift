@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.20 · 更新日期：2026-11-23
+文档版本：1.21 · 更新日期：2026-11-23
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -74,7 +74,7 @@ flowchart TB
 | Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
 | Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
 | Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
-| Validation/ | 静态程序校验、SDK 六域测试与验收矩阵（SDK/）、性能验证（Performance/）、可选真实模型生成验证（Generation/） |
+| Validation/ | 静态程序校验、SDK 六域测试与验收矩阵（SDK/）、性能验证（Performance/） |
 | Validation/Performance/ | 独立性能验证包，可执行工具 LanguagePerformanceValidation 测量语言与公开 State 流式成本，默认报告为 outputs/verification/performance/language-runtime.json |
 | Fixtures/ | 固定语言输入与参考预期 |
 | docs/、outputs/ | 文档；已忽略的本地生成及验收材料 |
@@ -266,4 +266,4 @@ Swift 负责 lossless 数据传输、原生 async 与动作执行。当前还保
 
 架构、目录、职责和依赖只在本文维护。README 负责安装与公共接入；两套组件指南负责本库 API/视觉规则；验证文档负责命令、资源来源、安全与证据边界。AGENTS.md 仅保存工作规则和这些入口，不复制职责表。生成资源、版本和哈希由工具/锁文件负责，不在多处手填。
 
-架构变化需同步 Package、真实源码、独立消费者、目录检查、工具、Gallery 和文档引用。源码检查、Swift 编译、XCTest、原生交互、性能及真实模型评测分别报告；任一项通过都不能替代其他项。验收命令和依赖审计以 [验证说明](validation-and-security.md) 与 [CI](../.github/workflows/native-sdk.yml) 为入口。
+架构变化需同步 Package、真实源码、独立消费者、目录检查、工具、Gallery 和文档引用。源码检查、Swift 编译、XCTest、原生交互与性能分别报告；任一项通过都不能替代其他项。验收命令和依赖审计以 [验证说明](validation-and-security.md) 与 [CI](../.github/workflows/native-sdk.yml) 为入口。

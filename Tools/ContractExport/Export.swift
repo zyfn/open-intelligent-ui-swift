@@ -17,23 +17,28 @@ import SwiftIntelligentUI
             excluded = Set(args[index + 1].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
             args.removeSubrange(index...index + 1)
         }
+        let validating = args.first == "--validate"
+        let validArguments = validating ? args.count == 2
+            : args.count <= 1 && args.allSatisfy({ !$0.hasPrefix("--") })
+        guard validArguments else {
+            throw NSError(domain: "ContractExport", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                "Expected one export directory or --validate <program file>, with the documented contract options"])
+        }
         // The provider is never called during contract export or validation.
         let imageSearch: OpenIntelligentUIImageSearch? = includeSearch ? OpenIntelligentUIImageSearch { query in
             .init(url: "https://example.invalid/contract-only.jpg", alt: query)
         } : nil
         let library = try OpenIntelligentUIComponents(imageSearch: imageSearch, excludingComponents: excluded)
-        if args.first == "--validate", args.count >= 2 {
+        if validating {
             let text = try String(contentsOfFile: args[1], encoding: .utf8)
             let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]
             let program = object?["program"] as? String ?? text
             let state = library.makeState(); state.setSource(program)
             let issues = library.validationIssues(in: state, source: program,
                                                  profile: historical ? .historical : .generation)
-            let checks = await ProgramChecks.run(args.count == 4 && args[2] == "--case" ? args[3] : nil, state: state, library: library)
-            let valid = issues.isEmpty && state.root != nil && checks.values.allSatisfy { $0 }
+            let valid = issues.isEmpty && state.root != nil
             let result: [String: Any] = ["valid": valid,
                                          "errors": issues,
-                                         "checks": checks,
                                          "root": state.root?.typeName ?? ""]
             let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
             print(String(decoding: data, as: UTF8.self))

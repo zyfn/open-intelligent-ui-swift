@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.39 · 更新日期：2026-11-23
+文档版本：1.40 · 更新日期：2026-11-23
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -34,7 +34,7 @@ Zod 的 JSON Schema 导入也把简单字符串键 record 包装为带校验的 
 
 ## 2. 验收范围
 
-Runtime、Streaming、Components、Layout、Visual、Performance 六个领域的测试与验收计划维护在 [SDK 验证矩阵](../Validation/SDK/README.md)。矩阵复用根 Tests、Gallery 与性能工具；`existing` 表示已有可复用实现，不表示本提交已执行或全部观测指标已采集。可重复的性能测量由 [Performance](../Validation/Performance/README.md) 承担，模型输出对当前 SDK 生成契约的符合性另用 [Generation](../Validation/Generation/README.md) 作可选生成验证。固定程序回归、原生视觉与交互审查、性能结果和真实模型结果分别记录。
+Runtime、Streaming、Components、Layout、Visual、Performance 六个领域的测试与验收计划维护在 [SDK 验证矩阵](../Validation/SDK/README.md)，覆盖共享 SwiftLang 底座与 OpenUI、OpenIntelligentUI 两套组件库。矩阵复用根 Tests、Gallery 与性能工具；`existing` 表示已有可复用实现，不表示本提交已执行或全部观测指标已采集。可重复的共享层性能测量由 [Performance](../Validation/Performance/README.md) 承担。固定程序及生成契约回归、双库原生视觉与交互审查、性能结果分别记录。
 
 流水线按当前 SDK 分成三项检查：可复现输入、依赖安全和原生验收，最后由 `Native SDK acceptance` 汇总。汇总仅在三项均为 success 时成功；failure、cancelled、skipped 或缺失结果均不算通过，并在摘要记录实际 checkout SHA 和各项结果。该 job 的存在不自动设置仓库分支保护，合并阻断还需仓库将它配置为 required check。可复现输入检查重建实际打包资源并运行语言、authoring 和组件目录回归；安全审计覆盖 Core、标准富文本、代码高亮、图标和 Intelligent 函数五个生成工具依赖图，使用 `--audit-level=high` 门槛。原生验收构建并测试根 SDK 及其公开产品消费者。
 

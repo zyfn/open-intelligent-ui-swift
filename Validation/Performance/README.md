@@ -1,6 +1,6 @@
 # Language performance validation
 
-文档版本：1.6 · 更新日期：2026-11-23
+文档版本：1.7 · 更新日期：2026-11-23
 
 本目录通过固定工作负载、预热和重复测量，验证语言解析与求值、公开 State 流式输入和宽对象构建的执行成本，记录 P50/P95/Max、解析回调与发布次数及语言负载的 RSS 样本。
 
@@ -60,4 +60,4 @@ done
 
 它不创建 SwiftUI 视图，因此发布次数不是组件 body 次数，耗时也不能代表布局成本、帧率或真机体验。RSS 样本覆盖原有语言工作负载，包含 JavaScript VM、分配器和缓存保留，单纯增长不等于内存泄漏；工具不访问 SDK 内部 GC 或私有运行时。对比时记录提交、工具链、机器、参数，并使用相同条件。新的公开 API 工作负载与旧内部 GC 驱动数据不直接作性能回归比较。
 
-原生呈现、滚动、视觉质量与资源压力通过 [Gallery](../../Examples/Gallery/README.md) 和 Instruments 采集独立证据。六个领域的测试与验收计划见 [SDK 验证矩阵](../SDK/README.md)，确定性断言由根 [Tests](../../Tests) 的 XCTest 执行。可选真实模型生成验证使用既有 [Generation](../Generation/README.md) 入口。
+原生呈现、滚动、视觉质量与资源压力通过 [Gallery](../../Examples/Gallery/README.md) 和 Instruments 采集独立证据。共享底座与两套 UI 库的测试范围见 [SDK 验证矩阵](../SDK/README.md)，确定性断言由根 [Tests](../../Tests) 的 XCTest 执行。
