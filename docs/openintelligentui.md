@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.19 · 更新日期：2026-11-23
+文档版本：1.20 · 更新日期：2026-11-23
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -8,7 +8,7 @@
 
 `OpenIntelligentUI` 是基于 `SwiftLang` 的 Apple 平台组件库，提供 DesignSystem、组件、交互绑定和生成规范。布局、文字、图片、输入、商品、交通和图表遵循同一套组件机制。
 
-调用方持有 SwiftLang 定义的 `OpenUIState`、提供内容与资源、接收动作事件。组件通过同一适配层的 Context 与原生宿主接入。可选模型生成验证位于 `Validation/Generation`。
+调用方持有 SwiftLang 定义的 `OpenUIState`、提供内容与资源、接收动作事件。组件通过同一适配层的 Context 与原生宿主接入。
 
 库不负责模型服务、业务资料检索、消息生命周期、订单交易或购买结果。模型、工具和宿主提供事实；组件按来源呈现，不补造价格、库存、坐标、路线、来源或执行结果。
 
@@ -246,11 +246,9 @@ swift run --package-path Tools/ContractExport ContractExport --reader-contract -
 
 生成规则按显式组件依赖组织，全局事实/URL/动作约束不随单个组件排除而丢失。writer spec、签名与 Prompt 同源；共享语言生成器的 Prompt 中关于无动作按钮的通用默认说明，仍保留一处精确的策略文字替换，以符合本库“无动作禁用”的既有实现，不再用文字替换修改组件签名或 schema。默认 bindings=true、toolCalls=false 控制生成说明，不是运行时语法的禁用开关。
 
-可选模型验证使用 `python3 Validation/Generation/run.py --model gpt-6.1-terra`，通过指定 Codex 账户执行真实调用。保存请求、原始输出、解析与运行时结果，不静默换型；结果写入 `outputs/generation`。已纳入回归的六份未改写程序保存在 `Tests/SwiftIntelligentUITests/Fixtures/GeneratedPrograms`，由 XCTest 检查当前运行时兼容性，不与 Gallery 的人工视觉验收混用。语言与公开 State 的性能工作负载归 [Validation/Performance](../Validation/Performance/README.md)。
+已纳入回归的六份未改写程序保存在 [GeneratedPrograms](../Tests/SwiftIntelligentUITests/Fixtures/GeneratedPrograms/README.md)，由 XCTest 检查当前运行时兼容性。SDK 的 spec、Prompt、生成示例与 reader/writer 契约继续保留并接受固定回归检查。Gallery 的人工视觉验收与语言、公开 State 的[性能验证](../Validation/Performance/README.md)分别记录证据。
 
-`--suite guided|free|all` 区分指定组件的回归与不点名组件的自由组合任务。free 套件包含解释、商品、数据、表单和地图任务，以及商品/表单跟进更新；来源、交互、呈现审查单独记录 pending，解析成功不推断为任务成功。跟进使用前次生成程序和原始来源事实，不能把模型前次输出升级为新事实。
-
-CLI 保留导出、--validate 与 --case 命令结构，并提供历史验证和 reader 导出入口。官方组件参数与新版基线对齐；Image 等原有 framing 字段已进入生成签名。原生主题、图像缓存和地图选点等实现细节仍不成为私有 Lang 参数。ProductCard 不提供 offers 或其他旧数据契约的适配。
+ContractExport 面向 OpenIntelligentUI，提供契约导出、`--validate`、`--historical`、`--reader-contract`、`--include-search` 与 `--exclude-components`；未知选项和多余位置参数会被拒绝。官方组件参数与新版基线对齐；Image 等原有 framing 字段已进入生成签名。原生主题、图像缓存和地图选点等实现细节仍不成为私有 Lang 参数。ProductCard 不提供 offers 或其他旧数据契约的适配。
 
 ## 7. 验证与流式边界
 
