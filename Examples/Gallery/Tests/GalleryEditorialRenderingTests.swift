@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import ApplicationServices
 import SwiftIntelligentUI
 import SwiftLang
 import SwiftUI
@@ -10,21 +11,37 @@ import XCTest
 /// Native rendering evidence for complete, checked-in programs. These are Mac
 /// renders at phone-like widths, not iPhone captures or visual-quality scores.
 final class GalleryEditorialRenderingTests: XCTestCase {
+    @MainActor private static let application: NSApplication = {
+        let application = NSApplication.shared
+        application.finishLaunching()
+        return application
+    }()
+
     @MainActor func testCompleteEditorialScenesRenderAtNarrowAndRegularWidths() async throws {
         let resourceRoot = try GalleryResources.root()
         let catalog = try GalleryCatalog(resourceRoot: resourceRoot)
-        let resources = OpenUIResourceContext(loader: try GalleryImageLoader(resourceRoot: resourceRoot))
-        for id in ["heat-pump", "code-isolation"] {
-            let entry = try XCTUnwrap(catalog.entries.first { $0.section == .cases && $0.item.id == id })
-            let source = try entry.source(for: .openIntelligentUI)
-            for width in [CGFloat(320), 390] {
-                for scheme in [ColorScheme.light, .dark] {
-                    try await render(source, name: id, width: width, scheme: scheme, resources: resources)
+        let resources = OpenUIResourceContext(loader: try SnapshotImageLoader(resourceRoot: resourceRoot))
+        let sections = [
+            "heat-pump": ["核心概览", "空调是怎么搬运热量的", "空调制冷和制热有什么区别",
+                          "一句话总结", "把室外本来就存在的热量搬进屋里"],
+            "code-isolation": ["服务端执行用户代码", "四种常见隔离技术怎么选", "服务端执行架构怎么设计",
+                               "如果已经使用 Kubernetes", "按现有条件选型", "参考资料"]
+        ]
+        for kind in GalleryLibrary.allCases {
+            for id in ["heat-pump", "code-isolation"] {
+                let entry = try XCTUnwrap(catalog.entries.first { $0.section == .cases && $0.item.id == id })
+                let source = try entry.source(for: kind)
+                let requiredText = try XCTUnwrap(sections[id])
+                for width in [CGFloat(320), 390] {
+                    for scheme in [ColorScheme.light, .dark] {
+                        try await render(source, kind: kind, name: id, width: width, scheme: scheme,
+                                         requiredText: requiredText, resources: resources)
+                    }
                 }
-            }
-            if id == "heat-pump" {
-                try await render(source, name: id, width: 390, scheme: .light,
-                                 typeSize: .accessibility3, resources: resources)
+                if id == "heat-pump" {
+                    try await render(source, kind: kind, name: id, width: 390, scheme: .light,
+                                     typeSize: .accessibility3, requiredText: requiredText, resources: resources)
+                }
             }
         }
     }
@@ -34,26 +51,31 @@ final class GalleryEditorialRenderingTests: XCTestCase {
         let row = try XCTUnwrap(try GalleryComponent.load(.openIntelligentUI, resourceRoot: resourceRoot)
             .first { $0.name == "Row" })
         let example = try XCTUnwrap(row.examples.first { $0.id == "image-reading" })
-        let loader = try GalleryImageLoader(resourceRoot: resourceRoot)
+        let loader = try SnapshotImageLoader(resourceRoot: resourceRoot, allowedSources: [GalleryImageLoader.cameraURL])
         let request = try XCTUnwrap(loader.request(for: GalleryImageLoader.cameraURL, relativeTo: nil))
         let imageData = try await loader.data(for: request)
+        XCTAssertEqual(imageData, try Data(contentsOf: resourceRoot.appendingPathComponent("Images/nikon-front.jpg")))
+        let unbundled = try XCTUnwrap(loader.request(for: "https://example.com/unbundled.jpg", relativeTo: nil))
+        do { _ = try await loader.data(for: unbundled); XCTFail("Snapshot resources must never fall through to the network") }
+        catch { XCTAssertTrue(error is GalleryFailure) }
         let image = try XCTUnwrap(NSImage(data: imageData))
         // The existing exact-source override removes asynchronous decoding from
         // this composition check; the Gallery loader has its own transport test.
         let images = [GalleryImageLoader.cameraURL: Image(nsImage: image)]
         for width in [CGFloat(320), 390] {
             for scheme in [ColorScheme.light, .dark] {
-                try await render(example.program, name: "photo-row", width: width, scheme: scheme,
+                try await render(example.program, kind: .openIntelligentUI, name: "photo-row", width: width, scheme: scheme,
+                                 requiredText: ["旅行摄影", "检查相机和存储卡", "Wolfgang Moroder"],
                                  resources: OpenUIResourceContext(loader: loader), images: images)
             }
         }
     }
 
-    @MainActor private func render(_ source: String, name: String, width: CGFloat, scheme: ColorScheme,
-                                   typeSize: DynamicTypeSize = .large, resources: OpenUIResourceContext,
+    @MainActor private func render(_ source: String, kind: GalleryLibrary, name: String, width: CGFloat, scheme: ColorScheme,
+                                   typeSize: DynamicTypeSize = .large, requiredText: [String], resources: OpenUIResourceContext,
                                    images: [String: Image] = [:]) async throws {
-        _ = NSApplication.shared
-        let session = try GalleryDocumentSession(kind: .openIntelligentUI, source: source, title: name)
+        _ = Self.application
+        let session = try GalleryDocumentSession(kind: kind, source: source, title: name)
         defer { session.retire() }
         XCTAssertTrue(session.state.errors.isEmpty, session.state.errors.map(\.message).joined(separator: "; "))
         XCTAssertTrue(session.state.isComplete)
@@ -72,8 +94,13 @@ final class GalleryEditorialRenderingTests: XCTestCase {
                     throw GalleryFailure("Snapshot fixture Image needs an exact bundled override")
                 }
             }
+            if ["Svg", "SVG"].contains(element.typeName),
+               case .string(let source) = element.props.first(where: { $0.0 == "src" })?.1,
+               !source.displayString.isEmpty {
+                throw GalleryFailure("Snapshot fixture SVG must keep its inline content")
+            }
         }
-        let svgCount = components.filter { $0.typeName == "Svg" }.count
+        let svgCount = components.filter { ["Svg", "SVG"].contains($0.typeName) }.count
         // Match Gallery's document padding, but measure the entire natural
         // height without a viewport crop or a replacement miniature program.
         let content = OpenUIView(state: session.state, library: session.library)
@@ -98,43 +125,42 @@ final class GalleryEditorialRenderingTests: XCTestCase {
         window.contentView = host
         window.orderFront(nil)
         defer { window.close() }
-        let size = try await settledSize(host, window: window, width: width, svgCount: svgCount)
-        XCTAssertEqual(size.width, width, accuracy: 0.5)
-        XCTAssertGreaterThan(size.height, 100)
-        host.displayIfNeeded()
-        let bitmap = try await mountedBitmap(host)
-        XCTAssertGreaterThan(bitmap.pixelsWide, 0)
-        XCTAssertGreaterThan(bitmap.pixelsHigh, 0)
-        XCTAssertTrue(hasContent(bitmap), "The full-document bitmap must contain more than its background")
-        XCTAssertEqual(session.draft, source)
-        XCTAssertEqual(session.state.sourceRevision, revision, "Rendering must not resubmit the program")
-        XCTAssertTrue(session.state.errors.isEmpty, session.state.errors.map(\.message).joined(separator: "; "))
-
-        if let path = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"], !path.isEmpty {
-            let directory = URL(fileURLWithPath: path).appendingPathComponent("gallery-editorial", isDirectory: true)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let mode = scheme == .dark ? "dark" : "light"
-            let type = typeSize.isAccessibilitySize ? "accessibility3" : "large"
-            let stem = "\(name)-\(Int(width))-\(mode)-\(type)-macos"
-            try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-                .write(to: directory.appendingPathComponent(stem + ".png"))
-            try source.write(to: directory.appendingPathComponent(name + ".openui"), atomically: true, encoding: .utf8)
-            let metadata: [String: Any] = [
-                "program": name + ".openui", "image": stem + ".png", "platform": "macOS",
-                "widthPoints": Double(size.width), "fullHeightPoints": Double(size.height),
-                "pixelsWide": bitmap.pixelsWide, "pixelsHigh": bitmap.pixelsHigh,
-                "colorScheme": mode, "dynamicTypeSize": type, "locale": "zh-Hans",
-                "capture": "NSHostingView with native WKWebView snapshots at their mounted rectangles.",
-                "coverage": "Entire initially visible document at its natural height; disclosures retain their default state.",
-                "review": "Rendering and geometry evidence only; no visual-quality score or iPhone rendering claim."
-            ]
-            try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
-                .write(to: directory.appendingPathComponent(stem + ".json"))
+        do {
+            try await activateAccessibility(in: host)
+            let size = try await settledSize(host, window: window, width: width, svgCount: svgCount, requiredText: requiredText)
+            host.displayIfNeeded()
+            let bitmap = try await mountedBitmap(host)
+            try saveEvidence(bitmap, source: source, kind: kind, name: name, size: size, scheme: scheme,
+                             typeSize: typeSize, renderedText: renderedText(in: host), requiredText: requiredText)
+            XCTAssertEqual(size.width, width, accuracy: 0.5)
+            XCTAssertGreaterThan(size.height, 100)
+            XCTAssertGreaterThan(bitmap.pixelsWide, 0)
+            XCTAssertGreaterThan(bitmap.pixelsHigh, 0)
+            XCTAssertTrue(hasContent(bitmap), "The full-document bitmap must contain more than its background")
+            XCTAssertEqual(session.draft, source)
+            XCTAssertEqual(session.state.sourceRevision, revision, "Rendering must not resubmit the program")
+            XCTAssertTrue(session.state.errors.isEmpty, session.state.errors.map(\.message).joined(separator: "; "))
+            for web in descendants(of: host).compactMap({ $0 as? WKWebView }) {
+                let frame = web.convert(web.bounds, to: host)
+                XCTAssertGreaterThan(frame.width, 0)
+                XCTAssertGreaterThan(frame.height, 0)
+                XCTAssertGreaterThanOrEqual(frame.minX, -0.5, "The mounted diagram must fit the document width")
+                XCTAssertLessThanOrEqual(frame.maxX, host.bounds.width + 0.5)
+                XCTAssertGreaterThanOrEqual(frame.minY, -0.5)
+                XCTAssertLessThanOrEqual(frame.maxY, host.bounds.height + 0.5)
+            }
+        } catch {
+            host.displayIfNeeded()
+            let bitmap = (try? await mountedBitmap(host)) ?? (try? nativeBitmap(host))
+            try saveEvidence(bitmap, source: source, kind: kind, name: name, size: host.bounds.size, scheme: scheme,
+                             typeSize: typeSize, renderedText: renderedText(in: host), requiredText: requiredText,
+                             failure: String(describing: error))
+            throw GalleryFailure("\(kind.rawValue)/\(name)/\(Int(width))/\(scheme)/\(typeSize): \(error)")
         }
     }
 
     @MainActor private func settledSize<Content: View>(_ host: NSHostingView<Content>, window: NSWindow,
-                                                      width: CGFloat, svgCount: Int) async throws -> CGSize {
+                                                      width: CGFloat, svgCount: Int, requiredText: [String]) async throws -> CGSize {
         let deadline = Date().addingTimeInterval(8)
         var previous: CGSize?
         var stableSince: Date?
@@ -159,7 +185,9 @@ final class GalleryEditorialRenderingTests: XCTestCase {
                     in: nil, contentWorld: .defaultClient)
                 if ready as? Bool != true { mediaReady = false }
             }
-            if abs(size.width - width) <= 0.5, mediaReady {
+            let text = renderedText(in: host)
+            let textReady = requiredText.allSatisfy { text.contains($0) }
+            if abs(size.width - width) <= 0.5, mediaReady, textReady {
                 if let previous, abs(previous.height - size.height) <= 0.5 {
                     if let stableSince, Date().timeIntervalSince(stableSince) >= 0.25 { return fullSize }
                 } else { stableSince = Date() }
@@ -167,13 +195,15 @@ final class GalleryEditorialRenderingTests: XCTestCase {
             } else { previous = nil; stableSince = nil }
             try await Task.sleep(nanoseconds: 50_000_000)
         } while Date() < deadline
-        throw GalleryFailure("Full-document layout or local SVG loading did not settle: \(host.fittingSize)")
+        let missing = requiredText.filter { !renderedText(in: host).contains($0) }
+        throw GalleryFailure("Full-document layout, text or local SVG loading did not settle: \(host.fittingSize); missing text: \(missing)")
     }
 
     private func elements(in value: Value) -> [EvaluatedElement] {
         switch value {
         case .element(let element): return [element] + element.props.flatMap { elements(in: $0.1) }
         case .array(let values): return values.flatMap { elements(in: $0) }
+        case .object(let fields): return fields.flatMap { elements(in: $0.value) }
         default: return []
         }
     }
@@ -182,9 +212,92 @@ final class GalleryEditorialRenderingTests: XCTestCase {
         view.subviews.flatMap { [$0] + descendants(of: $0) }
     }
 
-    @MainActor private func mountedBitmap<Content: View>(_ host: NSHostingView<Content>) async throws -> NSBitmapImageRep {
+    @MainActor private func activateAccessibility(in host: NSView) async throws {
+        host.layoutSubtreeIfNeeded()
+        // Use the same native observation barrier as the SDK's mounted-text
+        // tests. SwiftUI builds virtual accessibility nodes lazily.
+        let request = await Task.detached {
+            let application = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+            var role: CFTypeRef?
+            let error = AXUIElementCopyAttributeValue(application, kAXRoleAttribute as CFString, &role)
+            return (code: error.rawValue, role: role as? String)
+        }.value
+        guard request.code == AXError.success.rawValue, request.role == kAXApplicationRole as String else {
+            throw GalleryFailure("Could not observe the mounted accessibility tree: \(request)")
+        }
+    }
+
+    @MainActor private func renderedText(in root: NSView) -> String {
+        var visited = Set<ObjectIdentifier>(), retained: [NSObject] = [], text: [String] = []
+        func attribute(_ name: String, on object: NSObject) -> AnyObject? {
+            let selector = NSSelectorFromString(name)
+            return object.responds(to: selector) ? object.perform(selector)?.takeUnretainedValue() : nil
+        }
+        func visit(_ object: NSObject, depth: Int) {
+            guard depth < 128, visited.count < 8_192,
+                  visited.insert(ObjectIdentifier(object)).inserted else { return }
+            retained.append(object)
+            for name in ["accessibilityLabel", "accessibilityValue"] {
+                let value = attribute(name, on: object)
+                if let string = value as? NSAttributedString { text.append(string.string) }
+                else if let string = value as? String { text.append(string) }
+            }
+            for child in attribute("accessibilityChildren", on: object) as? [Any] ?? [] {
+                if let child = child as? NSObject { visit(child, depth: depth + 1) }
+            }
+            if let view = object as? NSView {
+                for child in view.subviews { visit(child, depth: depth + 1) }
+            }
+        }
+        visit(root, depth: 0)
+        return withExtendedLifetime(retained) { text.joined(separator: "\n") }
+    }
+
+    @MainActor private func saveEvidence(_ bitmap: NSBitmapImageRep?, source: String, kind: GalleryLibrary, name: String,
+                              size: CGSize, scheme: ColorScheme, typeSize: DynamicTypeSize,
+                              renderedText: String, requiredText: [String], failure: String? = nil) throws {
+        let path = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("outputs/verification/visual").path
+        let directory = URL(fileURLWithPath: path).appendingPathComponent("gallery-editorial", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let mode = scheme == .dark ? "dark" : "light"
+        let type = typeSize.isAccessibilitySize ? "accessibility3" : "large"
+        let program = kind.rawValue + "-" + name
+        let stem = "\(program)-\(Int(size.width))-\(mode)-\(type)-macos"
+        if let bitmap {
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                .write(to: directory.appendingPathComponent(stem + ".png"))
+        }
+        try source.write(to: directory.appendingPathComponent(program + ".openui"), atomically: true, encoding: .utf8)
+        try renderedText.write(to: directory.appendingPathComponent(stem + ".txt"), atomically: true, encoding: .utf8)
+        var metadata: [String: Any] = [
+            "library": kind.rawValue, "program": program + ".openui", "image": stem + ".png", "platform": "macOS",
+            "widthPoints": Double(size.width), "fullHeightPoints": Double(size.height),
+            "pixelsWide": bitmap?.pixelsWide ?? 0, "pixelsHigh": bitmap?.pixelsHigh ?? 0,
+            "colorScheme": mode, "dynamicTypeSize": type, "locale": "zh-Hans",
+            "requiredText": requiredText, "observedText": stem + ".txt", "status": failure == nil ? "captured" : "failed",
+            "capture": "NSHostingView with native WKWebView snapshots at their mounted rectangles.",
+            "coverage": "Entire initially visible document at its natural height; disclosures retain their default state.",
+            "review": "Rendering and geometry evidence only; no visual-quality score or iPhone rendering claim."
+        ]
+        if let failure { metadata["failure"] = failure }
+        try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
+            .write(to: directory.appendingPathComponent(stem + ".json"))
+    }
+
+    @MainActor private func nativeBitmap<Content: View>(_ host: NSHostingView<Content>) throws -> NSBitmapImageRep {
+        guard host.bounds.width.isFinite, host.bounds.height.isFinite,
+              host.bounds.width > 0, host.bounds.height > 0, host.bounds.height < 30_000 else {
+            throw GalleryFailure("Cannot capture an invalid document rectangle: \(host.bounds)")
+        }
         let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: bitmap)
+        return bitmap
+    }
+
+    @MainActor private func mountedBitmap<Content: View>(_ host: NSHostingView<Content>) async throws -> NSBitmapImageRep {
+        let bitmap = try nativeBitmap(host)
         let webViews = descendants(of: host).compactMap { $0 as? WKWebView }
         guard !webViews.isEmpty else { return bitmap }
         // WebKit owns a separate compositing surface that cacheDisplay can omit.
@@ -224,6 +337,31 @@ final class GalleryEditorialRenderingTests: XCTestCase {
             }
         }
         return differing > 16
+    }
+}
+
+/// Restrict the existing exact-source Gallery loader to this capture's bundled
+/// sources. Unknown URLs fail locally instead of making a network request.
+private final class SnapshotImageLoader: OpenUIResourceLoading {
+    private let loader: GalleryImageLoader
+    private let allowedSources: Set<String>
+    var resourceLimits: OpenUIResourceLimits { loader.resourceLimits }
+    var authorizationScopeID: String { "gallery-snapshot-local" }
+
+    init(resourceRoot: URL, allowedSources: Set<String> = []) throws {
+        loader = try GalleryImageLoader(resourceRoot: resourceRoot)
+        self.allowedSources = allowedSources
+    }
+
+    func request(for source: String, relativeTo baseURL: URL?) -> URLRequest? {
+        loader.request(for: source, relativeTo: baseURL)
+    }
+
+    func data(for request: URLRequest) async throws -> Data {
+        guard let source = request.url?.absoluteString, allowedSources.contains(source) else {
+            throw GalleryFailure("Snapshot requested an unbundled source: \(request.url?.absoluteString ?? "nil")")
+        }
+        return try await loader.data(for: request)
     }
 }
 #endif

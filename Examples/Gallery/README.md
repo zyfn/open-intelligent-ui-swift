@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.17 · 更新日期：2026-11-23
+文档版本：1.18 · 更新日期：2026-11-23
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -116,16 +116,16 @@ OpenUI 的设计规则与实施状态统一见 [OpenUI 组件指南](../../docs/
 ./Examples/Gallery/verify.sh
 ```
 
-该脚本运行独立包的 XCTest，再用**实际两套库的 reader**逐案例创建新状态，分别完整渲染求值和按 47 字符分块流式求值，检查最终 root、完成状态与错误（同时覆盖全部组件示例）；最后导出两份 reader 契约：
+该脚本运行独立包的 XCTest，再用**实际两套库的 reader**逐案例创建新状态，执行完整求值与三种流式分片：原有 47 个 Character、不等长 `1/7/24/128` 个 Unicode scalar，以及每块最多 128 个 scalar 的语法边界分片。每种分片使用独立 Store 和 parser，完成后检查错误、解析完整性、未解析引用和完成/中断状态，并与完整求值逐值比较内容、组件属性、动作、绑定及默认状态；节点身份与原生缓存元数据不参与语义比较。现有 226 份场景、诊断和组件用法对应 226 次完整检查与 678 次流式检查。最后导出两份 reader 契约：
 
 ```sh
 swift run --package-path Examples/Gallery OpenUIGallery \
   --export-contracts "$PWD/outputs/verification/gallery-contracts"
 ```
 
-输出文件为 `openui.json` 和 `openintelligentui.json`。导出使用实际 SDK 的 `readerSpecification`，不是手写的 schema 子集。CLI 校验覆盖解析和宿主求值，不代表界面截图或真实交互已经通过。XCTest 另覆盖状态隔离、流式取消、查询链和 Mac 预览尺寸变化；原生执行结果应以对应提交的日志为准。
+输出文件为 `openui.json` 和 `openintelligentui.json`。导出使用实际 SDK 的 `readerSpecification`，不是手写的 schema 子集。CLI 校验覆盖解析和宿主求值，不代表界面截图或真实交互已经通过。XCTest 另覆盖状态隔离、流式取消、查询链、Mac 预览尺寸变化，以及小型双库程序在每个 Unicode scalar 边界下的内容保全；比较器的反例会实际更换正文、绑定、动作或未显示的默认值，确保无报错的语义漂移仍会失败。原生执行结果应以对应提交的日志为准。
 
-### OpenIntelligentUI 阅读排版截图
+### 两库完整阅读场景截图
 
 在 macOS 上执行完整场景的渲染检查并保留截图：
 
@@ -134,6 +134,6 @@ OPENUI_SNAPSHOT_DIR="$PWD/outputs/verification/visual" \
   swift test --package-path Examples/Gallery --filter GalleryEditorialRenderingTests
 ```
 
-检查直接读取 `heat-pump`、`code-isolation` 的完整程序，以及既有 `Row/image-reading` 图片用法。两篇阅读场景和图文行分别覆盖 320 / 390 pt、Light / Dark；热泵场景另覆盖 390 pt 的辅助字号 `accessibility3`，共 13 种组合。正文保留自然高度，Disclosure 保持默认开合状态；图片通过精确来源映射使用已有打包资源，SVG 等待实际 WebKit 内容就绪后捕获。
+检查直接读取两库各自的 `heat-pump`、`code-isolation` 完整程序，以及 OpenIntelligentUI 既有的 `Row/image-reading` 图片用法。两库阅读场景和图文行均覆盖 320 / 390 pt、Light / Dark；两库热泵场景另覆盖 390 pt 的辅助字号 `accessibility3`，共 22 种组合。正文保留自然高度，Disclosure / Accordion 保持默认开合状态；图片通过精确来源映射使用已有打包资源，截图资源加载器拒绝其他 URL。SVG 等待实际 WebKit 内容就绪，正文等待原生可访问性树中出现开头、中部和结尾的阅读章节后捕获。
 
-输出保存在 `gallery-editorial/` 子目录，包括 PNG、对应完整 `.openui` 与记录宽高、平台、外观和字号的 JSON。断言检查解析、渲染、尺寸和非空图像；主次、图注归属、留白及深色可读性仍需查看截图。它们是 macOS 在手机宽度下的证据，不代表 iPhone / iPad 已验收，也不计作模型生成质量分数。现有 CI 的 `native-acceptance` artifact 会收集这些文件；只有对应测试实际成功执行，才能记录为本提交的渲染结果。
+输出保存在 `gallery-editorial/` 子目录；未设置 `OPENUI_SNAPSHOT_DIR` 时，使用当前工作目录下的 `outputs/verification/visual`。文件名以 `openui-` 或 `openintelligentui-` 区分库，包含 PNG、对应完整 `.openui`、实际观察到的正文 `.txt`，以及记录库、宽高、平台、外观、字号和捕获状态的 JSON。布局或加载失败时仍保存可捕获的挂载画面和错误信息。断言检查解析、渲染、章节内容、尺寸、图形边界和非空图像；主次、图注归属、留白及深色可读性仍需查看截图。它们是 macOS 在手机宽度下的证据，不代表 iPhone / iPad 已验收，也不计作模型生成质量分数。[统一验证入口](../../Validation/SDK/README.md)的 macos profile 会随对应 check 收集这些产物，路径为 `profile/visual/gallery-tests/gallery-editorial/`；只有对应测试实际成功执行，才能记录为本提交的渲染结果。

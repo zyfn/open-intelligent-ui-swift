@@ -245,8 +245,14 @@ final class MountedStreamingTextProgressTests: XCTestCase {
         guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return "unavailable" }
         host.cacheDisplay(in: host.bounds, to: bitmap)
         guard let data = bitmap.representation(using: .png, properties: [:]) else { return "unavailable" }
-        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("outputs/verification/observation-diagnostics", isDirectory: true)
+        let directory: URL
+        if let path = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"], !path.isEmpty {
+            directory = URL(fileURLWithPath: path)
+                .appendingPathComponent("observation-diagnostics", isDirectory: true)
+        } else {
+            directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("outputs/verification/observation-diagnostics", isDirectory: true)
+        }
         let filename = name.replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
         let destination = directory.appendingPathComponent(filename + ".png")
         do {

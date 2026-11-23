@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.40 · 更新日期：2026-11-23
+文档版本：1.41 · 更新日期：2026-11-23
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -34,17 +34,21 @@ Zod 的 JSON Schema 导入也把简单字符串键 record 包装为带校验的 
 
 ## 2. 验收范围
 
-Runtime、Streaming、Components、Layout、Visual、Performance 六个领域的测试与验收计划维护在 [SDK 验证矩阵](../Validation/SDK/README.md)，覆盖共享 SwiftLang 底座与 OpenUI、OpenIntelligentUI 两套组件库。矩阵复用根 Tests、Gallery 与性能工具；`existing` 表示已有可复用实现，不表示本提交已执行或全部观测指标已采集。可重复的共享层性能测量由 [Performance](../Validation/Performance/README.md) 承担。固定程序及生成契约回归、双库原生视觉与交互审查、性能结果分别记录。
+SDK 行为断言归属共享 SwiftLang、OpenUI、OpenIntelligentUI 各自的 Tests，完整场景回归归属 Gallery Tests；验证工具自身的单测放在 Tests/ValidationTools。[SDK 验证入口](../Validation/SDK/README.md) 只调度现有测试及构建/资源/安全/性能工具，并保留实际执行报告。运行时、流式、组件、布局、视觉、性能作为文档覆盖索引，不再用 cases.json 平行定义另一套断言、准备状态或验收状态。
 
-流水线按当前 SDK 分成三项检查：可复现输入、依赖安全和原生验收，最后由 `Native SDK acceptance` 汇总。汇总仅在三项均为 success 时成功；failure、cancelled、skipped 或缺失结果均不算通过，并在摘要记录实际 checkout SHA 和各项结果。该 job 的存在不自动设置仓库分支保护，合并阻断还需仓库将它配置为 required check。可复现输入检查重建实际打包资源并运行语言、authoring 和组件目录回归；安全审计覆盖 Core、标准富文本、代码高亮、图标和 Intelligent 函数五个生成工具依赖图，使用 `--audit-level=high` 门槛。原生验收构建并测试根 SDK 及其公开产品消费者。
+流水线直接调用 `Validation/SDK/run.py` 的 `portable`、`security`、`macos`、`ios` 四个 profile，共 27 项检查，最后由 `Native SDK acceptance` 汇总。可复现输入重建实际打包资源并运行语言、authoring 和组件目录回归；安全审计覆盖 Core、标准富文本、代码高亮、图标和 Intelligent 函数五个生成工具依赖图，使用 `--audit-level=high` 门槛。macOS 与 iOS 分别执行原生检查，任一环境缺失、零测试、超时、失败、取消或 skipped 都不能当作通过。
+
+每份报告绑定实际 checkout SHA、源码工作区指纹、OS、工具链、命令参数、耗时、退出码和产物哈希。最终汇总验证四份 profile 与全部检查唯一齐全、同一提交和 runner、初始源码干净且执行期间不变、证据真实存在且未被修改，并要求所有 job 成功。该 job 的存在不自动设置仓库分支保护，合并阻断还需仓库将它配置为 required check。完整命令、报告字段及 artifact 布局以 [SDK 验证入口](../Validation/SDK/README.md) 为准。
 
 原生验收覆盖 SwiftLang、OpenUI、OpenIntelligentUI 三个独立产品消费者。每个外部包只声明一个产品，验证打包资源、authoring、解析、流式、生成契约、原生宿主和状态读写；不启动窗口，不能代替 UI 视觉验收。模块检查禁止适配层导入两套组件库、任一 UI 导入另一套库；适配层内部 Language 目录不导入 UI 框架，Runtime 目录承接 SwiftUI。
 
-其余原生验收覆盖全部原生测试、Release fitting、Release 挂载流式与呈现/订阅回归、独立 Gallery 测试与双库案例完整/流式验证、完整历史契约、语言 ASan、独立契约/性能工具及 iOS 编译。独立检查在前一个检查失败后仍可收集证据，但任何检查失败都会保留为任务失败。消费者源码生成或语法检查不等于实际 Swift 编译通过；原生编译与测试结果以对应提交的执行日志为准。
+macOS 保留原 Debug preflight、Release 呈现/订阅/流式回归、全量三产品测试、Release fitting、独立 Gallery 测试、历史契约、语言 ASan、工具构建和 24/128 分片 Release 性能测量。全量测试另导出实际代码覆盖率用于定位缺口，不设任意覆盖率门槛。Intelligent UI 根百分比高度只在所属检查进程启用已有 layout trace，保留 proposal 与实际尺寸；截图按检查分目录，避免后续用例覆盖前一项的证据。
 
-Intelligent UI 的原生布局与生成契约在 Debug 构建后提前检查，并纳入 Release 呈现回归。根百分比高度用例保留单独的 `intelligent-ui-root-layout.log`：仅该进程启用已有布局 trace，记录测量、放置的 proposal 与尺寸，不记录源码或业务值。`intelligent-ui-composition.log` 覆盖真实注册组件的 RTL、百分比、编辑状态和示例裁剪；这两份日志随早期 Debug 产物及最终验收产物保留，不替代全量测试。
+iOS profile 保留两个 UI target 的最低 iOS 16 Simulator 编译和 Gallery 编译，并通过根包的自动 Xcode scheme 在实际已安装的 iPhone Simulator 上执行三个产品 XCTest。选择的 runtime、设备名和 UDID、原始 `.xcresult`、Apple 工具导出的测试树和覆盖率均保留。每个产品必须有真实非零成功测试，编译成功不能替代执行。iOS 与 macOS 平台条件用例的数量可以不同；Simulator 结果不代表真机、全部系统版本或 iPad 交互已经验收。
 
-这些记录用于验证当前分支的实现与构建；真机交互、产品发布和合并仍是独立的交付动作。
+Gallery 的两库固定程序同时做批量和三种流式终态对照，比较内容、属性、动作、绑定与 Store 默认值；小型 Unicode 程序和故意改变内容/绑定/动作/默认值的反例验证比较器会检出语义漂移。双库完整阅读场景采用相同宽度/主题截图矩阵，检查实际正文、几何、图片资源及 SVG 就绪，失败时保留画面和诊断。构图、主次、留白、阅读舒适度、iOS 全页辅助字号与 RTL，以及真实滚动资源成本仍需单独审查和测量，不能由自动检查全绿推导。
+
+这些记录验证当前分支实现与构建。固定程序回归不调用模型、不评测 Agent 或 Skill；真机交互与产品发布仍有各自证据要求。
 
 ## 3. 语言版本与验证边界
 

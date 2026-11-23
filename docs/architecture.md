@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.21 · 更新日期：2026-11-23
+文档版本：1.22 · 更新日期：2026-11-23
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -72,9 +72,10 @@ flowchart TB
 | Sources/SwiftIntelligentUI/Components/ | Layout、Content、Controls、DataDisplay、Media 五类组件定义与原生实现 |
 | Sources/SwiftIntelligentUI/DesignSystem/、Functions/、Internal/、Resources/ | 该库的设计 token、阅读规则、固定计算函数、媒体/公式适配、本地化与许可 |
 | Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
+| Tests/ValidationTools/ | 验证工具的单元测试，检查缺失、失败、超时、零执行与报告完整性；不复制 SDK 行为断言 |
 | Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
 | Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
-| Validation/ | 静态程序校验、SDK 六域测试与验收矩阵（SDK/）、性能验证（Performance/） |
+| Validation/ | 静态程序校验、SDK 统一执行与证据汇总（SDK/）、性能验证（Performance/） |
 | Validation/Performance/ | 独立性能验证包，可执行工具 LanguagePerformanceValidation 测量语言与公开 State 流式成本，默认报告为 outputs/verification/performance/language-runtime.json |
 | Fixtures/ | 固定语言输入与参考预期 |
 | docs/、outputs/ | 文档；已忽略的本地生成及验收材料 |
