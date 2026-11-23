@@ -1,4 +1,4 @@
-name: iOS native interaction diagnostic
+name: iOS Slider interaction diagnostic
 on:
   push:
     branches: ['diagnostic/ios-mounted-tests-20261123']
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: e974462be96867906b514fd6dc18d8a9868fcdc5
+          ref: 2ab605bdce9a3510547011e18748b34b78954c37
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -52,7 +52,7 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/ios-ui-derived-data" \
             -resultBundlePath outputs/ios-ui-diagnostic/tests.xcresult \
             -parallel-testing-enabled NO -enableCodeCoverage NO CODE_SIGNING_ALLOWED=NO \
-            -only-testing:OpenUIGalleryUITests \
+            -only-testing:OpenUIGalleryUITests/GalleryNativeControlUITests/testSliderBlocksInvalidDraftAndSubmitsTheCorrectedNativeValue \
             2>&1 | tee outputs/ios-ui-diagnostic/test.log
       - name: Preserve actual XCTest results
         if: always()
@@ -98,10 +98,7 @@ jobs:
           xcrun xcresulttool get test-results tests --path outputs/ios-ui-diagnostic/tests.xcresult > outputs/ios-ui-diagnostic/tests.json
       - name: Export actual failed-run attachments with Apple's tool
         if: ${{ always() && steps.interactions.outcome == 'failure' }}
-        run: |
-          xcrun xcresulttool export attachments \\
-            --path outputs/ios-ui-diagnostic/tests.xcresult \\
-            --output-path outputs/ios-ui-diagnostic/attachments
+        run: xcrun xcresulttool export attachments --path outputs/ios-ui-diagnostic/tests.xcresult --output-path outputs/ios-ui-diagnostic/attachments
       - uses: actions/upload-artifact@v4
         if: always()
         with:

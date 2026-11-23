@@ -80,7 +80,7 @@ final class GalleryNativeControlUITests: GalleryNativeUITestCase {
         XCTAssertTrue(input.waitForExistence(timeout: 5), app.debugDescription)
         expectLabel(app.staticTexts["validation.controls.native"], containing: "input=true;same=true;")
         XCTAssertEqual(input.value as? String, "10")
-        replaceText(in: input, with: "-")
+        replaceText(in: input, with: "-", app: app)
         app.buttons["Send amount"].tap()
         let error = app.descendants(matching: .any).matching(identifier: "openui.error.amount").firstMatch
         XCTAssertTrue(error.waitForExistence(timeout: 5), app.debugDescription)
@@ -89,7 +89,7 @@ final class GalleryNativeControlUITests: GalleryNativeUITestCase {
         expectLabel(app.staticTexts["validation.controls.action"], equals: "count=0")
         try saveSnapshot(app, name: "slider-invalid-draft")
 
-        replaceText(in: input, with: "37")
+        replaceText(in: input, with: "37", app: app)
         app.buttons["Send amount"].tap()
         expectLabel(app.staticTexts["validation.controls.action"],
             equals: "count=1;type=continue_conversation;form=quote;message=Amount details;value=[37]")
@@ -128,12 +128,20 @@ final class GalleryNativeControlUITests: GalleryNativeUITestCase {
         XCTAssertTrue(app.staticTexts["Underlying page"].exists)
     }
 
-    @MainActor private func replaceText(in input: XCUIElement, with text: String) {
+    @MainActor private func replaceText(in input: XCUIElement, with text: String, app: XCUIApplication) {
         let current = input.value as? String ?? ""
-        // The endpoint is right aligned. Tap after its final glyph so deletion
-        // begins at the end, then type through the real keyboard input path.
-        input.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
-        input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count) + text)
+        input.tap()
+        expectLabel(app.staticTexts["validation.controls.native"],
+            containing: "input=true;same=true;focused=true;")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
+
+        // The accessibility frame includes padding. Use real navigation keys to
+        // reach the end without treating its trailing edge as a caret position.
+        for _ in 0..<current.count { input.typeKey(.rightArrow, modifierFlags: []) }
+        input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        XCTAssertEqual(input.value as? String, "", "The native editor must be empty before replacement")
+        input.typeText(text)
+        XCTAssertEqual(input.value as? String, text)
     }
 
     @MainActor private func expectLabel(_ element: XCUIElement, equals value: String,
