@@ -18,10 +18,12 @@ struct RichMarkdown: View {
     var isTitle = false
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
+    #if os(macOS)
     @Environment(\.displayScale) private var displayScale
     @Environment(\.locale) private var locale
     @Environment(\.legibilityWeight) private var legibilityWeight
     @Environment(\.layoutDirection) private var layoutDirection
+    #endif
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
     #if compiler(>=6.2)
     @Environment(\.fontResolutionContext) private var fontContext
@@ -124,13 +126,18 @@ struct RichMarkdown: View {
             ? TitleTypography.font(size: role, theme: theme) == TitleTypography.font(size: role, theme: OpenIntelligentUITheme())
             : usesSystemBodyFamily
         let style = MarkdownFontStyle(font, usesSystemFamily: systemFamily, size: size, weight: semantic ? nil : theme.headingWeight)
-            let leading = semantic && systemFamily ? (MarkdownTypography.semanticHeadingLineSpacing(
+        #if os(macOS)
+        let leading = semantic && systemFamily ? (MarkdownTypography.semanticHeadingLineSpacing(
             TitleTypography.font(size: role, theme: theme), style: style, typeSize: typeSize,
             displayScale: displayScale, locale: locale, legibilityWeight: legibilityWeight,
             layoutDirection: layoutDirection) ?? 0) : 0
+        #else
+        let leading: CGFloat = 0
+        #endif
         return configuration.label
             .markdownTextStyle { style }
             .transformEnvironment(\.lineSpacing) { $0 += leading }
+            .markdownSemanticHeadingLineHeight(font, enabled: semantic && systemFamily)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
@@ -138,6 +145,31 @@ struct RichMarkdown: View {
 }
 
 private extension View {
+    /// iOS semantic fonts include signed leading in their baseline advance.
+    /// Rebuilding them at a fixed point size loses that information, and a
+    /// two-line Canvas measurement rounds away precision needed by long text.
+    /// iOS 26 exposes the exact line height; retain a host's explicit choice
+    /// and its independent extra line spacing. Earlier iOS releases keep the
+    /// existing automatic line-height policy because lineSpacing cannot encode
+    /// negative leading.
+    @ViewBuilder
+    func markdownSemanticHeadingLineHeight(_ font: PlatformFont, enabled: Bool) -> some View {
+        #if os(iOS) && compiler(>=6.2)
+        if #available(iOS 26, *) {
+            transformEnvironment(\.lineHeight) { height in
+                let advance = font.ascender - font.descender + font.leading
+                if enabled, height == nil, advance.isFinite, advance > 0 {
+                    height = .exact(points: advance)
+                }
+            }
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
+
     /// MarkdownUI scales its root FontSize before constructing blocks. The SDK
     /// has already resolved the native font in this view's environment, so each
     /// body block supplies that absolute size after the root scaler. Overriding

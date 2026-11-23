@@ -105,15 +105,75 @@ final class SemanticTypographyTests: XCTestCase {
                     .background(Color.white)
             }
 
-            let renderer = ImageRenderer(content: content(fontSize: 18, typeSize: .large))
-            renderer.scale = 1
-            renderer.proposedSize = ProposedViewSize(width: 600, height: nil)
+            let bounds = CGRect(x: 0, y: 0, width: 600, height: 400)
+            #if os(iOS)
+            let host = UIHostingController(rootView: content(fontSize: 18, typeSize: .large))
+            let window = UIWindow(frame: bounds)
+            window.rootViewController = host
+            window.isHidden = false
+            defer { window.isHidden = true; window.rootViewController = nil }
+            #else
+            _ = NSApplication.shared
+            let host = NSHostingView(rootView: content(fontSize: 18, typeSize: .large))
+            let window = NSWindow(contentRect: bounds, styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+            window.orderFront(nil)
+            defer { window.close() }
+            #endif
+
+            func snapshot() throws -> (image: CGImage, pixelsPerPoint: CGFloat, complete: Bool) {
+                #if os(iOS)
+                window.layoutIfNeeded()
+                host.view.setNeedsLayout()
+                host.view.layoutIfNeeded()
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                format.opaque = true
+                var complete = false
+                let rendered = UIGraphicsImageRenderer(bounds: host.view.bounds, format: format).image { context in
+                    UIColor.white.setFill()
+                    context.fill(host.view.bounds)
+                    complete = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+                }
+                let image = try XCTUnwrap(rendered.cgImage)
+                return (image, CGFloat(image.width) / host.view.bounds.width, complete)
+                #else
+                host.needsLayout = true
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+                let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                let image = try XCTUnwrap(bitmap.cgImage)
+                return (image, CGFloat(image.width) / host.bounds.width, true)
+                #endif
+            }
+
             func inkWidth(fontSize: CGFloat, typeSize: DynamicTypeSize, name: String) throws -> CGFloat {
-                // Keep the same renderer and view type while replacing inputs.
-                renderer.content = content(fontSize: fontSize, typeSize: typeSize)
-                let image = try XCTUnwrap(renderer.cgImage, "The \(slot) table must render")
-                try saveTypographyImage(image, name: "table-font-\(slot)-\(name)")
-                return try darkInkWidth(image)
+                // Keep the mounted window, host and view type across updates.
+                // Capture the native scrolling hierarchy through its mounted host.
+                host.rootView = content(fontSize: fontSize, typeSize: typeSize)
+                let deadline = Date().addingTimeInterval(3)
+                var lastWidth: CGFloat?
+                var stableSince = Date()
+                var captured: CGImage?
+                var complete = false
+                repeat {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                    let result = try snapshot()
+                    let width = try darkInkWidth(result.image) / result.pixelsPerPoint
+                    if lastWidth != width { stableSince = Date() }
+                    lastWidth = width
+                    captured = result.image
+                    complete = result.complete
+                    if complete && width > 0 && Date().timeIntervalSince(stableSince) >= 0.15 { break }
+                } while Date() < deadline
+                // Save the last capture even when the view stayed blank or
+                // incomplete, so a failed observation retains its evidence.
+                try saveTypographyImage(try XCTUnwrap(captured), name: "table-font-\(slot)-\(name)")
+                XCTAssertTrue(complete, "The \(slot) \(name) snapshot must include the complete native hierarchy")
+                return try XCTUnwrap(lastWidth)
             }
 
             let ordinary = try inkWidth(fontSize: 18, typeSize: .large, name: "large")

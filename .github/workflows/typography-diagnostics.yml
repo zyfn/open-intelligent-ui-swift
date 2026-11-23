@@ -28,6 +28,8 @@ jobs:
           out = pathlib.Path('outputs/typography-diagnostics').resolve()
           out.mkdir(parents=True)
           os.environ['OPENUI_SNAPSHOT_DIR'] = str(out / 'visual')
+          os.environ['TEST_RUNNER_OPENUI_SNAPSHOT_DIR'] = str(out / 'visual')
+          os.environ['TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED'] = '0'
           ios = runpy.run_path('Validation/SDK/ios.py')
           inventory = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']))
           device = ios['choose_device'](inventory, None)
@@ -48,7 +50,14 @@ jobs:
               with (out / (kind + '.json')).open('wb') as log:
                   subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', kind, '--path', str(out / 'typography.xcresult')], stdout=log, check=True)
           print((out / 'tests.log').read_text(errors='replace')[-12000:])
-          raise SystemExit(result.returncode)
+          summary = json.loads((out / 'summary.json').read_text())
+          expected = {f'table-font-{slot}-{state}.png' for slot in ('header', 'body') for state in ('large', 'accessibility2', 'updated-theme', 'restored')}
+          observed = {p.name for p in (out / 'visual/semantic-typography').glob('*.png')}
+          evidence = {'expectedTests': 16, 'actualTests': summary.get('totalTestCount'), 'expectedImages': sorted(expected), 'observedImages': sorted(observed)}
+          (out / 'evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+          print(json.dumps(evidence))
+          if result.returncode: raise SystemExit(result.returncode)
+          if summary.get('totalTestCount') != 16 or expected != observed: raise SystemExit('Incomplete diagnostic test or image evidence')
           PY
       - uses: actions/upload-artifact@v4
         if: always()

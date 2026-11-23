@@ -52,6 +52,7 @@ enum MarkdownTypography {
         (1...3).contains(level) && !theme.hasCustomMarkdownHeadingScales
     }
 
+    #if os(macOS)
     struct HeadingMetricsKey: Hashable {
         let semanticFont: Font
         let fixedFont: Font
@@ -109,6 +110,7 @@ enum MarkdownTypography {
         headingSpacingCache[key] = spacing
         return spacing
     }
+    #endif
 
     static func headingScale(level: Int, theme: OpenIntelligentUITheme) -> Double {
         switch level {
@@ -128,6 +130,7 @@ enum MarkdownTypography {
     }
 }
 
+#if os(macOS)
 /// This is a synchronous rendering result, not observable view or SDK state.
 private final class HeadingSpacingMeasurement: @unchecked Sendable {
     private let lock = NSLock()
@@ -145,3 +148,4 @@ private final class HeadingSpacingMeasurement: @unchecked Sendable {
         return measured
     }
 }
+#endif
