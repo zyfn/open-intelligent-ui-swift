@@ -3,27 +3,25 @@ import SwiftUI
 import UIKit
 import XCTest
 
-/// Real UIKit hosting for the iOS-specific SDK regressions. Each test owns its
-/// window, waits for observable content, and tears it down without a host app.
+/// Real UIKit hosting inside the Gallery application's unit-test bundle.
+/// Each test owns a window in the running app's scene and restores the previous
+/// key window when finished; UIKit control events use the real application.
 @MainActor final class IOSNativeTestHost {
     let window: UIWindow
     let controller: UIHostingController<AnyView>
     private weak var previousKeyWindow: UIWindow?
 
-    init<Content: View>(_ content: Content, width: CGFloat = 390, height: CGFloat = 1400) {
+    init<Content: View>(_ content: Content, width: CGFloat = 390, height: CGFloat = 1400) throws {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = try XCTUnwrap(scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first,
+                                 "Mounted native tests require the Gallery app's UIWindowScene")
         previousKeyWindow = scenes.flatMap(\.windows).first(where: \.isKeyWindow)
         controller = UIHostingController(rootView: AnyView(content
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .ignoresSafeArea()))
         let bounds = CGRect(x: 0, y: 0, width: width, height: height)
-        if let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first {
-            window = UIWindow(windowScene: scene)
-            window.frame = bounds
-        } else {
-            // Package framework tests do not necessarily create an app scene.
-            window = UIWindow(frame: bounds)
-        }
+        window = UIWindow(windowScene: scene)
+        window.frame = bounds
         window.rootViewController = controller
         window.makeKeyAndVisible()
         layout()
@@ -69,7 +67,7 @@ import XCTest
     }
 
     func renderedText() -> String {
-        // Framework XCTest can inspect concrete UIKit views. SwiftUI's
+        // In-process XCTest can inspect concrete UIKit views. SwiftUI's
         // virtual accessibility tree is read by the Gallery XCUITest target.
         (descendants(of: UILabel.self).compactMap(\.text)
             + descendants(of: UITextField.self).compactMap(\.text)
@@ -86,8 +84,8 @@ import XCTest
         return UIGraphicsImageRenderer(bounds: capturedView.bounds, format: format).image { context in
             UIColor.white.setFill()
             context.fill(capturedView.bounds)
-            // Framework XCTest has no render-server host app. Software layer
-            // capture still observes the mounted native text and decoded images.
+            // A software capture includes the complete test window, including
+            // content outside the physical phone viewport used for width cases.
             capturedView.layer.render(in: context.cgContext)
         }
     }

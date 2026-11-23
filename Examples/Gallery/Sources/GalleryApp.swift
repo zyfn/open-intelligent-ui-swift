@@ -19,7 +19,8 @@ final class GalleryAppDelegate: NSObject, NSApplicationDelegate {
 
     init() {
         #if DEBUG && os(iOS)
-        if ProcessInfo.processInfo.environment["OPENUI_UI_TEST_SCENARIO"] != nil {
+        if ProcessInfo.processInfo.environment["OPENUI_UI_TEST_SCENARIO"] != nil
+            || ProcessInfo.processInfo.environment["OPENUI_NATIVE_TEST_HOST"] == "1" {
             options = GalleryOptions()
             return
         }
@@ -51,6 +52,8 @@ final class GalleryAppDelegate: NSObject, NSApplicationDelegate {
             #if DEBUG && os(iOS)
             if let scenario = ProcessInfo.processInfo.environment["OPENUI_UI_TEST_SCENARIO"] {
                 GalleryNativeValidationView(scenario: scenario)
+            } else if ProcessInfo.processInfo.environment["OPENUI_NATIVE_TEST_HOST"] == "1" {
+                Color.clear
             } else {
                 GalleryView(options: options)
             }

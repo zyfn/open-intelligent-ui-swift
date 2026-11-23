@@ -5,13 +5,21 @@
    <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000258" BuildableName="OpenUIGallery.app" BlueprintName="OpenUIGallery" ReferencedContainer="container:OpenUIGallery.xcodeproj"/>
   </BuildActionEntry>
    <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+    <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="C00000000000000000000501" BuildableName="OpenUIGalleryNativeTests.xctest" BlueprintName="OpenUIGalleryNativeTests" ReferencedContainer="container:OpenUIGallery.xcodeproj"/>
+   </BuildActionEntry>
+   <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
     <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="B00000000000000000000501" BuildableName="OpenUIGalleryUITests.xctest" BlueprintName="OpenUIGalleryUITests" ReferencedContainer="container:OpenUIGallery.xcodeproj"/>
    </BuildActionEntry></BuildActionEntries>
  </BuildAction>
- <TestAction buildConfiguration="Debug" shouldUseLaunchSchemeArgsEnv="YES">
+ <TestAction buildConfiguration="Debug" shouldUseLaunchSchemeArgsEnv="NO">
   <Testables><TestableReference skipped="NO" parallelizable="NO">
+   <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="C00000000000000000000501" BuildableName="OpenUIGalleryNativeTests.xctest" BlueprintName="OpenUIGalleryNativeTests" ReferencedContainer="container:OpenUIGallery.xcodeproj"/>
+  </TestableReference><TestableReference skipped="NO" parallelizable="NO">
    <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="B00000000000000000000501" BuildableName="OpenUIGalleryUITests.xctest" BlueprintName="OpenUIGalleryUITests" ReferencedContainer="container:OpenUIGallery.xcodeproj"/>
   </TestableReference></Testables>
+  <EnvironmentVariables>
+   <EnvironmentVariable key="OPENUI_NATIVE_TEST_HOST" value="1" isEnabled="YES"/>
+  </EnvironmentVariables>
  </TestAction>
  <LaunchAction buildConfiguration="Debug" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" allowLocationSimulation="YES">
   <BuildableProductRunnable runnableDebuggingMode="0"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000258" BuildableName="OpenUIGallery.app" BlueprintName="OpenUIGallery" ReferencedContainer="container:OpenUIGallery.xcodeproj"/></BuildableProductRunnable>

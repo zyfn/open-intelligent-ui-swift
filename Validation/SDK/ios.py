@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the existing package tests on an installed iPhone Simulator.
+"""Run SDK and Gallery App tests on an installed iPhone Simulator.
 
 The package's automatic Xcode scheme is authoritative. Build-only success,
 empty test results and missing product test bundles cannot pass this check.
@@ -26,8 +26,13 @@ from uuid import UUID
 ROOT = Path(__file__).resolve().parents[2]
 SCHEME = "openui-swift-sdk-Package"
 TARGETS = ("SwiftLangTests", "SwiftOpenUITests", "SwiftIntelligentUITests")
-UI_TARGETS = ("OpenUIGalleryUITests",)
-UI_SUITES = ("GalleryNativeControlUITests", "GalleryNativeLayoutUITests", "GalleryProductCardUITests")
+SDK_BUNDLES = {target: "Unit test bundle" for target in TARGETS}
+APP_BUNDLES = {"OpenUIGalleryNativeTests": "Unit test bundle",
+               "OpenUIGalleryUITests": "UI test bundle"}
+APP_SUITES = {
+    "OpenUIGalleryNativeTests": ("IOSNativeControlTests", "IOSNativeLayoutTests", "IOSNativePagerTests"),
+    "OpenUIGalleryUITests": ("GalleryNativeControlUITests", "GalleryNativeLayoutUITests", "GalleryProductCardUITests"),
+}
 RESULT_BUCKETS = {"Passed": "passed", "Failed": "failed", "Skipped": "skipped",
                   "Expected Failure": "expectedFailures"}
 
@@ -73,10 +78,15 @@ def choose_device(inventory: dict, requested: str | None = None) -> dict:
 
 
 def validate_results(summary: dict, tree: dict, selected_device: dict, *,
-                     required_targets: tuple[str, ...] = TARGETS,
-                     bundle_type: str = "Unit test bundle",
-                     required_suites: tuple[str, ...] = ()) -> dict:
+                     required_bundles: dict[str, str] = SDK_BUNDLES,
+                     required_suites: dict[str, tuple[str, ...]] | None = None) -> dict:
     """Validate xcresulttool's modern test-results JSON, failing closed."""
+    required_suites = required_suites or {}
+    if not required_bundles or any(kind not in ("Unit test bundle", "UI test bundle")
+                                   for kind in required_bundles.values()):
+        raise ValueError("Required test bundles must declare their XCTest bundle types")
+    if set(required_suites) - set(required_bundles):
+        raise ValueError("Required suites must belong to a required test bundle")
     if not isinstance(summary, dict) or not isinstance(tree, dict):
         raise ValueError("Invalid xcresult summary or test tree")
     counts = {}
@@ -130,6 +140,8 @@ def validate_results(summary: dict, tree: dict, selected_device: dict, *,
             raise ValueError(f"Unknown test result: {node.get('name')}: {outcome}")
         if outcome == "Failed":
             raise ValueError(f"Failed native test node: {node.get('name')}")
+        if required_suites and outcome in ("Skipped", "Expected Failure"):
+            raise ValueError(f"Required App tests cannot be skipped or expected to fail: {node.get('name')}")
         if node_type in ("Unit test bundle", "UI test bundle"):
             name = node.get("name")
             if not isinstance(name, str) or not name:
@@ -137,9 +149,10 @@ def validate_results(summary: dict, tree: dict, selected_device: dict, *,
             target = name.removesuffix(".xctest")
             if target in bundles:
                 raise ValueError(f"Duplicate product test bundle: {target}")
-            if target in required_targets and (node_type != bundle_type or outcome in ("Skipped", "Expected Failure")):
-                raise ValueError(f"Required {bundle_type} was not executed successfully: {target}")
-            bundles[target] = {"passed": 0, "failed": 0, "skipped": 0,
+            expected_type = required_bundles.get(target)
+            if expected_type and (node_type != expected_type or outcome in ("Skipped", "Expected Failure")):
+                raise ValueError(f"Required {expected_type} was not executed successfully: {target}")
+            bundles[target] = {"bundleType": node_type, "passed": 0, "failed": 0, "skipped": 0,
                                "expectedFailures": 0, "tests": []}
             identifiers[target] = set()
         if node_type == "Test Case":
@@ -169,6 +182,8 @@ def validate_results(summary: dict, tree: dict, selected_device: dict, *,
                     raise ValueError(f"Unknown test execution result: {identifier}: {status}")
                 if status == "Failed":
                     raise ValueError(f"Failed test execution, including a retried attempt: {identifier}")
+                if required_suites and status in ("Skipped", "Expected Failure"):
+                    raise ValueError(f"Required App tests cannot be skipped or expected to fail: {identifier}")
                 nested = child.get("children", [])
                 if not isinstance(nested, list):
                     raise ValueError(f"Invalid test execution children: {identifier}")
@@ -182,19 +197,19 @@ def validate_results(summary: dict, tree: dict, selected_device: dict, *,
 
     for node in nodes:
         visit(node)
-    for target in required_targets:
+    for target in required_bundles:
         result = bundles.get(target)
         if result is None or result["passed"] == 0 or result["failed"]:
             raise ValueError(f"No successful executed tests for {target}: {result}")
     if required_suites:
         if counts["skippedTests"] or counts["expectedFailures"]:
-            raise ValueError("Required UI interaction tests cannot be skipped or expected to fail")
-        observed_suites = {test["identifier"].split("/", 1)[0].rsplit(".", 1)[-1]
-                           for target in required_targets for test in bundles[target]["tests"]
-                           if test["result"] == "Passed"}
-        missing = set(required_suites) - observed_suites
-        if missing:
-            raise ValueError("No successful UI cases for: " + ", ".join(sorted(missing)))
+            raise ValueError("Required App tests cannot be skipped or expected to fail")
+        for target, suites in required_suites.items():
+            observed_suites = {test["identifier"].split("/", 1)[0].rsplit(".", 1)[-1]
+                               for test in bundles[target]["tests"] if test["result"] == "Passed"}
+            missing = set(suites) - observed_suites
+            if missing:
+                raise ValueError(f"No successful cases for {target}: " + ", ".join(sorted(missing)))
     for field, bucket in (("passedTests", "passed"), ("failedTests", "failed"),
                           ("skippedTests", "skipped"), ("expectedFailures", "expectedFailures")):
         observed = sum(bundle[bucket] for bundle in bundles.values())
@@ -324,36 +339,36 @@ class IOSRun:
             if test_error:
                 raise test_error
 
-    def ui_tests(self, scratch: Path) -> None:
+    def app_tests(self, scratch: Path) -> None:
         device = self.report.get("device")
         if not isinstance(device, dict):
-            raise ValueError("UI tests require the selected and booted iPhone Simulator")
-        bundle = self.output / "gallery-ui-tests.xcresult"
+            raise ValueError("Gallery App tests require the selected and booted iPhone Simulator")
+        bundle = self.output / "gallery-tests.xcresult"
         test_environment = {f"TEST_RUNNER_{name}": value
                             for name in ("OPENUI_SNAPSHOT_DIR", "OPENUI_RUNTIME_TELEMETRY_ENABLED")
                             if (value := os.environ.get(name))}
         test_error = None
         try:
-            self.command("gallery-ui-tests", ["xcodebuild", "test",
+            self.command("gallery-app-tests", ["xcodebuild", "test",
                 "-project", "Examples/Gallery/OpenUIGallery.xcodeproj", "-scheme", "OpenUIGallery",
                 "-destination", f"platform=iOS Simulator,id={device['udid']}",
                 "-destination-timeout", "120", "-derivedDataPath", str(scratch / "gallery"),
                 "-resultBundlePath", str(bundle), "-parallel-testing-enabled", "NO",
-                "-enableCodeCoverage", "YES", "-only-testing:OpenUIGalleryUITests",
+                "-enableCodeCoverage", "YES", *[f"-only-testing:{target}" for target in APP_BUNDLES],
                 "CODE_SIGNING_ALLOWED=NO"], 2700, env=test_environment)
         except Exception as error:
             test_error = error
         try:
-            summary = self.json_command("ui-test-summary", ["xcrun", "xcresulttool", "get",
+            summary = self.json_command("app-test-summary", ["xcrun", "xcresulttool", "get",
                 "test-results", "summary", "--path", str(bundle)], 120)
-            tree = self.json_command("ui-test-tree", ["xcrun", "xcresulttool", "get",
+            tree = self.json_command("app-test-tree", ["xcrun", "xcresulttool", "get",
                 "test-results", "tests", "--path", str(bundle)], 120)
-            self.report["uiTestResults"] = validate_results(summary, tree, device,
-                required_targets=UI_TARGETS, bundle_type="UI test bundle", required_suites=UI_SUITES)
-            coverage = self.json_command("ui-coverage", ["xcrun", "xccov", "view",
+            self.report["appTestResults"] = validate_results(summary, tree, device,
+                required_bundles=APP_BUNDLES, required_suites=APP_SUITES)
+            coverage = self.json_command("app-coverage", ["xcrun", "xccov", "view",
                 "--report", "--json", str(bundle)], 180)
             if not isinstance(coverage.get("targets"), list) or not coverage["targets"]:
-                raise ValueError("No measured Gallery UI code coverage targets")
+                raise ValueError("No measured Gallery App code coverage targets")
         except Exception as error:
             if test_error:
                 self.report["failures"].append(str(error))
@@ -399,7 +414,7 @@ def main() -> int:
         with tempfile.TemporaryDirectory(prefix="openui-ios-") as temporary:
             scratch = Path(temporary)
             for action in (lambda: run.tests(scratch, args.device_id),
-                           lambda: run.ui_tests(scratch), lambda: run.builds(scratch)):
+                           lambda: run.app_tests(scratch), lambda: run.builds(scratch)):
                 try:
                     action()
                 except Exception as error:
@@ -410,8 +425,8 @@ def main() -> int:
     finally:
         if not run.report.get("testResults"):
             run.report["failures"].append("No validated iOS test execution evidence")
-        if not run.report.get("uiTestResults"):
-            run.report["failures"].append("No validated Gallery UI interaction evidence")
+        if not run.report.get("appTestResults"):
+            run.report["failures"].append("No validated Gallery App test execution evidence")
         run.report["status"] = "failed" if run.report["failures"] else "passed"
         run.report["finishedAt"] = datetime.now(timezone.utc).isoformat()
         run.save()

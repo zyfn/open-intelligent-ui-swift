@@ -1,5 +1,5 @@
 #if os(iOS)
-import SwiftLang
+@testable import SwiftLang
 import SwiftUI
 import UIKit
 import XCTest
@@ -19,7 +19,7 @@ final class IOSNativeLayoutTests: XCTestCase {
             let state = OpenUIState(schema: library.library.toSchema())
             state.setSource(IOSNativeLayoutFixtures.compositeCards)
             XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-            let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
+            let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
                 .dynamicTypeSize(typeSize).frame(width: width).fixedSize(horizontal: false, vertical: true),
                 width: width, height: 2400)
             defer { host.close() }
@@ -65,7 +65,7 @@ final class IOSNativeLayoutTests: XCTestCase {
             let registry = try observing(library.registry, names: ["Image"], measured: measured)
             let state = OpenUIState(schema: library.library.toSchema())
             state.setSource(IOSNativeLayoutFixtures.wrappingCards)
-            let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
+            let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
                 .dynamicTypeSize(.large).frame(width: width).fixedSize(horizontal: false, vertical: true), width: width)
             defer { host.close() }
             try await host.waitUntil("all three actual image factories have mounted their probes") {
@@ -94,7 +94,7 @@ final class IOSNativeLayoutTests: XCTestCase {
         let registry = try observing(library.registry, names: ["Button"], measured: measured)
         let state = OpenUIState(schema: library.library.toSchema())
         state.setSource(IOSNativeLayoutFixtures.buttons)
-        let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
+        let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
             .dynamicTypeSize(.large).frame(width: 320).fixedSize(horizontal: false, vertical: true), width: 320)
         defer { host.close() }
         try await host.waitUntil("the three actual button factories received the initial column policy") {
@@ -130,7 +130,7 @@ final class IOSNativeLayoutTests: XCTestCase {
         let registry = try observing(library.registry, names: ["Button"], measured: measured)
         let state = OpenUIState(schema: library.library.toSchema())
         state.setSource(IOSNativeLayoutFixtures.stackAlignment)
-        let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
+        let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
             .dynamicTypeSize(.large).frame(width: 320).fixedSize(horizontal: false, vertical: true), width: 320)
         defer { host.close() }
         try await host.waitUntil("the stretched native action is mounted") {
@@ -159,7 +159,7 @@ final class IOSNativeLayoutTests: XCTestCase {
         let width = IOSValidationWidth(440)
         var presentation = OpenUIPresentation()
         presentation.minimumChoiceWidth = 200
-        let host = IOSNativeTestHost(IOSValidationWidthFixture(width: width) {
+        let host = try IOSNativeTestHost(IOSValidationWidthFixture(width: width) {
             OpenUIContentView(state: state, registry: registry)
                 .openUIPresentation(presentation).dynamicTypeSize(.large)
         }, width: 900, height: 2200)
@@ -202,7 +202,7 @@ final class IOSNativeLayoutTests: XCTestCase {
             var presentation = OpenUIPresentation()
             presentation.coverAspectRatio = ratio
             presentation.motion.mediaRevealDuration = 0
-            let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
+            let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
                 .openUIResourceContext(resources).openUIPresentation(presentation)
                 .environment(\.colorScheme, .light)
                 .transaction { $0.animation = nil; $0.disablesAnimations = true }
@@ -236,7 +236,7 @@ final class IOSNativeLayoutTests: XCTestCase {
         let registry = try observing(library.registry, names: ["BoldText"], measured: measured)
         let state = OpenUIState(schema: library.library.toSchema())
         state.push(IOSNativeLayoutFixtures.streamingPrefix)
-        let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
+        let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
             .dynamicTypeSize(.large).frame(width: 320).fixedSize(horizontal: false, vertical: true), width: 320)
         defer { host.close() }
         try await host.waitUntil("the first referenced card is actually rendered") {

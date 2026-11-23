@@ -166,20 +166,32 @@ class RunnerTests(unittest.TestCase):
         data = {"status": "passed", "testResults": {"totalTestCount": 3, "passedTests": 3, "failedTests": 0, "skippedTests": 0,
                 "targets": {name: {"passed": 1, "failed": 0} for name in runner.MODULES}}}
         summary.write_text(json.dumps(data))
-        with self.assertRaisesRegex(ValueError, "Gallery UI"):
+        with self.assertRaisesRegex(ValueError, "Gallery App"):
             runner.verify_required(check, {"output": self.directory})
         destination = {"deviceId": "recorded-iphone", "platform": "iOS Simulator"}
         data["testResults"]["destination"] = destination
-        data["uiTestResults"] = {"totalTestCount": 3, "passedTests": 3, "failedTests": 0,
+        data["appTestResults"] = {"totalTestCount": 6, "passedTests": 6, "failedTests": 0,
             "skippedTests": 0, "expectedFailures": 0, "destination": destination,
-            "targets": {"OpenUIGalleryUITests": {"passed": 3, "failed": 0}}}
+            "targets": {name: {"bundleType": kind, "passed": 3, "failed": 0, "skipped": 0, "expectedFailures": 0}
+                        for name, kind in (("OpenUIGalleryNativeTests", "Unit test bundle"),
+                                           ("OpenUIGalleryUITests", "UI test bundle"))}}
         summary.write_text(json.dumps(data))
         runner.verify_required(check, {"output": self.directory})
-        data["uiTestResults"]["destination"] = {"deviceId": "another-iphone", "platform": "iOS Simulator"}
+        native = data["appTestResults"]["targets"].pop("OpenUIGalleryNativeTests")
+        summary.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "both native and UI"):
+            runner.verify_required(check, {"output": self.directory})
+        data["appTestResults"]["targets"]["OpenUIGalleryNativeTests"] = native
+        native["bundleType"] = "UI test bundle"
+        summary.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "OpenUIGalleryNativeTests"):
+            runner.verify_required(check, {"output": self.directory})
+        native["bundleType"] = "Unit test bundle"
+        data["appTestResults"]["destination"] = {"deviceId": "another-iphone", "platform": "iOS Simulator"}
         summary.write_text(json.dumps(data))
         with self.assertRaisesRegex(ValueError, "destination"):
             runner.verify_required(check, {"output": self.directory})
-        data["uiTestResults"]["destination"] = destination
+        data["appTestResults"]["destination"] = destination
         del data["testResults"]["targets"]["SwiftOpenUITests"]
         summary.write_text(json.dumps(data))
         with self.assertRaises(ValueError):

@@ -114,7 +114,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Execute SDK and Gallery UI tests on iPhone Simulator and verify iOS builds
+      - name: Execute SDK and Gallery App tests on iPhone Simulator and verify iOS builds
         run: python3 Validation/SDK/run.py --profile ios --output outputs/verification/sdk-validation/ios
       - name: Publish executed checks
         if: always()

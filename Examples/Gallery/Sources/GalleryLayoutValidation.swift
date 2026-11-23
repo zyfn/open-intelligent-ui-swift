@@ -14,11 +14,25 @@ import SwiftOpenUI
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if model.scenario == "layout-pager" {
+                // Give the surrounding real ScrollView room in both directions
+                // while the carousel remains visible during a vertical drag.
+                Text("Reading before the carousel")
+                    .frame(height: 160, alignment: .bottomLeading)
+                    .accessibilityIdentifier("layout.pager.before")
+            }
             OpenUIView(state: model.state, library: model.library)
                 .openUIPresentation(model.presentation)
             if model.scenario == "layout-buttons" {
                 Button("Arrange in row") { model.state.setState("$direction", value: .string("row")) }
                     .accessibilityIdentifier("layout.arrange-row")
+            }
+            if model.scenario == "layout-pager" {
+                Text("Reading after the carousel")
+                    .accessibilityIdentifier("layout.pager.after")
+                ForEach(1...14, id: \.self) { paragraph in
+                    Text("Following paragraph \(paragraph). The surrounding document remains vertically scrollable.")
+                }
             }
         }
     }
@@ -42,6 +56,7 @@ import SwiftOpenUI
         case "layout-composite": state.setSource(IOSNativeLayoutFixtures.compositeCards)
         case "layout-buttons": state.setSource(IOSNativeLayoutFixtures.buttons)
         case "layout-options": state.setSource(IOSNativeLayoutFixtures.options)
+        case "layout-pager": state.setSource(IOSNativeLayoutFixtures.pager)
         default: preconditionFailure("Unknown layout validation scenario: \(scenario)")
         }
     }

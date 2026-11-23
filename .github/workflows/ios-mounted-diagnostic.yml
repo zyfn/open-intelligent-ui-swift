@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 67d08aaca7bc75cee825bfdecd00633b42aba6d3
+          ref: a47e260bf364ac4fecb381689080e55e700fd941
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -46,14 +46,12 @@ jobs:
       - name: Execute the new mounted regressions
         run: |
           set -o pipefail
-          xcodebuild test -scheme openui-swift-sdk-Package \
+          xcodebuild test -project Examples/Gallery/OpenUIGallery.xcodeproj -scheme OpenUIGallery \
             -destination "platform=iOS Simulator,id=$IOS_DIAGNOSTIC_DEVICE" -destination-timeout 120 \
             -derivedDataPath "$RUNNER_TEMP/ios-mounted-derived-data" \
             -resultBundlePath outputs/ios-mounted-diagnostic/tests.xcresult \
             -parallel-testing-enabled NO -enableCodeCoverage NO CODE_SIGNING_ALLOWED=NO \
-            -only-testing:SwiftOpenUITests/IOSNativeControlTests \
-            -only-testing:SwiftOpenUITests/IOSNativeLayoutTests \
-            -only-testing:SwiftOpenUITests/IOSNativePagerTests \
+            -only-testing:OpenUIGalleryNativeTests \
             2>&1 | tee outputs/ios-mounted-diagnostic/test.log
       - name: Preserve actual XCTest results
         if: always()
@@ -78,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 67d08aaca7bc75cee825bfdecd00633b42aba6d3
+          ref: a47e260bf364ac4fecb381689080e55e700fd941
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
