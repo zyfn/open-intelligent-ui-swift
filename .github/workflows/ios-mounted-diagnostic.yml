@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: acbaa05c6ac4d5596525af1dc59cd9a39d5af3f4
+          ref: b7a5695fcc3de6030b5881a1e10df68442550dd5
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -79,6 +79,20 @@ jobs:
                   values[name] = {'missing': relative}
           (destination / 'metadata.json').write_text(json.dumps(values, indent=2, default=str) + '\n')
           PY
+          xcrun swift - "$RUNNER_TEMP/ios-mounted-derived-data/Build/Products/Debug-iphonesimulator/OpenUIGallery.app" <<'SWIFT' > outputs/ios-mounted-diagnostic/bundle-info/foundation.json
+          import Foundation
+          let appURL = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
+          let bundle = Bundle(url: appURL)
+          let resources = bundle?.url(forResource: "Resources", withExtension: nil, subdirectory: "GalleryResources")
+          let result: [String: Any] = [
+              "bundleIdentifier": bundle?.bundleIdentifier ?? "",
+              "resourceURL": bundle?.resourceURL?.path ?? "",
+              "galleryResourcesURL": resources?.path ?? "",
+              "galleryResourcesExist": resources.map { FileManager.default.fileExists(atPath: $0.path) } ?? false,
+              "reservedRootResourcesExist": FileManager.default.fileExists(atPath: appURL.appendingPathComponent("Resources").path)
+          ]
+          print(String(data: try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]), encoding: .utf8)!)
+          SWIFT
           xcrun xcresulttool get test-results summary --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/summary.json
           xcrun xcresulttool get test-results tests --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/tests.json
       - uses: actions/upload-artifact@v4
@@ -99,7 +113,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: acbaa05c6ac4d5596525af1dc59cd9a39d5af3f4
+          ref: b7a5695fcc3de6030b5881a1e10df68442550dd5
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -158,6 +172,20 @@ jobs:
                   values[name] = {'missing': relative}
           (destination / 'metadata.json').write_text(json.dumps(values, indent=2, default=str) + '\n')
           PY
+          xcrun swift - "$RUNNER_TEMP/ios-ui-derived-data/Build/Products/Debug-iphonesimulator/OpenUIGallery.app" <<'SWIFT' > outputs/ios-ui-diagnostic/bundle-info/foundation.json
+          import Foundation
+          let appURL = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
+          let bundle = Bundle(url: appURL)
+          let resources = bundle?.url(forResource: "Resources", withExtension: nil, subdirectory: "GalleryResources")
+          let result: [String: Any] = [
+              "bundleIdentifier": bundle?.bundleIdentifier ?? "",
+              "resourceURL": bundle?.resourceURL?.path ?? "",
+              "galleryResourcesURL": resources?.path ?? "",
+              "galleryResourcesExist": resources.map { FileManager.default.fileExists(atPath: $0.path) } ?? false,
+              "reservedRootResourcesExist": FileManager.default.fileExists(atPath: appURL.appendingPathComponent("Resources").path)
+          ]
+          print(String(data: try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]), encoding: .utf8)!)
+          SWIFT
           xcrun xcresulttool get test-results summary --path outputs/ios-ui-diagnostic/tests.xcresult > outputs/ios-ui-diagnostic/summary.json
           xcrun xcresulttool get test-results tests --path outputs/ios-ui-diagnostic/tests.xcresult > outputs/ios-ui-diagnostic/tests.json
       - uses: actions/upload-artifact@v4

@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.21 · 更新日期：2026-11-23
+文档版本：1.22 · 更新日期：2026-11-23
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -130,7 +130,9 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 
 Xcode 工程的 `OpenUIGalleryNativeTests` 与 `OpenUIGalleryUITests` 共用现有 App target：前者加载到 App 进程内执行原生单元测试，后者通过 UI automation 操作 App。测试启动时的 `OPENUI_NATIVE_TEST_HOST=1` 为原生单元测试提供空白 scene；UI 测试显式设置 `OPENUI_UI_TEST_SCENARIO` 后，优先经公开 `OpenUILibrary` / `OpenUIView` 渲染相应固定输入。两条测试入口仅在 Debug iOS 启用，普通 Gallery 浏览不受影响。OpenUI 的共享输入由 `NativeTests/IOSNative*Fixtures.swift` 单份定义，同时供 App 宿主单元测试与 App 编译；商品卡输入只保留在其测试场景宿主内，不复制成第二份组件契约。
 
-App 和测试 bundle 共享基础 `Info.plist`，核心 bundle 标识、可执行文件名、产品名与类型从各 target 的 build settings 展开；Xcode 继续生成并合并各自的 scene、launch 等设置。该配置文件不加入 Resources 复制阶段。编译成功之后还须由 Simulator 实际安装和启动应用，才能取得原生测试证据。
+App 宿主单元测试还通过 `Bundle.main` 和 Gallery 的真实资源加载入口，检查两库案例、组件目录与本地图片均可读取。
+
+Xcode 使用标准 Copy Files 阶段，将 Gallery 的 `Resources` 目录放在平台资源目录下的 `GalleryResources/Resources` 中；iOS App 根目录不放自定义 `Resources`，遵循 [Apple bundle 结构约束](https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html)。SwiftPM 仍由 `Bundle.module` 读取 `.copy("Resources")` 的资源。App 与测试 bundle 的 `Info.plist` 由 Xcode 按 target 设置生成；编译之后还须由 Simulator 实际安装和启动应用，才能取得原生测试证据。
 
 UI 测试观察真实 SwiftUI 系统访问树，并执行选择、表单输入与提交、sheet 打开关闭、分页拖动、商品图集和购买动作回执；文本和按钮实际滚动到可见区域后检查边界。媒体比例使用真实截图像素测量，选项正文未作为 AX label 暴露时使用公开 Vision 文字识别检查实际画面。App 宿主单元测试负责 UIKit 实例身份、焦点、选区、同步草稿 flush 与布局测量；它必须挂到正在运行的应用 scene，不通过手工 AX 递归模拟 App UI automation。
 
