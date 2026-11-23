@@ -1,8 +1,8 @@
-# 模型生成评测
+# 模型生成验证
 
-文档版本：1.0 · 更新日期：2026-11-22
+文档版本：1.1 · 更新日期：2026-11-23
 
-这里验证模型能否按 Intelligent UI 当前生成契约完成给定任务。它与 Gallery 固定案例、语言性能基准分别维护。
+这里通过可选的真实模型调用，检查输出是否符合 Intelligent UI 当前生成契约，并记录请求、原始输出和已实现断言的结果。它与 Gallery 固定案例、[性能验证](../Performance/README.md) 分别维护。
 
 | 输入/输出 | 职责 |
 |---|---|
@@ -23,6 +23,6 @@ python3 Validation/Generation/run.py --model gpt-6.1-terra --suite free --case f
 
 任务要求与当前 writer 目录一致。editorial 用两组 `Row([Image(...), Col([Title(...), Text(...)])])` 表达图文，检查直接子项结构、图片与来源保留；不以历史 ImageText 代替当前组合。
 
-运行时检查只验证已实现的契约与交互断言。内容来源、呈现和实际操作审查分别保留 `pending`，不能从解析成功推断它们已通过。流程记录单次生成的验证结果，不会自动把错误反馈给模型修复；历史固定输出不代表当前 Prompt 的真实生成成功率。
+运行时检查只验证已实现的契约与交互断言。内容来源、呈现和实际操作审查分别保留 `pending`，不能从解析成功推断它们已通过。流程记录单次生成的验证结果，不会自动把错误反馈给模型修复；历史固定输出不代表当前 Prompt 的真实生成成功率。针对 Skill/Agent 的任务评分和版本对照另行设计。
 
 已经纳入回归的六份未改写程序现在位于 [GeneratedPrograms](../../Tests/SwiftIntelligentUITests/Fixtures/GeneratedPrograms/README.md)，由 XCTest 读取；旧人工验收报告不再混入日常示例入口。

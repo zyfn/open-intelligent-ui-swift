@@ -1,6 +1,6 @@
 # 性能优化记录
 
-文档版本：1.5 · 更新日期：2026-11-22
+文档版本：1.6 · 更新日期：2026-11-23
 
 记录已合入的性能改动，相关修正归入同一主题。每次优化补充“优化了什么、实际效果、版本与证据”，后续复测更新原条目。日期按 Asia/Shanghai；耗时只适用于所列负载，工作量和缓存上限不等于设备提速；没有同条件耗时或内存对照的项目标为“未量化”。
 
@@ -38,4 +38,4 @@
 - Query 完整快照比较、多步 Action 更新及跨文档 JSC 等待仍需各自测量。
 - Muse 完成长会话的滚动、真机表现和同进程内存生命周期仍需复测。
 
-详细测量及验收见 [验证说明](validation-and-security.md)，复现命令见 [LanguageRuntime](../Benchmarks/LanguageRuntime/README.md)。
+详细测量及验收见 [验证说明](validation-and-security.md)，复现命令见 [Performance](../Validation/Performance/README.md)。本轮统一验证工具命名与目录，未重新测量性能；本页既有数值继续绑定原提交、输入和执行证据。

@@ -1,6 +1,6 @@
 # SDK 验证矩阵
 
-文档版本：1.0 · 更新日期：2026-11-23
+文档版本：1.1 · 更新日期：2026-11-23
 
 本目录维护 SwiftLang、SwiftOpenUI 与 SwiftIntelligentUI 的测试与验收计划，记录六个领域的固定输入、断言、观测指标和证据要求。当前共 18 条定义，复用已有 XCTest、Gallery 和性能工具；这些定义本身不是可执行 runner。
 
@@ -27,6 +27,6 @@ Reliability 横跨六个领域：异常、取消、资源释放、长会话和�
 
 - 根 [Tests](../../Tests) 中的 XCTest 负责确定性断言；用例实现继续归属对应产品，不复制第二套测试框架。
 - [Gallery](../../Examples/Gallery/README.md) 用于原生查看、交互和截图采集；构图、主次、留白等视觉目标需要实际画面与人工审查，解析成功不能代替这些结果。
-- [LanguageRuntime](../../Benchmarks/LanguageRuntime/README.md) 是已有性能 benchmark；原生布局、滚动和真机资源成本需要单独测量。
-- SDK 验收日志、截图和 trace 保存到忽略的 `outputs/verification`，性能结果保存到 `outputs/benchmarks`。记录提交、输入、设备、OS、工具链和实际执行范围；性能对比另保留构建配置、参数、预热和样本量。
-- 当前模型与 Prompt 的生成质量使用独立的 [Generation](../Generation/README.md) 评测入口，固定程序回归不代表模型的生成成功率。
+- [Performance](../Performance/README.md) 是已有语言与公开 State 流式性能验证工具；原生布局、滚动和真机资源成本需要单独测量。
+- SDK 验收日志、截图和 trace 保存到忽略的 `outputs/verification`，性能结果保存到其下的 `performance/`，默认报告为 `outputs/verification/performance/language-runtime.json`。记录提交、输入、设备、OS、工具链和实际执行范围；性能对比另保留构建配置、参数、预热和样本量。
+- 模型输出对当前 SDK 生成契约的符合性，使用独立的 [Generation](../Generation/README.md) 可选生成验证入口检查；固定程序回归不代表模型的生成成功率。

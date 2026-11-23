@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.38 · 更新日期：2026-11-23
+文档版本：1.39 · 更新日期：2026-11-23
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -34,7 +34,7 @@ Zod 的 JSON Schema 导入也把简单字符串键 record 包装为带校验的 
 
 ## 2. 验收范围
 
-Runtime、Streaming、Components、Layout、Visual、Performance 六个领域的测试与验收计划维护在 [SDK 验证矩阵](../Validation/SDK/README.md)。矩阵复用根 Tests、Gallery 与性能工具；`existing` 表示已有可复用实现，不表示本提交已执行或全部观测指标已采集。可重复的性能测量由 [Benchmarks](../Benchmarks/README.md) 承担，当前模型与 Prompt 的生成质量另用 [Generation](../Validation/Generation/README.md) 评测。固定程序回归、原生视觉与交互审查、性能结果和真实模型结果分别记录。
+Runtime、Streaming、Components、Layout、Visual、Performance 六个领域的测试与验收计划维护在 [SDK 验证矩阵](../Validation/SDK/README.md)。矩阵复用根 Tests、Gallery 与性能工具；`existing` 表示已有可复用实现，不表示本提交已执行或全部观测指标已采集。可重复的性能测量由 [Performance](../Validation/Performance/README.md) 承担，模型输出对当前 SDK 生成契约的符合性另用 [Generation](../Validation/Generation/README.md) 作可选生成验证。固定程序回归、原生视觉与交互审查、性能结果和真实模型结果分别记录。
 
 流水线按当前 SDK 分成三项检查：可复现输入、依赖安全和原生验收，最后由 `Native SDK acceptance` 汇总。汇总仅在三项均为 success 时成功；failure、cancelled、skipped 或缺失结果均不算通过，并在摘要记录实际 checkout SHA 和各项结果。该 job 的存在不自动设置仓库分支保护，合并阻断还需仓库将它配置为 required check。可复现输入检查重建实际打包资源并运行语言、authoring 和组件目录回归；安全审计覆盖 Core、标准富文本、代码高亮、图标和 Intelligent 函数五个生成工具依赖图，使用 `--audit-level=high` 门槛。原生验收构建并测试根 SDK 及其公开产品消费者。
 
@@ -150,7 +150,7 @@ Query 反馈的两个读取路径共用一次遍历。引号回归保留未转�
 
 本节的 SDK 源码候选 [`e11f23b`](https://github.com/zyfn/open-intelligent-ui-swift/commit/e11f23bfc335c6f07b30f159b875f62b3d9a5d3b) 已通过 [CI 44240941058](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/44240941058) 的全部任务及最终验收：完整原生套件 1,251 项、OpenUI Debug / Release 各 356 项、Release fitting 5 项、SwiftLang ASan 451 项均零失败；这些组有重叠，不累加计数。iOS 16 Simulator 产品与 Gallery 构建、三个独立消费者、Gallery 测试与 fixtures、历史组件契约、资源重建、安全检查及两种分片的 Release 基准均通过。原始验收材料位于 `outputs/runtime-cost-followup/ci-44240941058/`；这不替代实际客户端滚动、真机或泄漏验收。
 
-现有 LanguageRuntime 基准增加单次 push 外层 signpost，以 iteration / chunk 关联运行时区间，并分别记录两组负载的元素数。`--rows 200` 的流式末态实际为 202 个元素；此前顶层 `components=201` 属于另一组语言负载，不能直接套用于流式输入。源码、分片和完成断言不变。采样开关与诊断开销的解释见 [基准说明](../Benchmarks/LanguageRuntime/README.md)。
+在上述历史修复的诊断中，语言性能验证工具增加了单次 push 外层 signpost，以 iteration / chunk 关联运行时区间，并分别记录两组负载的元素数。`--rows 200` 的流式末态实际为 202 个元素；此前顶层 `components=201` 属于另一组语言负载，不能直接套用于流式输入。该次加入诊断时，固定负载输入、分片方式和完成断言保持不变。当前采样开关与诊断开销的解释见 [性能验证说明](../Validation/Performance/README.md)。
 
 #### 同机对照与阶段证据
 
@@ -207,7 +207,7 @@ swift run --package-path Examples/Gallery -c release OpenUIGallery \
 
 字体失效回归在 macOS 上显式切换继承的 font 环境，保留高度必须增长及恢复的断言。Apple 明确说明 [dynamicTypeSize 在 macOS 不改变文字大小](https://developer.apple.com/documentation/swiftui/environmentvalues/dynamictypesize)，因此不能用该环境值下文字等高来判定缓存失效，也不能把 macOS 字体回归写成 iOS 系统 Dynamic Type 的运行结果；后者仍需目标平台验收。
 
-`LayoutMeasurementReductionTests`、长文档 `HostSizingIsolationTests` 及 Release fitting 已进入后续原生验收，具体候选以本页当前状态和 CI 为准。早期材料在 `outputs/long-document-layout-cost/`。无 UI 的 LanguageRuntime 不能替代真实滚动；若探索区段呈现，宿主继续拥有可见范围、消息回收和阅读位置，SDK 继续拥有同一文档的节点身份、引用、Store 和交互。当前没有分段 State 或视口管理器。
+`LayoutMeasurementReductionTests`、长文档 `HostSizingIsolationTests` 及 Release fitting 已进入后续原生验收，具体候选以本页当前状态和 CI 为准。早期材料在 `outputs/long-document-layout-cost/`。无 UI 的语言性能验证不能替代真实滚动；若探索区段呈现，宿主继续拥有可见范围、消息回收和阅读位置，SDK 继续拥有同一文档的节点身份、引用、Store 和交互。当前没有分段 State 或视口管理器。
 
 ### 文档资源生命周期
 
@@ -256,7 +256,7 @@ Query 以缓存条目身份和当前消费者拒绝退休请求；共享请求�
 
 这些是有限场景，不代表所有竞争组合。App Debug 构建通过；SDK 官方定向 XCTest 在执行前编译失败：`Tests/SwiftLangTests/FramedStreamingTests.swift:127` 将原始 parser 的 `ElementNode` 传给只接受 `EvaluatedElement` 的 `PropValue.string`。上一轮 `ActionWorkBudgetTests.swift:97` 的错误已修复，但此次选中的剥帧、patch 预算、单次发布和挂载文字进度用例均未执行，19 项外部探针不能替代原生门禁。报告引用 `public-probe-results.json`、`PublicProbe/Sources/PublicProbe/main.swift` 和 `targeted-sdk-tests.log`。
 
-**独立 Release benchmark。** 同一机器、工具链和现有 LanguageBenchmark 源码，节点、分片、预热与测量配置保持一致；61 节点流式测量 3 次，201 节点 2 次。以下节点标签沿用客户端报告。消费者没有 SwiftUI 视图或网络等待，数值表示同步计算，不是帧率或模型延迟。
+**独立 Release 性能验证。** 同一机器、工具链和同一份性能工具源码，节点、分片、预热与测量配置保持一致；61 节点流式测量 3 次，201 节点 2 次。以下节点标签沿用客户端报告。消费者没有 SwiftUI 视图或网络等待，数值表示同步计算，不是帧率或模型延迟。
 
 | 节点 / 每块 UTF-16 units | push p95（ms）旧 → 新 | 整条流计算 p50（ms）旧 → 新 | 每条流发布次数旧 → 新 |
 | --- | ---: | ---: | ---: |
@@ -267,7 +267,7 @@ Query 以缓存条目身份和当前消费者拒绝退休请求；共享请求�
 
 额外一次紧邻的旧/新 201 节点、24-unit 对照，push p95 为 32.95 → 19.15ms，整流计算 p50 为 4348.30 → 3095.48ms，方向一致；样本仍少，未做显著性推断。**长尾未收敛：** 主测和紧邻对照的新版本最大单次 push 分别约 102.35ms、79.89ms，对应旧版为 63.06ms、46.38ms。不能只报告 p95 改善，也不能仅凭最大值归因于 GC 或某个缓存。201 / 24 的 p95 仍约 20ms，尚未计入 UI 布局绘制。
 
-发布次数接近减半与 readiness 不再单独 Published 的机制一致，但不等于 SwiftUI body 或 App CPU 减半。报告引用 `comparison.json`、`benchmark-*.json`、`paired-c731005-200rows-chunk24.json` 和 `paired-a4808be-200rows-chunk24.json`；测量期间没有并行编译或运行其他本任务 benchmark。
+发布次数接近减半与 readiness 不再单独 Published 的机制一致，但不等于 SwiftUI body 或 App CPU 减半。报告引用 `comparison.json`、`benchmark-*.json`、`paired-c731005-200rows-chunk24.json` 和 `paired-a4808be-200rows-chunk24.json`；测量期间没有并行编译或运行其他本任务性能测量。
 
 **实际 App 被动流。** 使用同一独立模拟器 `5ACEAD69-A401-4DD3-BBD0-0D8D9C04BD9C`、正常动画、Debug 包，以及原行程源码 SHA-256 `d6728e6104c9a218a20c1511eff72852f155bd9c269c34f2d6efc314dd3856be`，按 24 字符 / 80ms 回放。新版 PID 为 4621；发送后至采样结束没有 UI 查询、截图、手势、录屏或 LLDB。服务器流约 39.10 秒，CPU 计数覆盖完整流；55 秒 sample 包含流前空闲、完整流和少量流后时间，采样自身有开销。
 
@@ -352,7 +352,7 @@ Markdown 首次后台等待期间，同配置追加复用可读 fallback；受�
 
 Query 探针中，10/20/40 个独立 Query 共享 1,000 项默认数组，初始化完整快照序列化分别 12/22/42 次、累计 131,597/464,387/1,734,167 UTF-16 units，求值 work 仅 40/80/160；证据在 `outputs/kernel-followup/query-snapshot-cost.jsonl`。正常 provider/listener 可修改共享对象，不能只凭 identity 跳过比较或削减通知。当前未量化其 Apple CPU 成本。
 
-公开基准与命令见 [LanguageRuntime](../Benchmarks/LanguageRuntime/README.md)，功能边界见[架构](architecture.md#现有入口的性能边界与后续验证)。计时、工作量和实际 App 体验分别验收。
+公开性能验证工具与命令见 [Performance](../Validation/Performance/README.md)，功能边界见[架构](architecture.md#现有入口的性能边界与后续验证)。计时、工作量和实际 App 体验分别验收。
 
 ### 客户端复测收尾候选
 
