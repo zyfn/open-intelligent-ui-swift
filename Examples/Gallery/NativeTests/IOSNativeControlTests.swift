@@ -1,5 +1,5 @@
 #if os(iOS)
-import SwiftLang
+@testable import SwiftLang
 import SwiftUI
 import UIKit
 import XCTest
@@ -17,7 +17,7 @@ final class IOSNativeControlTests: XCTestCase {
             registry: library.registry, state: owner, formName: "contact")
         let ambientContext = OpenUIComponentContext(element: try XCTUnwrap(ambient.root),
             registry: library.registry, state: ambient, formName: "contact")
-        let host = IOSNativeTestHost(VStack {
+        let host = try IOSNativeTestHost(VStack {
             OpenUIContextContent(context: context) { observed in
                 VStack {
                     OpenUINativeField(context: observed, kind: .input)
@@ -75,7 +75,7 @@ final class IOSNativeControlTests: XCTestCase {
         defer { state.reset() }
         state.setSource(IOSNativeControlFixtures.textArea)
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
-        let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: library.registry)
+        let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: library.registry)
             .frame(width: 360), width: 360, height: 320)
         defer { host.close() }
         try await host.waitUntil("the native TextEditor displays its initial value") {
@@ -106,7 +106,7 @@ final class IOSNativeControlTests: XCTestCase {
         state.setSource(IOSNativeControlFixtures.switchAndSelect)
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         let root = try XCTUnwrap(state.root)
-        let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: library.registry)
+        let host = try IOSNativeTestHost(OpenUIContentView(state: state, registry: library.registry)
             .environment(\.locale, Locale(identifier: "en_US")).frame(width: 360), width: 360, height: 400)
         defer { host.close() }
         try await host.waitUntil("the native UISwitch is mounted") {
@@ -146,7 +146,7 @@ final class IOSNativeControlTests: XCTestCase {
         let context = OpenUIComponentContext(element: try XCTUnwrap(state.root),
             registry: library.registry, state: state, formName: "quote")
         let validation = NativeFormValidation()
-        let host = IOSNativeTestHost(OpenUINativeField(context: context, kind: .slider)
+        let host = try IOSNativeTestHost(OpenUINativeField(context: context, kind: .slider)
             .environment(\.openUIFormValidation, validation).frame(width: 320), width: 320, height: 260)
         defer { host.close() }
         try await host.waitUntil("the mounted slider's native numeric editor is initialized") {

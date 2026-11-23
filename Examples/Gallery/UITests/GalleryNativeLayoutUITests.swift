@@ -93,6 +93,63 @@ final class GalleryNativeLayoutUITests: GalleryNativeUITestCase {
         try assertReadingOrder(["First", "Second", "Third"], in: app)
     }
 
+    @MainActor func testCarouselRespondsToHorizontalDragsAndPreservesVerticalReading() throws {
+        let app = launch(scenario: "layout-pager")
+        defer { app.terminate() }
+        let pager = app.descendants(matching: .any).matching(identifier: "openui.carousel.pager").firstMatch
+        let first = app.staticTexts["First carousel page"].firstMatch
+        let second = app.staticTexts["Second carousel page"].firstMatch
+        scrollTo(pager, in: app)
+        expectPagerValue("1 / 3", on: pager)
+        XCTAssertTrue(first.isHittable, app.debugDescription)
+        let initialY = first.frame.minY
+
+        // These are real touches inside the SDK carousel, not accessibility
+        // adjustment actions or writes to a test-host selection variable.
+        pager.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+            .press(forDuration: 0.05,
+                thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)),
+                withVelocity: .slow, thenHoldForDuration: 0.15)
+        expectPagerValue("2 / 3", on: pager)
+        XCTAssertTrue(second.isHittable, app.debugDescription)
+        XCTAssertFalse(first.isHittable)
+        XCTAssertEqual(second.frame.minY, initialY, accuracy: 2,
+            "Horizontal paging must not scroll the surrounding document")
+        try saveSnapshot(app, name: "layout-pager-next-page")
+
+        pager.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
+            .press(forDuration: 0.05,
+                thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)),
+                withVelocity: .slow, thenHoldForDuration: 0.15)
+        expectPagerValue("1 / 3", on: pager)
+        XCTAssertTrue(first.isHittable, app.debugDescription)
+        XCTAssertFalse(second.isHittable)
+        XCTAssertEqual(first.frame.minY, initialY, accuracy: 2)
+
+        let before = first.frame
+        let start = pager.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -100)),
+            withVelocity: .slow, thenHoldForDuration: 0.2)
+        // Inspect the real element after the gesture has ended. No scrollTo
+        // helper or expected-geometry polling may move the viewport for us.
+        XCTAssertEqual(pager.value as? String, "1 / 3")
+        XCTAssertTrue(first.isHittable, app.debugDescription)
+        XCTAssertFalse(second.isHittable)
+        XCTAssertLessThan(first.frame.minY, before.minY - 40,
+            "A vertical drag starting inside the pager must scroll the surrounding document")
+        XCTAssertEqual(first.frame.minX, before.minX, accuracy: 2,
+            "The vertical reading gesture must not displace the horizontal track")
+        try saveSnapshot(app, name: "layout-pager-vertical-reading")
+    }
+
+    @MainActor private func expectPagerValue(_ value: String, on pager: XCUIElement,
+        file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(pager.waitForExistence(timeout: 5), file: file, line: line)
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: pager)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed,
+            "Expected real pager value \(value); observed \(String(describing: pager.value))", file: file, line: line)
+    }
+
     @MainActor private func assertReadingOrder(_ labels: [String], in app: XCUIApplication,
         file: StaticString = #filePath, line: UInt = #line) throws {
         let actual = app.descendants(matching: .any).allElementsBoundByIndex.map(\.label)

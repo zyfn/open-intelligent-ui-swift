@@ -33,6 +33,10 @@ enum IOSNativeLayoutFixtures {
         "root=OptionCards(\"choice\",\"single\",[OptionCard(\"a\",\"First\",\"\(optionDescription)\",Icon(\"train\")),OptionCard(\"b\",\"Second\",null,Icon(\"bus\")),OptionCard(\"c\",\"Third\",null,Icon(\"car\"))])"
     }
 
+    static let pager = """
+        root=Carousel([[CardHeader("First carousel page"),TextContent("The first card remains part of the same reading track.")],[CardHeader("Second carousel page"),TextContent("The second card is reached by a real horizontal drag.")],[CardHeader("Third carousel page"),TextContent("The third card completes the same reading track.")]],"card")
+        """
+
     static let streamingPrefix = "root=VisualCardBlock([a,b],\"carousel\",true)\na=VisualCardItem(BoldText(\"text\",\"First\"),\"f"
     static let streamingSuffix = "irst\",null)\nb=VisualCardItem(BoldText(\"text\",\"Second\"),\"second\",null)"
 }

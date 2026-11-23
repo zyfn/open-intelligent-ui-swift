@@ -58,44 +58,122 @@ def cases(tree, index=0):
     return bundles(tree)[index]["children"][0]["children"]
 
 
-def ui_results():
+def app_results():
     summary, tree = results()
-    tree["testNodes"][0]["children"] = [{
-        "name": ios.UI_TARGETS[0], "nodeType": "UI test bundle", "result": "Passed",
-        "children": [{"name": suite, "nodeType": "Test Suite", "result": "Passed",
-                      "children": [case(suite + "/testNativeInteraction()")]} for suite in ios.UI_SUITES],
-    }]
+    tree["testNodes"][0]["children"] = [
+        {"name": target, "nodeType": bundle_type, "result": "Passed",
+         "children": [{"name": suite, "nodeType": "Test Suite", "result": "Passed",
+                       "children": [case(suite + "/testNativeInteraction()")]} for suite in ios.APP_SUITES[target]]}
+        for target, bundle_type in ios.APP_BUNDLES.items()
+    ]
+    count = sum(len(suites) for suites in ios.APP_SUITES.values())
+    summary.update(totalTestCount=count, passedTests=count)
     return summary, tree
 
 
-def validate_ui(summary, tree):
-    return ios.validate_results(summary, tree, device(), required_targets=ios.UI_TARGETS,
-                                bundle_type="UI test bundle", required_suites=ios.UI_SUITES)
+def validate_app(summary, tree):
+    return ios.validate_results(summary, tree, device(), required_bundles=ios.APP_BUNDLES,
+                                required_suites=ios.APP_SUITES)
 
 
-class UIResultEvidenceTests(unittest.TestCase):
-    def test_each_required_ui_suite_must_execute_in_the_ui_bundle(self):
-        summary, tree = ui_results()
-        self.assertEqual(validate_ui(summary, tree)["passedTests"], len(ios.UI_SUITES))
-        bundles(tree)[0]["nodeType"] = "Unit test bundle"
-        with self.assertRaisesRegex(ValueError, "UI test bundle"):
-            validate_ui(summary, tree)
+class AppResultEvidenceTests(unittest.TestCase):
+    def test_native_and_ui_suites_execute_in_their_required_bundle_types(self):
+        summary, tree = app_results()
+        report = validate_app(summary, tree)
+        self.assertEqual(set(report["targets"]), set(ios.APP_BUNDLES))
+        self.assertEqual(report["passedTests"], sum(len(suites) for suites in ios.APP_SUITES.values()))
+        for target, bundle_type in ios.APP_BUNDLES.items():
+            self.assertEqual(report["targets"][target]["bundleType"], bundle_type)
+            self.assertEqual(report["targets"][target]["passed"], len(ios.APP_SUITES[target]))
 
-    def test_a_missing_ui_suite_cannot_hide_behind_valid_total_counts(self):
-        summary, tree = ui_results()
-        bundles(tree)[0]["children"].pop()
-        summary.update(totalTestCount=2, passedTests=2)
-        with self.assertRaisesRegex(ValueError, ios.UI_SUITES[-1]):
-            validate_ui(summary, tree)
+    def test_each_app_bundle_requires_its_declared_bundle_type(self):
+        for index, (target, expected_type) in enumerate(ios.APP_BUNDLES.items()):
+            with self.subTest(target=target):
+                summary, tree = app_results()
+                bundles(tree)[index]["nodeType"] = (
+                    "UI test bundle" if expected_type == "Unit test bundle" else "Unit test bundle")
+                with self.assertRaisesRegex(ValueError, f"{expected_type}.*{target}"):
+                    validate_app(summary, tree)
 
-    def test_skipped_or_expected_ui_failures_cannot_pass(self):
-        for status, bucket in (("Skipped", "skippedTests"), ("Expected Failure", "expectedFailures")):
-            with self.subTest(status=status):
-                summary, tree = ui_results()
-                cases(tree)[0]["result"] = status
-                summary.update(passedTests=2, **{bucket: 1})
-                with self.assertRaisesRegex(ValueError, "cannot be skipped"):
-                    validate_ui(summary, tree)
+    def test_a_missing_app_bundle_cannot_hide_behind_valid_total_counts(self):
+        for index, target in enumerate(ios.APP_BUNDLES):
+            with self.subTest(target=target):
+                summary, tree = app_results()
+                bundles(tree).pop(index)
+                remaining = summary["passedTests"] - len(ios.APP_SUITES[target])
+                summary.update(totalTestCount=remaining, passedTests=remaining)
+                with self.assertRaisesRegex(ValueError, target):
+                    validate_app(summary, tree)
+
+    def test_each_app_bundle_requires_nonzero_executions(self):
+        for index, target in enumerate(ios.APP_BUNDLES):
+            with self.subTest(target=target):
+                summary, tree = app_results()
+                bundles(tree)[index]["children"] = []
+                remaining = summary["passedTests"] - len(ios.APP_SUITES[target])
+                summary.update(totalTestCount=remaining, passedTests=remaining)
+                with self.assertRaisesRegex(ValueError, target):
+                    validate_app(summary, tree)
+
+    def test_a_missing_app_suite_cannot_hide_behind_valid_total_counts(self):
+        for index, target in enumerate(ios.APP_BUNDLES):
+            for suite_index, suite in enumerate(ios.APP_SUITES[target]):
+                with self.subTest(target=target, suite=suite):
+                    summary, tree = app_results()
+                    bundles(tree)[index]["children"].pop(suite_index)
+                    remaining = summary["passedTests"] - 1
+                    summary.update(totalTestCount=remaining, passedTests=remaining)
+                    with self.assertRaisesRegex(ValueError, f"{target}.*{suite}"):
+                        validate_app(summary, tree)
+
+    def test_a_suite_executed_in_the_other_bundle_does_not_satisfy_its_requirement(self):
+        for index, target in enumerate(ios.APP_BUNDLES):
+            with self.subTest(target=target):
+                summary, tree = app_results()
+                moved = bundles(tree)[index]["children"].pop()
+                bundles(tree)[1 - index]["children"].append(moved)
+                with self.assertRaisesRegex(ValueError, f"{target}.*{moved['name']}"):
+                    validate_app(summary, tree)
+
+    def test_skipped_or_expected_app_failures_cannot_pass(self):
+        for index, target in enumerate(ios.APP_BUNDLES):
+            for status, bucket in (("Skipped", "skippedTests"), ("Expected Failure", "expectedFailures")):
+                with self.subTest(target=target, status=status):
+                    summary, tree = app_results()
+                    cases(tree, index)[0]["result"] = status
+                    summary.update(passedTests=summary["passedTests"] - 1, **{bucket: 1})
+                    with self.assertRaisesRegex(ValueError, "cannot be skipped"):
+                        validate_app(summary, tree)
+
+    def test_skipped_nodes_or_attempts_cannot_hide_behind_passed_app_cases(self):
+        for status in ("Skipped", "Expected Failure"):
+            for node_type in ("bundle", "suite", "attempt"):
+                with self.subTest(status=status, node_type=node_type):
+                    summary, tree = app_results()
+                    if node_type == "bundle":
+                        bundles(tree)[0]["result"] = status
+                    elif node_type == "suite":
+                        bundles(tree)[0]["children"][0]["result"] = status
+                    else:
+                        cases(tree)[0]["children"] = [
+                            {"name": "First Run", "nodeType": "Test Case Run", "result": status}]
+                    with self.assertRaisesRegex(ValueError, "cannot be skipped"):
+                        validate_app(summary, tree)
+
+    def test_app_destination_must_match_the_sdk_selected_device(self):
+        summary, tree = app_results()
+        tree["devices"][0]["deviceId"] = SECOND_DEVICE_ID
+        with self.assertRaisesRegex(ValueError, "selected Simulator UDID"):
+            validate_app(summary, tree)
+
+    def test_requirements_cannot_omit_bundle_types_or_reference_an_unrequired_bundle(self):
+        summary, tree = app_results()
+        for required in ({}, {"OpenUIGalleryNativeTests": "Test Suite"}):
+            with self.subTest(required=required):
+                with self.assertRaisesRegex(ValueError, "XCTest bundle types"):
+                    ios.validate_results(summary, tree, device(), required_bundles=required)
+        with self.assertRaisesRegex(ValueError, "belong to a required test bundle"):
+            ios.validate_results(summary, tree, device(), required_suites=ios.APP_SUITES)
 
 
 class ResultEvidenceTests(unittest.TestCase):
@@ -260,40 +338,45 @@ class DeviceSelectionTests(unittest.TestCase):
 
 
 class RunnerEvidenceTests(unittest.TestCase):
-    def test_sdk_environment_is_forwarded_only_to_the_xcode_test_process(self):
+    def test_owned_environment_is_forwarded_only_to_each_xcode_test_process(self):
         environment = {"PATH": "/test/toolchain", "HOST_ONLY": "host-value",
                        "OPENUI_SNAPSHOT_DIR": "/test/evidence/visual",
                        "OPENUI_RUNTIME_TELEMETRY_ENABLED": "0",
                        "TEST_RUNNER_OPENUI_SNAPSHOT_DIR": "/stale/evidence"}
-        calls = self.run_tests_with_environment(environment)
-        test_calls = [call for call in calls if call.args[0][:2] == ["xcodebuild", "test"]]
-        self.assertEqual(len(test_calls), 1)
-        expected = {**environment,
-                    "TEST_RUNNER_OPENUI_SNAPSHOT_DIR": "/test/evidence/visual",
-                    "TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED": "0"}
-        self.assertEqual(test_calls[0].kwargs["env"], expected)
-        self.assertNotIn("TEST_RUNNER_HOST_ONLY", test_calls[0].kwargs["env"])
-        for call in calls:
-            if call is not test_calls[0]:
-                self.assertIsNone(call.kwargs["env"], "Other commands must retain ordinary environment inheritance")
+        for stage in ("sdk", "app"):
+            with self.subTest(stage=stage):
+                calls = self.run_tests_with_environment(environment, stage)
+                test_calls = [call for call in calls if call.args[0][:2] == ["xcodebuild", "test"]]
+                self.assertEqual(len(test_calls), 1)
+                expected = {**environment,
+                            "TEST_RUNNER_OPENUI_SNAPSHOT_DIR": "/test/evidence/visual",
+                            "TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED": "0"}
+                self.assertEqual(test_calls[0].kwargs["env"], expected)
+                self.assertNotIn("TEST_RUNNER_HOST_ONLY", test_calls[0].kwargs["env"])
+                for call in calls:
+                    if call is not test_calls[0]:
+                        self.assertIsNone(call.kwargs["env"], "Other commands must retain ordinary environment inheritance")
 
-    def test_unconfigured_sdk_environment_does_not_create_test_runner_values(self):
-        for environment in ({"HOST_ONLY": "host-value"},
-                            {"OPENUI_SNAPSHOT_DIR": "", "OPENUI_RUNTIME_TELEMETRY_ENABLED": ""}):
-            with self.subTest(environment=environment):
-                calls = self.run_tests_with_environment(environment)
-                test_call = next(call for call in calls if call.args[0][:2] == ["xcodebuild", "test"])
-                self.assertEqual(test_call.kwargs["env"], environment)
-                self.assertNotIn("TEST_RUNNER_OPENUI_SNAPSHOT_DIR", test_call.kwargs["env"])
-                self.assertNotIn("TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED", test_call.kwargs["env"])
+    def test_unconfigured_environment_does_not_create_test_runner_values(self):
+        for stage in ("sdk", "app"):
+            for environment in ({"HOST_ONLY": "host-value"},
+                                {"OPENUI_SNAPSHOT_DIR": "", "OPENUI_RUNTIME_TELEMETRY_ENABLED": ""}):
+                with self.subTest(stage=stage, environment=environment):
+                    calls = self.run_tests_with_environment(environment, stage)
+                    test_call = next(call for call in calls if call.args[0][:2] == ["xcodebuild", "test"])
+                    self.assertEqual(test_call.kwargs["env"], environment)
+                    self.assertNotIn("TEST_RUNNER_OPENUI_SNAPSHOT_DIR", test_call.kwargs["env"])
+                    self.assertNotIn("TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED", test_call.kwargs["env"])
 
-    def run_tests_with_environment(self, environment):
+    def run_tests_with_environment(self, environment, stage):
         with tempfile.TemporaryDirectory() as directory:
             run = ios.IOSRun(Path(directory))
             summary, tree = results()
+            app_summary, app_tree = app_results()
             data = {"schemes": {"workspace": {"schemes": [ios.SCHEME]}},
                     "devices": {"devices": {RUNTIME: [device()]}},
-                    "test-summary": summary, "test-tree": tree, "coverage": {"targets": [{}]}}
+                    "test-summary": summary, "test-tree": tree, "coverage": {"targets": [{}]},
+                    "app-test-summary": app_summary, "app-test-tree": app_tree, "app-coverage": {"targets": [{}]}}
             child = Mock(returncode=0)
             child.wait.return_value = 0
             with patch.dict(ios.os.environ, environment, clear=True), \
@@ -301,7 +384,11 @@ class RunnerEvidenceTests(unittest.TestCase):
                  patch.object(ios.subprocess, "Popen", return_value=child) as spawn, \
                  patch("sys.stdout", new_callable=io.StringIO):
                 original = dict(ios.os.environ)
-                run.tests(Path(directory), None)
+                if stage == "sdk":
+                    run.tests(Path(directory), None)
+                else:
+                    run.report["device"] = device()
+                    run.app_tests(Path(directory))
                 # The shared command path must also leave build subprocesses alone.
                 run.command("unrelated-build", ["xcodebuild", "build"])
                 self.assertEqual(dict(ios.os.environ), original)
@@ -349,22 +436,55 @@ class RunnerEvidenceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "exited 65"):
                     run.tests(Path(directory), None)
 
-    def test_ui_xcode_failure_cannot_be_replaced_by_a_successful_result_bundle(self):
+    def test_app_tests_use_the_selected_device_and_execute_both_bundles_together(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            run = ios.IOSRun(output)
+            run.report["device"] = device(udid=SECOND_DEVICE_ID)
+            summary, tree = app_results()
+            tree["devices"][0]["deviceId"] = SECOND_DEVICE_ID
+            data = {"app-test-summary": summary, "app-test-tree": tree, "app-coverage": {"targets": [{}]}}
+            with patch.object(run, "command") as command, \
+                 patch.object(run, "json_command", side_effect=lambda name, *args: data[name]) as json_command:
+                run.app_tests(output / "scratch")
+            command.assert_called_once()
+            name, argv, timeout = command.call_args.args
+            self.assertEqual(name, "gallery-app-tests")
+            self.assertEqual(argv[:2], ["xcodebuild", "test"])
+            self.assertEqual(argv[argv.index("-destination") + 1],
+                             f"platform=iOS Simulator,id={SECOND_DEVICE_ID}")
+            self.assertEqual({arg.removeprefix("-only-testing:") for arg in argv if arg.startswith("-only-testing:")},
+                             set(ios.APP_BUNDLES))
+            self.assertEqual(argv[argv.index("-resultBundlePath") + 1], str(output / "gallery-tests.xcresult"))
+            self.assertEqual([call.args[0] for call in json_command.call_args_list],
+                             ["app-test-summary", "app-test-tree", "app-coverage"])
+            self.assertEqual(set(run.report["appTestResults"]["targets"]), set(ios.APP_BUNDLES))
+
+    def test_app_tests_cannot_select_an_unrecorded_device(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = ios.IOSRun(Path(directory))
+            with patch.object(run, "command") as command:
+                with self.assertRaisesRegex(ValueError, "selected and booted iPhone Simulator"):
+                    run.app_tests(Path(directory))
+            command.assert_not_called()
+
+    def test_app_xcode_failure_cannot_be_replaced_by_a_successful_result_bundle(self):
         with tempfile.TemporaryDirectory() as directory:
             run = ios.IOSRun(Path(directory))
             run.report["device"] = device()
-            summary, tree = ui_results()
-            data = {"ui-test-summary": summary, "ui-test-tree": tree, "ui-coverage": {"targets": [{}]}}
+            summary, tree = app_results()
+            data = {"app-test-summary": summary, "app-test-tree": tree, "app-coverage": {"targets": [{}]}}
             def command(name, *args, **kwargs):
-                if name == "gallery-ui-tests":
-                    raise RuntimeError("UI xcodebuild exited 65")
+                if name == "gallery-app-tests":
+                    raise RuntimeError("App xcodebuild exited 65")
                 return Path(directory) / (name + ".log")
             with patch.object(run, "command", side_effect=command), \
                  patch.object(run, "json_command", side_effect=lambda name, *args: data[name]):
-                with self.assertRaisesRegex(RuntimeError, "UI xcodebuild exited 65"):
-                    run.ui_tests(Path(directory))
+                with self.assertRaisesRegex(RuntimeError, "App xcodebuild exited 65"):
+                    run.app_tests(Path(directory))
+            self.assertIn("appTestResults", run.report, "Result extraction cannot clear the command failure")
 
-    def test_passing_sdk_tests_and_builds_cannot_replace_ui_execution(self):
+    def test_passing_sdk_tests_and_builds_cannot_replace_app_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "evidence"
             def sdk_tests(run, *args):
@@ -372,12 +492,12 @@ class RunnerEvidenceTests(unittest.TestCase):
             with patch("sys.argv", ["ios.py", "--output", str(output)]), \
                  patch("sys.stdout", new_callable=io.StringIO), \
                  patch.object(ios.signal, "signal"), patch.object(ios.platform, "system", return_value="Darwin"), \
-                 patch.object(ios.IOSRun, "tests", sdk_tests), patch.object(ios.IOSRun, "ui_tests"), \
+                 patch.object(ios.IOSRun, "tests", sdk_tests), patch.object(ios.IOSRun, "app_tests"), \
                  patch.object(ios.IOSRun, "builds"):
                 self.assertEqual(ios.main(), 1)
             report = json.loads((output / "summary.json").read_text())
             self.assertNotIn("No validated iOS test execution evidence", report["failures"])
-            self.assertIn("No validated Gallery UI interaction evidence", report["failures"])
+            self.assertIn("No validated Gallery App test execution evidence", report["failures"])
 
     def test_a_stage_without_validated_test_results_cannot_pass(self):
         with tempfile.TemporaryDirectory() as directory:
