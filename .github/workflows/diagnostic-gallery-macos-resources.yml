@@ -24,10 +24,11 @@ jobs:
       - name: Record exact source and toolchain
         run: |
           python3 - <<'PY'
-          import json, os, pathlib, subprocess, sys
+          import json, os, pathlib, subprocess, sys, time
           output = pathlib.Path(os.environ["DIAGNOSTIC_OUTPUT"])
           output.mkdir(parents=True, exist_ok=True)
           record = {
+              "diagnostic_started_at_unix": time.time(),
               "expected_source": os.environ["EXPECTED_SOURCE"],
               "workflow_commit": os.environ["GITHUB_SHA"],
               "workflow_ref": os.environ["GITHUB_REF"],
@@ -149,11 +150,15 @@ jobs:
           output = pathlib.Path(os.environ["DIAGNOSTIC_OUTPUT"])
           app = pathlib.Path("Examples/Gallery/.build/app/Build/Products/Debug/OpenUIGallery.app").resolve()
           command = [str(app / "Contents/MacOS/OpenUIGallery"), "--validate-fixtures"]
+          source_record = json.loads((output / "source-toolchain.json").read_text())
+          # Match the existing gallery-programs command ceiling, leaving two
+          # minutes under the job deadline to collect and upload all evidence.
+          timeout = max(1, min(1800, 35 * 60 - (time.time() - source_record["diagnostic_started_at_unix"]) - 120))
           started = time.monotonic()
-          status = {"command": command}
+          status = {"command": command, "timeout_seconds": timeout}
           with (output / "validation.log").open("w") as log:
               try:
-                  result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180)
+                  result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
                   status["exit_code"] = result.returncode
               except subprocess.TimeoutExpired:
                   status.update(exit_code=124, timed_out=True)
