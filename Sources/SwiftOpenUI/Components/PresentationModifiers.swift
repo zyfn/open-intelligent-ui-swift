@@ -10,11 +10,20 @@ extension EnvironmentValues {
 }
 private struct OpenUIFontModifier: ViewModifier {
     let font: OpenUIFont
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+    @ScaledMetric private var resolvedSize: CGFloat
+
+    init(font: OpenUIFont) {
+        self.font = font
+        // Scale the actual point size. A scaled one-point metric is a layout
+        // value, not a lossless multiplier for every font size.
+        _resolvedSize = ScaledMetric(wrappedValue: font.size, relativeTo: .body)
+    }
+
     func body(content: Content) -> some View {
-        content.font(font.nativeFont(scale: scale))
+        let scale = font.size > 0 ? resolvedSize / font.size : 1
+        return content.font(font.nativeFont(scale: scale))
             .lineSpacing(font.additionalLineSpacing(scale: scale))
-            .tracking(font.letterSpacing * font.size * scale)
+            .tracking(font.letterSpacing * resolvedSize)
             .environment(\.openUIInheritedFont, font)
     }
 }

@@ -305,11 +305,16 @@ final class ObjectCardCompositionTests: XCTestCase {
     return measured.values
   }
 
-  @MainActor func testStreamingCardCopyKeepsMixedRowWidthsStable() throws {
-    _ = NSApplication.shared
+  @MainActor func testStreamingCardCopyKeepsMixedRowWidthsStable() async throws {
+    _ = NativeAccessibilityTestSupport.application
     for (variant, alignment) in [("clear", "start"), ("card", "stretch")] {
       let library = try OpenUIComponents.library()
       var registry = library.registry
+      let registrations = ["Image", "TextContent"].map { name in
+        (name: name, placeholder: registry.supportsPresentationPlaceholder(name),
+         layout: registry.presentationLayoutFields(name), labels: registry.ownsFormControlLabel(name),
+         identity: registry.identityFields(for: name), placeholderFields: registry.presentationPlaceholderFields(name))
+      }
       let image = try XCTUnwrap(registry["Image"])
       let text = try XCTUnwrap(registry["TextContent"])
       let frames = ObjectCardFrames()
@@ -328,6 +333,15 @@ final class ObjectCardCompositionTests: XCTestCase {
             .onChange(of: geometry.frame(in: .global)) { frames.values["directions"] = $0 }
         }))
       }
+      // Geometry observers must retain the standard renderers' streaming and
+      // identity contracts; assigning a builder clears their registration metadata.
+      for registration in registrations {
+        registry.setPresentationPlaceholder(registration.name, enabled: registration.placeholder)
+        registry.setLayoutFields(registration.name, fields: registration.layout)
+        registry.setFormControlLabelOwner(registration.name, enabled: registration.labels)
+        registry.setIdentityFields(registration.name, fields: registration.identity)
+        registry.setPlaceholderFields(registration.name, fields: registration.placeholderFields)
+      }
 
       let state = OpenUIState(schema: library.library.toSchema())
       state.push("""
@@ -342,35 +356,90 @@ final class ObjectCardCompositionTests: XCTestCase {
         styleMask: [.borderless], backing: .buffered, defer: false)
       window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
       defer { window.close() }
-      func settle() {
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        host.layoutSubtreeIfNeeded()
+      try await NativeAccessibilityTestSupport.activate(in: host)
+      let initialCopy = "先到西湖"
+      let appendedCopy = "先到西湖，再沿着湖边步道散步，看完夕阳之后可以到附近的小店休息。"
+      var initialGeometry = "not yet measured"
+      func parsedCopy() -> String? {
+        guard let root = state.root,
+          let card = PropValue.children(root).first(where: { $0.statementId == "card" }),
+          let copy = PropValue.children(card).first(where: { $0.statementId == "copy" }) else { return nil }
+        return PropValue.string(copy, "text")
+      }
+      func failureContext(_ stage: String) -> String {
+        let rendered = NativeAccessibilityTestSupport.renderedText(in: host)
+        let geometry = "fitting=\(host.fittingSize), cover=\(String(describing: frames.values["cover"])), directions=\(String(describing: frames.values["directions"]))"
+        var snapshot = "unavailable"
+        if let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+          host.cacheDisplay(in: host.bounds, to: bitmap)
+          if let data = bitmap.representation(using: .png, properties: [:]) {
+            let output = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"]
+            let directory = output.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+              .map { $0.appendingPathComponent("observation-diagnostics", isDirectory: true) }
+              ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("outputs/verification/observation-diagnostics", isDirectory: true)
+            let destination = directory.appendingPathComponent("object-card-streaming-\(variant)-\(alignment)-\(stage).png")
+            do {
+              try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+              try data.write(to: destination)
+              snapshot = destination.path
+            } catch { snapshot = "could not save: \(error)" }
+          }
+        }
+        return "variant=\(variant), alignment=\(alignment), stage=\(stage), source=\(String(describing: parsedCopy())), complete=\(state.isComplete), initial=\(initialGeometry), current=\(geometry), rendered=\(rendered), snapshot=\(snapshot)"
+      }
+      enum ObservationFailure: Error { case timeout }
+      func waitForCopy(_ expected: String, stage: String) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+          host.layoutSubtreeIfNeeded()
+          let rendered = NativeAccessibilityTestSupport.renderedText(in: host)
+          if rendered.contains(expected), rendered.contains(directions),
+            frames.values["cover"] != nil, frames.values["directions"] != nil {
+            await Task.yield()
+            host.layoutSubtreeIfNeeded()
+            return
+          }
+          // A run-loop delay alone does not complete the coalescing Task and
+          // Markdown worker. Yield until the actual native text is visible;
+          // the height being asserted is never part of this readiness condition.
+          try await Task.sleep(nanoseconds: 10_000_000)
+        } while Date() < deadline
+        XCTFail("Timed out waiting for rendered copy \(expected); \(failureContext(stage))")
+        throw ObservationFailure.timeout
       }
 
-      settle()
+      XCTAssertEqual(parsedCopy(), initialCopy, failureContext("initial-source"))
+      try await waitForCopy(initialCopy, stage: "initial")
       let initialCover = try XCTUnwrap(frames.values["cover"])
       let initialDirections = try XCTUnwrap(frames.values["directions"])
       let initialHeight = host.fittingSize.height
-      XCTAssertGreaterThan(initialCover.width, 0)
-      XCTAssertGreaterThan(initialDirections.width, 0)
+      let revision = state.presentationRevision
+      initialGeometry = "height=\(initialHeight), cover=\(initialCover), directions=\(initialDirections)"
+      XCTAssertGreaterThan(initialCover.width, 0, failureContext("initial"))
+      XCTAssertGreaterThan(initialDirections.width, 0, failureContext("initial"))
       state.push("，再沿着湖边步道散步，看完夕阳之后可以到附近的小店休息。")
-      settle()
+      XCTAssertEqual(parsedCopy(), appendedCopy, failureContext("append-source"))
+      XCTAssertFalse(state.isComplete, failureContext("append-source"))
+      try await waitForCopy(appendedCopy, stage: "append")
 
       let finalCover = try XCTUnwrap(frames.values["cover"])
       let finalDirections = try XCTUnwrap(frames.values["directions"])
       XCTAssertEqual(finalCover.width, initialCover.width, accuracy: 1,
-        "Streaming Card copy must stay within its allocated column")
-      XCTAssertEqual(finalDirections.width, initialDirections.width, accuracy: 1)
-      XCTAssertEqual(finalDirections.minX, initialDirections.minX, accuracy: 1)
-      XCTAssertGreaterThan(host.fittingSize.height, initialHeight)
+        "Streaming Card copy must stay within its allocated column; \(failureContext("append"))")
+      XCTAssertEqual(finalDirections.width, initialDirections.width, accuracy: 1, failureContext("append"))
+      XCTAssertEqual(finalDirections.minX, initialDirections.minX, accuracy: 1, failureContext("append"))
+      XCTAssertGreaterThan(host.fittingSize.height, initialHeight, failureContext("append"))
 
       state.push("\")")
       state.complete()
-      settle()
-      XCTAssertEqual(try XCTUnwrap(frames.values["cover"]).width, initialCover.width, accuracy: 1)
-      XCTAssertEqual(try XCTUnwrap(frames.values["directions"]).width, initialDirections.width, accuracy: 1)
-      XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+      try await waitForCopy(appendedCopy, stage: "complete")
+      XCTAssertEqual(parsedCopy(), appendedCopy, failureContext("complete"))
+      XCTAssertTrue(state.isComplete, failureContext("complete"))
+      XCTAssertEqual(state.presentationRevision, revision, failureContext("complete"))
+      XCTAssertEqual(try XCTUnwrap(frames.values["cover"]).width, initialCover.width, accuracy: 1, failureContext("complete"))
+      XCTAssertEqual(try XCTUnwrap(frames.values["directions"]).width, initialDirections.width, accuracy: 1, failureContext("complete"))
+      XCTAssertTrue(state.errors.isEmpty, "\(state.errors); \(failureContext("complete"))")
     }
   }
 

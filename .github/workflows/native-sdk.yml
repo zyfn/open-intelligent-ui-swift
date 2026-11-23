@@ -16,7 +16,7 @@ concurrency:
 jobs:
   reproducible-inputs:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
     steps:
@@ -24,69 +24,113 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify SwiftPM module graph and imports
-        run: |
-          set -euo pipefail
-          python3 Tools/check_module_boundaries.py
-          if grep -R -nE '(^|[[:space:]])(@testable[[:space:]]+)?import[[:space:]]+(OpenUILang|OpenUI|OpenIntelligentUI|OpenUICore|OpenSwiftUI|OpenIntelligentSwiftUI|OpenUISwiftUI)([[:space:]]|$)' Sources Tests Examples Tools --include='*.swift'; then
-            echo 'Obsolete Swift module imports remain'
-            exit 1
-          fi
-      - name: Import ownership and localization
-        run: |
-          set -euo pipefail
-          python3 Tools/check_openui_integration.py
-          python3 Tools/check_gallery_catalog.py
-          python3 Tools/check_localization.py
-      - name: Rebuild the exact bundled official core
-        run: |
-          set -euo pipefail
-          npm ci --prefix Tools/Core --ignore-scripts
-          node Tools/Core/build.mjs
-          git diff --exit-code -- Sources/SwiftLang/Resources
-          node Tools/Core/verify-compatibility.mjs
-          node --test Tools/Core/native-*.test.mjs
-          node --test Validation/validation.test.mjs
-          node --test Tools/Presentation/catalog-compatibility.test.mjs
-      - name: Rebuild presentation resources from public registries
-        run: |
-          set -euo pipefail
-          for feature in rich-text code-highlighting icons; do
-            npm ci --prefix "Tools/Presentation/$feature" --ignore-scripts
-          done
-          node Tools/Presentation/rich-text/build.mjs
-          node Tools/Presentation/code-highlighting/build.mjs
-          node Tools/Presentation/icons/generate.mjs --check
-          node Tools/Presentation/catalog.mjs --check
-          git diff --exit-code -- Sources/SwiftOpenUI/Resources
-      - name: Rebuild and verify Intelligent UI math resources
-        run: |
-          set -euo pipefail
-          npm ci --prefix Tools/Functions --ignore-scripts
-          node Tools/Functions/build-math.cjs
-          node --test Tools/Functions/math-resources.test.cjs
-          git diff --exit-code -- Sources/SwiftIntelligentUI/Resources
-      - name: Retain input diagnostics
+      - name: Reproduce resources and validate source contracts
+        run: python3 Validation/SDK/run.py --profile portable --output outputs/verification/sdk-validation/portable
+      - name: Publish executed checks
         if: always()
-        shell: bash
-        run: |
-          mkdir -p "$RUNNER_TEMP/native-input-evidence"
-          git rev-parse HEAD > "$RUNNER_TEMP/native-input-evidence/checkout-sha.txt"
-          git diff -- Sources > "$RUNNER_TEMP/native-input-evidence/generated-diff.patch"
-          cp Sources/SwiftLang/Resources/core-manifest.json "$RUNNER_TEMP/native-input-evidence/"
+        run: cat outputs/verification/sdk-validation/portable/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-inputs-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/native-input-evidence/
+          name: sdk-validation-portable-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/sdk-validation/portable/
+          if-no-files-found: error
           retention-days: 7
 
   dependency-security:
-    # Independent of functional tests: audit the real pinned build inputs.
-    # Security fixes must regenerate the committed resources and pass contracts.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit all five pinned dependency graphs
+        run: python3 Validation/SDK/run.py --profile security --output outputs/verification/sdk-validation/security
+      - name: Publish executed checks
+        if: always()
+        run: cat outputs/verification/sdk-validation/security/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-validation-security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/sdk-validation/security/
+          if-no-files-found: error
+          retention-days: 7
+
+  native-sdk:
+    needs: reproducible-inputs
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run macOS SDK, Gallery, consumers and performance validation
+        run: python3 Validation/SDK/run.py --profile macos --output outputs/verification/sdk-validation/macos
+      - name: Publish executed checks
+        if: always()
+        run: cat outputs/verification/sdk-validation/macos/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-validation-macos-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/sdk-validation/macos/
+          if-no-files-found: error
+          retention-days: 7
+
+  ios-sdk:
+    needs: reproducible-inputs
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute all three products on iPhone Simulator and verify iOS builds
+        run: python3 Validation/SDK/run.py --profile ios --output outputs/verification/sdk-validation/ios
+      - name: Publish executed checks
+        if: always()
+        run: cat outputs/verification/sdk-validation/ios/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-validation-ios-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/sdk-validation/ios/
+          if-no-files-found: error
+          retention-days: 7
+
+  native-acceptance:
+    name: Native SDK acceptance
+    needs: [reproducible-inputs, dependency-security, native-sdk, ios-sdk]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -94,291 +138,49 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '22'
-      - name: Audit every bundled generator dependency graph
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/native-security"
-          failed=0
-          for feature in Tools/Core Tools/Presentation/rich-text \
-              Tools/Presentation/code-highlighting Tools/Presentation/icons Tools/Functions; do
-            label="${feature//\//-}"
-            npm ci --prefix "$feature" --ignore-scripts \
-              2>&1 | tee "$RUNNER_TEMP/native-security/$label-install.log"
-            if npm audit --prefix "$feature" --audit-level=high --json \
-                > "$RUNNER_TEMP/native-security/$label-audit.json"; then
-              printf '0\n' > "$RUNNER_TEMP/native-security/$label-exit.txt"
-            else
-              status=$?
-              printf '%s\n' "$status" > "$RUNNER_TEMP/native-security/$label-exit.txt"
-              cat "$RUNNER_TEMP/native-security/$label-audit.json"
-              failed=1
-            fi
-          done
-          exit "$failed"
-      - uses: actions/upload-artifact@v4
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sdk-validation-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/sdk-validation-inputs
+      - name: Verify complete reports and their evidence for the exact commit
         if: always()
-        with:
-          name: native-security-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/native-security/
-          retention-days: 7
-
-  native-sdk:
-    needs: reproducible-inputs
-    # Preserve the existing design branch's supported toolchain.
-    runs-on: macos-15
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-      OPENUI_SNAPSHOT_DIR: ${{ github.workspace }}/outputs/verification/visual
-      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - name: Record toolchain and exact checkout
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p outputs/verification
-          { git rev-parse HEAD; swift --version; xcodebuild -version; sw_vers; } \
-            2>&1 | tee outputs/verification/provenance.log
-      # Keep a small Debug preflight before the full suite; Release selections run once.
-      - name: Debug lifecycle and presentation preflight
-        shell: bash
-        run: |
-          set -euo pipefail
-          filter='QueryDispatchBoundaryTests|NativeValueBudgetTests|MutationRetirementTests|NativeProjectionInputBudgetTests'
-          filter+='|ResourceCacheBudgetTests|ResourceStoreTests|SharedCoreBridgeTests|SliderFeedbackRenderingTests'
-          filter+='|testInterruptedSVGWithAnUnclosedSourceReplacesLoadingWithReadableFallback'
-          filter+='|testMountedStoreReadersLeaveUnrelatedSiblingBuildersAndBodiesAlone'
-          filter+='|testRefetchDuringFlightQueuesAndRefreshTimerStops|SemanticTypographyTests'
-          swift test list --configuration debug \
-            2>&1 | tee outputs/verification/native-debug-test-list.log
-          grep -E '^[[:alnum:]_]+\.[[:alnum:]_]+/' outputs/verification/native-debug-test-list.log \
-            | tee outputs/verification/native-debug-tests.txt \
-            | grep -E "$filter" | tee outputs/verification/native-debug-preflight-tests.txt
-          swift test --skip-build --configuration debug --filter "$filter" \
-            2>&1 | tee outputs/verification/native-deep-data.log
-      - name: Intelligent UI layout and generation regressions
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          failed=0
-          SWIFT_INTELLIGENT_UI_LAYOUT_TRACE=1 swift test --skip-build --configuration debug \
-            --filter 'OfficialContractParityTests/testRootPercentageHeightUsesTheActualFiniteHostProposal' \
-            2>&1 | tee outputs/verification/intelligent-ui-root-layout.log || failed=1
-          swift test --skip-build --configuration debug \
-            --filter 'SwiftIntelligentUITests\.(LayoutTests|SVGLayoutTests|ProductCardTests|SliderTests|GenerationContractTests|ComponentSelectionTests)/' \
-            2>&1 | tee outputs/verification/intelligent-ui-composition.log || failed=1
-          exit "$failed"
-      - name: Standalone Gallery tests
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" \
-            2>&1 | tee outputs/verification/gallery-tests.log
-      - name: Retain Debug preflight diagnostics immediately
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-deep-data-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            outputs/verification/native-deep-data.log
-            outputs/verification/native-debug-*.txt
-            outputs/verification/native-debug-test-list.log
-            outputs/verification/intelligent-ui-*.log
-            outputs/verification/gallery-tests.log
-            outputs/verification/visual/gallery-editorial/
-            outputs/verification/visual/root-percentage/
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Release rendering, streaming and resource regressions
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          filter='NativeImageSizingTests|NativeMediaRetryTests|NativeMediaResourceTests|SignedMediaResourceTests|ResourceStoreTests'
-          filter+='|StreamingTextPresentationTests|MountedStreamingTextProgressTests|StreamingMediaRetentionTests'
-          filter+='|AdaptivePresentationTests|PhotoCardGeometryTests|ReadingControlPresentationTests|ObjectCardCompositionTests'
-          filter+='|StreamingLayoutContractTests|LayoutMeasurementReductionTests|ButtonLayoutContractTests|ChartInspectionTests'
-          filter+='|NativeComponentsTests|BoundaryIdentityTests|NativeComponentSubscriptionTests|StreamingRenderIsolationTests'
-          filter+='|TableAppearanceTests|ReadingRhythmTests|StreamingVisualStateTests|TableMountedViewTests|ComponentLibraryTests'
-          filter+='|ComponentReadinessTests|FullLibraryParityTests|NativeActionRenderingTests|LibraryFacadeTests|InputTests'
-          filter+='|AncestorInteractionScopeTests|SliderFeedbackRenderingTests|StreamingFormCorrectnessTests|ComponentRenderInputTests'
-          filter+='|NativePresentationCommitTests|NativeLiveElementUpdateTests|QueryDispatchBoundaryTests|NativeValueBudgetTests'
-          filter+='|MutationRetirementTests|NativeProjectionInputBudgetTests|ActionWorkBudgetTests|RuntimeReentrancyTests'
-          filter+='|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceCacheBudgetTests'
-          filter+='|SharedCoreBridgeTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests'
-          filter+='|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|FieldSelectionRenderingTests'
-          filter+='|SwiftIntelligentUITests\.(LayoutTests|SVGLayoutTests|ProductCardTests|SliderTests|GenerationContractTests|ComponentSelectionTests)/'
-          filter+='|testRefetchDuringFlightQueuesAndRefreshTimerStops|SemanticTypographyTests'
-          swift test list --configuration release \
-            2>&1 | tee outputs/verification/native-release-test-list.log
-          grep -E '^[[:alnum:]_]+\.[[:alnum:]_]+/' outputs/verification/native-release-test-list.log \
-            | grep -E "$filter" | tee outputs/verification/native-release-tests.txt
-          swift test --skip-build --configuration release --filter "$filter" \
-            2>&1 | tee outputs/verification/native-release.log
-      - name: Retain Release regression diagnostics immediately
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-release-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            outputs/verification/native-release*.log
-            outputs/verification/native-release-tests.txt
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Release native fitting
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test -c release --filter 'HostSizingIsolationTests|RuntimeHostIsolationTests' \
-            2>&1 | tee outputs/verification/release-fitting.log
-      - name: All library products for iOS 16 Simulator
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for target in SwiftOpenUI SwiftIntelligentUI; do
-            swift build --target "$target" --scratch-path "$RUNNER_TEMP/native-ios" \
-              --triple arm64-apple-ios16.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-              2>&1 | tee "outputs/verification/$target-ios.log"
-          done
-      - name: iOS Gallery using the same local package
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcodebuild -project Examples/Gallery/OpenUIGallery.xcodeproj \
-            -scheme OpenUIGallery -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/OpenUIGallery-build" \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee outputs/verification/gallery-ios.log
-      - name: All native package tests
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test 2>&1 | tee outputs/verification/sdk-tests.log
-      - name: Retain native test diagnostics immediately
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-package-tests-${{ github.run_id }}-${{ github.run_attempt }}
-          path: outputs/verification/sdk-tests.log
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Independent swift-lang, swift-ui and swift-intelligent-ui consumers
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 Tools/check_product_consumers.py --scratch-root "$RUNNER_TEMP/native-consumers" \
-            2>&1 | tee outputs/verification/product-consumers.log
-      - name: Gallery fixture programs
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift run --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" OpenUIGallery --validate-fixtures \
-            2>&1 | tee outputs/verification/gallery-fixtures.log
-          swift run --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" --skip-build OpenUIGallery \
-            --export-contracts "$PWD/outputs/verification/gallery-contracts" \
-            2>&1 | tee outputs/verification/gallery-contracts.log
-      - name: Verify latest upstream Intelligent UI positional contracts
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test --configuration release --filter OfficialContractParityTests \
-            2>&1 | tee outputs/verification/upstream-contracts.log
-      - name: Native language AddressSanitizer
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test --scratch-path "$RUNNER_TEMP/openui-asan" --sanitize=address --filter SwiftLangTests \
-            2>&1 | tee outputs/verification/asan.log
-      - name: Independent contract and performance tools
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift build --package-path Tools/ContractExport \
-            2>&1 | tee outputs/verification/contract-tool.log
-          swift build --configuration release --package-path Validation/Performance \
-            2>&1 | tee outputs/verification/performance-tool-build.log
-      - name: Release language and changing-tail streaming measurements
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p outputs/verification/performance
-          for chunk in 24 128; do
-            swift run --configuration release --package-path Validation/Performance --skip-build \
-              LanguagePerformanceValidation --iterations 100 --warmup 5 --rows 200 \
-              --stream-iterations 5 --chunk-units "$chunk" \
-              --output "outputs/verification/performance/language-stream-$chunk.json" \
-              2>&1 | tee "outputs/verification/performance/language-stream-$chunk.log"
-          done
-      - name: Retain native crash reports
-        if: always()
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import pathlib, shutil
-          start = pathlib.Path('outputs/verification/provenance.log')
-          reports = pathlib.Path.home() / 'Library/Logs/DiagnosticReports'
-          destination = pathlib.Path('outputs/verification/crash-reports')
-          if start.exists() and reports.is_dir():
-              for report in reports.iterdir():
-                  if ('PackageTests' in report.name or report.name.startswith('xctest')) \
-                      and report.suffix in {'.ips', '.crash'} and report.stat().st_mtime >= start.stat().st_mtime:
-                      destination.mkdir(parents=True, exist_ok=True)
-                      shutil.copy2(report, destination / report.name)
-          PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: native-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
-          path: outputs/verification/
-          if-no-files-found: warn
-          retention-days: 7
-
-  native-acceptance:
-    name: Native SDK acceptance
-    # A skipped native job must not count as an accepted SDK revision.
-    needs: [reproducible-inputs, dependency-security, native-sdk]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Require every prerequisite to succeed
-        shell: bash
         env:
           VERIFIED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          python3 Validation/SDK/run.py collect
+          --input outputs/verification/sdk-validation-inputs
+          --expected-sha "$VERIFIED_SHA"
+          --output outputs/verification/sdk-validation-acceptance
+      - name: Require every prerequisite job to succeed
+        if: always()
+        env:
           INPUTS_RESULT: ${{ needs.reproducible-inputs.result }}
           SECURITY_RESULT: ${{ needs.dependency-security.result }}
-          NATIVE_RESULT: ${{ needs.native-sdk.result }}
+          MACOS_RESULT: ${{ needs.native-sdk.result }}
+          IOS_RESULT: ${{ needs.ios-sdk.result }}
         run: |
-          set -euo pipefail
-          {
-            printf '## Native SDK acceptance\n\n'
-            printf 'Commit: `%s`\n\n' "$VERIFIED_SHA"
-            printf '| Required job | Result |\n| --- | --- |\n'
-            printf '| reproducible-inputs | %s |\n' "$INPUTS_RESULT"
-            printf '| dependency-security | %s |\n' "$SECURITY_RESULT"
-            printf '| native-sdk | %s |\n' "$NATIVE_RESULT"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$INPUTS_RESULT" != success || "$SECURITY_RESULT" != success || "$NATIVE_RESULT" != success ]]; then
-            printf '::error::Native SDK acceptance requires all three jobs to succeed; failed, cancelled, skipped or missing results do not pass.\n'
-            exit 1
-          fi
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          results = {name: os.environ[name] for name in (
+              'INPUTS_RESULT', 'SECURITY_RESULT', 'MACOS_RESULT', 'IOS_RESULT')}
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
+              stream.write('## Required jobs\n\n| Job | Result |\n| --- | --- |\n')
+              for name, result in results.items():
+                  stream.write(f'| {name} | {result} |\n')
+          if any(result != 'success' for result in results.values()):
+              raise SystemExit('All four jobs must succeed; failed, cancelled, skipped or missing jobs do not pass')
+          PY
+      - name: Publish validation execution summary
+        if: always()
+        run: cat outputs/verification/sdk-validation-acceptance/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/verification/sdk-validation-acceptance/
+          if-no-files-found: error
+          retention-days: 7

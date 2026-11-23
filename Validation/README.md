@@ -1,17 +1,17 @@
 # SDK validation
 
-Document version: 1.2 · Updated: 2026-11-23
+Document version: 1.3 · Updated: 2026-11-23
 
 | Entry | Purpose |
 | --- | --- |
 | `api.mjs` / `cli.mjs` | Check a supplied program against an exported library with the SDK's actual language core |
 | `build.mjs` | Package that validator and its pinned runtime for offline use |
-| [SDK verification matrix](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Validation/SDK) | Plan SDK tests and acceptance across six domains, reusing existing tests, Gallery and performance tools |
+| [SDK validation runner](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Validation/SDK) | Run existing tests, builds, resource/security checks and performance tools, and verify their saved evidence |
 | [Performance](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Validation/Performance) | Measure language and public State streaming costs with fixed workloads, warmup and repeated samples |
 
 In the SDK repository, visual and interaction review uses [Gallery](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Examples/Gallery).
 Validation tools live in this directory; automated native behavior regressions remain XCTest implementations in [Tests](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Tests).
-The verification matrix records planned assertions and evidence; its `existing` status identifies reusable implementations, not a completed acceptance result.
+The runner owns command execution and evidence only. SDK assertions stay in their product test targets; the coverage overview and manual acceptance limits are documented in SDK/README.md, without a parallel case-definition format.
 
 ## Static author-time validation
 

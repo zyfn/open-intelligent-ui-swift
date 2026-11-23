@@ -25,7 +25,6 @@ struct RichMarkdown: View {
     @Environment(\.layoutDirection) private var layoutDirection
     #endif
     @Environment(\.openIntelligentUIInteractiveContent) private var interactive
-    @ScaledMetric(relativeTo: .body) private var bodyScale: CGFloat = 1
     #if compiler(>=6.2)
     @Environment(\.fontResolutionContext) private var fontContext
     #endif
@@ -58,8 +57,7 @@ struct RichMarkdown: View {
         let bodyFont = nativeBodyFont
         Markdown(text)
             .markdownTextStyle {
-                MarkdownFontStyle(bodyFont, usesSystemFamily: usesSystemBodyFamily,
-                                  size: MarkdownTypography.rootSize(bodyFont.pointSize, bodyScale: bodyScale))
+                MarkdownFontStyle(bodyFont, usesSystemFamily: usesSystemBodyFamily)
                 ForegroundColor(theme.primaryText)
             }
             .markdownTheme(Theme.basic
@@ -68,6 +66,20 @@ struct RichMarkdown: View {
                     configuration.label.fixedSize(horizontal: false, vertical: true)
                         .lineSpacing(typography.lineSpacing)
                         .markdownMargin(top: 0, bottom: compact ? theme.innerSpacing : theme.paragraphSpacing)
+                        .markdownResolvedBodySize(bodyFont.pointSize)
+                }
+                .blockquote { configuration in
+                    // Keep Theme.basic's quotation style and relative insets.
+                    configuration.label
+                        .markdownTextStyle { FontStyle(.italic) }
+                        .relativePadding(.leading, length: .em(2))
+                        .relativePadding(.trailing, length: .em(1))
+                        .markdownResolvedBodySize(bodyFont.pointSize)
+                }
+                .list { configuration in
+                    // All three list kinds share this block, including their
+                    // native bullet, number and task-marker font readers.
+                    configuration.label.markdownResolvedBodySize(bodyFont.pointSize)
                 }
                 .heading1 { heading($0, level: 1, bodyFont: bodyFont) }
                 .heading2 { heading($0, level: 2, bodyFont: bodyFont) }
@@ -76,14 +88,27 @@ struct RichMarkdown: View {
                 .heading5 { heading($0, level: 5, bodyFont: bodyFont) }
                 .heading6 { heading($0, level: 6, bodyFont: bodyFont) }
                 .codeBlock { configuration in
+                    // This is native SwiftUI text with theme.codeFont. Keep its
+                    // original Dynamic Type environment and font resolution.
                     CodeBlockContent(context: context, code: configuration.content, language: configuration.language)
                         .markdownMargin(top: theme.innerSpacing, bottom: theme.groupSpacing)
                 }
                 .table { configuration in
-                configuration.label
-                    .markdownTableBorderStyle(.init(.horizontalBorders, color: theme.separator, width: 0.5))
-                    .markdownMargin(top: theme.innerSpacing, bottom: theme.groupSpacing)
-            })
+                    // The basic cell style still owns its header weight,
+                    // padding and line spacing; they inherit this body size.
+                    configuration.label
+                        .markdownTableBorderStyle(.init(.horizontalBorders, color: theme.separator, width: 0.5))
+                        .markdownMargin(top: theme.innerSpacing, bottom: theme.groupSpacing)
+                        .markdownResolvedBodySize(bodyFont.pointSize)
+                }
+                .image { configuration in
+                    configuration.label.markdownResolvedBodySize(bodyFont.pointSize)
+                }
+                .thematicBreak {
+                    Divider()
+                        .markdownMargin(top: .em(2), bottom: .em(2))
+                        .markdownResolvedBodySize(bodyFont.pointSize)
+                })
             .foregroundStyle(theme.primaryText)
             .tint(theme.accent)
             .environment(\.openURL, OpenURLAction { url in
@@ -112,9 +137,48 @@ struct RichMarkdown: View {
         return configuration.label
             .markdownTextStyle { style }
             .transformEnvironment(\.lineSpacing) { $0 += leading }
+            .markdownSemanticHeadingLineHeight(font, enabled: semantic && systemFamily)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .markdownMargin(top: EditorialSpacing.section(theme), bottom: theme.innerSpacing)
+    }
+}
+
+private extension View {
+    /// iOS semantic fonts include signed leading in their baseline advance.
+    /// Rebuilding them at a fixed point size loses that information, and a
+    /// two-line Canvas measurement rounds away precision needed by long text.
+    /// iOS 26 exposes the exact line height; retain a host's explicit choice
+    /// and its independent extra line spacing. Earlier iOS releases keep the
+    /// existing automatic line-height policy because lineSpacing cannot encode
+    /// negative leading.
+    @ViewBuilder
+    func markdownSemanticHeadingLineHeight(_ font: PlatformFont, enabled: Bool) -> some View {
+        #if os(iOS) && compiler(>=6.2)
+        if #available(iOS 26, *) {
+            transformEnvironment(\.lineHeight) { height in
+                let advance = font.ascender - font.descender + font.leading
+                if enabled, height == nil, advance.isFinite, advance > 0 {
+                    height = .exact(points: advance)
+                }
+            }
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
+
+    /// MarkdownUI scales its root FontSize before constructing blocks. The SDK
+    /// has already resolved the native font in this view's environment, so each
+    /// body block supplies that absolute size after the root scaler. Overriding
+    /// only size preserves inherited quotation/header traits and relative
+    /// inline-code styling. Scaling a 1-point metric is not an inverse font
+    /// conversion, and the environment itself must remain available to native
+    /// controls and code blocks.
+    func markdownResolvedBodySize(_ pointSize: CGFloat) -> some View {
+        markdownTextStyle { FontSize(pointSize) }
     }
 }
 
