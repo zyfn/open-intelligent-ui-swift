@@ -269,6 +269,50 @@ final class DesignRevampTests: XCTestCase {
         XCTAssertEqual(paragraph?.baseWritingDirection, .rightToLeft)
     }
 
+    #if os(macOS)
+    @MainActor func testMountedInlineCitationStaysInsideItsNarrowReadingColumn() throws {
+        _ = NSApplication.shared
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        state.setSource(#"""
+        root = Row([figure, copy])
+        figure = Col([Image("local-photo", "车库", 1.5), Text(["Cheng-en Cheng 摄，CC BY-SA 2.0 ", Citation([{title:"照片来源与许可", url:"https://commons.wikimedia.org/wiki/File:Depot.jpg"}])], "xs", "muted")], 2)
+        copy = Col([Title("0 系新干线", "md"), Text("看完蒸汽机车接着去看它，不用来回跑两个馆。")], 3)
+        """#)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+
+        func findParagraph(in view: NSView) -> InlineNativeView? {
+            if let paragraph = view as? InlineNativeView { return paragraph }
+            return view.subviews.lazy.compactMap { findParagraph(in: $0) }.first
+        }
+        for width in [CGFloat(320), 390] {
+            let content = OpenIntelligentUIContentView(state: state, library: library)
+                .openIntelligentUIImages(["local-photo": Image(systemName: "photo")])
+                .environment(\.dynamicTypeSize, .large).frame(width: width, alignment: .leading)
+            let host = NSHostingView(rootView: content)
+            let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: width, height: 400),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            window.orderFront(nil)
+            defer { window.close() }
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+            host.layoutSubtreeIfNeeded()
+
+            let paragraph = try XCTUnwrap(findParagraph(in: host))
+            let citation = try XCTUnwrap(paragraph.hosts.first)
+            let textContainer = try XCTUnwrap(paragraph.textContainer)
+            XCTAssertEqual(textContainer.size.width, paragraph.bounds.width, accuracy: 1)
+            XCTAssertFalse(citation.isHidden)
+            XCTAssertGreaterThan(citation.frame.width, 40)
+            XCTAssertGreaterThanOrEqual(citation.frame.minX, -1)
+            XCTAssertLessThanOrEqual(citation.frame.maxX, paragraph.bounds.width + 1)
+            XCTAssertLessThanOrEqual(citation.frame.maxY, paragraph.bounds.height + 1)
+        }
+    }
+    #endif
+
     @MainActor private func attachment(_ id: String) -> InlinePart {
         .attachment(id: id, value: .string(OpenUIString(id)), view: AnyView(Color.clear.frame(width: 30, height: 18)))
     }

@@ -154,7 +154,9 @@ private struct ProductCardView: View {
     }
     private var surface: some View {
         Group {
-            if context.string("layout") == "compact" && !typeSize.isAccessibilitySize {
+            if product.images.isEmpty {
+                information.padding(theme.controlHorizontalPadding)
+            } else if context.string("layout") == "compact" && !typeSize.isAccessibilitySize {
                 HStack(alignment: .top, spacing: theme.innerSpacing) {
                     picture(radius: theme.controlRadius, thumbnail: true).frame(width: ProductCardMetrics.compactThumbnailWidth).fixedSize(horizontal: false, vertical: true)
                     information
@@ -188,7 +190,7 @@ private struct ProductCardView: View {
         }.openIntelligentUILayoutTrace("product-vertical-stack")
     }
     private func picture(radius: CGFloat, thumbnail: Bool = false) -> some View {
-        let contain = !thumbnail && context.string("imageFit") == "contain"
+        let contain = context.string("imageFit") == "contain"
         return SourceImage(source: photo?.url, alt: photo?.alt ?? product.title,
                     ratio: thumbnail ? 1 : ProductCardMetrics.mediaAspectRatio, radius: radius, fit: contain ? .fit : .fill,
                     fillsContainBackground: contain)

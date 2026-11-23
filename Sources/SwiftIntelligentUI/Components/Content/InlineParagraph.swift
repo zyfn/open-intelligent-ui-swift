@@ -144,7 +144,14 @@ final class InlineNativeView: PlatformTextView {
         var width: CGFloat?
         var fitted: CGSize?
         var reported: CGSize?
-        init(host: InlineHost) { self.host = host }
+        init(host: InlineHost) {
+            self.host = host
+            #if os(macOS)
+            // TextKit needs a drawable attachment to reserve line space. The
+            // transparent image leaves drawing and interaction to the host.
+            attachment.image = NSImage(size: CGSize(width: 1, height: 1))
+            #endif
+        }
     }
     private var records: [String: Hosted] = [:]
     private var orderedIDs: [String] = []
@@ -174,6 +181,10 @@ final class InlineNativeView: PlatformTextView {
     override init(frame: CGRect, textContainer: NSTextContainer?) { super.init(frame: frame, textContainer: textContainer) }
     required init?(coder: NSCoder) { super.init(coder: coder) }
     override func didMoveToWindow() { super.didMoveToWindow(); attachHosts() }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        restoreMountedLayout()
+    }
     private func attachHosts() {
         var responder: UIResponder? = next
         while let current = responder, !(current is UIViewController) { responder = current.next }
@@ -182,6 +193,11 @@ final class InlineNativeView: PlatformTextView {
             if host.parent != nil { host.willMove(toParent: nil); host.removeFromParent() }
             if let parent { parent.addChild(host); host.didMove(toParent: parent) }
         }
+    }
+    #else
+    override func layout() {
+        super.layout()
+        restoreMountedLayout()
     }
     #endif
 
@@ -283,6 +299,19 @@ final class InlineNativeView: PlatformTextView {
         return OpenIntelligentUIPerformance.measure("inline.measure") { layout(width) }
     }
 
+    func fittingSize(_ proposedWidth: CGFloat) -> CGSize {
+        let size = measure(proposedWidth)
+        // A SwiftUI sizing probe also changes TextKit's live glyph and hosted
+        // view placements. Keep those placements at the mounted width.
+        restoreMountedLayout()
+        return size
+    }
+
+    private func restoreMountedLayout() {
+        guard window != nil, bounds.width.isFinite, bounds.width > 0 else { return }
+        _ = measure(bounds.width)
+    }
+
     private func layout(_ width: CGFloat) -> CGSize {
         let result = NSMutableAttributedString(string: "")
         var placements: [(position: Int, id: String, size: CGSize)] = []
@@ -331,8 +360,8 @@ final class InlineNativeView: PlatformTextView {
             if selection.location != NSNotFound, NSMaxRange(selection) <= result.length { setSelectedRange(selection) }
         }
         guard let container = textContainer, let manager = layoutManager else { return .zero }
-        container.widthTracksTextView = false; container.heightTracksTextView = false
         #endif
+        container.widthTracksTextView = false; container.heightTracksTextView = false
         container.lineFragmentPadding = 0; container.lineBreakMode = .byWordWrapping
         container.maximumNumberOfLines = limit; container.size = CGSize(width: width, height: 1_000_000)
         manager.invalidateLayout(forCharacterRange: NSRange(location: 0, length: result.length), actualCharacterRange: nil)
@@ -507,7 +536,7 @@ extension InlineParagraphBridge: UIViewRepresentable {
         return view
     }
     func updateUIView(_ view: InlineNativeView, context: Context) { view.configure(self) }
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: InlineNativeView, context: Context) -> CGSize? { uiView.measure(proposal.width ?? 320) }
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: InlineNativeView, context: Context) -> CGSize? { uiView.fittingSize(proposal.width ?? 320) }
     static func dismantleUIView(_ view: InlineNativeView, coordinator: Coordinator) { view.removeAllHosts(); view.delegate = nil }
 }
 #else
@@ -527,7 +556,7 @@ extension InlineParagraphBridge: NSViewRepresentable {
         return view
     }
     func updateNSView(_ view: InlineNativeView, context: Context) { view.configure(self) }
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: InlineNativeView, context: Context) -> CGSize? { nsView.measure(proposal.width ?? 320) }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: InlineNativeView, context: Context) -> CGSize? { nsView.fittingSize(proposal.width ?? 320) }
     static func dismantleNSView(_ view: InlineNativeView, coordinator: Coordinator) { view.removeAllHosts(); view.delegate = nil }
 }
 #endif
