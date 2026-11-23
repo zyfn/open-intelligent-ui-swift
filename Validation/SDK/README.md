@@ -1,6 +1,6 @@
 # SDK 验证
 
-文档版本：1.8 · 更新日期：2026-11-23
+文档版本：1.9 · 更新日期：2026-11-23
 
 本目录只负责组织验证的执行与证据。SDK 行为断言保留在各产品的 `Tests`，`run.py` 调度这些测试及已有构建、资源、安全和性能工具，CI 调用同一个入口。固定输入验证不调用模型，也不评测 Agent 或 Skill。
 
@@ -86,7 +86,7 @@ python3 Validation/SDK/run.py collect \
 
 共享层、OpenUI、OpenIntelligentUI 分别由根的三个 XCTest target 执行；iOS 与 macOS 的平台条件用例不同，实际数量以各平台发现及结果为准。三个独立消费者分别只引入一个公开产品，验证真实外部接入与资源。
 
-Gallery 配置遍历两库现有 226 份固定程序，执行完整求值和三种分片下的终态比较。终态同时比较内容、属性、动作、绑定和 Store 默认值；另有小型程序在每个 Unicode scalar 边界的回归和语义漂移反例。完整执行应得到 226 次 batch 与 678 次 streamed，实际结果写入日志。
+Gallery 配置遍历两库现有 225 份固定程序，执行完整求值和三种分片下的终态比较。终态同时比较内容、属性、动作、绑定和 Store 默认值；另有小型程序在每个 Unicode scalar 边界的回归和语义漂移反例。完整执行应得到 225 次 batch 与 675 次 streamed，实际结果写入日志。
 
 两库的 heat-pump / code-isolation 整页截图采用相同 320/390pt、Light/Dark 条件，加辅助字号环境与原有图片行，共配置 22 张；原始内容和来源保留，未打包的图片请求明确失败。具体捕获规则见 [Gallery](../../Examples/Gallery/README.md)。这些是 macOS 画面，iOS 测试通过不意味着 iPhone/iPad 全页视觉已验收。
 

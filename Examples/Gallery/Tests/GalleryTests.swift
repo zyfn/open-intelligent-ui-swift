@@ -176,8 +176,8 @@ final class GalleryTests: XCTestCase {
             XCTAssertEqual(rows.count, items.count)
             XCTAssertEqual(Set(rows.map(\.id)), Set(items.map(\.id)))
             if kind == .openUI {
-                XCTAssertEqual(items.count, 88)
-                XCTAssertTrue(items.contains { $0.name == "JourneyLine" })
+                XCTAssertEqual(items.count, 87)
+                XCTAssertFalse(items.contains { $0.name == "JourneyLine" })
                 let categories = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.category) })
                 let grouped = try XCTUnwrap(library.specification.componentGroups).flatMap(\.components)
                 let ungrouped = Set(items.map(\.name)).subtracting(grouped).sorted()
@@ -289,6 +289,8 @@ final class GalleryTests: XCTestCase {
         XCTAssertEqual(liquid.radius3xl, 20)
         XCTAssertEqual(original.tableAppearance?.cornerRadius, 16)
         XCTAssertEqual(liquid.tableAppearance?.cornerRadius, 20)
+        XCTAssertEqual(original.sunk, OpenUITheme().resolved().sunk)
+        XCTAssertEqual(liquid.sunk, OpenUITheme().resolved().sunk)
         XCTAssertEqual(original.imagePlaceholderBackground, OpenUITheme().resolved().imagePlaceholderBackground)
         XCTAssertEqual(original.textCodeDefault, OpenUIThemeValues().textCodeDefault)
         XCTAssertEqual(original.shadowL, OpenUIThemeValues().shadowL)
@@ -296,6 +298,22 @@ final class GalleryTests: XCTestCase {
         model.selectLibrary(.openIntelligentUI)
         XCTAssertEqual(model.selectedID, GalleryDesignSystem.id)
         XCTAssertNil(model.session)
+    }
+
+    @MainActor func testPackagedGalleryLoadsBundledComponentMarks() throws {
+        let options = try GalleryOptions.parse(["--library", "openui", "--case", "Components/CompositeCardBlock"])
+        let model = GalleryModel(options: options, marksRepository: nil)
+        let preview = try XCTUnwrap(model.session)
+        defer { preview.retire() }
+
+        let bundleMarks = try GalleryComponentMarks(
+            contentsOf: GalleryResources.root().appendingPathComponent(GalleryComponentMarks.resourcePath))
+        XCTAssertNil(model.marksRepository)
+        XCTAssertNil(model.marksFailure)
+        for component in model.components {
+            XCTAssertEqual(model.componentMarks.contains(component.name, in: .openUI),
+                           bundleMarks.contains(component.name, in: .openUI), component.name)
+        }
     }
 
     @MainActor func testComponentMarksPersistAndPreserveAnotherLibraryMark() throws {

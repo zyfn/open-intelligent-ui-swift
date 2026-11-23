@@ -169,7 +169,8 @@ enum GalleryPlayback: String {
     var selectedEntry: GalleryEntry? { entries.first { $0.id == selectedID } }
     var selectedComponent: GalleryComponent? { components.first { $0.id == selectedID } }
 
-    init(options: GalleryOptions = GalleryOptions(), catalog: GalleryCatalog? = nil, resourceRoot: URL? = nil) {
+    init(options: GalleryOptions = GalleryOptions(), catalog: GalleryCatalog? = nil, resourceRoot: URL? = nil,
+         marksRepository: URL? = GalleryComponentMarks.checkout()) {
         selectedLibrary = options.library
         do {
             let root = try resourceRoot ?? GalleryResources.root()
@@ -203,9 +204,9 @@ enum GalleryPlayback: String {
             else { failure = "找不到案例：\(id)" }
         } else if let first = entries.first(where: { $0.supports(selectedLibrary) }) { select(first.id) }
 
-        if let repository = GalleryComponentMarks.checkout() {
-            connectMarksRepository(repository)
-        } else if let resourceRoot {
+        if let marksRepository {
+            connectMarksRepository(marksRepository)
+        } else if let resourceRoot = self.resourceRoot {
             do {
                 componentMarks = try GalleryComponentMarks(
                     contentsOf: resourceRoot.appendingPathComponent(GalleryComponentMarks.resourcePath))

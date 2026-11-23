@@ -13,7 +13,7 @@ public enum OpenUIComponents {
     private static let componentGroups = OpenUIReference.groups + [
         ComponentGroup(
             name: "Maps and Diagrams",
-            components: ["Map", "MapPoint", "SVG", "JourneyLine"],
+            components: ["Map", "MapPoint", "SVG"],
             notes: [
                 "Map displays locations, not navigation or live traffic. MapKit requires iOS 17 or macOS 14.",
                 "SVG requires a valid viewBox. Use inline content or HTTPS src, not both; active content and external references are rejected."
@@ -56,12 +56,12 @@ public enum OpenUIComponents {
             }
             return registered
         }
-        let all = pinned + [OpenUIGeographicComponents.map, OpenUIGeographicComponents.mapPoint, OpenUIGraphicComponents.svg, OpenUIJourneyComponents.journeyLine]
+        let all = pinned + [OpenUIGeographicComponents.map, OpenUIGeographicComponents.mapPoint, OpenUIGraphicComponents.svg]
         // Use the shared core's ordinary slot extension. Existing parameter
         // positions are retained when optional fields are appended above.
         do {
             let definitions = try createLibrary(components: pinned.map(\.definition)).extend(
-                LibraryExtension(addComponents: Array(all.dropFirst(pinned.count)).map(\.definition), addComponentSlots: Dictionary(uniqueKeysWithValues: ["Map", "SVG", "JourneyLine"].map {
+                LibraryExtension(addComponents: Array(all.dropFirst(pinned.count)).map(\.definition), addComponentSlots: Dictionary(uniqueKeysWithValues: ["Map", "SVG"].map {
                     ($0, ["Card.children"])
                 }))).components
             let builders = Dictionary(uniqueKeysWithValues: all.map { ($0.definition.name, $0) })

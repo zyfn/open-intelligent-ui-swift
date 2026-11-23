@@ -64,14 +64,15 @@ final class VisualPolishTests: XCTestCase {
   }
 
   @MainActor private func raster(_ source: String, theme: OpenUITheme = .init(),
-                                 presentation: OpenUIPresentation = .init(), width: CGFloat = 320) throws -> Raster {
+                                 presentation: OpenUIPresentation = .init(), width: CGFloat = 320,
+                                 background: Color = .white) throws -> Raster {
     _ = NSApplication.shared
     let library = try OpenUIComponents.library()
     let state = OpenUIState(schema: library.library.toSchema())
     state.setSource(source)
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
     let host = NSHostingView(rootView: OpenUIContentView(state: state, registry: library.registry)
-      .openUITheme(theme).openUIPresentation(presentation).dynamicTypeSize(.large).frame(width: width).padding(12).background(Color.white)
+      .openUITheme(theme).openUIPresentation(presentation).dynamicTypeSize(.large).frame(width: width).padding(12).background(background)
       .environment(\.colorScheme, .light))
     let window = NSWindow(contentRect: NSRect(origin: .zero, size: host.fittingSize),
       styleMask: [.borderless], backing: .buffered, defer: false)
@@ -127,21 +128,23 @@ final class VisualPolishTests: XCTestCase {
     theme.borderDefault = Color(red: 1, green: 0, blue: 0)
     theme.borderInteractive = Color(red: 0, green: 0, blue: 1)
     let form = "Form(\"f\",Buttons([]),[FormControl(\"Field\",Input(\"x\",\"Value\"))])"
+    let backdrop = Color.gray
     var framed = OpenUIPresentation()
     framed.formShowsCardSurface = true
-    let panel = try raster("root=" + form, theme: theme, presentation: framed)
+    let panel = try raster("root=" + form, theme: theme, presentation: framed, background: backdrop)
     let cardSource = "root=Card([\(form)])"
-    let composed = try raster(cardSource, theme: theme)
+    let composed = try raster(cardSource, theme: theme, background: backdrop)
     XCTAssertEqual(panel.width, composed.width)
     XCTAssertEqual(panel.height, composed.height)
-    let unframed = try raster("root=" + form, theme: theme)
+    let unframed = try raster("root=" + form, theme: theme, background: backdrop)
     let red: (UInt8, UInt8, UInt8) -> Bool = { $0 > 180 && $1 < 100 && $2 < 100 }
     let blue: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 < 100 && $2 > 180 }
     let green: (UInt8, UInt8, UInt8) -> Bool = { $0 < 100 && $1 > 180 && $2 < 100 }
+    let white: (UInt8, UInt8, UInt8) -> Bool = { $0 >= 253 && $1 >= 253 && $2 >= 253 }
     XCTAssertGreaterThan(panel.count(red), 100)
     XCTAssertEqual(composed.count(red), panel.count(red), "A Card around a Form paints one outline")
-    XCTAssertEqual(panel.count(green), composed.count(green), "An opt-in Form uses the same transparent fill as Card")
-    XCTAssertEqual(composed.count(green), unframed.count(green), "The outline adds no fill around the form")
+    XCTAssertEqual(panel.count(white), composed.count(white), "An opt-in Form uses the same white surface as Card")
+    XCTAssertGreaterThan(composed.count(white), unframed.count(white), "The standard Card surface paints a white fill")
     XCTAssertEqual(unframed.count(red), 0)
     XCTAssertGreaterThan(unframed.count(blue), 50, "A quiet Form must preserve editable field boundaries")
     XCTAssertGreaterThan(panel.height, unframed.height)
@@ -157,6 +160,21 @@ final class VisualPolishTests: XCTestCase {
     let tintedForm = try raster("root=" + form, theme: theme, presentation: customized)
     XCTAssertEqual(tintedForm.count(green), tinted.count(green))
     XCTAssertEqual(tintedForm.count(magenta), tinted.count(magenta))
+  }
+
+  @MainActor func testFilledButtonHasNoDecorativeOutline() throws {
+    var theme = OpenUITheme()
+    theme.interactiveAccentDefault = Color(red: 0, green: 0, blue: 1)
+    theme.borderAccent = Color(red: 1, green: 0, blue: 0)
+    theme.borderDefault = Color(red: 1, green: 0, blue: 0)
+    let red: (UInt8, UInt8, UInt8) -> Bool = { $0 > 180 && $1 < 100 && $2 < 100 }
+    let blue: (UInt8, UInt8, UInt8) -> Bool = { $2 > 180 && $0 < 100 && $1 < 100 }
+    let source = #"root=Button("查看详情",@OpenUrl("https://example.invalid/item"),VARIANT)"#
+    let primary = try raster(source.replacingOccurrences(of: "VARIANT", with: "\"primary\""), theme: theme)
+    let secondary = try raster(source.replacingOccurrences(of: "VARIANT", with: "\"secondary\""), theme: theme)
+    XCTAssertGreaterThan(primary.count(blue), 100, "The primary button fills its capsule")
+    XCTAssertEqual(primary.count(red), 0, "A solid primary button has no extra outline")
+    XCTAssertGreaterThan(secondary.count(red), 40, "The outlined secondary button keeps its boundary")
   }
 
   @MainActor func testSingleLineFieldsUsePillCornersAndTextAreasUseThemeCorners() {

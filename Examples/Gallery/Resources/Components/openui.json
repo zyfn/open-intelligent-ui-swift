@@ -868,14 +868,5 @@
         "program": "root = Stack([Card([SVG(\"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 160'><rect x='10' y='10' width='300' height='140' rx='16' fill='#e8f1fb'/><circle cx='80' cy='80' r='36' fill='#3478f6'/><text x='144' y='88' font-size='24' fill='#222'>Hello SVG</text></svg>\",null,\"圆形与文字示例\",160)], \"clear\")])"
       }
     ]
-  },
-  "JourneyLine": {
-    "examples": [
-      {
-        "id": "basic",
-        "title": "飞机 / 火车 / 公交 / 打车",
-        "program": "root = Stack([Card([JourneyLine(\"flight\"),JourneyLine(\"train\"),JourneyLine(\"bus\"),JourneyLine(\"taxi\")], \"clear\")])"
-      }
-    ]
   }
 }

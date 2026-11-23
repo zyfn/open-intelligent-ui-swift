@@ -22,8 +22,6 @@ final class AgentExampleContractTests: XCTestCase {
       case "Tabs":
         XCTAssertEqual(component.signature, "Tabs(items: TabItem[], variant?: \"default\" | \"date\")")
         XCTAssertEqual(spec.components.first { $0.name == "Tabs" }?.signature, "Tabs(items: TabItem[])")
-      case "JourneyLine":
-        XCTAssertEqual(component.signature, "JourneyLine(mode: \"flight\" | \"train\" | \"bus\" | \"taxi\")")
       case "Steps":
         XCTAssertEqual(component.signature, "Steps(items: StepsItem[], variant?: \"default\" | \"timeline\")")
         XCTAssertEqual(spec.components.first { $0.name == "Steps" }?.signature, "Steps(items: StepsItem[])")

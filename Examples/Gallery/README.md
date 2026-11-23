@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.22 · 更新日期：2026-11-23
+文档版本：1.23 · 更新日期：2026-11-23
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -117,7 +117,7 @@ OpenUI 的设计规则与实施状态统一见 [OpenUI 组件指南](../../docs/
 ./Examples/Gallery/verify.sh
 ```
 
-该脚本运行独立包的 XCTest，再用**实际两套库的 reader**逐案例创建新状态，执行完整求值与三种流式分片：原有 47 个 Character、不等长 `1/7/24/128` 个 Unicode scalar，以及每块最多 128 个 scalar 的语法边界分片。每种分片使用独立 Store 和 parser，完成后检查错误、解析完整性、未解析引用和完成/中断状态，并与完整求值逐值比较内容、组件属性、动作、绑定及默认状态；节点身份与原生缓存元数据不参与语义比较。现有 226 份场景、诊断和组件用法对应 226 次完整检查与 678 次流式检查。最后导出两份 reader 契约：
+该脚本运行独立包的 XCTest，再用**实际两套库的 reader**逐案例创建新状态，执行完整求值与三种流式分片：原有 47 个 Character、不等长 `1/7/24/128` 个 Unicode scalar，以及每块最多 128 个 scalar 的语法边界分片。每种分片使用独立 Store 和 parser，完成后检查错误、解析完整性、未解析引用和完成/中断状态，并与完整求值逐值比较内容、组件属性、动作、绑定及默认状态；节点身份与原生缓存元数据不参与语义比较。现有 225 份场景、诊断和组件用法对应 225 次完整检查与 675 次流式检查。最后导出两份 reader 契约：
 
 ```sh
 swift run --package-path Examples/Gallery OpenUIGallery \

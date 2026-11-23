@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.60 · 更新日期：2026-11-23
+文档版本：1.62 · 更新日期：2026-11-23
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -21,7 +21,7 @@ let view = OpenUIView(state: state, library: library)
 
 ## 组件目录
 
-实际目录由 OpenUIComponents 注册并导出，包括固定上游的 84 个定义，以及原生 Map、MapPoint、SVG 和 JourneyLine，共 88 个定义。其中 73 个是可视定义，15 个是由父组件消费的结构或数据定义；不能把注册数等同于独立可点击控件数量。
+实际目录由 OpenUIComponents 注册并导出，包括固定上游的 84 个定义，以及原生 Map、MapPoint 和 SVG，共 87 个定义。其中 72 个是可视定义，15 个是由父组件消费的结构或数据定义；不能把注册数等同于独立可点击控件数量。
 
 Gallery 按注册目录的 `componentGroups` 浏览，结构子项跟随父组件，组件用法默认展开。签名、位置参数和默认值以 library.specification 为准。原始参考目录在 [upstream-catalog.json](../Sources/SwiftOpenUI/Resources/upstream-catalog.json)，原生注册在 [Catalog](../Sources/SwiftOpenUI/Catalog/)。
 
@@ -31,9 +31,7 @@ Gallery 按注册目录的 `componentGroups` 浏览，结构子项跟随父组�
 
 Steps 默认仍为数字步骤；`Steps(items, "timeline")` 显示行程时间线，`StepsItem(title, details, time?)` 的时间仅在已知时填写。可选参数均追加在原参数后，旧调用不变。`variant` 的完整性使用 SDK 公共布局依赖机制判断。流式生成建议先输出 `root = Steps(items, "timeline")`，再逐步输出 `items`，使样式可以先确定；行内列表尚未到达尾部样式参数时，先呈现已到达的文字，避免预先猜测节点样式，样式确定后字号和缩进仍可能调整。生成中断且样式始终未确定时，已完成的条目回退到默认数字步骤；已经确定的时间线样式保持不变。未闭合的时间值不会作为完整时间显示。
 
-交通方向线使用 `JourneyLine(mode)`，用虚线和交通方式图标表示起终点方向。支持 `flight`、`train`、`bus`、`taxi`。
-
-`Map`、`SVG` 和 `JourneyLine` 的显式父组件槽位是 `Card.children`。
+`Map` 和 `SVG` 的显式父组件槽位是 `Card.children`。
 
 普通主题页签使用 `Tabs(items)` 或 `Tabs(items, "default")`。按具体日历日切换时使用 `Tabs(items, "date")`。两者都使用 `TabItem(value, trigger, content)`。日期项的 `value` 是唯一的 `YYYY-MM-DD`，`trigger` 填短星期名，按钮在星期下方显示日号。
 
@@ -129,7 +127,8 @@ theme.markdownListItemSpacing = 15
 默认界面保持内容优先。资源失败、辅助阅读模式与控件能力不自动生成一段说明、徽标或额外工具栏；采用安静占位、原生滚动和无障碍语义。作者明确提供的标签、说明及用户可以处理的校验错误继续保留。
 
 - CardHeader 使用章节角色；InlineHeader 与图文对象保留对象标题角色。恢复原有 20 / 18 pt 默认值；宿主可以完整覆盖字体，容器不根据嵌套层数或文案长度改写文字角色。
-- 普通 Card 使用透明底和 1 pt 描边。宿主可用 OpenUIPresentation 的 cardBackgroundColor、cardBorderColor 和 borderWidth 设置底色、描边颜色和线宽。描边色默认来自主题的 borderDefault。图文行之间可使用 Separator 细线。
+- 普通 Card 使用随系统外观变化的默认表面色，浅色为白色，描边默认 1 pt。宿主可通过 OpenUIPresentation 的 cardBackgroundColor、cardBorderColor 和 borderWidth 设置底色、描边颜色和线宽。描边色默认来自主题的 borderDefault。图文行之间可使用 Separator 细线。
+- 主 Button 使用纯色填充。次要按钮保留描边，键盘焦点继续使用可见提示。
 - ImageGallery 拼图图块的默认间距为 1 pt。宿主通过 OpenUIPresentation 的 imageGallerySpacing 设置间距，单位为 pt。
 - Steps 的解释属于正文。ListItem 的 subtitle 继续表示辅助信息；需要多段核心解释时，组合 TextContent/Markdown，而不是把正文都放进小号副标题。
 - ListBlock 的图文模式使用统一的 3:4 竖图画框。每行共用按内容宽度分配的图片列宽，窄栏先缩小图片，图文横排空间不足时改为上下排。加载、失败和成功沿用同一画框。
