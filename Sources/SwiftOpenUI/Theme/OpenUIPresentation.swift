@@ -38,7 +38,7 @@ public struct OpenUIPresentation {
     public var buttonCornerRadius: CGFloat? = nil
     public var cardBorderColor: Color?
     /// Fill for standard Cards and Forms with an enabled surface.
-    public var cardBackgroundColor: Color = .clear
+    public var cardBackgroundColor: Color = OpenUIThemeValues.defaults.foreground
     /// Opt in to the standard Card appearance around a self-contained form.
     public var formShowsCardSurface = false
     public var minimumCardWidth: CGFloat = 240

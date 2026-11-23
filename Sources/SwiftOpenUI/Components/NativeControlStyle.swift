@@ -158,7 +158,6 @@ struct NativeActionButtonStyle: ButtonStyle {
         return enabled && (pressed || hovered) ? theme.highlight : .clear
     }
     private var border: Color {
-        if variant == "primary" { return theme.borderAccent }
         if variant == "secondary" { return destructive ? theme.borderDanger : theme.componentStyle.surfaceBorder }
         return .clear
     }

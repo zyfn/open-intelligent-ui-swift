@@ -1,6 +1,6 @@
 # OpenUI
 
-文档版本：1.60 · 更新日期：2026-11-23
+文档版本：1.61 · 更新日期：2026-11-23
 
 OpenUI 提供通用组件目录与原生视觉。包、目录和共享运行机制只见[架构](architecture.md)，安装与状态生命周期见 [README](../README.md)，构建及验收见[验证说明](validation-and-security.md)。本文件统一维护该组件库的用法与呈现约束。
 
@@ -129,7 +129,8 @@ theme.markdownListItemSpacing = 15
 默认界面保持内容优先。资源失败、辅助阅读模式与控件能力不自动生成一段说明、徽标或额外工具栏；采用安静占位、原生滚动和无障碍语义。作者明确提供的标签、说明及用户可以处理的校验错误继续保留。
 
 - CardHeader 使用章节角色；InlineHeader 与图文对象保留对象标题角色。恢复原有 20 / 18 pt 默认值；宿主可以完整覆盖字体，容器不根据嵌套层数或文案长度改写文字角色。
-- 普通 Card 使用透明底和 1 pt 描边。宿主可用 OpenUIPresentation 的 cardBackgroundColor、cardBorderColor 和 borderWidth 设置底色、描边颜色和线宽。描边色默认来自主题的 borderDefault。图文行之间可使用 Separator 细线。
+- 普通 Card 使用随系统外观变化的默认表面色，浅色为白色，描边默认 1 pt。宿主可通过 OpenUIPresentation 的 cardBackgroundColor、cardBorderColor 和 borderWidth 设置底色、描边颜色和线宽。描边色默认来自主题的 borderDefault。图文行之间可使用 Separator 细线。
+- 主 Button 使用纯色填充。次要按钮保留描边，键盘焦点继续使用可见提示。
 - ImageGallery 拼图图块的默认间距为 1 pt。宿主通过 OpenUIPresentation 的 imageGallerySpacing 设置间距，单位为 pt。
 - Steps 的解释属于正文。ListItem 的 subtitle 继续表示辅助信息；需要多段核心解释时，组合 TextContent/Markdown，而不是把正文都放进小号副标题。
 - ListBlock 的图文模式使用统一的 3:4 竖图画框。每行共用按内容宽度分配的图片列宽，窄栏先缩小图片，图文横排空间不足时改为上下排。加载、失败和成功沿用同一画框。
