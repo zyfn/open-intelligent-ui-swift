@@ -102,7 +102,6 @@ struct GalleryThemeTokens: Decodable {
         }
         theme.background = color("canvas")
         theme.foreground = color("surface")
-        theme.sunk = theme.foreground
         theme.sunkLight = theme.foreground
         theme.popoverBackground = theme.foreground
         theme.highlight = color("accentSoft")

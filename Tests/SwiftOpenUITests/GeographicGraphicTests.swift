@@ -3,8 +3,9 @@ import XCTest
 @testable import SwiftOpenUI
 
 final class GeographicGraphicTests: XCTestCase {
-  @MainActor func testDefaultLibraryRegistersMapSVGAndJourneyLineInCard() throws {
+  @MainActor func testDefaultLibraryRegistersMapAndSVGInCard() throws {
     let library = try OpenUIComponents.library()
+    XCTAssertNil(library.registry["JourneyLine"])
     let fixture = try XCTUnwrap(Bundle.module.url(forResource: "test-library-spec", withExtension: "json",
                                                   subdirectory: "Fixtures/AgentCasesContract"))
     let previous = try LibrarySpec(jsonString: String(contentsOf: fixture, encoding: .utf8))
@@ -12,8 +13,6 @@ final class GeographicGraphicTests: XCTestCase {
       let old = try XCTUnwrap(previous.components.first { $0.name == name }?.signature)
       let expected: String
       switch name {
-      case "Card":
-        expected = old.replacingOccurrences(of: " | SVG)[]", with: " | SVG | JourneyLine)[]")
       case "TabItem", "AccordionItem":
         expected = old.replacingOccurrences(of: " | Map | SVG)[]", with: ")[]")
       default:
@@ -22,10 +21,10 @@ final class GeographicGraphicTests: XCTestCase {
       XCTAssertEqual(library.toSpec().components.first { $0.name == name }?.signature, expected, name)
     }
     let state = OpenUIState(schema: library.library.toSchema())
-    state.setSource(#"root=Card([Map([MapPoint("A",30,120)]),SVG("<svg viewBox='0 0 2 1'/>"),JourneyLine("train")])"#)
+    state.setSource(#"root=Card([Map([MapPoint("A",30,120)]),SVG("<svg viewBox='0 0 2 1'/>")])"#)
     XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
     let card = try XCTUnwrap(state.root)
-    XCTAssertEqual(PropValue.children(card).map(\.typeName), ["Map", "SVG", "JourneyLine"])
+    XCTAssertEqual(PropValue.children(card).map(\.typeName), ["Map", "SVG"])
   }
   func testSVGRequiresFinitePositiveViewBoxAndRejectsActiveOrExternalContent() {
     XCTAssertEqual(NativeSVGDocument.parse("<svg viewBox='0 0 200 100'><path d='M0 0 L10 10'/></svg>")?.ratio, 2)

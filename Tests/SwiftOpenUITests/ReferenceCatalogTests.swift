@@ -16,7 +16,7 @@ final class ReferenceCatalogTests: XCTestCase {
     XCTAssertEqual(published.map(\.notes), reference.map(\.notes))
     XCTAssertEqual(groups.count, reference.count + 1)
     XCTAssertEqual(groups.last?.name, "Maps and Diagrams")
-    XCTAssertEqual(groups.last?.components, ["Map", "MapPoint", "SVG", "JourneyLine"])
+    XCTAssertEqual(groups.last?.components, ["Map", "MapPoint", "SVG"])
 
     let grouped = groups.flatMap(\.components)
     let registered = Set(spec.components.map(\.name))
@@ -83,8 +83,8 @@ final class ReferenceCatalogTests: XCTestCase {
       return group
     }
     XCTAssertNotNil(installed.registry["EditableTable"])
-    XCTAssertEqual(installed.library.components.count, 88)
-    XCTAssertEqual(generation.components.count, 87)
+    XCTAssertEqual(installed.library.components.count, 87)
+    XCTAssertEqual(generation.components.count, installed.library.components.count - 1)
     XCTAssertFalse(generation.toSpec().components.contains { $0.name == "EditableTable" })
     XCTAssertFalse(
       generation.componentGroups?.contains { $0.components.contains("EditableTable") } ?? true)
@@ -117,7 +117,7 @@ final class ReferenceCatalogTests: XCTestCase {
 
   func testAll84RenderersUseThePinnedUpstreamDefinitions() throws {
     let library = try OpenUIComponents.library()
-    XCTAssertEqual(library.library.components.count, 88)
+    XCTAssertEqual(library.library.components.count, 87)
     XCTAssertEqual(Array(library.library.components.prefix(84)).map(\.name), OpenUIReference.definitions.map(\.name))
     for expected in OpenUIReference.definitions {
       let actual = try XCTUnwrap(library.library.components.first { $0.name == expected.name })
