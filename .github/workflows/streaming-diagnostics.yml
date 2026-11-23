@@ -36,25 +36,31 @@ jobs:
           pattern = 'ObjectCardCompositionTests|SemanticTypographyTests|MountedStreamingTextProgressTests'
           result = {'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'configurations': []}
           failed = False
+          def execute(command, destination, env):
+              with destination.open('w') as log:
+                  process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+                  for line in process.stdout:
+                      print(line, end='', flush=True)
+                      log.write(line)
+                  return process.wait()
           for configuration in ('debug', 'release'):
               output = root/configuration
               output.mkdir()
               visual = output/'visual'
               env = dict(os.environ, OPENUI_SNAPSHOT_DIR=str(visual))
-              command = ['swift', 'test', '--configuration', configuration, '--filter', pattern]
-              with (output/'tests.log').open('w') as log:
-                  process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
-                  for line in process.stdout:
-                      print(line, end='', flush=True)
-                      log.write(line)
-                  code = process.wait()
+              discovery_command = ['swift', 'test', 'list', '--configuration', configuration]
+              discovery_code = execute(discovery_command, output/'discovery.log', env)
+              available = re.findall(r'^([A-Za-z_][\w]*\.[\w]+/[\w]+)\s*$', (output/'discovery.log').read_text(), re.M)
+              selected = {tuple(name.split('/', 1)) for name in available if re.search(pattern, name)}
+              command = ['swift', 'test', '--configuration', configuration, '--skip-build', '--filter', pattern]
+              code = execute(command, output/'tests.log', env)
               content = (output/'tests.log').read_text()
               cases = re.findall(r"Test Case '-\[([^ ]+) ([^\]]+)\]' (passed|failed|skipped)", content)
               identities = {(target, name) for target, name, _ in cases}
               images = sorted(path.name for path in visual.rglob('table-font-*.png'))
               expected_images = sorted(f'table-font-{slot}-{stage}.png' for slot in ('header', 'body') for stage in ('large', 'accessibility2', 'updated-theme', 'restored'))
-              success = code == 0 and len(cases) == len(identities) == 27 and all(state == 'passed' for _, _, state in cases) and images == expected_images
-              entry = {'configuration': configuration, 'command': command, 'exitCode': code, 'cases': cases, 'images': images, 'passed': success}
+              success = discovery_code == 0 and bool(selected) and code == 0 and len(cases) == len(identities) and identities == selected and all(state == 'passed' for _, _, state in cases) and images == expected_images
+              entry = {'configuration': configuration, 'discoveryCommand': discovery_command, 'discoveryExitCode': discovery_code, 'selectedTests': sorted(selected), 'command': command, 'exitCode': code, 'cases': cases, 'images': images, 'passed': success}
               (output/'evidence.json').write_text(json.dumps(entry, indent=2)+'\n')
               result['configurations'].append(entry)
               failed |= not success
