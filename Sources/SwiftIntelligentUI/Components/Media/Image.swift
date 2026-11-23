@@ -216,6 +216,7 @@ struct SourceImage: View {
     }
     private func imageContent(_ image: Image, size: CGSize) -> some View {
         image.resizable().aspectRatio(contentMode: fit).frame(width: size.width, height: size.height).clipped()
+            .contentShape(.interaction, RoundedRectangle(cornerRadius: radius))
     }
 }
 

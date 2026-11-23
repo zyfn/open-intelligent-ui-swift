@@ -92,6 +92,23 @@ def registry():
     """The sole command definitions used by local runs and the native SDK CI."""
     typography_images = tuple(("{visual}/semantic-typography/table-font-" + slot + "-*.png", "file")
                               for slot in ("header", "body"))
+    ios_images = tuple(("{visual}/ios-native/" + name + ".png", "file") for name in (
+        "cards-320-large", "cards-600-large", "cards-600-accessibility",
+        "buttons-reflow", "options-reflow",
+        "image-wide-loading", "image-wide-loaded", "image-square-loading", "image-square-loaded",
+        "image-portrait-loading", "image-portrait-loaded",
+        "input-owner-update", "textarea-external-update", "switch-and-select-store-update",
+    ))
+    ios_ui_images = tuple(("{visual}/ios-ui/" + name + ".png", "file") for name in (
+        "layout-composite-large", "layout-composite-accessibility2",
+        "layout-buttons-reflow", "layout-options-reading", "switch-and-select-store-update",
+        "layout-pager-next-page", "layout-pager-vertical-reading",
+        "radio-and-checkbox-selection", "form-invalid-focused", "form-valid-submitted",
+        "slider-invalid-draft", "slider-valid-submitted", "modal-sm-presented", "modal-lg-presented",
+        "product-vertical-large", "product-horizontal-large", "product-compact-large",
+        "product-horizontal-accessibility2", "product-compact-accessibility2",
+        "product-album-front", "product-album-rear", "product-album-updated",
+    ))
     checks = [
         Check("module-graph", "portable", (
             command("python3", "Tools/check_module_boundaries.py"),
@@ -185,7 +202,7 @@ def registry():
     checks += [Check(c.id, c.profile, c.commands, c.required, "Darwin") for c in mac]
     checks.append(Check("ios-native", "ios", (
         command("python3", "Validation/SDK/ios.py", "--output", "{output}/ios", timeout=3600),
-    ), (("ios/summary.json", "ios"),) + typography_images, "Darwin"))
+    ), (("ios/summary.json", "ios"),) + typography_images + ios_images + ios_ui_images, "Darwin"))
     return checks
 
 
@@ -484,6 +501,28 @@ def verify_required(check, values):
                         if not isinstance(target, dict) or type(target.get("passed")) is not int \
                                 or target["passed"] <= 0 or target.get("failed") != 0:
                             raise ValueError("Missing successful iOS target: " + module)
+                    app = data.get("appTestResults")
+                    if not isinstance(app, dict) or any(type(app.get(key)) is not int or app[key] < 0
+                            for key in ("totalTestCount", "passedTests", "failedTests", "skippedTests", "expectedFailures")):
+                        raise ValueError("Missing valid Gallery App test executions")
+                    if app["passedTests"] == 0 or app["totalTestCount"] != app["passedTests"] \
+                            or any(app[key] for key in ("failedTests", "skippedTests", "expectedFailures")):
+                        raise ValueError("Gallery App tests must all execute successfully")
+                    app_targets = app.get("targets")
+                    expected_bundles = {"OpenUIGalleryNativeTests": "Unit test bundle",
+                                        "OpenUIGalleryUITests": "UI test bundle"}
+                    if not isinstance(app_targets, dict) or set(app_targets) != set(expected_bundles):
+                        raise ValueError("Gallery App tests require both native and UI bundles")
+                    for name, bundle_type in expected_bundles.items():
+                        target = app_targets[name]
+                        if not isinstance(target, dict) or target.get("bundleType") != bundle_type \
+                                or type(target.get("passed")) is not int or target["passed"] <= 0 \
+                                or any(target.get(key) != 0 for key in ("failed", "skipped", "expectedFailures")):
+                            raise ValueError("Missing successful Gallery App target: " + name)
+                    if sum(target["passed"] for target in app_targets.values()) != app["passedTests"]:
+                        raise ValueError("Gallery App bundle counts do not match the executed total")
+                    if not isinstance(app.get("destination"), dict) or app["destination"] != results.get("destination"):
+                        raise ValueError("Gallery App tests must use the recorded SDK Simulator destination")
     return verified
 
 

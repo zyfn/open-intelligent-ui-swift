@@ -15,7 +15,7 @@ let package = Package(
                 .product(name: "swift-intelligent-ui", package: "openui-swift-sdk")
             ],
             path: ".",
-            exclude: ["OpenUIGallery.xcodeproj", "Tests", "README.md", "build-app.sh", "verify.sh"],
+            exclude: ["OpenUIGallery.xcodeproj", "Tests", "NativeTests", "UITests", "README.md", "build-app.sh", "verify.sh"],
             sources: ["Sources"],
             resources: [.copy("Resources")],
             swiftSettings: [.swiftLanguageMode(.v5)]

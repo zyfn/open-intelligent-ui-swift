@@ -18,6 +18,13 @@ final class GalleryAppDelegate: NSObject, NSApplicationDelegate {
     private let options: GalleryOptions
 
     init() {
+        #if DEBUG && os(iOS)
+        if ProcessInfo.processInfo.environment["OPENUI_UI_TEST_SCENARIO"] != nil
+            || ProcessInfo.processInfo.environment["OPENUI_NATIVE_TEST_HOST"] == "1" {
+            options = GalleryOptions()
+            return
+        }
+        #endif
         do {
             let parsed = try GalleryOptions.parse(Array(CommandLine.arguments.dropFirst()))
             if parsed.help { print(GalleryOptions.usage); exit(0) }
@@ -42,10 +49,20 @@ final class GalleryAppDelegate: NSObject, NSApplicationDelegate {
 
     var body: some Scene {
         WindowGroup("OpenUI Gallery") {
+            #if DEBUG && os(iOS)
+            if let scenario = ProcessInfo.processInfo.environment["OPENUI_UI_TEST_SCENARIO"] {
+                GalleryNativeValidationView(scenario: scenario)
+            } else if ProcessInfo.processInfo.environment["OPENUI_NATIVE_TEST_HOST"] == "1" {
+                Color.clear
+            } else {
+                GalleryView(options: options)
+            }
+            #else
             GalleryView(options: options)
                 #if os(macOS)
                 .frame(minWidth: 760, minHeight: 560)
                 #endif
+            #endif
         }
         #if os(macOS)
         .defaultSize(width: 1240, height: 920)

@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.18 · 更新日期：2026-11-23
+文档版本：1.23 · 更新日期：2026-11-23
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -100,6 +100,7 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 | `Resources/Diagnostics` | 测试与 CLI 使用的边界回归程序，不出现在浏览入口 |
 | `Resources/Images` | 本地照片及精确来源映射 |
 | `Tests` | Gallery 本身的目录、CLI、导入、状态隔离、流式和真实预览状态测试 |
+| `UITests` | 通过真实 iPhone App 的系统元素查询、点击、输入与滚动验证双库组件 |
 | `OpenUIGallery.xcodeproj` | 同一份源代码的 Apple App 构建入口 |
 
 增加场景时更新相应 `catalog.json`，不要往 Swift View 中塞大段 DSL。每个核心场景必须提供两套程序。诊断可只支持一套库，但必须如实声明。新图片必须保留真实来源；只增加到对应 URL 的映射。
@@ -116,7 +117,7 @@ OpenUI 的设计规则与实施状态统一见 [OpenUI 组件指南](../../docs/
 ./Examples/Gallery/verify.sh
 ```
 
-该脚本运行独立包的 XCTest，再用**实际两套库的 reader**逐案例创建新状态，执行完整求值与三种流式分片：原有 47 个 Character、不等长 `1/7/24/128` 个 Unicode scalar，以及每块最多 128 个 scalar 的语法边界分片。每种分片使用独立 Store 和 parser，完成后检查错误、解析完整性、未解析引用和完成/中断状态，并与完整求值逐值比较内容、组件属性、动作、绑定及默认状态；节点身份与原生缓存元数据不参与语义比较。现有 226 份场景、诊断和组件用法对应 226 次完整检查与 678 次流式检查。最后导出两份 reader 契约：
+该脚本运行独立包的 XCTest，再用**实际两套库的 reader**逐案例创建新状态，执行完整求值与三种流式分片：原有 47 个 Character、不等长 `1/7/24/128` 个 Unicode scalar，以及每块最多 128 个 scalar 的语法边界分片。每种分片使用独立 Store 和 parser，完成后检查错误、解析完整性、未解析引用和完成/中断状态，并与完整求值逐值比较内容、组件属性、动作、绑定及默认状态；节点身份与原生缓存元数据不参与语义比较。现有 225 份场景、诊断和组件用法对应 225 次完整检查与 675 次流式检查。最后导出两份 reader 契约：
 
 ```sh
 swift run --package-path Examples/Gallery OpenUIGallery \
@@ -124,6 +125,18 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 ```
 
 输出文件为 `openui.json` 和 `openintelligentui.json`。导出使用实际 SDK 的 `readerSpecification`，不是手写的 schema 子集。CLI 校验覆盖解析和宿主求值，不代表界面截图或真实交互已经通过。XCTest 另覆盖状态隔离、流式取消、查询链、Mac 预览尺寸变化，以及小型双库程序在每个 Unicode scalar 边界下的内容保全；比较器的反例会实际更换正文、绑定、动作或未显示的默认值，确保无报错的语义漂移仍会失败。原生执行结果应以对应提交的日志为准。
+
+### iPhone 原生交互
+
+Xcode 工程的 `OpenUIGalleryNativeTests` 与 `OpenUIGalleryUITests` 共用现有 App target：前者加载到 App 进程内执行原生单元测试，后者通过 UI automation 操作 App。测试启动时的 `OPENUI_NATIVE_TEST_HOST=1` 为原生单元测试提供空白 scene；UI 测试显式设置 `OPENUI_UI_TEST_SCENARIO` 后，优先经公开 `OpenUILibrary` / `OpenUIView` 渲染相应固定输入。两条测试入口仅在 Debug iOS 启用，普通 Gallery 浏览不受影响。OpenUI 的共享输入由 `NativeTests/IOSNative*Fixtures.swift` 单份定义，同时供 App 宿主单元测试与 App 编译；商品卡输入只保留在其测试场景宿主内，不复制成第二份组件契约。
+
+App 宿主单元测试还通过 `Bundle.main` 和 Gallery 的真实资源加载入口，检查两库案例、组件目录与本地图片均可读取。
+
+Xcode 使用标准 Copy Files 阶段，将 Gallery 的 `Resources` 目录放在平台资源目录下的 `GalleryResources/Resources` 中；iOS App 根目录不放自定义 `Resources`，遵循 [Apple bundle 结构约束](https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html)。SwiftPM 仍由 `Bundle.module` 读取 `.copy("Resources")` 的资源。App 与测试 bundle 的 `Info.plist` 由 Xcode 按 target 设置生成；编译之后还须由 Simulator 实际安装和启动应用，才能取得原生测试证据。
+
+UI 测试观察真实 SwiftUI 系统访问树，并执行选择、表单输入与提交、sheet 打开关闭、分页拖动、商品图集和购买动作回执；文本和按钮实际滚动到可见区域后检查边界。媒体比例使用真实截图像素测量，选项正文未作为 AX label 暴露时使用公开 Vision 文字识别检查实际画面。App 宿主单元测试负责 UIKit 实例身份、焦点、选区、同步草稿 flush 与布局测量；它必须挂到正在运行的应用 scene，不通过手工 AX 递归模拟 App UI automation。
+
+[统一验证入口](../../Validation/SDK/README.md)的 `ios` profile 在同一 Simulator 上运行 SDK 与 Gallery App 测试，分别保存测试树、覆盖率和 `.xcresult`。Gallery 的原生 unit bundle 和 UI bundle 在同一次 `xcodebuild test` 中顺序执行，Debug 仅构建所选设备的当前架构。App 视口 PNG 位于 `visual/ios-native/ios-ui`，并作为 XCTest 附件保存；原生挂载画布 PNG 位于 `visual/ios-native/ios-native`。缺失任一 App bundle 的实际执行或必要截图会使同一个 `ios-native` 检查失败。这里的固定 Simulator 场景不能推导全部真机、输入法、VoiceOver 或整页设计均已验收。
 
 ### 两库完整阅读场景截图
 

@@ -1,6 +1,6 @@
 # 验证与依赖安全
 
-文档版本：1.42 · 更新日期：2026-11-23
+文档版本：1.46 · 更新日期：2026-11-23
 
 本文说明当前 SDK 的可复现输入、依赖安全和原生验收范围。具体提交的执行结果以 [Native SDK 流水线](../.github/workflows/native-sdk.yml) 的日志为准。当前生成输入由 [Tools/upstream.json](../Tools/upstream.json) 固定，完整上游许可保存在随 SDK 打包的 [THIRD-PARTY-NOTICES.txt](../Sources/SwiftLang/Resources/THIRD-PARTY-NOTICES.txt)。
 
@@ -44,7 +44,9 @@ SDK 行为断言归属共享 SwiftLang、OpenUI、OpenIntelligentUI 各自的 Te
 
 macOS 保留原 Debug preflight、Release 呈现/订阅/流式回归、全量三产品测试、Release fitting、独立 Gallery 测试、历史契约、语言 ASan、工具构建和 24/128 分片 Release 性能测量。全量测试另导出实际代码覆盖率用于定位缺口，不设任意覆盖率门槛。Intelligent UI 根百分比高度只在所属检查进程启用已有 layout trace，保留 proposal 与实际尺寸；截图按检查分目录，避免后续用例覆盖前一项的证据。
 
-iOS profile 保留两个 UI target 的最低 iOS 16 Simulator 编译和 Gallery 编译，并通过根包的自动 Xcode scheme 在实际已安装的 iPhone Simulator 上执行三个产品 XCTest。选择的 runtime、设备名和 UDID、原始 `.xcresult`、Apple 工具导出的测试树和覆盖率均保留。每个产品必须有真实非零成功测试，编译成功不能替代执行。iOS 与 macOS 平台条件用例的数量可以不同；Simulator 结果不代表真机、全部系统版本或 iPad 交互已经验收。
+iOS profile 保留两个 UI target 的最低 iOS 16 Simulator 编译和 Gallery 编译，并在同一个实际已安装的 iPhone Simulator 上执行根包三个产品 XCTest，以及 Gallery 的 App 宿主单元测试和 XCUITest。选择的 runtime、设备名和 UDID、两份原始 `.xcresult`、Apple 工具导出的测试树和覆盖率均保留。每个 SDK 产品、Gallery 的两个 bundle、宿主单元测试的四个类和 UI 测试的三个类必须有真实非零成功执行；App 测试不得 skipped 或 expected failure，编译成功不能替代执行。iOS 与 macOS 平台条件用例的数量可以不同；Simulator 结果不代表真机、全部系统版本或 iPad 交互已经验收。
+
+Gallery 的 App 宿主 Unit Test Bundle 先通过真实 `Bundle.main` 验证应用标识、资源目录，以及两库案例、组件目录和本地图片的读取，覆盖普通 Gallery 的 Xcode 打包路径。原生挂载回归必须使用真实应用的 UIWindowScene，验证输入与文本域双向编辑、焦点和选区、原生控件事件、卡片和按钮回流、流式身份与真实加载像素。SwiftUI 的访问树和触摸由 Gallery UI Testing Bundle 通过真实 App 观察：OpenUI 验证阅读、选择、表单提交、分页与系统 sheet；OpenIntelligentUI 验证商品媒体几何、辅助字号阅读、图集与精确购买动作。Slider 还以同步 mounted 回归验证 pending 草稿 flush，不把 UI automation 的空闲等待当作立即提交证明。两个 App bundle 由同一次测试命令执行，仍归同一个 `ios-native` 检查，截图分别保存为挂载画布与真实 App 视口；所测 Simulator 场景不能替代全部设备、输入法或 VoiceOver 验收。
 
 两库的 SemanticTypographyTests 保留原生文字与 Markdown 正文、标题的实际尺寸对照，并覆盖辅助阅读字号和长文。OpenUI 的表格字体覆盖回归测量真实字形像素宽度，同时切换字号、主题并恢复原配置，避免仅有行容器增高造成假通过；Intelligent UI 用固定原生正文配对检验引用、列表、表格与行内代码，同时核对代码块的独立动态字体。各项遵循实际平台行为，macOS 的环境字号开关不能当作 iOS 字体放大已经验收。
 

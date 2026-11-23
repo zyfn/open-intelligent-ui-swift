@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.22 · 更新日期：2026-11-23
+文档版本：1.24 · 更新日期：2026-11-23
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -74,6 +74,8 @@ flowchart TB
 | Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
 | Tests/ValidationTools/ | 验证工具的单元测试，检查缺失、失败、超时、零执行与报告完整性；不复制 SDK 行为断言 |
 | Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
+| Examples/Gallery/NativeTests/ | 加载到现有 Gallery App 的 iOS Unit Test Bundle；验证 UIKit 事件、原生挂载与几何，测试内可使用 SDK 的 `@testable`，不向产品增加测试 API |
+| Examples/Gallery/UITests/ | 现有 Gallery App 的 iOS UI Testing Bundle；通过公开入口验证双库真实交互，单份固定输入可与 App 宿主单元测试共享 |
 | Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
 | Validation/ | 静态程序校验、SDK 统一执行与证据汇总（SDK/）、性能验证（Performance/） |
 | Validation/Performance/ | 独立性能验证包，可执行工具 LanguagePerformanceValidation 测量语言与公开 State 流式成本，默认报告为 outputs/verification/performance/language-runtime.json |
