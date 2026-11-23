@@ -80,6 +80,24 @@ final class GenerationContractTests: XCTestCase {
         XCTAssertTrue(withoutRow.selectedGenerationRules.contains { $0.hasPrefix("Box supplies") })
     }
 
+    @MainActor func testSelectedExamplesRemainValidWhenCompositionDependenciesAreExcluded() throws {
+        // The reader intentionally retains excluded components. Validate the
+        // evaluated examples against the writer so leaked dependencies fail.
+        for excluded in ["Card", "Row", "Title", "Text", "Caption", "Link", "JourneyLine", "Image", "Citation"] {
+            let library = try OpenIntelligentUIComponents(excludingComponents: [excluded])
+            XCTAssertFalse(library.selectedGenerationExamples.isEmpty, excluded)
+            for example in library.selectedGenerationExamples {
+                let start = try XCTUnwrap(example.range(of: "root = Col("))
+                let source = String(example[start.lowerBound...])
+                let state = library.makeState()
+                state.setSource(source)
+                XCTAssertNotNil(state.root, "Excluding \(excluded): \(example)")
+                XCTAssertEqual(library.validationIssues(in: state, source: source, profile: .generation), [],
+                               "Excluding \(excluded): \(example)")
+            }
+        }
+    }
+
     func testExclusionDoesNotDeleteUnrelatedActionsOrSourceFidelityRules() throws {
         let library = try OpenIntelligentUIComponents(excludingComponents: ["Pressable", "ProductCard", "Image"])
         XCTAssertFalse(library.systemPrompt.contains("Pressable"))

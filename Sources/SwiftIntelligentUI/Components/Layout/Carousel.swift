@@ -102,7 +102,7 @@ private struct CarouselView: View {
 
     private func items(_ children: [OpenUIRenderChild], itemWidth: CGFloat) -> some View {
         EqualHeightCarouselLayout(itemWidth: itemWidth, gap: theme.spacing(context.number("gap"), fallback: 3),
-            equalizesHeights: CarouselMetrics.comparable(children.map(\.value)), rightToLeft: direction == .rightToLeft) {
+            equalizesHeights: CarouselMetrics.comparable(children.map(\.value))) {
             ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
                 context.render(child.value)
                     .frame(width: itemWidth)
@@ -142,7 +142,6 @@ private struct EqualHeightCarouselLayout: Layout {
     let itemWidth: CGFloat
     let gap: CGFloat
     var equalizesHeights = true
-    var rightToLeft = false
     static var layoutProperties: LayoutProperties {
         var properties = LayoutProperties(); properties.stackOrientation = .horizontal; return properties
     }
@@ -152,7 +151,7 @@ private struct EqualHeightCarouselLayout: Layout {
     }
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         for (index, view) in subviews.enumerated() {
-            let x = rightToLeft ? bounds.maxX - itemWidth - CGFloat(index) * (itemWidth + gap) : bounds.minX + CGFloat(index) * (itemWidth + gap)
+            let x = bounds.minX + CGFloat(index) * (itemWidth + gap)
             let height = equalizesHeights ? bounds.height : view.sizeThatFits(.init(width: itemWidth, height: nil)).height
             view.place(at: .init(x: x, y: bounds.minY), anchor: .topLeading, proposal: .init(width: itemWidth, height: height))
         }

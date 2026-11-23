@@ -14,13 +14,11 @@ private struct GridView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Environment(\.layoutDirection) private var direction
     @Environment(\.openIntelligentUIEditorial) private var editorial
     var body: some View {
         EqualGridLayout(columns: typeSize.isAccessibilitySize ? 1 : Int(min(12, max(1, (context.number("columns") ?? 2).rounded()))),
                         minimumWidth: context.number("minChildWidth").map { CGFloat(max(0, $0)) },
-                        gap: theme.spacing(context.number("gap"), fallback: 3),
-                        rightToLeft: direction == .rightToLeft) {
+                        gap: theme.spacing(context.number("gap"), fallback: 3)) {
             ForEach(context.children()) { child in
                 context.render(child.value).frame(maxWidth: .infinity, alignment: .leading)
                     .environment(\.openIntelligentUIEditorial, childContext)
@@ -41,7 +39,6 @@ struct EqualGridLayout: Layout {
     let columns: Int
     let minimumWidth: CGFloat?
     let gap: CGFloat
-    var rightToLeft = false
 
     func columnCount(width: CGFloat) -> Int {
         let columns = min(12, max(1, columns))
@@ -86,8 +83,8 @@ struct EqualGridLayout: Layout {
         let frames = geometry(proposal: ProposedViewSize(width: bounds.width, height: nil), subviews: subviews).1
         for i in subviews.indices {
             let frame = frames[i]
-            let x = rightToLeft ? bounds.maxX - frame.maxX : bounds.minX + frame.minX
-            subviews[i].place(at: CGPoint(x: x, y: bounds.minY + frame.minY), anchor: .topLeading, proposal: ProposedViewSize(frame.size))
+            subviews[i].place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                              anchor: .topLeading, proposal: ProposedViewSize(frame.size))
         }
     }
 }

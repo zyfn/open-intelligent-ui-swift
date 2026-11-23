@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.12 · 更新日期：2026-11-22
+文档版本：1.13 · 更新日期：2026-11-23
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -25,8 +25,8 @@
 | Layout | Col、Row、Box、Grid、Card、Carousel、Popover、Divider、Spacer、Form、Disclosure |
 | Content | Text、Title、Caption、Label、Badge、Link、List、ListItem、Markdown、Quote、Code、Flashcard、Celebration、Citation |
 | Controls | Button、IconButton、Pressable、Input、TextArea、Select、SegmentedControl、RadioGroup、Slider、Checkbox、DatePicker、Timer |
-| Media | Image、Icon、SearchImage、Math、Map、MapMarker、YouTube、HtmlView、Svg、Circle、Ellipse、Rect、Line、Path、Polyline、Polygon、G、SvgText |
-| DataDisplay | Table、Chart、ProductCard、Progress、JourneyLine |
+| Media | Image、Icon、SearchImage、Math、Map、MapMarker、YouTube、HtmlView、JourneyLine、Svg、Circle、Ellipse、Rect、Line、Path、Polyline、Polygon、G、SvgText |
+| DataDisplay | Table、Chart、ProductCard、Progress |
 
 每个组件记录有序参数、类型、默认行为、绑定与限制。本库以官方提交 [`53df45b`](https://github.com/thesysdev/open-intelligent-ui/tree/53df45b4231aabab1a0e932733e117937ff2b41c) 导出的 55 个基础组件为位置签名基线；本轮布局与属性行为依据该 demo 锁定的 `@openuidev/intelligent-ui-library@0.0.1` 源码 [`c531b0d`](https://github.com/thesysdev/openui/tree/c531b0dfe83dc828241f71dbe77e689ebdbf05f7/packages/libraries/intelligent-ui/src)：Image / SearchImage 的 aspectRatio、radius、fit 参数重新进入 writer；Card 参数为 children、variant、gap、padding；六类输入新增 rules；Chart、Svg、Polyline、G 使用新签名。商品与交通自有扩展仍排除旧 priceText。完整 reader 保留尚未删除的历史扩展字段。SearchImage 仅在调用方提供图片服务时注册；普通客户端无该服务时不向 Agent 宣告。
 
@@ -76,7 +76,7 @@ Box 的可选裁剪仍有独立验收边界：从未提供 radius 切换到提�
 ### 2.2 文本、列表与内容
 
 - Text 支持内联 Markdown 和混排组件；字符串与 TextKit 共享字号角色、字重和行距决策。省略 size/weight 与显式 md/normal 等价，深浅外观都使用 regular 正文；显式 medium/semibold 继续生效。小号文字不自动变成次级颜色，加粗不自动变成标题。附件按 child.id 保留原生 host，Markdown 解析、同宽测量与附件适配分别缓存；异步尺寸变化使测量失效。maxLines 截断后不可见附件不能继续接受操作。桥接转发 locale、方向、字号、对比度、displayScale 及图片环境。
-- Title、Caption 支持行内 Markdown 和链接；Title 由显式尺寸选择稳定角色，默认/md 为对象标题、lg 为章节、xl 为页面标题，2xl/3xl 保留大标题层级。Caption 靠近所属图片或内容，不自动变成独立来源区块。
+- Title、Caption 支持行内 Markdown 和链接；Title 由显式尺寸选择稳定角色，默认/md 为对象标题、lg 为章节、xl 为页面标题，2xl/3xl 可强调短开篇或关键数字，sm 标记小分组。根据内容的重要性选择层级，不按容器位置隐式放大字体。Caption 表示辅助内容；图注与所属媒体放在同一个显式紧凑 Col 中，眉题则与其标题组成一组。默认 flow 不推断 Caption 的归属。
 - Label、Badge 表示字段标签与静态事实。Badge 的 info 为中性，状态背景为浅色；Link 使用正文继承色、下划线和行内尺寸，通过宿主动作打开原 URL。
 - List/ListItem 支持 bullet、数字圆标、自定义短步骤标、时间标记列及连线。none 且无时间标记时不绘制悬空线；description 是次级摘要，主要阅读内容放 children。节点身份由运行时维护，不追加私有 id 参数。
 - Markdown 提供完整文档块排版，默认正文与 Text 共用阅读角色，H1/H2/H3 对应页面、章节、对象标题；宿主显式 markdownHeadingScales 仍优先。列表、Quote、Flashcard 等紧凑上下文只缩短段距至 innerSpacing，保留多个段落的区分，不把段距归零或自动缩小正文。Quote 仍表示引文，浅底、圆角、侧线和内边距使用同一表面。Code 与 Markdown 代码块共用原文、着色和复制操作；长代码先显示有界预览，可展开，复制始终派发完整原文。
@@ -130,9 +130,9 @@ Map 的输入与选中语义固定于 [demo 53df45b 的组件定义](https://git
 DesignSystem 决定组件在哪些场景按什么规则使用 token 和平台行为。它不是组件参数仓库，也不只等于一组颜色变量。
 
 - **语义 token**：OpenIntelligentUITheme 只提供可复用的颜色、字体角色、间距、圆角、阅读宽度、图片默认比例与主操作前景/背景。间距与圆角独立定义，不通过 spacingUnit 派生圆角；chart1...chart6 使用独立图表序列色，不复用业务状态色。
-- **组件规格**：表格列宽、商品缩略图、地图高度等留在组件内部；Row 为通用布局，文字和图片只按显式尺寸和主题默认语义排版，不内置媒体配方。
+- **组件规格**：表格列宽、商品缩略图、地图高度等留在组件内部；Row、Col、Box、Grid 负责基础组合，Row 的直接媒体项遵循第 2.1 节的官方尺寸、间距和 4:3 规则。需要大图主导或保留不同画幅时，选择适合内容的纵向或网格组合，不依靠无语义包装绕过媒体规则。
 - **字体层级**：默认使用系统字族与 Dynamic Type：页面 title2、章节 title3、对象 headline 使用 semibold，正文 body 使用 regular，辅助说明 subheadline、图注 footnote。省略参数保持稳定角色，深色外观不额外加粗；显式 weight 与字号优先。宿主在旧系统需要自定义字体与原生混排一致时，使用 theme.setTextFont(UIFont/NSFont, for:) 配对；所提供的具体字号保持不变，动态缩放由宿主提供。支持 Font.resolve 的系统可解析 SwiftUI 字体，不能宣称所有旧系统能自动反解任意自定义 Font。
-- **阅读节奏**：开篇眉题紧接标题，标题靠近正文，连续段落保持阅读间距，图注靠近图片，章节之间增加留白。正文到随后图片使用组间距，图片/图表/表格/SVG 后的 Caption 使用较小内间距；显式 gap 仍由调用方决定。
+- **阅读节奏**：沿用官方直接兄弟 flow 规则；根章节之间保留默认间距，章节内部由标题与正文关系形成节奏。媒体和图注使用 `Col([media, Caption(...)], 2)` 这样的显式紧凑分组，根层随后另起章节。直接 `Caption → Title` 表示眉题关系，不能把上一张图的图注放在下一节标题前并期待布局自动识别。显式 gap 统一控制该组的内部距离，不再叠加自动 flow 间距。
 - **操作层级**：主按钮与业务卡导航共用胶囊动作样式，原生 Button 保留激活、焦点和可访问语义，label 内包含完整触达区域。outline 使用 fieldBorder；低强调控件共用按下、焦点和禁用反馈。Pressable 自己显示选中状态，不依赖父 Row。静态 Badge 不伪装成可点击控件；短选择优先原生 segmented Picker。
 - **平台密度**：iOS 和 macOS 采用不同的控件高度初值；间距与圆角是项目 token，不宣称为 Apple 的统一硬性数值。iOS 的主要操作保留 44 点触达。
 - **颜色与边界**：采用系统背景、分隔色、主次文字和动态外观。控件与卡片描边统一使用 fieldBorder，不再分别叠乘 separator 透明度；separator 只用于分隔线、路线和节点连接。优先对齐、留白和轻分隔；卡片表示真实对象或分组。
@@ -223,7 +223,7 @@ python3 Tools/check_lang_compatibility.py
 
 iOS Gallery 工程为 `Examples/Gallery/OpenUIGallery.xcodeproj`，scheme 为 OpenUIGallery；支持 iPhone/iPad。Gallery 是独立开发包，通过本地 Swift Package 引用当前根 SDK，并同时展示标准 UI 与 Intelligent UI。精选案例、专项诊断、源码编辑和预览尺寸在同一个入口管理，见 [Gallery 指南](../Examples/Gallery/README.md)。消费者只选择根包的 SDK 库产品。
 
-Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。默认内容包括官方语言模板、59 个组件的签名与行为、内置及注册函数、动作、本库 35 条追加规则和 11 个完整示例；注入图片搜索服务后增加 SearchImage 及其规则。示例覆盖同日记录、稳定任务、消费确认、封面图文、图文 Row、网格与表面分离、普通内容横滑、已知联程、独立去返、地图联动与表单计算。排除相关组件时只移除依赖它的规则与示例。示例数据与链接仅用于解释语法，不作为真实推荐。
+Agent 契约位于 `outputs/contracts/prompt.txt`，由 `library.systemPrompt` 直接导出。默认内容包括官方语言模板、59 个组件的签名与行为、内置及注册函数、动作、本库 35 条追加规则和 11 个完整示例；注入图片搜索服务后增加 SearchImage 及其规则。示例覆盖同日记录、稳定任务、消费确认、开放阅读章节与封面图注、图文 Row、网格与表面分离、普通内容横滑、已知联程、独立去返、地图联动与表单计算。排除相关组件时只移除依赖它的规则与示例。示例数据与链接仅用于解释语法，不作为真实推荐。
 
 生成原则：
 

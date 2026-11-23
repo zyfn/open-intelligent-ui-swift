@@ -3,7 +3,7 @@ import SwiftLang
 
 enum CaptionComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Caption", description: "Small secondary text with inline Markdown and links. color defaults to muted.", params: [
+        OpenUIComponent(name: "Caption", description: "Small secondary text with inline Markdown and links; color defaults to muted. Keep a figure and its caption together in a compact Col with an explicit gap. A Caption directly before a Title in default flow forms a close eyebrow-heading pair.", params: [
             OpenUIParameter.string("text"), Parameter.color()
         ]) { CaptionView(context: $0) }
     }

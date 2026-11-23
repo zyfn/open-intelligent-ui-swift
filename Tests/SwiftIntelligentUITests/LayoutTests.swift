@@ -115,6 +115,89 @@ final class LayoutTests: XCTestCase {
         }
     }
 
+    @MainActor func testRegisteredGridAndCarouselFollowNativeLayoutDirection() throws {
+        for container in ["Grid([a,b],2,null,2)", "Carousel([a,b],120,2)"] {
+            let source = """
+            root = \(container)
+            a = Box([], "col", 0, 0, "danger", null, false, null, 40)
+            b = Box([], "col", 0, 0, "success", null, false, null, 40)
+            """
+            for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+                try inspectBoxes(source, width: 320, direction: direction) { frames in
+                    let a = try XCTUnwrap(frames["danger"]), b = try XCTUnwrap(frames["success"])
+                    XCTAssertEqual(a.minY, b.minY, accuracy: 1, container)
+                    if direction == .leftToRight { XCTAssertEqual(b.minX - a.maxX, 8, accuracy: 1, container) }
+                    else { XCTAssertEqual(a.minX - b.maxX, 8, accuracy: 1, container) }
+                }
+            }
+        }
+    }
+
+    @MainActor func testRegisteredColumnsUseNativeLeadingAndTrailingAlignment() throws {
+        for alignment in ["start", "end"] {
+            let source = """
+            root = Box([child], "col", 0, 0, "canvas", null, false, 320, 80, null, "\(alignment)")
+            child = Box([], "col", 0, 0, "danger", null, false, 80, 20)
+            """
+            for direction in [LayoutDirection.leftToRight, .rightToLeft] {
+                try inspectBoxes(source, width: 320, direction: direction) { frames in
+                    let outer = try XCTUnwrap(frames["canvas"]), child = try XCTUnwrap(frames["danger"])
+                    let atPhysicalLeft = (alignment == "start") == (direction == .leftToRight)
+                    XCTAssertEqual(child.minX - outer.minX, atPhysicalLeft ? 0 : 240, accuracy: 1)
+                    XCTAssertEqual(child.minY, outer.minY, accuracy: 1)
+                    XCTAssertEqual(child.width, 80, accuracy: 1)
+                }
+            }
+        }
+    }
+
+    @MainActor func testColumnStretchChangesPreserveTheMountedEditor() throws {
+        _ = NSApplication.shared
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        defer { state.reset() }
+        state.setSource("""
+        root = Col([Input($value, "Value", "text", $alignment)], null, $alignment)
+        $value = "before"
+        $alignment = "start"
+        """)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        let host = NSHostingView(rootView: OpenIntelligentUIContentView(state: state, library: library)
+            .frame(width: 320, height: 160, alignment: .topLeading))
+        let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 160),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false; window.contentView = host; window.orderFront(nil)
+        defer { window.close() }
+        func field(_ view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField, field.isEditable { return field }
+            return view.subviews.lazy.compactMap(field).first
+        }
+        func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
+            let deadline = Date().addingTimeInterval(2)
+            repeat {
+                host.layoutSubtreeIfNeeded()
+                if condition() { return }
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            } while Date() < deadline
+            XCTAssertTrue(condition(), "The mounted control did not receive its update", file: file, line: line)
+        }
+        waitUntil { field(host)?.placeholderString == "start" }
+        let input = try XCTUnwrap(field(host))
+        input.selectText(nil)
+        waitUntil { input.currentEditor() != nil }
+        let editor = try XCTUnwrap(input.currentEditor() as? NSTextView)
+        editor.insertText("edited", replacementRange: NSRange(location: 0, length: editor.string.utf16.count))
+        waitUntil { state.stateValue("$value") == .string("edited") }
+        for alignment in ["stretch", "end"] {
+            state.setState("$alignment", value: .string(OpenUIString(alignment)))
+            waitUntil { field(host)?.placeholderString == alignment }
+            XCTAssertTrue(field(host) === input, "Changing width policy must retain the native field")
+            XCTAssertTrue(input.currentEditor() === editor, "Changing width policy must retain the active editor")
+            XCTAssertEqual(editor.string, "edited")
+            XCTAssertEqual(state.stateValue("$value"), .string("edited"))
+        }
+    }
+
     @MainActor func testPinnedWrappingRowStillDistributesZeroBasisFlex() throws {
         let source = """
         root = Row([a, b, c], 2, "start", "start", true)

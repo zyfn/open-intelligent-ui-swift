@@ -1,6 +1,6 @@
 # OpenUI Swift SDK
 
-文档版本：1.7 · 更新日期：2026-11-22
+文档版本：1.8 · 更新日期：2026-11-23
 
 把模型生成的 OpenUI Lang 渲染为原生 SwiftUI 内容。客户端使用一套接入接口，按需选择OpenUI 或 OpenIntelligentUI；每个组件库负责自己的组件契约、设计系统和生成规则。
 
@@ -210,7 +210,7 @@ python3 Tools/check_lang_compatibility.py
 
 独立消费者检查为 SwiftLang、OpenUI、OpenIntelligentUI 分别创建并运行一个单产品外部包，验证解析、流式、生成契约、原生宿主和状态读写。适配层消费者不链接两套组件库，两套 UI 也不链接对方。该检查不启动窗口，不能代替 UI 视觉验收。内部 Language 目录与 Runtime 目录的职责边界由源码检查验证，详见架构。
 
-独立的 [ContractExport 工具包](Tools/ContractExport/README.md) 默认输出 OpenIntelligentUI 新生成所用的 `spec.json`、`prompt.txt` 和 `manifest.json`。历史读取契约使用 `--reader-contract`，历史程序验证使用 `--historical`。性能测量见 [Benchmarks](Benchmarks/README.md)，可选真实模型评测见 [Validation/Generation](Validation/Generation/README.md)。
+独立的 [ContractExport 工具包](Tools/ContractExport/README.md) 默认输出 OpenIntelligentUI 新生成所用的 `spec.json`、`prompt.txt` 和 `manifest.json`。历史读取契约使用 `--reader-contract`，历史程序验证使用 `--historical`。六个领域的测试与验收计划见 [SDK 验证矩阵](Validation/SDK/README.md)，可重复的性能测量见 [Benchmarks](Benchmarks/README.md)，可选真实模型评测见 [Validation/Generation](Validation/Generation/README.md)。
 
 完整流水线见 [native-sdk.yml](.github/workflows/native-sdk.yml)。源码检查与测试配置不等同于 Apple 平台编译、交互或发布已经通过；验收证据绑定具体提交。
 

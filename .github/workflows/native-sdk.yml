@@ -165,6 +165,26 @@ jobs:
             | grep -E "$filter" | tee outputs/verification/native-debug-preflight-tests.txt
           swift test --skip-build --configuration debug --filter "$filter" \
             2>&1 | tee outputs/verification/native-deep-data.log
+      - name: Intelligent UI layout and generation regressions
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          SWIFT_INTELLIGENT_UI_LAYOUT_TRACE=1 swift test --skip-build --configuration debug \
+            --filter 'OfficialContractParityTests/testRootPercentageHeightUsesTheActualFiniteHostProposal' \
+            2>&1 | tee outputs/verification/intelligent-ui-root-layout.log || failed=1
+          swift test --skip-build --configuration debug \
+            --filter 'SwiftIntelligentUITests\.(LayoutTests|GenerationContractTests|ComponentSelectionTests)/' \
+            2>&1 | tee outputs/verification/intelligent-ui-composition.log || failed=1
+          exit "$failed"
+      - name: Standalone Gallery tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" \
+            2>&1 | tee outputs/verification/gallery-tests.log
       - name: Retain Debug preflight diagnostics immediately
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -174,6 +194,9 @@ jobs:
             outputs/verification/native-deep-data.log
             outputs/verification/native-debug-*.txt
             outputs/verification/native-debug-test-list.log
+            outputs/verification/intelligent-ui-*.log
+            outputs/verification/gallery-tests.log
+            outputs/verification/visual/gallery-editorial/
           if-no-files-found: warn
           retention-days: 7
       - name: Release rendering, streaming and resource regressions
@@ -194,6 +217,7 @@ jobs:
           filter+='|MCPInputBudgetTests|StoreAggregateBudgetTests|NativeContextBudgetTests|RuntimeLimitsTests|ResourceCacheBudgetTests'
           filter+='|SharedCoreBridgeTests|FramedStreamingTests|ProjectionBridgeTests|SourceSnapshotBridgeTests'
           filter+='|EvaluationDefinitionsTests|StreamingPublicationTests|LiveElementIndexTests|FieldSelectionRenderingTests'
+          filter+='|SwiftIntelligentUITests\.(LayoutTests|GenerationContractTests|ComponentSelectionTests)/'
           filter+='|testRefetchDuringFlightQueuesAndRefreshTimerStops|SemanticTypographyTests'
           swift test list --configuration release \
             2>&1 | tee outputs/verification/native-release-test-list.log
@@ -258,13 +282,6 @@ jobs:
           set -euo pipefail
           python3 Tools/check_product_consumers.py --scratch-root "$RUNNER_TEMP/native-consumers" \
             2>&1 | tee outputs/verification/product-consumers.log
-      - name: Standalone Gallery tests
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          swift test --package-path Examples/Gallery --scratch-path "$RUNNER_TEMP/gallery-swiftpm" \
-            2>&1 | tee outputs/verification/gallery-tests.log
       - name: Gallery fixture programs
         if: ${{ !cancelled() }}
         shell: bash
