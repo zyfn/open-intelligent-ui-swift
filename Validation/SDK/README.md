@@ -1,6 +1,6 @@
 # SDK 验证
 
-文档版本：1.5 · 更新日期：2026-11-23
+文档版本：1.6 · 更新日期：2026-11-23
 
 本目录只负责组织验证的执行与证据。SDK 行为断言保留在各产品的 `Tests`，`run.py` 调度这些测试及已有构建、资源、安全和性能工具，CI 调用同一个入口。固定输入验证不调用模型，也不评测 Agent 或 Skill。
 
@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | `Tests/SwiftLangTests`、`SwiftOpenUITests`、`SwiftIntelligentUITests` | SDK 语义、组件、交互、布局与生命周期的可执行断言 | 对应产品的行为只有一份测试实现 |
 | `Examples/Gallery/Tests` | Gallery 集成、双库完整页面与截图回归 | 真实案例和展示资源留在示例包 |
+| `Examples/Gallery/UITests` | iPhone App 内的真实点击、输入、滚动、系统访问树和动作回执 | 使用现有 Gallery 的 UI Testing Bundle；固定场景通过公开 SDK 入口渲染 |
 | `Tests/ValidationTools` | 验证脚本的错误处理、结果识别和报告汇总测试 | 确认验证工具自身不会错误放行 |
 | `Validation/SDK` | 选择检查、调用工具、记录结果、收集证据 | 不再维护一套 case schema、断言清单或测试状态机 |
 | `Validation/Performance` | 固定性能工作负载与原始测量 | 由统一入口调用，测量仍归该工具 |
@@ -34,7 +35,7 @@ python3 Validation/SDK/run.py --profile ios --output outputs/verification/sdk-va
 | `portable` | 模块边界、双库目录/本地化、runner 自身回归、官方语言对照、静态校验、三组呈现资源与公式资源重建 | Python 3.11+、Node 22、npm、可读取 Package.swift 的 Swift 6 工具链；依赖下载网络 |
 | `security` | Core、富文本、代码高亮、图标、函数五个锁定依赖图的真实安装与 high/critical 审计 | Python 3.11+、Node 22、npm 与 registry 网络 |
 | `macos` | Debug/Release、全量三产品 XCTest、fitting、Gallery、独立消费者、官方契约、语言 ASan、工具构建、两组 Release 性能数据 | macOS、Swift 6；CI 固定 Xcode 26.3 |
-| `ios` | 三产品的真实 iPhone Simulator XCTest 与覆盖率、最低 iOS 16 编译、Gallery iOS 编译 | macOS、Xcode 与可用的 iPhone Simulator runtime |
+| `ios` | 三产品的 iPhone Simulator XCTest、Gallery XCUITest 与两份覆盖率、最低 iOS 16 编译和 Gallery iOS 编译 | macOS、Xcode 与可用的 iPhone Simulator runtime |
 | `all` | 顺序执行上述全部检查 | 同时满足四个 profile 的环境要求 |
 
 `--check` 可重复指定精确检查 ID，与 `--profile` 互斥，适合修改后的局部回归。例如：
@@ -50,11 +51,13 @@ python3 Validation/SDK/run.py --check gallery-tests --check gallery-programs \
 
 每次执行输出 `report.json`、`summary.md`、逐命令日志以及相关截图、契约、覆盖率或性能产物。报告记录实际提交、工作区指纹、操作系统、工具链、完整参数、耗时、退出状态和产物 SHA-256。原生筛选测试先发现用例并要求非空，测试执行还须有真实非零结果；失败、阻塞、超时、取消和未执行分别保留，独立检查仍尽量继续收集证据。
 
-macOS 全量 XCTest 使用独立覆盖率构建目录，导出 SwiftPM 原始 JSON；iOS 保存 `.xcresult`、Apple 工具输出的 summary/tests 和 `xccov` 原始 JSON。覆盖率用于发现缺口，不设没有依据的百分比门槛，也不把执行行数解释为语义或视觉正确率。
+macOS 全量 XCTest 使用独立覆盖率构建目录，导出 SwiftPM 原始 JSON；iOS 分别保存 SDK 与 Gallery UI 的 `.xcresult`、Apple 工具输出的 summary/tests 和 `xccov` 原始 JSON。两次执行必须使用同一个已记录的 Simulator。三个 SDK target 和三个 UI 测试类均须有真实成功执行；UI 测试不能以 skipped 或 expected failure 通过。覆盖率用于发现缺口，不设没有依据的百分比门槛，也不把执行行数解释为语义或视觉正确率。
 
 两平台的完整测试还必须保留表头与正文的字体回归截图。iOS 入口通过 Xcode 的 `TEST_RUNNER_` 约定转发 SDK 快照目录及遥测设置，其他宿主变量不自动增加该前缀。缺图仍判失败，不能仅凭测试命令返回成功替代渲染证据。
 
-iOS 的组件回归在真实 `UIWindow` / `UIHostingController` 内挂载。OpenUI 检查输入、文本域、选择控件、表单、弹窗、卡片与按钮的实际原生状态和几何；OpenIntelligentUI 检查商品卡图片、阅读布局、换图与购买动作。测试等待可观察的内容、编辑结果或资源呈现，不用预期几何作为就绪条件。截图用挂载视图的 layer 捕获，并由同一个 `ios-native` 检查收集到 `visual/ios-native`；没有额外的验证框架或第二份组件用例定义。
+iOS 的 SDK 回归在真实 `UIWindow` / `UIHostingController` 内挂载，检查 UIKit 输入、焦点、选区、挂载身份、布局与图片加载像素。测试等待实际 native view update 或资源呈现，不用预期几何作为就绪条件。该 framework test 进程不能通过 UIKit 递归取得 SwiftUI 的虚拟访问树，标签与点击因此由既有 Gallery App 的 XCUITest 执行：OpenUI 覆盖卡片阅读、选择、表单、Slider 与系统 sheet；OpenIntelligentUI 覆盖商品图比例、大字阅读、换图和精确购买动作。同步 Slider 草稿 flush 另有 mounted 单元回归，避免把 XCUITest 自动等待误认为无等待提交的证据。
+
+两类测试都属于同一个 `ios-native` 检查。挂载视图的 layer 截图保存在 `visual/ios-native`，真实 App 视口截图保存在 `visual/ios-ui` 并附于 UI `.xcresult`，不会互相覆盖。共享 Lang 输入为单份纯数据 fixture；Gallery 的固定测试场景只在 Debug iOS 的显式测试启动环境下启用，普通浏览入口不展示这些场景。
 
 [CI](../../.github/workflows/native-sdk.yml) 直接调用同一份 runner。四个 profile 分别上传完整输出目录；原始日志与截图位于 `sdk-validation-<profile>-<run_id>-<attempt>` artifact。最终 `Native SDK acceptance` 下载本次四份产物并调用：
 
@@ -95,7 +98,7 @@ Gallery 配置遍历两库现有 226 份固定程序，执行完整求值和三�
 
 这些未完成目标写在本说明中，不另建带 `planned` / `existing` 状态的“验证用例”。新增可自动判断的行为，直接在所属产品或 Gallery 的测试中补充断言；需要新执行环境或独立工具时才扩展 runner。确认一个改动时先运行相关测试，完整 SDK 验收运行四个 profile。
 
-挂载测试通过 UIKit 编辑事件或访问动作触发真实组件行为，验证焦点、选区、绑定和提交结果；这不等于已经执行系统软键盘输入或手指触摸。分页手势的安装、启用状态和方向判定可以由原生测试验证，真实拖动轨迹、边缘手势竞争和 VoiceOver 朗读仍属于设备交互验收。
+挂载测试验证 UIKit 编辑事件、焦点、选区和绑定；Gallery XCUITest 另外执行所列场景的真实 Simulator 点击、输入与滚动。它们不代表所有真机、系统版本或输入法已经验收。分页手势的安装、启用状态和方向判定有原生测试，分页连续拖动、边缘手势竞争和 VoiceOver 朗读仍需独立设备交互证据。
 
 全部实际证据保存在忽略的 `outputs/verification`。SDK 的 spec、Prompt、示例及 reader/writer 能力仍保留。固定生成契约与历史程序回归不代表模型生成成功率。以后设计模型、Agent 或 Skill 的 benchmark 时另行建立相应评测。
 

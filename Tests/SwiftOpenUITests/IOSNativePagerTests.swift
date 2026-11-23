@@ -10,7 +10,7 @@ final class IOSNativePagerTests: XCTestCase {
         let host = IOSNativeTestHost(IOSPagerInteractionFixture(state: state), width: 320, height: 240)
         defer { host.close() }
         try await host.waitUntil("the pager's enabled content is mounted") {
-            host.renderedText().contains("Pager enabled")
+            state.mountedEnabled == true
         }
         if #available(iOS 18, *) {
             try await host.waitUntil("the iOS horizontal recognizer is installed") {
@@ -21,13 +21,13 @@ final class IOSNativePagerTests: XCTestCase {
             XCTAssertEqual(pan.maximumNumberOfTouches, 1)
             state.enabled = false
             try await host.waitUntil("the disabled environment reaches the mounted pager") {
-                host.renderedText().contains("Pager disabled") && !pan.isEnabled
+                state.mountedEnabled == false && !pan.isEnabled
             }
             XCTAssertTrue(pans(in: host).contains { $0 === pan },
                 "Changing interactivity updates the recognizer already attached to the native view")
             state.enabled = true
             try await host.waitUntil("the existing native recognizer is enabled again") {
-                host.renderedText().contains("Pager enabled") && pan.isEnabled
+                state.mountedEnabled == true && pan.isEnabled
             }
             XCTAssertTrue(pans(in: host).contains { $0 === pan })
 
@@ -52,7 +52,7 @@ final class IOSNativePagerTests: XCTestCase {
             // test observes its mounted content; it does not claim a touch trace.
             state.enabled = false
             try await host.waitUntil("the older-system fallback receives disabled content") {
-                host.renderedText().contains("Pager disabled")
+                state.mountedEnabled == false
             }
         }
         XCTAssertEqual(state.changedCount, 0,
@@ -70,6 +70,7 @@ final class IOSNativePagerTests: XCTestCase {
     @Published var enabled = true
     var changedCount = 0
     var endedCount = 0
+    var mountedEnabled: Bool?
 }
 
 private struct IOSPagerInteractionFixture: View {
@@ -77,11 +78,23 @@ private struct IOSPagerInteractionFixture: View {
     var body: some View {
         Text(state.enabled ? "Pager enabled" : "Pager disabled")
             .frame(width: 300, height: 100).contentShape(Rectangle())
+            .background(IOSPagerUpdateMarker(state: state, enabled: state.enabled))
             .modifier(NativePagerPan(enabled: state.enabled,
                 fallback: DragGesture().onChanged { _ in state.changedCount += 1 }
                     .onEnded { _ in state.endedCount += 1 },
                 changed: { _ in state.changedCount += 1 }, ended: { _ in state.endedCount += 1 }))
     }
+}
+
+private struct IOSPagerUpdateMarker: UIViewRepresentable {
+    let state: IOSPagerInteractionState
+    let enabled: Bool
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+    func updateUIView(_ view: UIView, context: Context) { state.mountedEnabled = enabled }
 }
 
 @MainActor private final class IOSVelocityPan: UIPanGestureRecognizer {

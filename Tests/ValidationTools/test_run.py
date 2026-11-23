@@ -166,7 +166,20 @@ class RunnerTests(unittest.TestCase):
         data = {"status": "passed", "testResults": {"totalTestCount": 3, "passedTests": 3, "failedTests": 0, "skippedTests": 0,
                 "targets": {name: {"passed": 1, "failed": 0} for name in runner.MODULES}}}
         summary.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "Gallery UI"):
+            runner.verify_required(check, {"output": self.directory})
+        destination = {"deviceId": "recorded-iphone", "platform": "iOS Simulator"}
+        data["testResults"]["destination"] = destination
+        data["uiTestResults"] = {"totalTestCount": 3, "passedTests": 3, "failedTests": 0,
+            "skippedTests": 0, "expectedFailures": 0, "destination": destination,
+            "targets": {"OpenUIGalleryUITests": {"passed": 3, "failed": 0}}}
+        summary.write_text(json.dumps(data))
         runner.verify_required(check, {"output": self.directory})
+        data["uiTestResults"]["destination"] = {"deviceId": "another-iphone", "platform": "iOS Simulator"}
+        summary.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "destination"):
+            runner.verify_required(check, {"output": self.directory})
+        data["uiTestResults"]["destination"] = destination
         del data["testResults"]["targets"]["SwiftOpenUITests"]
         summary.write_text(json.dumps(data))
         with self.assertRaises(ValueError):

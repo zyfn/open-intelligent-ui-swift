@@ -17,18 +17,14 @@ final class IOSNativeLayoutTests: XCTestCase {
             let registry = try observing(library.registry,
                 names: ["CompositeCardItem", "ImageTextLarge", "Button", "BoldText"], measured: measured)
             let state = OpenUIState(schema: library.library.toSchema())
-            state.setSource("""
-                root=CompositeCardBlock([a,b],"grid",true)
-                a=CompositeCardItem("a",ImageTextLarge("","First photo","A quiet room by the lake"),[Text("text","A complete explanation remains visible.")],{price:BoldText("number","¥12,345"),button:Button("Book first room",@OpenUrl("https://example.invalid/a"))})
-                b=CompositeCardItem("b",ImageTextLarge("","Second photo","Another room close to the station"),[Text("text","The second offer keeps its own action.")],{price:BoldText("number","¥9,876"),button:Button("Book second room",@OpenUrl("https://example.invalid/b"))})
-                """)
+            state.setSource(IOSNativeLayoutFixtures.compositeCards)
             XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
             let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
                 .dynamicTypeSize(typeSize).frame(width: width).fixedSize(horizontal: false, vertical: true),
                 width: width, height: 2400)
             defer { host.close() }
-            try await host.waitUntil("both real card headers, amounts and actions are mounted") {
-                measured.frames.count == 8 && host.renderedText().contains("Book second room")
+            try await host.waitUntil("the real card header, amount and action factories have mounted native probes") {
+                measured.frames.count == 8 && measured.nativeViews.count == 8
             }
             let first = try XCTUnwrap(measured.frames["CompositeCardItem:a"])
             let second = try XCTUnwrap(measured.frames["CompositeCardItem:b"])
@@ -58,7 +54,6 @@ final class IOSNativeLayoutTests: XCTestCase {
     }
 
     @MainActor func testWrappingContentCardsFillTheIncompleteRowAtPhoneWidths() async throws {
-        let detail = "The full explanation wraps inside the card without taking space from its neighbour."
         let cases: [(CGFloat, [CGFloat])] = [
             (320, [320, 320, 320]),
             (350, [169, 169, 350]),
@@ -69,15 +64,12 @@ final class IOSNativeLayoutTests: XCTestCase {
             let measured = IOSLayoutObservations()
             let registry = try observing(library.registry, names: ["Image"], measured: measured)
             let state = OpenUIState(schema: library.library.toSchema())
-            let cards = ["a", "b", "c"].map {
-                "Card([Image(\"\($0)\"),CardHeader(\"Complete title \($0)\"),TextContent(\"\(detail)\")],\"clear\",\"column\",\"xs\")"
-            }
-            state.setSource("root=Stack([\(cards.joined(separator: ","))],\"row\",\"m\",\"start\",\"start\",true)")
+            state.setSource(IOSNativeLayoutFixtures.wrappingCards)
             let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
                 .dynamicTypeSize(.large).frame(width: width).fixedSize(horizontal: false, vertical: true), width: width)
             defer { host.close() }
-            try await host.waitUntil("the complete three-card content is rendered") {
-                measured.frames.count == 3 && host.renderedText().contains("Complete title c")
+            try await host.waitUntil("all three actual image factories have mounted their probes") {
+                measured.frames.count == 3 && measured.nativeViews.count == 3
             }
             for (index, key) in ["a", "b", "c"].enumerated() {
                 let frame = try XCTUnwrap(measured.frames["Image:" + key])
@@ -101,18 +93,13 @@ final class IOSNativeLayoutTests: XCTestCase {
         let measured = IOSLayoutObservations()
         let registry = try observing(library.registry, names: ["Button"], measured: measured)
         let state = OpenUIState(schema: library.library.toSchema())
-        state.setSource("""
-            $direction="column"
-            root=Stack([TextContent($direction),Buttons([a,b,c],$direction)])
-            a=Button("One")
-            b=Button("Two")
-            c=Button("A substantially longer third action")
-            """)
+        state.setSource(IOSNativeLayoutFixtures.buttons)
         let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
             .dynamicTypeSize(.large).frame(width: 320).fixedSize(horizontal: false, vertical: true), width: 320)
         defer { host.close() }
-        try await host.waitUntil("all three buttons and the initial direction are rendered") {
-            measured.frames.count == 3 && host.renderedText().contains("column")
+        try await host.waitUntil("the three actual button factories received the initial column policy") {
+            measured.frames.count == 3 && measured.fillWidth.count == 3
+                && measured.fillWidth.values.allSatisfy { $0 }
         }
         let original = measured.nativeViews.mapValues(ObjectIdentifier.init)
         for frame in measured.frames.values {
@@ -120,7 +107,9 @@ final class IOSNativeLayoutTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(frame.height, 44)
         }
         state.setState("$direction", value: .string("row"))
-        try await host.waitUntil("the updated direction is rendered") { host.renderedText().contains("row") }
+        try await host.waitUntil("the committed row policy reaches the existing native button probes") {
+            measured.fillWidth.count == 3 && measured.fillWidth.values.allSatisfy { !$0 }
+        }
         let first = try XCTUnwrap(measured.frames["Button:One"])
         let second = try XCTUnwrap(measured.frames["Button:Two"])
         let third = try XCTUnwrap(measured.frames["Button:A substantially longer third action"])
@@ -140,20 +129,19 @@ final class IOSNativeLayoutTests: XCTestCase {
         let measured = IOSLayoutObservations()
         let registry = try observing(library.registry, names: ["Button"], measured: measured)
         let state = OpenUIState(schema: library.library.toSchema())
-        state.setSource("""
-            $alignment="stretch"
-            root=Stack([TextContent($alignment),Stack([Button("One")],"column","m",$alignment)])
-            """)
+        state.setSource(IOSNativeLayoutFixtures.stackAlignment)
         let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
             .dynamicTypeSize(.large).frame(width: 320).fixedSize(horizontal: false, vertical: true), width: 320)
         defer { host.close() }
         try await host.waitUntil("the stretched native action is mounted") {
-            measured.frames["Button:One"] != nil && host.renderedText().contains("stretch")
+            measured.frames["Button:One"] != nil && measured.fillWidth["Button:One"] == true
         }
         let original = try XCTUnwrap(measured.nativeViews["Button:One"])
         XCTAssertEqual(try XCTUnwrap(measured.frames["Button:One"]).width, 320, accuracy: 1)
         state.setState("$alignment", value: .string("center"))
-        try await host.waitUntil("the center alignment update is rendered") { host.renderedText().contains("center") }
+        try await host.waitUntil("the committed center policy reaches the same native button probe") {
+            measured.fillWidth["Button:One"] == false
+        }
         let centered = try XCTUnwrap(measured.frames["Button:One"])
         XCTAssertLessThan(centered.width, 160)
         XCTAssertEqual(centered.midX, 160, accuracy: 1)
@@ -162,14 +150,12 @@ final class IOSNativeLayoutTests: XCTestCase {
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
     }
 
-    @MainActor func testOptionColumnsReflowTheSameNativeMediaWhileCopyStaysComplete() async throws {
+    @MainActor func testOptionColumnsReflowTheSameNativeMedia() async throws {
         let library = try OpenUIComponents.library()
         let measured = IOSLayoutObservations()
         let registry = try observing(library.registry, names: ["Icon"], measured: measured)
         let state = OpenUIState(schema: library.library.toSchema())
-        let description = String(repeating: "A complete recommendation with a useful reason. ", count: 4)
-        let literal = String(decoding: try JSONEncoder().encode(description), as: UTF8.self)
-        state.setSource("root=OptionCards(\"choice\",\"single\",[OptionCard(\"a\",\"First\",\(literal),Icon(\"train\")),OptionCard(\"b\",\"Second\",null,Icon(\"bus\")),OptionCard(\"c\",\"Third\",null,Icon(\"car\"))])")
+        state.setSource(IOSNativeLayoutFixtures.options)
         let width = IOSValidationWidth(440)
         var presentation = OpenUIPresentation()
         presentation.minimumChoiceWidth = 200
@@ -178,18 +164,17 @@ final class IOSNativeLayoutTests: XCTestCase {
                 .openUIPresentation(presentation).dynamicTypeSize(.large)
         }, width: 900, height: 2200)
         defer { host.close() }
-        try await host.waitUntil("all option labels and their media are mounted") {
-            measured.frames.count == 3 && host.renderedText().contains("Third")
+        try await host.waitUntil("all actual option media factories are mounted") {
+            measured.frames.count == 3 && measured.nativeViews.count == 3
         }
         let original = measured.nativeViews.mapValues(ObjectIdentifier.init)
         for (value, columns) in [(CGFloat(440), 2), (800, 3), (280, 1), (600, 2)] {
             width.value = value
-            try await host.waitUntil("the new viewport is committed") {
-                host.renderedText().contains("Viewport \(Int(value))")
+            try await host.waitUntil("the new viewport input reaches each existing native media probe") {
+                measured.viewport.count == 3 && measured.viewport.values.allSatisfy { $0 == value }
             }
             XCTAssertEqual(Set(measured.frames.values.map { Int($0.minX.rounded()) }).count, columns)
             XCTAssertEqual(measured.nativeViews.mapValues(ObjectIdentifier.init), original)
-            XCTAssertTrue(host.renderedText().contains("A complete recommendation with a useful reason."))
         }
         XCTAssertEqual(measured.created.values.sorted(), [1, 1, 1])
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
@@ -250,19 +235,19 @@ final class IOSNativeLayoutTests: XCTestCase {
         let measured = IOSLayoutObservations()
         let registry = try observing(library.registry, names: ["BoldText"], measured: measured)
         let state = OpenUIState(schema: library.library.toSchema())
-        state.push("root=VisualCardBlock([a,b],\"carousel\",true)\na=VisualCardItem(BoldText(\"text\",\"First\"),\"f")
+        state.push(IOSNativeLayoutFixtures.streamingPrefix)
         let host = IOSNativeTestHost(OpenUIContentView(state: state, registry: registry)
             .dynamicTypeSize(.large).frame(width: 320).fixedSize(horizontal: false, vertical: true), width: 320)
         defer { host.close() }
         try await host.waitUntil("the first referenced card is actually rendered") {
-            measured.nativeViews["BoldText:First"] != nil && host.renderedText().contains("First")
+            measured.nativeViews["BoldText:First"] != nil && measured.frames["BoldText:First"] != nil
         }
         let first = try XCTUnwrap(measured.nativeViews["BoldText:First"])
         let revision = state.presentationRevision
-        state.push("irst\",null)\nb=VisualCardItem(BoldText(\"text\",\"Second\"),\"second\",null)")
+        state.push(IOSNativeLayoutFixtures.streamingSuffix)
         state.complete()
-        try await host.waitUntil("the second native page is mounted and the pager exposes both items") {
-            measured.nativeViews["BoldText:Second"] != nil && host.renderedText().contains("1 / 2")
+        try await host.waitUntil("the second real card factory mounts its native content probe") {
+            measured.nativeViews["BoldText:Second"] != nil && measured.frames["BoldText:Second"] != nil
         }
         XCTAssertTrue(state.isComplete)
         XCTAssertEqual(state.presentationRevision, revision)
@@ -321,11 +306,15 @@ final class IOSNativeLayoutTests: XCTestCase {
     var nativeViews: [String: UIView] = [:]
     var created: [String: Int] = [:]
     var removed: [String: Int] = [:]
+    var fillWidth: [String: Bool] = [:]
+    var viewport: [String: CGFloat] = [:]
 }
 
 private struct IOSLayoutIdentityMarker: UIViewRepresentable {
     let key: String
     let measured: IOSLayoutObservations
+    @Environment(\.openUIFillControlWidth) private var fillWidth
+    @Environment(\.iosValidationViewport) private var viewport
     func makeCoordinator() -> (String, IOSLayoutObservations) { (key, measured) }
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
@@ -335,9 +324,23 @@ private struct IOSLayoutIdentityMarker: UIViewRepresentable {
         measured.created[key, default: 0] += 1
         return view
     }
-    func updateUIView(_ view: UIView, context: Context) {}
+    func updateUIView(_ view: UIView, context: Context) {
+        // These are the committed environment inputs reaching the mounted
+        // native marker. They synchronize updates without waiting for the
+        // dimensions asserted by the test or pretending to read SwiftUI AX.
+        measured.fillWidth[key] = fillWidth
+        measured.viewport[key] = viewport
+    }
     static func dismantleUIView(_ view: UIView, coordinator: (String, IOSLayoutObservations)) {
         coordinator.1.removed[coordinator.0, default: 0] += 1
+    }
+}
+
+private struct IOSValidationViewportKey: EnvironmentKey { static let defaultValue: CGFloat = 0 }
+private extension EnvironmentValues {
+    var iosValidationViewport: CGFloat {
+        get { self[IOSValidationViewportKey.self] }
+        set { self[IOSValidationViewportKey.self] = newValue }
     }
 }
 
@@ -350,10 +353,8 @@ private struct IOSValidationWidthFixture<Content: View>: View {
     @ObservedObject var width: IOSValidationWidth
     @ViewBuilder let content: Content
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            content.frame(width: width.value).fixedSize(horizontal: false, vertical: true)
-            Text("Viewport \(Int(width.value))")
-        }
+        content.frame(width: width.value).fixedSize(horizontal: false, vertical: true)
+            .environment(\.iosValidationViewport, width.value)
     }
 }
 

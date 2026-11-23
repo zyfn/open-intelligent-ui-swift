@@ -68,33 +68,12 @@ import XCTest
         return visit(window)
     }
 
-    func accessibilityElements() -> [NSObject] {
-        var result: [NSObject] = []
-        var visited = Set<ObjectIdentifier>()
-        func visit(_ value: NSObject) {
-            guard visited.insert(ObjectIdentifier(value)).inserted else { return }
-            result.append(value)
-            if let children = value.accessibilityElements {
-                for child in children { if let object = child as? NSObject { visit(object) } }
-            }
-            let count = value.accessibilityElementCount()
-            if count > 0 && count != NSNotFound {
-                for index in 0..<count {
-                    if let child = value.accessibilityElement(at: index) as? NSObject { visit(child) }
-                }
-            }
-            if let view = value as? UIView { view.subviews.forEach(visit) }
-        }
-        visit(window)
-        return result
-    }
-
     func renderedText() -> String {
-        accessibilityElements().flatMap { value in
-            [value.accessibilityLabel, value.accessibilityValue,
-                (value as? UILabel)?.text, (value as? UITextField)?.text, (value as? UITextView)?.text]
-                .compactMap { $0 }
-        }.joined(separator: "\n")
+        // Framework XCTest can inspect concrete UIKit views. SwiftUI's
+        // virtual accessibility tree is read by the Gallery XCUITest target.
+        (descendants(of: UILabel.self).compactMap(\.text)
+            + descendants(of: UITextField.self).compactMap(\.text)
+            + descendants(of: UITextView.self).compactMap(\.text)).joined(separator: "\n")
     }
 
     func snapshot(view: UIView? = nil) -> UIImage {

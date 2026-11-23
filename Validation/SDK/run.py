@@ -98,6 +98,10 @@ def registry():
         "image-wide-loading", "image-wide-loaded", "image-square-loading", "image-square-loaded",
         "image-portrait-loading", "image-portrait-loaded",
         "input-owner-update", "textarea-external-update", "switch-and-select-store-update",
+    ))
+    ios_ui_images = tuple(("{visual}/ios-ui/" + name + ".png", "file") for name in (
+        "layout-composite-large", "layout-composite-accessibility2",
+        "layout-buttons-reflow", "layout-options-reading", "switch-and-select-store-update",
         "radio-and-checkbox-selection", "form-invalid-focused", "form-valid-submitted",
         "slider-invalid-draft", "slider-valid-submitted", "modal-sm-presented", "modal-lg-presented",
         "product-vertical-large", "product-horizontal-large", "product-compact-large",
@@ -197,7 +201,7 @@ def registry():
     checks += [Check(c.id, c.profile, c.commands, c.required, "Darwin") for c in mac]
     checks.append(Check("ios-native", "ios", (
         command("python3", "Validation/SDK/ios.py", "--output", "{output}/ios", timeout=3600),
-    ), (("ios/summary.json", "ios"),) + typography_images + ios_images, "Darwin"))
+    ), (("ios/summary.json", "ios"),) + typography_images + ios_images + ios_ui_images, "Darwin"))
     return checks
 
 
@@ -496,6 +500,20 @@ def verify_required(check, values):
                         if not isinstance(target, dict) or type(target.get("passed")) is not int \
                                 or target["passed"] <= 0 or target.get("failed") != 0:
                             raise ValueError("Missing successful iOS target: " + module)
+                    ui = data.get("uiTestResults")
+                    if not isinstance(ui, dict) or any(type(ui.get(key)) is not int or ui[key] < 0
+                            for key in ("totalTestCount", "passedTests", "failedTests", "skippedTests", "expectedFailures")):
+                        raise ValueError("Missing valid Gallery UI test executions")
+                    if ui["passedTests"] == 0 or ui["totalTestCount"] != ui["passedTests"] \
+                            or any(ui[key] for key in ("failedTests", "skippedTests", "expectedFailures")):
+                        raise ValueError("Gallery UI tests must all execute successfully")
+                    ui_targets = ui.get("targets")
+                    ui_target = ui_targets.get("OpenUIGalleryUITests") if isinstance(ui_targets, dict) else None
+                    if not isinstance(ui_target, dict) or ui_target.get("passed") != ui["passedTests"] \
+                            or ui_target.get("failed") != 0:
+                        raise ValueError("Missing successful OpenUIGalleryUITests target")
+                    if not isinstance(ui.get("destination"), dict) or ui["destination"] != results.get("destination"):
+                        raise ValueError("Gallery UI tests must use the recorded SDK Simulator destination")
     return verified
 
 
