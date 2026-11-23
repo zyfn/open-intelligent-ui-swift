@@ -1,0 +1,192 @@
+name: Gallery macOS resources diagnostic
+
+on:
+  push:
+    branches: [diagnostic/gallery-macos-resources-20261123]
+
+permissions:
+  contents: read
+
+jobs:
+  gallery-macos-resources:
+    runs-on: macos-15-intel
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+      EXPECTED_SOURCE: b7a5695fcc3de6030b5881a1e10df68442550dd5
+      DIAGNOSTIC_OUTPUT: outputs/gallery-macos-resources-diagnostic
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: b7a5695fcc3de6030b5881a1e10df68442550dd5
+          persist-credentials: false
+      - name: Record exact source and toolchain
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys
+          output = pathlib.Path(os.environ["DIAGNOSTIC_OUTPUT"])
+          output.mkdir(parents=True, exist_ok=True)
+          record = {
+              "expected_source": os.environ["EXPECTED_SOURCE"],
+              "workflow_commit": os.environ["GITHUB_SHA"],
+              "workflow_ref": os.environ["GITHUB_REF"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "developer_dir": os.environ["DEVELOPER_DIR"],
+          }
+          failed = False
+          for name, command in (
+              ("source", ["git", "rev-parse", "HEAD"]),
+              ("working_tree", ["git", "status", "--porcelain"]),
+              ("xcode", ["xcodebuild", "-version"]),
+              ("swift", ["xcrun", "swift", "--version"]),
+              ("macos", ["sw_vers"]),
+              ("architecture", ["uname", "-m"]),
+          ):
+              result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              record[name] = {"command": command, "exit_code": result.returncode, "output": result.stdout.strip()}
+              failed |= result.returncode != 0
+              print(name + ": " + result.stdout.strip())
+          record["source_matches"] = record["source"]["output"] == record["expected_source"]
+          record["source_clean"] = record["working_tree"]["output"] == ""
+          record["xcode_matches"] = record["xcode"]["output"].startswith("Xcode 26.3\n")
+          failed |= not all(record[key] for key in ("source_matches", "source_clean", "xcode_matches"))
+          (output / "source-toolchain.json").write_text(json.dumps(record, indent=2) + "\n")
+          sys.exit(1 if failed else 0)
+          PY
+      - name: Build the existing Xcode Gallery app
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys, time
+          output = pathlib.Path(os.environ["DIAGNOSTIC_OUTPUT"])
+          command = ["bash", "Examples/Gallery/build-app.sh"]
+          started = time.monotonic()
+          status = {"command": command}
+          with (output / "build.log").open("w") as log:
+              try:
+                  result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=1650)
+                  status["exit_code"] = result.returncode
+              except subprocess.TimeoutExpired:
+                  status.update(exit_code=124, timed_out=True)
+          status["seconds"] = round(time.monotonic() - started, 3)
+          (output / "build-status.json").write_text(json.dumps(status, indent=2) + "\n")
+          print(json.dumps(status))
+          print("\n".join((output / "build.log").read_text(errors="replace").splitlines()[-50:]))
+          sys.exit(status["exit_code"])
+          PY
+      - name: Inspect the actual Foundation bundle and resource layout
+        run: |
+          cat > "$DIAGNOSTIC_OUTPUT/bundle-probe.swift" <<'SWIFT'
+          import Foundation
+
+          let appURL = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true).standardizedFileURL
+          let bundle = Bundle(url: appURL)
+          let resourceURL = bundle?.resourceURL?.standardizedFileURL
+          let rootURL = bundle?.url(forResource: "Resources", withExtension: nil, subdirectory: "GalleryResources")?.standardizedFileURL
+          let expectedResources = appURL.appendingPathComponent("Contents/Resources", isDirectory: true).standardizedFileURL
+          let expectedRoot = expectedResources.appendingPathComponent("GalleryResources/Resources", isDirectory: true).standardizedFileURL
+          let manager = FileManager.default
+          let required = [
+              "Cases/catalog.json",
+              "Diagnostics/catalog.json",
+              "Components/openui.json",
+              "Components/openintelligentui.json",
+              "Images/catalog.json",
+              "Images/nikon-front.jpg",
+          ]
+          var checks: [String: Bool] = [
+              "bundle_recognized": bundle != nil,
+              "bundle_identifier": bundle?.bundleIdentifier == "dev.openui.gallery.ios",
+              "bundle_executable": bundle?.executableURL?.lastPathComponent == "OpenUIGallery",
+              "bundle_package_type": bundle?.infoDictionary?["CFBundlePackageType"] as? String == "APPL",
+              "standard_macos_resource_directory": resourceURL?.path == expectedResources.path,
+              "gallery_resource_subdirectory": rootURL?.path == expectedRoot.path,
+              "no_custom_app_root_resources": !manager.fileExists(atPath: appURL.appendingPathComponent("Resources").path),
+          ]
+          var resourceFiles: [String: Bool] = [:]
+          for relativePath in required {
+              let exists = rootURL.map { manager.fileExists(atPath: $0.appendingPathComponent(relativePath).path) } ?? false
+              resourceFiles[relativePath] = exists
+              checks["resource:" + relativePath] = exists
+          }
+          let passed = checks.values.allSatisfy { $0 }
+          let report: [String: Any] = [
+              "passed": passed,
+              "bundle_url": appURL.path,
+              "bundle_identifier": bundle?.bundleIdentifier ?? "",
+              "executable_url": bundle?.executableURL?.path ?? "",
+              "resource_url": resourceURL?.path ?? "",
+              "gallery_resource_root": rootURL?.path ?? "",
+              "expected_gallery_resource_root": expectedRoot.path,
+              "resource_files": resourceFiles,
+              "checks": checks,
+          ]
+          let data = try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
+          FileHandle.standardOutput.write(data)
+          FileHandle.standardOutput.write(Data("\n".utf8))
+          exit(passed ? 0 : 1)
+          SWIFT
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys, time
+          output = pathlib.Path(os.environ["DIAGNOSTIC_OUTPUT"])
+          app = pathlib.Path("Examples/Gallery/.build/app/Build/Products/Debug/OpenUIGallery.app").resolve()
+          command = ["xcrun", "swift", str(output / "bundle-probe.swift"), str(app)]
+          started = time.monotonic()
+          with (output / "bundle.json").open("w") as stdout, (output / "bundle-probe.log").open("w") as stderr:
+              result = subprocess.run(command, stdout=stdout, stderr=stderr)
+          status = {"command": command, "exit_code": result.returncode, "seconds": round(time.monotonic() - started, 3)}
+          (output / "bundle-status.json").write_text(json.dumps(status, indent=2) + "\n")
+          subprocess.run(["plutil", "-convert", "json", "-o", str(output / "app-info.json"), str(app / "Contents/Info.plist")], check=False)
+          print((output / "bundle.json").read_text())
+          print((output / "bundle-probe.log").read_text())
+          sys.exit(result.returncode)
+          PY
+      - name: Run the existing CLI validation from the actual app
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys, time
+          output = pathlib.Path(os.environ["DIAGNOSTIC_OUTPUT"])
+          app = pathlib.Path("Examples/Gallery/.build/app/Build/Products/Debug/OpenUIGallery.app").resolve()
+          command = [str(app / "Contents/MacOS/OpenUIGallery"), "--validate-fixtures"]
+          started = time.monotonic()
+          status = {"command": command}
+          with (output / "validation.log").open("w") as log:
+              try:
+                  result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180)
+                  status["exit_code"] = result.returncode
+              except subprocess.TimeoutExpired:
+                  status.update(exit_code=124, timed_out=True)
+              except OSError as error:
+                  status.update(exit_code=127, error=str(error))
+          status["seconds"] = round(time.monotonic() - started, 3)
+          (output / "validation-status.json").write_text(json.dumps(status, indent=2) + "\n")
+          print(json.dumps(status))
+          print((output / "validation.log").read_text(errors="replace"))
+          sys.exit(status["exit_code"])
+          PY
+      - name: Collect diagnostic evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          output = pathlib.Path(os.environ["DIAGNOSTIC_OUTPUT"])
+          output.mkdir(parents=True, exist_ok=True)
+          record = {}
+          for name in ("source-toolchain", "build-status", "bundle-status", "validation-status"):
+              path = output / (name + ".json")
+              record[name] = json.loads(path.read_text()) if path.is_file() else {"executed": False}
+          record["evidence_sha256"] = {
+              str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in sorted(output.iterdir()) if path.is_file()
+          }
+          (output / "diagnostic.json").write_text(json.dumps(record, indent=2) + "\n")
+          print(json.dumps(record, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gallery-macos-resources-diagnostic
+          path: outputs/gallery-macos-resources-diagnostic/
+          retention-days: 7
+          if-no-files-found: error
