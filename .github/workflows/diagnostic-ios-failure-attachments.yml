@@ -71,6 +71,15 @@ jobs:
               record["export_exit_code"] = result.returncode
               if result.returncode != 0:
                   raise RuntimeError("Official attachment export failed")
+              product_command = ["xcrun", "xcresulttool", "export", "attachments", "--path",
+                  str(source / "tests.xcresult"), "--output-path", str(output / "product-attachments"),
+                  "--test-id", "GalleryProductCardUITests"]
+              record["product_export_command"] = product_command
+              with (output / "product-export.log").open("w") as log:
+                  product_result = subprocess.run(product_command, stdout=log, stderr=subprocess.STDOUT, timeout=300)
+              record["product_export_exit_code"] = product_result.returncode
+              if product_result.returncode != 0:
+                  raise RuntimeError("Official product attachment export failed")
               record["passed"] = True
           except Exception as error:
               record.update(passed=False, error=str(error))
