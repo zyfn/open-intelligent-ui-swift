@@ -14,9 +14,11 @@ struct MarkdownFontStyle: MarkdownUI.TextStyle {
 
     @MainActor init(_ font: PlatformFont, usesSystemFamily: Bool = true, size: CGFloat? = nil, weight: Font.Weight? = nil) {
         let traits = CTFontGetSymbolicTraits(font as CTFont)
-        if !usesSystemFamily, PlatformFont(name: font.fontName, size: font.pointSize)?.fontName == font.fontName {
+        if !usesSystemFamily, !font.fontName.hasPrefix("."),
+           PlatformFont(name: font.fontName, size: font.pointSize)?.fontName == font.fontName {
             // Only an explicit host override with a resolvable named face uses
-            // the custom-family path. Default system fonts stay semantic.
+            // the custom-family path. Private platform names such as .SFUI
+            // are not Font.custom names even if UIFont can resolve them.
             family = .custom(font.fontName)
         } else {
             family = .system(traits.contains(.traitMonoSpace) ? .monospaced : .default)
@@ -46,17 +48,10 @@ struct MarkdownFontStyle: MarkdownUI.TextStyle {
 }
 
 enum MarkdownTypography {
-    /// MarkdownUI scales its root size relative to body. The supplied native
-    /// font already reflects Dynamic Type (or an explicit fixed font partner).
-    static func rootSize(_ size: CGFloat, bodyScale: CGFloat) -> CGFloat {
-        size / max(bodyScale, .leastNonzeroMagnitude)
-    }
-
     static func usesSemanticHeading(level: Int, theme: OpenIntelligentUITheme) -> Bool {
         (1...3).contains(level) && !theme.hasCustomMarkdownHeadingScales
     }
 
-    #if os(macOS)
     struct HeadingMetricsKey: Hashable {
         let semanticFont: Font
         let fixedFont: Font
@@ -114,7 +109,6 @@ enum MarkdownTypography {
         headingSpacingCache[key] = spacing
         return spacing
     }
-    #endif
 
     static func headingScale(level: Int, theme: OpenIntelligentUITheme) -> Double {
         switch level {
@@ -134,7 +128,6 @@ enum MarkdownTypography {
     }
 }
 
-#if os(macOS)
 /// This is a synchronous rendering result, not observable view or SDK state.
 private final class HeadingSpacingMeasurement: @unchecked Sendable {
     private let lock = NSLock()
@@ -152,4 +145,3 @@ private final class HeadingSpacingMeasurement: @unchecked Sendable {
         return measured
     }
 }
-#endif

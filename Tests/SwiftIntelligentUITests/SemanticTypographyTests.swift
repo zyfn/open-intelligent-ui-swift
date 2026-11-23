@@ -13,7 +13,8 @@ final class SemanticTypographyTests: XCTestCase {
                                    theme: OpenIntelligentUITheme = .init(), size: DynamicTypeSize = .large,
                                    scheme: ColorScheme = .light, copyText: String? = nil) throws -> Double {
         let state = library.makeState()
-        state.setSource("root = Col([\(component)])\n$copy = \"\(copyText ?? copy)\"")
+        let literal = String(decoding: try JSONEncoder().encode(copyText ?? copy), as: UTF8.self)
+        state.setSource("root = Col([\(component)])\n$copy = \(literal)")
         XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
         let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
             .openIntelligentUITheme(theme).environment(\.dynamicTypeSize, size)
@@ -99,6 +100,52 @@ final class SemanticTypographyTests: XCTestCase {
             XCTAssertEqual(try height("Markdown($copy)", library: library, theme: theme, size: size),
                            try height("Text($copy)", library: library, theme: theme, size: size), accuracy: 2)
         }
+    }
+
+    @MainActor func testFixedNativeBodyPartnerKeepsMarkdownBodyBlocksStableAcrossDynamicType() throws {
+        let library = try OpenIntelligentUIComponents()
+        var theme = OpenIntelligentUITheme()
+        theme.setTextFont(PlatformFont.monospacedSystemFont(ofSize: 25, weight: .regular), for: .body)
+        let samples = [
+            ("paragraph", "Reading content keeps its fixed font. 中文正文。"),
+            ("quote", "> Reading content\n>\n> More quoted content"),
+            ("bulleted list", "- Reading content\n- More content\n  - Nested content"),
+            ("ordered list", "1. Reading content\n2. More content\n   1. Nested content"),
+            ("task list", "- [ ] Reading content\n- [x] Completed content"),
+            ("table header", "| Header |\n| --- |"),
+            ("table body", "| Header |\n| --- |\n| Reading content |\n| More content |"),
+            ("inline code", "Reading `let value = 42` after code")
+        ]
+        for (name, markdown) in samples {
+            let standard = try height("Markdown($copy)", library: library, theme: theme,
+                                      size: .large, copyText: markdown)
+            let accessible = try height("Markdown($copy)", library: library, theme: theme,
+                                        size: .accessibility2, copyText: markdown)
+            XCTAssertEqual(accessible, standard, accuracy: 2,
+                           "\(name) must retain the supplied 25-point body font, including its inherited and relative styles")
+        }
+    }
+
+    @MainActor func testMarkdownCodeBlocksKeepTheirIndependentDynamicCodeFontWithFixedBody() throws {
+        let library = try OpenIntelligentUIComponents()
+        var theme = OpenIntelligentUITheme()
+        theme.setTextFont(PlatformFont.monospacedSystemFont(ofSize: 25, weight: .regular), for: .body)
+        // CommonMark retains the code line's terminating newline.
+        let code = "let value = 42\n"
+        var codeHeights: [Double] = []
+        for size in [DynamicTypeSize.large, .accessibility2] {
+            let markdown = try height("Markdown($copy)", library: library, theme: theme,
+                                      size: size, copyText: "```swift\n\(code)```")
+            let native = try height("Code($copy,\"swift\")", library: library, theme: theme,
+                                    size: size, copyText: code)
+            XCTAssertEqual(markdown, native, accuracy: 2,
+                           "A fenced block must retain the native Code component's font and controls at \(size)")
+            codeHeights.append(markdown)
+        }
+        #if os(iOS)
+        XCTAssertGreaterThan(codeHeights[1], codeHeights[0],
+                             "Fixing the body font must not freeze the code block's semantic Dynamic Type font")
+        #endif
     }
 
     func testMarkdownHeadingScaleOverridesAndHistoricalDeepLevelsRemainAvailable() {

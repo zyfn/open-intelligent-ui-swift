@@ -1,0 +1,59 @@
+name: Temporary typography diagnosis
+
+on:
+  push:
+    branches: ['diagnostics/typography-20261123']
+
+permissions:
+  contents: read
+
+jobs:
+  ios-typography:
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run real iOS typography assertions and metric probes
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, runpy, subprocess
+          out = pathlib.Path('outputs/typography-diagnostics').resolve()
+          out.mkdir(parents=True)
+          os.environ['OPENUI_SNAPSHOT_DIR'] = str(out / 'visual')
+          ios = runpy.run_path('Validation/SDK/ios.py')
+          inventory = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']))
+          device = ios['choose_device'](inventory, None)
+          (out / 'device.json').write_text(json.dumps(device, indent=2) + '\n')
+          if device['state'] != 'Booted':
+              subprocess.run(['xcrun', 'simctl', 'boot', device['udid']], check=True)
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', device['udid'], '-b'], check=True, timeout=300)
+          argv = ['xcodebuild', 'test', '-scheme', ios['SCHEME'], '-destination', f"platform=iOS Simulator,id={device['udid']}",
+                  '-destination-timeout', '120', '-derivedDataPath', str(pathlib.Path(os.environ['RUNNER_TEMP']) / 'typography-build'),
+                  '-resultBundlePath', str(out / 'typography.xcresult'), '-parallel-testing-enabled', 'NO',
+                  '-only-testing:SwiftOpenUITests/SemanticTypographyTests',
+                  '-only-testing:SwiftIntelligentUITests/SemanticTypographyTests',
+                  '-only-testing:SwiftIntelligentUITests/TypographyDiagnosticsTests', 'CODE_SIGNING_ALLOWED=NO']
+          (out / 'command.json').write_text(json.dumps(argv, indent=2) + '\n')
+          with (out / 'tests.log').open('wb') as log:
+              result = subprocess.run(argv, stdout=log, stderr=subprocess.STDOUT, timeout=1800)
+          for kind in ('summary', 'tests'):
+              with (out / (kind + '.json')).open('wb') as log:
+                  subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', kind, '--path', str(out / 'typography.xcresult')], stdout=log, check=True)
+          print((out / 'tests.log').read_text(errors='replace')[-12000:])
+          raise SystemExit(result.returncode)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: typography-diagnostics-${{ github.run_id }}
+          path: outputs/typography-diagnostics/
+          if-no-files-found: error
+          retention-days: 7

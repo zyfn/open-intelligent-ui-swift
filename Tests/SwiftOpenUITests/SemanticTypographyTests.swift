@@ -84,6 +84,89 @@ final class SemanticTypographyTests: XCTestCase {
         }
     }
 
+    @MainActor func testMarkdownTableFontOverridesFollowDynamicTypeAndUpdatedTheme() throws {
+        // Measure the glyphs, not the table frame: a scaled minimum row height
+        // must not conceal a cell override that leaves the actual font fixed.
+        for (slot, source) in [
+            ("header", "| Reading |\n| --- |\n| |"),
+            ("body", "| |\n| --- |\n| Reading |"),
+        ] {
+            func content(fontSize: CGFloat, typeSize: DynamicTypeSize) -> some View {
+                var theme = OpenUIThemeValues()
+                theme.textNeutralPrimary = .black
+                let font = OpenUIFont(size: fontSize, design: .monospaced)
+                theme.tableAppearance = OpenUITableAppearance(gridLine: .clear, headerBackground: .white,
+                    background: .white, headerFont: font, bodyFont: font)
+                return NativeMarkdownText(text: source)
+                    .openUITheme(theme)
+                    .environment(\.dynamicTypeSize, typeSize)
+                    .environment(\.colorScheme, .light)
+                    .frame(width: 600)
+                    .background(Color.white)
+            }
+
+            let renderer = ImageRenderer(content: content(fontSize: 18, typeSize: .large))
+            renderer.scale = 1
+            renderer.proposedSize = ProposedViewSize(width: 600, height: nil)
+            func inkWidth(fontSize: CGFloat, typeSize: DynamicTypeSize, name: String) throws -> CGFloat {
+                // Keep the same renderer and view type while replacing inputs.
+                renderer.content = content(fontSize: fontSize, typeSize: typeSize)
+                let image = try XCTUnwrap(renderer.cgImage, "The \(slot) table must render")
+                try saveTypographyImage(image, name: "table-font-\(slot)-\(name)")
+                return try darkInkWidth(image)
+            }
+
+            let ordinary = try inkWidth(fontSize: 18, typeSize: .large, name: "large")
+            let accessible = try inkWidth(fontSize: 18, typeSize: .accessibility2, name: "accessibility2")
+            let changed = try inkWidth(fontSize: 28, typeSize: .accessibility2, name: "updated-theme")
+            let restored = try inkWidth(fontSize: 18, typeSize: .large, name: "restored")
+            XCTAssertGreaterThan(ordinary, 20, "The \(slot) must contain actual glyphs")
+            #if os(iOS)
+            XCTAssertGreaterThan(accessible, ordinary * 1.25,
+                "The \(slot) font override must scale its glyphs with Dynamic Type")
+            #else
+            XCTAssertEqual(accessible, ordinary, accuracy: 2,
+                "The \(slot) must retain the native macOS font scaling behavior")
+            #endif
+            XCTAssertGreaterThan(changed, accessible * 1.25,
+                "The \(slot) must read a changed theme font without retaining its initial size")
+            XCTAssertEqual(restored, ordinary, accuracy: 2,
+                "Restoring the theme and environment must restore the \(slot) glyph size")
+        }
+    }
+
+    private func darkInkWidth(_ image: CGImage) throws -> CGFloat {
+        let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let context = try XCTUnwrap(CGContext(data: nil, width: image.width, height: image.height,
+            bitsPerComponent: 8, bytesPerRow: image.width * 4, space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+        var first = image.width, last = -1
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let offset = y * context.bytesPerRow + x * 4
+                if pixels[offset + 3] > 192 && max(pixels[offset], pixels[offset + 1], pixels[offset + 2]) < 64 {
+                    first = min(first, x)
+                    last = max(last, x)
+                }
+            }
+        }
+        return last >= first ? CGFloat(last - first + 1) : 0
+    }
+
+    private func saveTypographyImage(_ image: CGImage, name: String) throws {
+        guard let output = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"], !output.isEmpty else { return }
+        let directory = URL(fileURLWithPath: output).appendingPathComponent("semantic-typography", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        #if os(iOS)
+        let data = try XCTUnwrap(UIImage(cgImage: image).pngData())
+        #else
+        let data = try XCTUnwrap(NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]))
+        #endif
+        try data.write(to: directory.appendingPathComponent(name + ".png"))
+    }
+
     private func readingStyles(theme: OpenUIThemeValues) -> [NativeRichTextStyle] {
         [theme.pageTitleStyle().richText(), theme.sectionTitleStyle().richText(), theme.objectTitleStyle().richText(),
          theme.textStyle(.body).richText(), NativeRichTextStyle.textContent("large", theme: theme),
