@@ -1,0 +1,70 @@
+name: iOS mounted test diagnostic
+on:
+  push:
+    branches: ['diagnostic/ios-mounted-tests-20261123']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-mounted-diagnostic
+  cancel-in-progress: true
+jobs:
+  mounted:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+      TEST_RUNNER_OPENUI_RUNTIME_TELEMETRY_ENABLED: '0'
+      TEST_RUNNER_OPENUI_SNAPSHOT_DIR: ${{ github.workspace }}/outputs/ios-mounted-diagnostic/visual
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bdfc7505ed46eb894bfd32a2f26527699da07e9c
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select and boot the standard iPhone Simulator
+        run: |
+          mkdir -p outputs/ios-mounted-diagnostic
+          git rev-parse HEAD > outputs/ios-mounted-diagnostic/source-sha.txt
+          python3 - <<'PY'
+          import importlib.util, json, os, pathlib, subprocess
+          spec = importlib.util.spec_from_file_location('ios_validation', 'Validation/SDK/ios.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          inventory = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']))
+          device = module.choose_device(inventory)
+          pathlib.Path('outputs/ios-mounted-diagnostic/device.json').write_text(json.dumps(device, indent=2))
+          if device['state'] != 'Booted':
+              subprocess.run(['xcrun', 'simctl', 'boot', device['udid']], check=True)
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', device['udid'], '-b'], check=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('IOS_DIAGNOSTIC_DEVICE=' + device['udid'] + '\n')
+          PY
+      - name: Execute the new mounted regressions
+        run: |
+          set -o pipefail
+          xcodebuild test -scheme openui-swift-sdk-Package \
+            -destination "platform=iOS Simulator,id=$IOS_DIAGNOSTIC_DEVICE" -destination-timeout 120 \
+            -derivedDataPath "$RUNNER_TEMP/ios-mounted-derived-data" \
+            -resultBundlePath outputs/ios-mounted-diagnostic/tests.xcresult \
+            -parallel-testing-enabled NO -enableCodeCoverage NO CODE_SIGNING_ALLOWED=NO \
+            -only-testing:SwiftOpenUITests/IOSNativeControlTests \
+            -only-testing:SwiftOpenUITests/IOSNativeLayoutTests \
+            -only-testing:SwiftOpenUITests/IOSNativePagerTests \
+            -only-testing:SwiftIntelligentUITests/IOSProductCardRenderingTests \
+            2>&1 | tee outputs/ios-mounted-diagnostic/test.log
+      - name: Preserve actual XCTest results
+        if: always()
+        run: |
+          xcrun xcresulttool get test-results summary --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/summary.json
+          xcrun xcresulttool get test-results tests --path outputs/ios-mounted-diagnostic/tests.xcresult > outputs/ios-mounted-diagnostic/tests.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-mounted-diagnostic-${{ github.run_id }}
+          path: outputs/ios-mounted-diagnostic/
+          if-no-files-found: error
+          retention-days: 7
