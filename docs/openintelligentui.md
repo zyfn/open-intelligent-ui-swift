@@ -1,6 +1,6 @@
 # Swift Intelligent UI 设计
 
-文档版本：1.15 · 更新日期：2026-11-23
+文档版本：1.16 · 更新日期：2026-11-23
 
 本文描述 `OpenIntelligentUI` 的组件契约、视觉规则、状态与资源、生成及交付方式，以及后续迭代必须遵守的边界。跨模块所有权与共享运行时以[架构](architecture.md)为准；接入与修改规则概览见 [README](../README.md)。
 
@@ -276,11 +276,15 @@ makeState() 使用 `SwiftLang` 中 `OpenUIState` 的默认创建方式，不另�
 
 源码归属、Gallery 目录与资源、本地化及 `git diff --check` 已实际通过。11 个生成示例的组件依赖已静态核对；新增普通 Row、Grid 固定/自适应与 SearchImage Row 等程序已用固定官方 schema 和随包 JS parser 解析，均没有解析错误。该解析不代替 Swift writer 导出、原生渲染或真实 Agent 生成验收。
 
-本地 Linux 环境没有 Swift / Xcode，原生验证通过 GitHub Actions 的 macOS 15、Xcode 26.3 执行。[`ac4e537` 的第三轮原生结果](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/45111607059)中，Gallery 的 22 个测试全部通过，包含完整来源保全与 13 张实际截图；组件定向回归 57 个测试全部通过。此前 Col 改为 end 时丢失活动编辑器的问题已由编辑区独立对齐修复，stretch / end / center / start 切换的焦点、文本、绑定与编辑器身份断言通过；新增 TextArea 的 LTR / RTL 对齐回归也通过。原有四个 Row / Box 几何失败，以及新增 SVG 尺寸、ProductCard 和 Slider 的 RTL 用例均已通过。
+本地 Linux 环境没有 Swift / Xcode，原生验证通过 GitHub Actions 的 macOS 15、Xcode 26.3 执行。[`40fe7ab` 的原生结果](https://github.com/zyfn/open-intelligent-ui-swift/actions/runs/45113455135)中，Debug 预检 129 项、组件定向回归 57 项、Release 回归 646 项和 Gallery 的 22 项测试全部通过；另有根百分比像素用例通过，Gallery 产出 13 张完整截图。Release 原生尺寸拟合、iOS 16 Simulator 库产品和 iOS Gallery 构建也已通过。此前 Col 改为 end 时丢失活动编辑器的问题已由编辑区独立对齐修复，stretch / end / center / start 切换的焦点、文本、绑定与编辑器身份断言通过；新增 TextArea 的 LTR / RTL 对齐回归也通过。原有四个 Row / Box 几何失败，以及新增 SVG 尺寸、ProductCard 和 Slider 的 RTL 用例均已通过。
 
-根节点 trace 与原始 PNG 均已确认 200 点宿主中的 50% 高度为 100 点：实际红色区域为 80×100、8000 像素。第三轮的 NSBitmapImageRep 颜色观测仍错误地得到零行，单独更换 NSColor 转换空间未解决；该断言不能据此宣称通过。后续像素观测修订继续保留原输入、宿主尺寸、严格颜色阈值及 100 行要求，等待对应原生 CI 复验。
+根节点 trace、原始 PNG 与固定 sRGB RGBA8 像素观测一致：200 点宿主中的 50% 高度为 100 点，实际红色区域为 80×100、8000 像素。此前 NSBitmapImageRep / NSColor 逐像素观测与保存后的 PNG 不一致，单独更换颜色空间没有解决；测试改为显式捕获不可变 RGBA8 缓冲后已通过。原输入、宿主尺寸、严格颜色阈值及 100 行要求保留，并增加 80 列和 8000 像素断言。
 
-Gallery 截图覆盖两篇完整阅读场景的 320 / 390 点宽、深浅色、一个辅助字号环境，以及照片 Row；它们是 macOS 窄宽度呈现，不代表真实 iPhone 验收。辅助字号环境触发了 Grid 单列、图表明细和 SVG 原生标签，但这组 macOS 截图中的正文与标题没有随之放大，不能据此验收 iPhone 大字排版。SVG 自然比例修正后，320 点宽热泵与代码隔离页面分别减少 53 点与 90 点非内容空白，正文、图形和图注完整保留。图内小字不独立随 Dynamic Type 放大，复杂表格和长代码仍需横向滚动；构图、真机交互、VoiceOver 与实际模型生成质量仍有独立验收范围。当前截图、日志与元数据保存在忽略的 `outputs/verification/composition-ci-45111607059/`，后续完整门禁以分支对应提交的 CI 结果为准，不能将定向通过写成“全部官方实现或全部设备已验收”。
+同次全量 `swift test` 执行 1355 项，只有 `MapLayoutTests.testMountedNarrowMapReservesTheMeasuredTwoRowControls` 的一条断言失败（70 不大于 70），与 `d358806` 基线相同；原有 OpenUI 流式卡片高度用例本次 Debug / Release 均通过。Gallery 批量及流式检查覆盖 226 个变体，苏州示例的两处旧 `TransportCard` 调用各在两种方式下报未知组件，共四条错误；该示例与基线逐字节相同，旧检查此前被不完整的 JourneyLine 目录提前阻断。此类遗留调用应迁移到现有通用组件，不能用恢复旧组件或运行时别名隐藏错误。因此完整 Native SDK acceptance 仍失败，不能把其他定向通过写成全部验收通过。
+
+三个独立产品消费者、11 项最新上游参数契约检查、451 项语言 AddressSanitizer 测试，以及两组 Release 语言 / 流式性能工作负载均已执行通过。性能数据记录固定输入与当前工具链的运行成本，不表示 SwiftUI 滚动、真实模型生成或所有设备的视觉质量。
+
+Gallery 截图覆盖两篇完整阅读场景的 320 / 390 点宽、深浅色、一个辅助字号环境，以及照片 Row；它们是 macOS 窄宽度呈现，不代表真实 iPhone 验收。辅助字号环境触发了 Grid 单列、图表明细和 SVG 原生标签，但这组 macOS 截图中的正文与标题没有随之放大，不能据此验收 iPhone 大字排版。SVG 自然比例修正后，320 点宽热泵与代码隔离页面分别减少 53 点与 90 点非内容空白，正文、图形和图注完整保留。图内小字不独立随 Dynamic Type 放大，复杂表格和长代码仍需横向滚动；构图、真机交互、VoiceOver 与实际模型生成质量仍有独立验收范围。当前截图、日志与元数据保存在忽略的 `outputs/verification/composition-ci-45113455135/`，完整门禁以对应提交的 CI 结果为准，不能将定向通过写成“全部官方实现或全部设备已验收”。
 
 2026-11-22 的地图对齐候选覆盖固定输入 schema、同名标记保留、label 绑定、筛选和全览不写选中值、响应式高度，以及路线复用、取消和整条路线降级。已移除自定义地点卡片、详情和地点对象注入路径，其专用回归不再作为当前能力。五个 Gallery 用法和五个边界程序均已通过固定官方 schema 与随包 JS parser 的语法检查，没有解析错误或未完成标记。三个产品的源码归属检查、Gallery 目录与资源检查（35 个场景程序，OpenIntelligentUI 60 个组件／80 个用法，OpenUI 88 个组件／109 个用法）、三语言本地化检查（170 个键、150 个字面量调用键）及 `git diff --check` 实际通过；源码归属检查不代表 Swift 构建通过。实际运行 `swift test` 返回 127，因为环境没有 Swift；SwiftPM 模块检查和独立消费者构建也因工具链缺失而阻塞。地图 XCTest、Swift 构建、MapKit 网络响应、VoiceOver、窗口调整和原生画面尚未验收。实际日志与解析证据位于忽略的 `outputs/verification/intelligent-ui-map-alignment/`。
 
