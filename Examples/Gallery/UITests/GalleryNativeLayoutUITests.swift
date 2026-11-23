@@ -61,9 +61,10 @@ final class GalleryNativeLayoutUITests: GalleryNativeUITestCase {
     @MainActor func testOptionLabelsAndTheirVisibleDescriptionRemainReadable() throws {
         let app = launch(scenario: "layout-options")
         defer { app.terminate() }
-        let first = app.buttons["openui.choice.choice.a"]
-        let second = app.buttons["openui.choice.choice.b"]
-        let third = app.buttons["openui.choice.choice.c"]
+        let options = app.buttons.matching(identifier: "openui.field.choice")
+        let first = options.matching(NSPredicate(format: "label == %@", "First")).firstMatch
+        let second = options.matching(NSPredicate(format: "label == %@", "Second")).firstMatch
+        let third = options.matching(NSPredicate(format: "label == %@", "Third")).firstMatch
         scrollTo(first, in: app)
         XCTAssertEqual(first.label, "First")
 
@@ -101,7 +102,7 @@ final class GalleryNativeLayoutUITests: GalleryNativeUITestCase {
         let second = app.staticTexts["Second carousel page"].firstMatch
         scrollTo(pager, in: app)
         expectPagerValue("1 / 3", on: pager)
-        XCTAssertTrue(first.isHittable, app.debugDescription)
+        assertCurrentPageTitle(first, pager: pager)
         let initialY = first.frame.minY
 
         // These are real touches inside the SDK carousel, not accessibility
@@ -111,8 +112,8 @@ final class GalleryNativeLayoutUITests: GalleryNativeUITestCase {
                 thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)),
                 withVelocity: .slow, thenHoldForDuration: 0.15)
         expectPagerValue("2 / 3", on: pager)
-        XCTAssertTrue(second.isHittable, app.debugDescription)
-        XCTAssertFalse(first.isHittable)
+        assertCurrentPageTitle(second, pager: pager)
+        assertNotFullyInsidePager(first, pager: pager)
         XCTAssertEqual(second.frame.minY, initialY, accuracy: 2,
             "Horizontal paging must not scroll the surrounding document")
         try saveSnapshot(app, name: "layout-pager-next-page")
@@ -122,8 +123,8 @@ final class GalleryNativeLayoutUITests: GalleryNativeUITestCase {
                 thenDragTo: pager.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)),
                 withVelocity: .slow, thenHoldForDuration: 0.15)
         expectPagerValue("1 / 3", on: pager)
-        XCTAssertTrue(first.isHittable, app.debugDescription)
-        XCTAssertFalse(second.isHittable)
+        assertCurrentPageTitle(first, pager: pager)
+        assertNotFullyInsidePager(second, pager: pager)
         XCTAssertEqual(first.frame.minY, initialY, accuracy: 2)
 
         let before = first.frame
@@ -133,13 +134,39 @@ final class GalleryNativeLayoutUITests: GalleryNativeUITestCase {
         // Inspect the real element after the gesture has ended. No scrollTo
         // helper or expected-geometry polling may move the viewport for us.
         XCTAssertEqual(pager.value as? String, "1 / 3")
-        XCTAssertTrue(first.isHittable, app.debugDescription)
-        XCTAssertFalse(second.isHittable)
+        assertCurrentPageTitle(first, pager: pager)
+        assertNotFullyInsidePager(second, pager: pager)
         XCTAssertLessThan(first.frame.minY, before.minY - 40,
             "A vertical drag starting inside the pager must scroll the surrounding document")
         XCTAssertEqual(first.frame.minX, before.minX, accuracy: 2,
             "The vertical reading gesture must not displace the horizontal track")
         try saveSnapshot(app, name: "layout-pager-vertical-reading")
+    }
+
+    @MainActor private func assertCurrentPageTitle(_ element: XCUIElement, pager: XCUIElement,
+        file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.exists, file: file, line: line)
+        XCTAssertTrue(element.isHittable, file: file, line: line)
+        let frame = element.frame
+        let viewport = pager.frame
+        XCTAssertFalse(frame.isEmpty, file: file, line: line)
+        XCTAssertTrue(viewport.contains(frame),
+            "The current page title must fit completely inside the pager: title=\(frame), viewport=\(viewport)",
+            file: file, line: line)
+    }
+
+    @MainActor private func assertNotFullyInsidePager(_ element: XCUIElement, pager: XCUIElement,
+        file: StaticString = #filePath, line: UInt = #line) {
+        // Carousel intentionally shows a trailing peek. Its off-page automation
+        // nodes can remain in the tree, and isHittable can fail while computing
+        // their activation points. Observe actual geometry without requiring
+        // those nodes to disappear or forbidding the SDK's partial preview.
+        guard element.exists else { return }
+        let frame = element.frame
+        let viewport = pager.frame
+        XCTAssertTrue(frame.isEmpty || !viewport.contains(frame),
+            "A neighboring page title must not be fully inside the pager: title=\(frame), viewport=\(viewport)",
+            file: file, line: line)
     }
 
     @MainActor private func expectPagerValue(_ value: String, on pager: XCUIElement,

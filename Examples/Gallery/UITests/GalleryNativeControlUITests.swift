@@ -5,17 +5,20 @@ final class GalleryNativeControlUITests: GalleryNativeUITestCase {
         let app = launch(scenario: "controls-selection")
         let state = app.staticTexts["validation.controls.state"]
         expectLabel(state, equals: "pace=easy;quiet=false;route=;reminders=false")
-        let easy = app.buttons["Easy"], full = app.buttons["Full"], quiet = app.buttons["Quiet"]
+        let easy = app.buttons["Easy"], full = app.buttons["Full"]
+        // The checkbox retains Toggle's native Switch accessibility semantics.
+        let quiet = app.switches["openui.field.preferences"]
         XCTAssertTrue(easy.isSelected)
         XCTAssertFalse(full.isSelected)
-        XCTAssertFalse(quiet.isSelected)
+        XCTAssertEqual(quiet.label, "Quiet")
+        XCTAssertEqual(quiet.value as? String, "0")
 
         full.tap()
         quiet.tap()
         expectLabel(state, equals: "pace=full;quiet=true;route=;reminders=false")
         XCTAssertTrue(full.isSelected)
         XCTAssertFalse(easy.isSelected)
-        XCTAssertTrue(quiet.isSelected)
+        XCTAssertEqual(quiet.value as? String, "1")
         try saveSnapshot(app, name: "radio-and-checkbox-selection")
 
         let route = app.buttons["openui.field.route"]
@@ -34,7 +37,7 @@ final class GalleryNativeControlUITests: GalleryNativeUITestCase {
         expectLabel(state, equals: "pace=easy;quiet=true;route=walk;reminders=true")
         XCTAssertTrue(easy.isSelected)
         XCTAssertFalse(full.isSelected)
-        XCTAssertTrue(quiet.isSelected)
+        XCTAssertEqual(quiet.value as? String, "1")
         XCTAssertEqual(route.value as? String, "Walk")
         XCTAssertEqual(app.switches["Reminders"].value as? String, "1")
         expectLabel(app.staticTexts["validation.controls.identity"], equals: "root=true;revision=true")
@@ -72,7 +75,8 @@ final class GalleryNativeControlUITests: GalleryNativeUITestCase {
 
     @MainActor func testSliderBlocksInvalidDraftAndSubmitsTheCorrectedNativeValue() throws {
         let app = launch(scenario: "controls-slider")
-        let input = app.textFields["openui.slider.input.amount.0"]
+        // NativeFieldView supplies the field identifier to the mounted editor.
+        let input = app.textFields["openui.field.amount"]
         XCTAssertTrue(input.waitForExistence(timeout: 5), app.debugDescription)
         expectLabel(app.staticTexts["validation.controls.native"], containing: "input=true;same=true;")
         XCTAssertEqual(input.value as? String, "10")
