@@ -22,7 +22,7 @@ def main() -> None:
         problems.append("Old fork SwiftPM dependency remains")
     for relative in ["Package.resolved", "Examples/Gallery/Package.resolved",
                      "Examples/Gallery/OpenUIGallery.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
-                     "Tools/ContractExport/Package.resolved", "Benchmarks/LanguageRuntime/Package.resolved"]:
+                     "Tools/ContractExport/Package.resolved", "Validation/Performance/Package.resolved"]:
         path = ROOT / relative
         if any(pin["identity"] == "openui" for pin in json.loads(path.read_text())["pins"]):
             problems.append(f"Obsolete fork pin: {path.relative_to(ROOT)}")

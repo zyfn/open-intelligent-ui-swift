@@ -314,19 +314,20 @@ jobs:
           set -euo pipefail
           swift build --package-path Tools/ContractExport \
             2>&1 | tee outputs/verification/contract-tool.log
-          swift build --configuration release --package-path Benchmarks/LanguageRuntime \
-            2>&1 | tee outputs/verification/benchmark-build.log
+          swift build --configuration release --package-path Validation/Performance \
+            2>&1 | tee outputs/verification/performance-tool-build.log
       - name: Release language and changing-tail streaming measurements
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p outputs/verification/performance
           for chunk in 24 128; do
-            swift run --configuration release --package-path Benchmarks/LanguageRuntime --skip-build \
-              LanguageBenchmark --iterations 100 --warmup 5 --rows 200 \
+            swift run --configuration release --package-path Validation/Performance --skip-build \
+              LanguagePerformanceValidation --iterations 100 --warmup 5 --rows 200 \
               --stream-iterations 5 --chunk-units "$chunk" \
-              --output "outputs/verification/language-stream-$chunk.json" \
-              2>&1 | tee "outputs/verification/language-stream-$chunk.log"
+              --output "outputs/verification/performance/language-stream-$chunk.json" \
+              2>&1 | tee "outputs/verification/performance/language-stream-$chunk.log"
           done
       - name: Retain native crash reports
         if: always()

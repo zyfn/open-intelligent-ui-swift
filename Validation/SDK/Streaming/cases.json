@@ -18,7 +18,7 @@
         "root publications"
       ],
       "evidence": [
-        "Benchmarks/LanguageRuntime",
+        "Validation/Performance",
         "Tests/SwiftLangTests"
       ],
       "status": "existing"

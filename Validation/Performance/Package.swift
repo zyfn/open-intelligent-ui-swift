@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "SwiftLangBenchmark",
+    name: "SwiftLangPerformanceValidation",
     platforms: [.macOS(.v13)],
-    products: [.executable(name: "LanguageBenchmark", targets: ["LanguageBenchmark"])],
+    products: [.executable(name: "LanguagePerformanceValidation", targets: ["LanguagePerformanceValidation"])],
     dependencies: [.package(name: "openui-swift-sdk", path: "../..")],
     targets: [
-        .executableTarget(name: "LanguageBenchmark", dependencies: [
+        .executableTarget(name: "LanguagePerformanceValidation", dependencies: [
             .product(name: "swift-lang", package: "openui-swift-sdk")
         ], swiftSettings: [.swiftLanguageMode(.v5)])
     ]

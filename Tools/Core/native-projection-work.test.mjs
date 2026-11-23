@@ -1,5 +1,5 @@
 // Count the actual metadata identities crossing the shipped-core boundary.
-// This is a work/allocation regression, not an Apple timing or FPS benchmark.
+// This is a work/allocation regression, not an Apple timing or FPS measurement.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createNativeRuntime } from './native-test-runtime.mjs';

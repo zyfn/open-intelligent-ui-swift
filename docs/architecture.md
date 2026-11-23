@@ -1,6 +1,6 @@
 # 架构
 
-文档版本：1.19 · 更新日期：2026-11-23
+文档版本：1.20 · 更新日期：2026-11-23
 
 本文是仓库唯一的架构定义，维护包名、目录、职责、依赖和运行链路。接入代码见 [README](../README.md)，组件用法见 [OpenUI](openui.md) 与 [OpenIntelligentUI](openintelligentui.md)，构建和验收见 [验证说明](validation-and-security.md)。其他文档引用本文，不重复维护模块图或职责表。
 
@@ -74,12 +74,12 @@ flowchart TB
 | Tests/SwiftLangTests/、SwiftOpenUITests/、SwiftIntelligentUITests/ | 对应公开模块的测试；适配层测试可不链接两套组件库 |
 | Examples/Gallery/ | 通过三个公开产品接入的独立原生 App；案例、图片、导航和模拟工具不进入 SDK |
 | Tools/ | 契约导出、资源生成、来源锁定和边界检查 |
-| Benchmarks/LanguageRuntime/ | 可重复运行的语言与公开 State 流式性能基准，保存计时和资源测量 |
-| Validation/ | 静态程序校验、SDK 六域测试与验收矩阵（SDK/）、真实模型生成评测（Generation/） |
+| Validation/ | 静态程序校验、SDK 六域测试与验收矩阵（SDK/）、性能验证（Performance/）、可选真实模型生成验证（Generation/） |
+| Validation/Performance/ | 独立性能验证包，可执行工具 LanguagePerformanceValidation 测量语言与公开 State 流式成本，默认报告为 outputs/verification/performance/language-runtime.json |
 | Fixtures/ | 固定语言输入与参考预期 |
 | docs/、outputs/ | 文档；已忽略的本地生成及验收材料 |
 
-源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport、LanguageRuntime 各自持有开发包，通过根 SDK 的公开产品接入。
+源码只有根 Sources 中的一份，不增加嵌套 SDK、旧模块软链接或同名源码副本。Gallery、ContractExport 与 Validation/Performance 各自持有开发包，通过根 SDK 的公开产品接入。
 
 OpenUI 的文字实现在 `Components/Text`，列表、卡片、Modal 按组件族归位；图表组合、数据解释、几何计算和绘制分别维护，继续共享原组件状态与注册入口。`Internal/NativeValue` 只做通用值读取，控件不借用图表辅助类型。组件拆文件不新增模块或状态所有者。
 

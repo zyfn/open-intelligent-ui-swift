@@ -1,17 +1,17 @@
 # SDK validation
 
-Document version: 1.0 · Updated: 2026-11-23
+Document version: 1.1 · Updated: 2026-11-23
 
 | Entry | Purpose |
 | --- | --- |
 | `api.mjs` / `cli.mjs` | Check a supplied program against an exported library with the SDK's actual language core |
 | `build.mjs` | Package that validator and its pinned runtime for offline use |
 | [SDK verification matrix](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Validation/SDK) | Plan SDK tests and acceptance across six domains, reusing existing tests, Gallery and performance tools |
+| [Performance](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Validation/Performance) | Measure language and public State streaming costs with fixed workloads, warmup and repeated samples |
 | [Generation](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Validation/Generation) | Optionally ask a real model to generate programs, then evaluate the recorded outputs |
 
 In the SDK repository, visual and interaction review uses [Gallery](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Examples/Gallery).
-Repeatable performance measurements belong to [Benchmarks](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Benchmarks).
-Automated native behavior regressions belong to [Tests](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Tests).
+Validation tools live in this directory; automated native behavior regressions remain XCTest implementations in [Tests](https://github.com/zyfn/open-intelligent-ui-swift/tree/main/Tests).
 The verification matrix records planned assertions and evidence; its `existing` status identifies reusable implementations, not a completed acceptance result.
 
 ## Static author-time validation

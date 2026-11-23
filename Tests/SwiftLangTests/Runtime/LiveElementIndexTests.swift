@@ -109,7 +109,7 @@ final class LiveElementIndexTests: XCTestCase {
       assertIdentities(index.candidates(for: value), expected)
       XCTAssertEqual(index.candidates(for: value).count, 1)
     }
-    // Candidate counts are an algorithmic check, not a frame-time benchmark.
+    // Candidate counts are an algorithmic check, not a frame-time measurement.
   }
 
   @MainActor func testLiveResolutionDoesNotBorrowAnEqualSiblingWithAnotherDeclaration() throws {

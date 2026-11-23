@@ -5,7 +5,7 @@ import Combine
 import SwiftLang
 import os
 
-private enum BenchmarkError: Error {
+private enum ValidationError: Error {
     case usage(String)
     case invalidProgram(String)
 }
@@ -23,23 +23,23 @@ private struct Options {
         while index < arguments.count {
             let name = arguments[index]
             if name == "--help" {
-                print("LanguageBenchmark [--iterations 500] [--warmup 10] [--rows 30] [--stream-iterations 20] [--chunk-units 128] [--output report.json]")
+                print("LanguagePerformanceValidation [--iterations 500] [--warmup 10] [--rows 30] [--stream-iterations 20] [--chunk-units 128] [--output report.json]")
                 exit(0)
             }
-            guard index + 1 < arguments.count else { throw BenchmarkError.usage("Missing value for " + name) }
+            guard index + 1 < arguments.count else { throw ValidationError.usage("Missing value for " + name) }
             let value = arguments[index + 1]
             switch name {
             case "--output": output = value
             case "--iterations", "--warmup", "--rows", "--stream-iterations", "--chunk-units":
                 guard let number = Int(value), number >= (name == "--warmup" ? 0 : 1) else {
-                    throw BenchmarkError.usage("Invalid value for " + name)
+                    throw ValidationError.usage("Invalid value for " + name)
                 }
                 if name == "--iterations" { iterations = number }
                 else if name == "--warmup" { warmup = number }
                 else if name == "--stream-iterations" { streamIterations = number }
                 else if name == "--chunk-units" { chunkUnits = number }
                 else { rows = number }
-            default: throw BenchmarkError.usage("Unknown option: " + name)
+            default: throw ValidationError.usage("Unknown option: " + name)
             }
             index += 2
         }
@@ -57,16 +57,16 @@ private func residentBytes() -> UInt64? {
     return status == KERN_SUCCESS ? UInt64(info.resident_size) : nil
 }
 
-@main private enum LanguageBenchmark {
+@main private enum LanguagePerformanceValidation {
     @MainActor static func main() throws {
         let options = try Options(Array(CommandLine.arguments.dropFirst()))
         // These contracts describe a language workload, not rendered UI views.
         let schema = LibrarySchema(components: [
-            "BenchmarkColumn": [ParamDef(name: "children", required: true)],
-            "BenchmarkText": [ParamDef(name: "value", required: true)]
-        ], callDefs: builtinCallDefs, rootComponent: "BenchmarkColumn")
-        let rows = (0..<options.rows).map { "BenchmarkText(\"row \($0) \" + $n)" }.joined(separator: ",")
-        let source = "$n = 1\nroot = BenchmarkColumn([" + rows + "])"
+            "TestInputColumn": [ParamDef(name: "children", required: true)],
+            "TestInputText": [ParamDef(name: "value", required: true)]
+        ], callDefs: builtinCallDefs, rootComponent: "TestInputColumn")
+        let rows = (0..<options.rows).map { "TestInputText(\"row \($0) \" + $n)" }.joined(separator: ",")
+        let source = "$n = 1\nroot = TestInputColumn([" + rows + "])"
 
         func iteration() throws {
             let result = createParser(schema: schema).parse(source)
@@ -75,13 +75,13 @@ private func residentBytes() -> UInt64? {
             let evaluator = Evaluator(context: EvaluationContext(
                 getState: { store.get($0) ?? .null }, resolveRef: { _ in .null }
             ), schema: schema)
-            guard result.meta.errors.isEmpty, evaluator.evaluateRoot(result)?.typeName == "BenchmarkColumn" else {
-                throw BenchmarkError.invalidProgram(String(describing: result.meta.errors))
+            guard result.meta.errors.isEmpty, evaluator.evaluateRoot(result)?.typeName == "TestInputColumn" else {
+                throw ValidationError.invalidProgram(String(describing: result.meta.errors))
             }
             for value in 2...4 {
                 store.set("$n", value: .number(Double(value)), pristine: false)
-                guard evaluator.evaluateRoot(result)?.typeName == "BenchmarkColumn" else {
-                    throw BenchmarkError.invalidProgram("State update did not evaluate the workload root")
+                guard evaluator.evaluateRoot(result)?.typeName == "TestInputColumn" else {
+                    throw ValidationError.invalidProgram("State update did not evaluate the workload root")
                 }
             }
         }
@@ -119,10 +119,10 @@ private func residentBytes() -> UInt64? {
         // these byte boundaries also gives exact UTF-16 chunk sizes.
         let names = (0..<options.rows).map { "row\($0)" }
         let declarations = names.enumerated().map {
-            "\($0.element)=BenchmarkText(\"stable row \($0.offset)\")"
+            "\($0.element)=TestInputText(\"stable row \($0.offset)\")"
         }
-        let streamingSource = (["root=BenchmarkColumn([" + (names + ["tail"]).joined(separator: ",") + "])"]
-            + declarations + ["tail=BenchmarkText(\"" + String(repeating: "streaming text ", count: 128) + "\")"])
+        let streamingSource = (["root=TestInputColumn([" + (names + ["tail"]).joined(separator: ",") + "])"]
+            + declarations + ["tail=TestInputText(\"" + String(repeating: "streaming text ", count: 128) + "\")"])
             .joined(separator: "\n")
         let wire = Array(streamingSource.utf8)
         let chunks = stride(from: 0, to: wire.count, by: options.chunkUnits).map {
@@ -130,7 +130,7 @@ private func residentBytes() -> UInt64? {
         }
         var pushSamples: [Double] = [], completionSamples: [Double] = [], streamSamples: [Double] = []
         var parseCallbacks = 0, publications = 0, streamingComponents = 0
-        let signposter = OSSignposter(subsystem: "org.openui.benchmarks", category: "LanguageRuntime")
+        let signposter = OSSignposter(subsystem: "org.openui.validation", category: "LanguageRuntime")
         let pushSignpostsEnabled = signposter.isEnabled
         @MainActor func streamIteration(record: Bool, iteration: Int) throws {
             let state = OpenUIState(schema: schema)
@@ -150,13 +150,13 @@ private func residentBytes() -> UInt64? {
             let completionStart = DispatchTime.now().uptimeNanoseconds
             state.complete()
             let completed = DispatchTime.now().uptimeNanoseconds
-            guard state.errors.isEmpty, state.root?.typeName == "BenchmarkColumn", !state.isInterrupted else {
-                throw BenchmarkError.invalidProgram("Streaming adapter: " + String(describing: state.errors))
+            guard state.errors.isEmpty, state.root?.typeName == "TestInputColumn", !state.isInterrupted else {
+                throw ValidationError.invalidProgram("Streaming adapter: " + String(describing: state.errors))
             }
             guard let root = state.root,
                   PropValue.children(root).count == options.rows + 1,
                   PropValue.string(PropValue.children(root).last!, "value") == String(repeating: "streaming text ", count: 128) else {
-                throw BenchmarkError.invalidProgram("Streaming lost a completed sibling or its final tail")
+                throw ValidationError.invalidProgram("Streaming lost a completed sibling or its final tail")
             }
             streamingComponents = PropValue.children(root).count + 1
             if record {
@@ -180,7 +180,7 @@ private func residentBytes() -> UInt64? {
                 objectSamples.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000)
                 guard object.count == fieldCount, object.first?.value == .number(-1),
                       object.last?.key == OpenUIString("field\(fieldCount - 1)") else {
-                    throw BenchmarkError.invalidProgram("Wide-object ordering or last-write semantics changed")
+                    throw ValidationError.invalidProgram("Wide-object ordering or last-write semantics changed")
                 }
             }
         }
@@ -202,7 +202,7 @@ private func residentBytes() -> UInt64? {
         let configuration = "release"
         #endif
         let report: [String: Any] = [
-            "benchmark": "language-runtime", "configuration": configuration,
+            "workload": "language-runtime", "configuration": configuration,
             "operatingSystem": ProcessInfo.processInfo.operatingSystemVersionString,
             "processorCount": ProcessInfo.processInfo.processorCount,
             "programBytes": source.utf8.count, "components": options.rows + 1,
