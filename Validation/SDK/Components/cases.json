@@ -9,7 +9,7 @@
       "environment": "macOS · XCTest",
       "assertions": [
         "writer 只暴露允许新生成的组件",
-        "reader 能读取历史组件",
+        "reader 仅接受当前注册组件及明确保留的历史字段",
         "签名参数顺序与实现一致"
       ],
       "metrics": [

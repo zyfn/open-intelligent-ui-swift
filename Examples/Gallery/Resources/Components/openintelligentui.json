@@ -141,6 +141,11 @@
         "id": "sizes",
         "title": "六种标题规格",
         "program": "root = Col([Title(\"sm · 组内标题\", \"sm\"),Title(\"md · 小节标题\", \"md\"),Title(\"lg · 章节标题\", \"lg\"),Title(\"xl · 页面标题\", \"xl\"),Title(\"2xl · 开篇标题\", \"2xl\"),Title(\"3xl · 特大标题\", \"3xl\")])"
+      },
+      {
+        "id": "reading-hierarchy",
+        "title": "开篇、章节与正文层级",
+        "program": "root = Col([opening, section])\nopening = Col([Col([Caption(\"READING · 观察笔记\"),Title(\"从整体，看见细节\",\"2xl\")]),Text(\"先找出轮廓，再观察局部之间的关系。\")])\nsection = Col([Title(\"从一处细节开始\",\"lg\"),Text(\"标题组织阅读顺序，正文保留完整说明；局部内容使用自己的分组。\"),Col([Title(\"随手记录\",\"md\"),Text(\"留下最值得再次观察的一点。\")])])"
       }
     ]
   },
@@ -151,6 +156,11 @@
         "id": "basic",
         "title": "基础用法",
         "program": "root = Col([Text(\"照片记录沿途的风景。\"),Caption(\"摄于一次普通的周末散步。\")])"
+      },
+      {
+        "id": "figure-group",
+        "title": "图注归属 · 与下一节分开",
+        "program": "root = Col([figure, section])\nfigure = Col([Image(\"https://upload.wikimedia.org/wikipedia/commons/9/9b/Nikon_DSLR_camera_D850.jpg\",\"相机正面\"),Caption(\"相机正面：机身与镜头接口。\")],2)\nsection = Col([Title(\"下一节：出发前检查\",\"lg\"),Text(\"图注留在上一张图片的分组内；新章节保持自己的阅读边界。\")])"
       }
     ]
   },
@@ -324,6 +334,21 @@
         "id": "image-reading",
         "title": "搜索图文并排 · 默认媒体布局",
         "program": "root = Col([Row([SearchImage(\"gallery-camera\"), Col([Title(\"旅行摄影\"), Text(\"本地模拟图片搜索，使用随 Gallery 打包的相机照片。\")])])])"
+      }
+    ]
+  },
+  "JourneyLine": {
+    "category": "Media",
+    "examples": [
+      {
+        "id": "endpoints",
+        "title": "端点与连接 · 基础组件组合",
+        "program": "root = Col([Caption(\"交通组合 · 演示\"),Row([Col([Title(\"09:00\"),Text(\"出发站\")]),JourneyLine(\"train\"),Col([Title(\"10:30\"),Text(\"到达站\")])]),Text(\"时间与站点为演示数据。连接线表达交通方式，说明与操作由普通组件组织。\")])"
+      },
+      {
+        "id": "modes",
+        "title": "四种交通方式",
+        "program": "root = Col([Row([Text(\"航班\"),JourneyLine(\"flight\")]),Row([Text(\"列车\"),JourneyLine(\"train\")]),Row([Text(\"巴士\"),JourneyLine(\"bus\")]),Row([Text(\"出租车\"),JourneyLine(\"taxi\")])])"
       }
     ]
   },

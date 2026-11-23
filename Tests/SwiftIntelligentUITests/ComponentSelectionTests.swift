@@ -30,6 +30,7 @@ final class ComponentSelectionTests: XCTestCase {
             let source = String(example[start.lowerBound...])
             let state = selected.makeState(); state.setSource(source)
             XCTAssertEqual(selected.validationIssues(in: state, source: source), [])
+            XCTAssertEqual(selected.validationIssues(in: state, source: source, profile: .generation), [])
         }
     }
 

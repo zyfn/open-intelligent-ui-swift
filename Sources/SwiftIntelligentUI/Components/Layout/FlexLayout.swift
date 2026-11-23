@@ -25,6 +25,29 @@ extension EnvironmentValues {
     @Entry var openIntelligentUIRowMediaAspectRatio: CGFloat? = nil
 }
 
+extension View {
+    func openIntelligentUIStretchWidth(_ enabled: Bool) -> some View {
+        IntelligentUIWidthLayout(stretches: enabled) { self }
+    }
+}
+
+/// Preserve the child's proposal and identity while optionally filling width.
+/// A flexible frame can re-propose the child's measured percentage height;
+/// conditionally adding/removing that frame would also replace its view subtree.
+private struct IntelligentUIWidthLayout: Layout {
+    let stretches: Bool
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let measured = subviews.first?.sizeThatFits(proposal) ?? .zero
+        let available = proposal.width.flatMap { $0.isFinite ? max(0, $0) : nil }
+        return CGSize(width: stretches ? available ?? measured.width : measured.width, height: measured.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: proposal)
+    }
+}
+
 enum FlexGeometry {
     static func length(_ value: CGFloat) -> CGFloat { value.isFinite ? max(0, value) : 0 }
     static func sum(_ values: [CGFloat]) -> CGFloat {
@@ -138,7 +161,6 @@ struct IntelligentUIColumnLayout: Layout {
     var gap: CGFloat = 0
     var wraps = false
     var boundedHeight = false
-    var rightToLeft = false
     var viewport: CGSize?
 
     static var layoutProperties: LayoutProperties {
@@ -209,8 +231,7 @@ struct IntelligentUIColumnLayout: Layout {
                 let cross = alignment == "center" ? spareWidth / 2 : alignment == "end" ? spareWidth : 0
                 y += margins[index] + (offset == 0 ? 0 : gap + between)
                 let left = x + cross
-                frames[index] = CGRect(x: rightToLeft ? width - left - childWidth : left, y: y,
-                                       width: childWidth, height: heights[offset])
+                frames[index] = CGRect(x: left, y: y, width: childWidth, height: heights[offset])
                 proposals[index] = childProposal
                 y += heights[offset]
             }

@@ -149,7 +149,6 @@ private struct ChoiceGroupView: View {
     @Environment(\.locale) private var locale
     let segmented: Bool
     @Environment(\.openIntelligentUITheme) private var theme
-    @Environment(\.layoutDirection) private var direction
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .body) private var indicatorSize: CGFloat = 18
     private var options: [ChoiceOption] { ChoiceOption.decode(context.value("options")) }
@@ -160,9 +159,9 @@ private struct ChoiceGroupView: View {
         VStack(alignment: .leading, spacing: theme.spacingUnit * 2) {
             if !segmented, let label = context.string("label"), !label.isEmpty { Text(label).font(theme.labelFont).accessibilityHidden(true) }
             let layout = pills
-                ? AnyLayout(WrappingRowLayout(gap: theme.spacingUnit * 2, alignment: "center", justification: "start", wraps: true, rightToLeft: direction == .rightToLeft, fillsWidth: !segmented || context.flag("block") == true))
+                ? AnyLayout(WrappingRowLayout(gap: theme.spacingUnit * 2, alignment: "center", justification: "start", wraps: true, fillsWidth: !segmented || context.flag("block") == true))
                 : cards
-                    ? AnyLayout(EqualGridLayout(columns: typeSize.isAccessibilitySize ? 1 : 12, minimumWidth: 200, gap: theme.innerSpacing, rightToLeft: direction == .rightToLeft))
+                    ? AnyLayout(EqualGridLayout(columns: typeSize.isAccessibilitySize ? 1 : 12, minimumWidth: 200, gap: theme.innerSpacing))
                     : AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
             layout {
                 ForEach(options) { option in

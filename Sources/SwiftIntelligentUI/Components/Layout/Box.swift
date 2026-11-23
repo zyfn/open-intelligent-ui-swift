@@ -21,7 +21,6 @@ private struct BoxView: View {
     @Environment(\.openIntelligentUITheme) private var theme
     @Environment(\.openIntelligentUIContentBackground) private var contentBackground
     @Environment(\.openIntelligentUIEditorial) private var editorial
-    @Environment(\.layoutDirection) private var direction
     @Environment(\.openIntelligentUIItemSizing) private var parentSizing
     @Environment(\.openIntelligentUIRowMediaAspectRatio) private var rowMediaRatio
     @Environment(\.openIntelligentUIViewportSize) private var viewport
@@ -50,10 +49,10 @@ private struct BoxView: View {
             : !isRow && cross == "end" ? .trailing : inheritedTextAlignment
         let childTheme = theme.onBackground(context.string("background"))
         let layout = isRow ? AnyLayout(WrappingRowLayout(gap: gap, alignment: cross, justification: justify,
-            wraps: context.flag("wrap") == true, rightToLeft: direction == .rightToLeft,
+            wraps: context.flag("wrap") == true,
             fillsHeight: definiteHeight, viewport: viewport))
             : AnyLayout(IntelligentUIColumnLayout(alignment: cross, justification: justify, gap: gap, wraps: context.flag("wrap") == true,
-                boundedHeight: definiteHeight, rightToLeft: direction == .rightToLeft, viewport: viewport))
+                boundedHeight: definiteHeight, viewport: viewport))
         return layout {
             ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                 let item = IntelligentUIFlexItem.read(child.value, theme: theme, fontUnit: fontUnit)
@@ -65,7 +64,7 @@ private struct BoxView: View {
                 let mediaRatio: CGFloat? = isRow && item.media != .none ? 4.0 / 3.0
                     : !isRow && children.count == 1 && item.media == .direct ? rowMediaRatio : nil
                 context.render(child.value)
-                    .frame(maxWidth: !isRow && cross == "stretch" && !item.isBox ? .infinity : nil, alignment: .leading)
+                    .openIntelligentUIStretchWidth(!isRow && cross == "stretch" && !item.isBox)
                     .environment(\.openIntelligentUIItemSizing, childSizing)
                     .environment(\.openIntelligentUIRowMediaAspectRatio, mediaRatio)
                     .environment(\.openIntelligentUIEditorial, flowContext(isRow))
@@ -82,7 +81,7 @@ private struct BoxView: View {
         .padding(inset)
         .modifier(IntelligentUILengthModifier(width: IntelligentUILength.read(context.value("width")),
             height: height, fontUnit: fontUnit, itemSizing: parentSizing,
-            minimumSize: FlexGeometry.sum([inset, inset]), rightToLeft: direction == .rightToLeft))
+            minimumSize: FlexGeometry.sum([inset, inset])))
         .background(context.string("background").map { theme.backgroundColor($0) } ?? .clear)
         .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(context.flag("border") == true ? theme.fieldBorder : .clear))
         .environment(\.openIntelligentUIContentBackground, context.string("background").map { theme.backgroundColor($0) } ?? contentBackground ?? theme.canvas)

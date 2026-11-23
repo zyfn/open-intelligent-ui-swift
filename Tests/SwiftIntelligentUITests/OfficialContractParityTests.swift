@@ -226,15 +226,58 @@ final class OfficialContractParityTests: XCTestCase {
         let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
             .frame(width: 200, height: 200, alignment: .topLeading))
         renderer.scale = 1
-        let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
-        let paintedRows = (0..<bitmap.pixelsHigh).filter { y in
-            (0..<bitmap.pixelsWide).contains { x in
-                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return false }
-                return color.alphaComponent > 0.9 && color.redComponent > 0.9
-                    && color.greenComponent < 0.1 && color.blueComponent < 0.1
+        let image = try XCTUnwrap(renderer.cgImage)
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        func sampleDescription() -> String {
+            let color = bitmap.colorAt(x: 10, y: 10)
+            return "raw=\(String(describing: color)), sRGB=\(String(describing: color?.usingColorSpace(.sRGB))), deviceRGB=\(String(describing: color?.usingColorSpace(.deviceRGB)))"
+        }
+        let sampleBeforeCapture = sampleDescription()
+        // Normalize and materialize the captured image before reading pixels.
+        // NSBitmapImageRep's per-pixel NSColor path reported no red despite a
+        // correct saved PNG; the assertion must not depend on PNG encoding.
+        let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        let capture = try XCTUnwrap(CGContext(data: nil, width: image.width, height: image.height,
+            bitsPerComponent: 8, bytesPerRow: image.width * 4, space: colorSpace, bitmapInfo: bitmapInfo))
+        capture.setBlendMode(.copy)
+        capture.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        capture.flush()
+        let pixels = Data(bytes: try XCTUnwrap(capture.data), count: capture.bytesPerRow * image.height)
+        var paintedRows = Set<Int>(), paintedColumns = Set<Int>(), paintedPixels = 0
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let offset = y * capture.bytesPerRow + x * 4
+                let alpha = Double(pixels[offset + 3]) / 255
+                guard alpha > 0.9 else { continue }
+                // RGBA8 is premultiplied; restore the color components before
+                // applying the original strict alpha and RGB thresholds.
+                let red = Double(pixels[offset]) / Double(pixels[offset + 3])
+                let green = Double(pixels[offset + 1]) / Double(pixels[offset + 3])
+                let blue = Double(pixels[offset + 2]) / Double(pixels[offset + 3])
+                if red > 0.9 && green < 0.1 && blue < 0.1 {
+                    paintedRows.insert(y); paintedColumns.insert(x); paintedPixels += 1
+                }
+            }
+        }
+        print("Root percentage RGBA8: \(image.width)x\(image.height), rows=\(paintedRows.count), columns=\(paintedColumns.count), pixels=\(paintedPixels)")
+        if paintedRows.count != 100 || paintedColumns.count != 80 || paintedPixels != 8_000 {
+            let sampleBeforeEncoding = sampleDescription()
+            let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+            print("Root percentage source: space=\(String(describing: image.colorSpace)), bits=\(image.bitsPerComponent)/\(image.bitsPerPixel), rowBytes=\(image.bytesPerRow), bitmapInfo=\(image.bitmapInfo.rawValue)")
+            print("Root percentage NSBitmap: space=\(bitmap.colorSpaceName), bits=\(bitmap.bitsPerSample)/\(bitmap.bitsPerPixel); before capture: \(sampleBeforeCapture); before PNG: \(sampleBeforeEncoding); after PNG: \(sampleDescription())")
+            if let path = ProcessInfo.processInfo.environment["OPENUI_SNAPSHOT_DIR"], !path.isEmpty {
+                let directory = URL(fileURLWithPath: path).appendingPathComponent("root-percentage", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try png.write(to: directory.appendingPathComponent("finite-host.png"))
+                let normalized = NSBitmapImageRep(cgImage: try XCTUnwrap(capture.makeImage()))
+                try XCTUnwrap(normalized.representation(using: .png, properties: [:]))
+                    .write(to: directory.appendingPathComponent("finite-host-rgba8.png"))
             }
         }
         XCTAssertEqual(paintedRows.count, 100, "The root's 50% is relative to the 200-point host, not its own content height")
+        XCTAssertEqual(paintedColumns.count, 80, "The authored 80-point width must remain painted")
+        XCTAssertEqual(paintedPixels, 8_000, "The entire 80-by-100-point box must remain painted")
     }
     #endif
 

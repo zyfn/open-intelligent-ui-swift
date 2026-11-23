@@ -1,6 +1,6 @@
 # 组件用法
 
-文档版本：1.10 · 更新日期：2026-11-22
+文档版本：1.11 · 更新日期：2026-11-23
 
 `openui.json` 对应 OpenUI，`openintelligentui.json` 对应 OpenIntelligentUI。文件名沿用既有内部产品标识；界面和新的命令行参数使用产品名称。
 
@@ -15,3 +15,5 @@ OpenUI 有 88 个注册定义，OpenIntelligentUI 的 Gallery writer 有 60 个�
 修改组件目录时同步补齐示例；`Tools/check_gallery_catalog.py` 检查资源完整性，`Examples/Gallery/verify.sh` 用真实库验证完整与流式求值。实际外观及交互仍需打开原生 Gallery 检查。
 
 `Map` 提供地点标记、道路路线、预选绑定、字面量初值和同名标记五个用法。绑定示例用普通 Text 显示当前 label，检查点选后的联动以及筛选、全览不改写业务值；展开后点选标记会关闭展开。同名用法明确标为演示，复用既有坐标检查两个点均保留。地图高度随视口适配，不添加地点卡片或详情面板。各用法仅使用已有坐标，参数及平台边界见[地图说明](../../../../docs/openintelligentui.md#25-地图与平台桥接)。
+
+`Title` 对照六档尺寸并展示开篇、章节和对象标题的实际分工。`Caption` 的图注用法把图片与说明放进显式紧凑 Col，下一节独立分组。`JourneyLine` 展示端点加连接线的原子组合，以及 flight、train、bus、taxi 四种方式；时间、站点、价格与操作继续属于普通兄弟组件。

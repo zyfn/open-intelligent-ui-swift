@@ -18,7 +18,7 @@
       ],
       "evidence": [
         "Tests/SwiftIntelligentUITests/SemanticTypographyTests.swift",
-        "Gallery"
+        "Examples/Gallery"
       ],
       "status": "existing"
     },
@@ -57,7 +57,8 @@
       ],
       "evidence": [
         "Tests/SwiftIntelligentUITests/TypographyTests.swift",
-        "Gallery"
+        "Examples/Gallery",
+        "Examples/Gallery/Tests/GalleryEditorialRenderingTests.swift"
       ],
       "status": "planned"
     }

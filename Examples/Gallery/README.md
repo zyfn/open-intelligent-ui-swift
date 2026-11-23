@@ -1,6 +1,6 @@
 # OpenUI Gallery
 
-文档版本：1.16 · 更新日期：2026-11-22
+文档版本：1.17 · 更新日期：2026-11-23
 
 SDK 的统一原生调试入口。相同场景分别使用 OpenUI 和 OpenIntelligentUI 的真实组件契约，由公共 `OpenUILibrary` / `OpenUIView` 接口展示。Gallery 是独立示例应用，不属于客户端 SDK 的库产品。
 
@@ -124,3 +124,16 @@ swift run --package-path Examples/Gallery OpenUIGallery \
 ```
 
 输出文件为 `openui.json` 和 `openintelligentui.json`。导出使用实际 SDK 的 `readerSpecification`，不是手写的 schema 子集。CLI 校验覆盖解析和宿主求值，不代表界面截图或真实交互已经通过。XCTest 另覆盖状态隔离、流式取消、查询链和 Mac 预览尺寸变化；原生执行结果应以对应提交的日志为准。
+
+### OpenIntelligentUI 阅读排版截图
+
+在 macOS 上执行完整场景的渲染检查并保留截图：
+
+```sh
+OPENUI_SNAPSHOT_DIR="$PWD/outputs/verification/visual" \
+  swift test --package-path Examples/Gallery --filter GalleryEditorialRenderingTests
+```
+
+检查直接读取 `heat-pump`、`code-isolation` 的完整程序，以及既有 `Row/image-reading` 图片用法。两篇阅读场景和图文行分别覆盖 320 / 390 pt、Light / Dark；热泵场景另覆盖 390 pt 的辅助字号 `accessibility3`，共 13 种组合。正文保留自然高度，Disclosure 保持默认开合状态；图片通过精确来源映射使用已有打包资源，SVG 等待实际 WebKit 内容就绪后捕获。
+
+输出保存在 `gallery-editorial/` 子目录，包括 PNG、对应完整 `.openui` 与记录宽高、平台、外观和字号的 JSON。断言检查解析、渲染、尺寸和非空图像；主次、图注归属、留白及深色可读性仍需查看截图。它们是 macOS 在手机宽度下的证据，不代表 iPhone / iPad 已验收，也不计作模型生成质量分数。现有 CI 的 `native-acceptance` artifact 会收集这些文件；只有对应测试实际成功执行，才能记录为本提交的渲染结果。

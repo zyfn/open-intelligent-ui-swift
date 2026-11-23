@@ -1,5 +1,7 @@
 # 示例与调试
 
+文档版本：1.0 · 更新日期：2026-11-23
+
 本目录目前只有一个可运行应用：[OpenUI Gallery](Gallery/README.md)。它依赖根 Swift Package 的公开产品，用于查看两套 UI、编辑案例和回放流式内容。
 
 Gallery 左侧统一选择 **OpenUI / OpenIntelligentUI**，整体切换场景与组件目录。**场景**展示完整任务回复，**组件库**按类别列出实际注册组件及原生示例。画布、源码和流式工具按需展开；回归程序保留给测试和命令行。
@@ -22,7 +24,7 @@ Xcode 使用 `Gallery/OpenUIGallery.xcodeproj` 的 `OpenUIGallery` scheme，可�
 | `Gallery/Resources/Diagnostics/` | 边界状态与回归程序 | 用于测试和 CLI，不出现在浏览入口 |
 | `Gallery/Resources/Images/` | 展示 App 自己使用的离线图片 | 保留来源与许可，不将图片打进 SDK 产品 |
 
-其他任务从仓库根目录进入：[Tests](../Tests) 保存自动行为回归及固定输入；[Validation](../Validation/README.md) 提供程序静态校验和可选模型生成评测；[Benchmarks](../Benchmarks/README.md) 测量耗时与资源使用。它们各自维护输入和结果。
+其他任务从仓库根目录进入：[Tests](../Tests) 保存自动行为回归及固定输入；[Validation](../Validation/README.md) 提供 SDK 测试与验收矩阵、程序静态校验和可选模型生成评测；[Benchmarks](../Benchmarks/README.md) 运行性能基准，测量耗时与资源使用。它们各自维护输入和结果。
 
 案例与 Gallery 程序只维护一份源码。标准库原有八个案例的哈希和历史 schema 固定在测试 fixtures，测试直接读取 Gallery 的实际程序；Gallery 自身使用当前所选库导出的 reader，不用历史测试 schema 运行内容。
 

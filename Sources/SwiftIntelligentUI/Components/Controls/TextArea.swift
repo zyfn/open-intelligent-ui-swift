@@ -39,6 +39,9 @@ private struct TextAreaView: View {
                         .allowsHitTesting(false).accessibilityHidden(true)
                 }
             }
+            // Keep the native textarea and its placeholder at the same logical
+            // start edge, independently of surrounding reading-text alignment.
+            .multilineTextAlignment(.leading)
             .modifier(FieldSurface(focused: focused, multiline: true))
         }
         .foregroundStyle(theme.primaryText)

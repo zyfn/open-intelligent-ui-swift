@@ -15,7 +15,6 @@ enum RowComponent {
 private struct RowView: View {
     let context: OpenUIComponentContext
     @Environment(\.openIntelligentUITheme) private var theme
-    @Environment(\.layoutDirection) private var direction
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.openIntelligentUIItemSizing) private var parentSizing
     @Environment(\.openIntelligentUIViewportSize) private var viewport
@@ -34,11 +33,11 @@ private struct RowView: View {
             ? AnyLayout(VStackLayout(alignment: cross, spacing: gap))
             : AnyLayout(WrappingRowLayout(gap: gap, alignment: alignment,
                 justification: context.string("justify") ?? "start", wraps: context.flag("wrap") ?? false,
-                rightToLeft: direction == .rightToLeft, fillsHeight: boundedHeight, viewport: viewport))
+                fillsHeight: boundedHeight, viewport: viewport))
         return layout {
             ForEach(children) { child in
                 context.render(child.value)
-                    .frame(maxWidth: stacked && alignment == "stretch" ? .infinity : nil, alignment: .leading)
+                    .openIntelligentUIStretchWidth(stacked && alignment == "stretch" && EditorialNode.kind(child.value) != "Box")
                     .environment(\.openIntelligentUIItemSizing, IntelligentUIItemSizing.forChild(child.value,
                         width: !stacked && EditorialNode.kind(child.value) == "Box" ? .allocated : alignment == "stretch" && stacked ? .stretch : .natural,
                         height: !stacked && alignment == "stretch" ? .stretch : .natural, hasDefiniteHeight: boundedHeight))
@@ -115,7 +114,6 @@ struct WrappingRowLayout: Layout {
     var alignment: String
     var justification: String
     var wraps: Bool
-    var rightToLeft = false
     var fillsWidth = true
     var fillsHeight = false
     var viewport: CGSize?
@@ -213,8 +211,9 @@ struct WrappingRowLayout: Layout {
         let result = geometry(proposal: ProposedViewSize(width: bounds.width, height: proposal.height), subviews: subviews)
         for index in subviews.indices {
             let frame = result.frames[index]
-            let x = rightToLeft ? bounds.maxX - frame.maxX : bounds.minX + frame.minX
-            subviews[index].place(at: CGPoint(x: x, y: bounds.minY + frame.minY), anchor: .topLeading, proposal: result.proposals[index])
+            // SwiftUI mirrors custom-layout x positions in an RTL environment.
+            subviews[index].place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                                 anchor: .topLeading, proposal: result.proposals[index])
         }
     }
 }

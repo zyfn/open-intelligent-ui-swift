@@ -3,7 +3,7 @@ import SwiftLang
 
 enum TitleComponent {
     static var component: OpenUIComponent {
-        OpenUIComponent(name: "Title", description: "Accessible heading. size defaults to md; uses Dynamic Type.", params: [
+        OpenUIComponent(name: "Title", description: "Accessible heading with Dynamic Type. md (default) is an object or card title; lg introduces a section; xl is a page title. 2xl and 3xl give a short opening heading or key figure stronger emphasis; sm labels a small group. Choose the size for the content's role; containers do not change it.", params: [
             OpenUIParameter.string("text"),
             OpenUIParameter.string("size", required: false, values: ["sm", "md", "lg", "xl", "2xl", "3xl"]),
             Parameter.color()

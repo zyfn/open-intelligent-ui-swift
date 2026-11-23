@@ -19,7 +19,6 @@ private struct ColumnView: View {
     @Environment(\.openIntelligentUIReadingDepth) private var readingDepth
     @Environment(\.openIntelligentUIItemSizing) private var parentSizing
     @Environment(\.openIntelligentUIViewportSize) private var viewport
-    @Environment(\.layoutDirection) private var direction
     @Environment(\.multilineTextAlignment) private var inheritedTextAlignment
     @ScaledMetric(relativeTo: .body) private var fontUnit: CGFloat = 17
     private var hasReadingTargets: Bool { readingAnchors && readingDepth == 0 }
@@ -30,7 +29,7 @@ private struct ColumnView: View {
         let boundedHeight = parentSizing.height != .natural
         let textAlignment: TextAlignment = alignment == "center" ? .center : alignment == "end" ? .trailing : inheritedTextAlignment
         return IntelligentUIColumnLayout(alignment: alignment, gap: theme.spacing(context.number("gap")), boundedHeight: boundedHeight,
-            rightToLeft: direction == .rightToLeft, viewport: viewport) {
+            viewport: viewport) {
             ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                 let item = IntelligentUIFlexItem.read(child.value, theme: theme, fontUnit: fontUnit)
                 context.render(child.value)
@@ -41,7 +40,7 @@ private struct ColumnView: View {
                         height: boundedHeight || item.grow != nil ? .allocated : .natural,
                         hasDefiniteHeight: boundedHeight))
                     .environment(\.openIntelligentUIRowMediaAspectRatio, nil)
-                    .frame(maxWidth: alignment == "stretch" && !item.isBox ? .infinity : nil, alignment: .leading)
+                    .openIntelligentUIStretchWidth(alignment == "stretch" && !item.isBox)
                     .openIntelligentUIReadingTarget(hasReadingTargets ? ReadingAnchor(state: state, child: child.id) : nil)
                     .layoutValue(key: IntelligentUIFlexItemKey.self, value: item)
                     .layoutValue(key: ColumnGapBefore.self, value: index == 0 || context.number("gap") != nil ? 0
@@ -51,7 +50,7 @@ private struct ColumnView: View {
         }
         .environment(\.multilineTextAlignment, textAlignment)
         .modifier(IntelligentUILengthModifier(width: nil, height: nil, fontUnit: fontUnit,
-            itemSizing: parentSizing, rightToLeft: direction == .rightToLeft))
+            itemSizing: parentSizing))
         .openIntelligentUILayoutTrace("column", "count=\(children.count)")
     }
     private var childContext: EditorialContext {

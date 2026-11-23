@@ -118,6 +118,54 @@ final class ProductCardTests: XCTestCase {
         }
     }
 
+    @MainActor func testHorizontalThumbnailUsesTheRenderedLeadingEdgeInBothDirections() throws {
+        let library = try OpenIntelligentUIComponents()
+        let state = library.makeState()
+        defer { state.reset() }
+        state.setSource(#"root = ProductCard({id:"camera",title:"Camera",images:[{url:"local-thumbnail",alt:"Camera"}],price:12,currency:"USD"}, "horizontal")"#)
+        XCTAssertTrue(state.errors.isEmpty, "\(state.errors)")
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let thumbnail = try XCTUnwrap(CGContext(data: nil, width: 24, height: 24, bitsPerComponent: 8,
+            bytesPerRow: 0, space: colorSpace, bitmapInfo: bitmapInfo))
+        thumbnail.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        thumbnail.fill(CGRect(x: 0, y: 0, width: 24, height: 24))
+        let photo = Image(decorative: try XCTUnwrap(thumbnail.makeImage()), scale: 1)
+
+        func imageBounds(_ direction: LayoutDirection) throws -> CGRect {
+            let renderer = ImageRenderer(content: OpenIntelligentUIContentView(state: state, library: library)
+                .openIntelligentUIImages(["local-thumbnail": photo])
+                .environment(\.layoutDirection, direction).environment(\.dynamicTypeSize, .large)
+                .environment(\.colorScheme, .light).frame(width: 320).background(.white))
+            renderer.scale = 1
+            let rendered = try XCTUnwrap(renderer.cgImage)
+            XCTAssertEqual(rendered.width, 320)
+            let output = try XCTUnwrap(CGContext(data: nil, width: rendered.width, height: rendered.height,
+                bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace, bitmapInfo: bitmapInfo))
+            output.draw(rendered, in: CGRect(x: 0, y: 0, width: rendered.width, height: rendered.height))
+            let pixels = try XCTUnwrap(output.data).assumingMemoryBound(to: UInt8.self)
+            var bounds = CGRect.null
+            for y in 0..<rendered.height {
+                for x in 0..<rendered.width {
+                    let offset = y * output.bytesPerRow + x * 4
+                    if pixels[offset] > 200 && pixels[offset + 1] < 60 && pixels[offset + 2] < 60 {
+                        bounds = bounds.union(CGRect(x: x, y: y, width: 1, height: 1))
+                    }
+                }
+            }
+            return try XCTUnwrap(bounds.isNull ? nil : bounds, "The thumbnail must be visible in \(direction)")
+        }
+
+        let left = try imageBounds(.leftToRight), right = try imageBounds(.rightToLeft)
+        XCTAssertGreaterThan(left.width, 70)
+        XCTAssertLessThan(left.maxX, 160, "LTR media belongs on the physical left")
+        XCTAssertGreaterThan(right.minX, 160, "RTL media belongs on the physical right")
+        XCTAssertEqual(left.minX, 320 - right.maxX, accuracy: 1)
+        XCTAssertEqual(left.minY, right.minY, accuracy: 1)
+        XCTAssertEqual(left.width, right.width, accuracy: 1)
+        XCTAssertEqual(left.height, right.height, accuracy: 1)
+    }
+
     @MainActor func testProductWithoutPhotosDoesNotReserveMediaSpace() throws {
         let library = try OpenIntelligentUIComponents()
         let width = 320.0

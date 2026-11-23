@@ -69,7 +69,6 @@ struct IntelligentUILengthFrame: Layout {
     var minimumSize: CGFloat = 0
     var viewport: CGSize?
     var alignment: Alignment = .topLeading
-    var rightToLeft = false
 
     private func sizing(for proposal: ProposedViewSize, subviews: Subviews) -> (width: CGFloat?, height: CGFloat?, content: ProposedViewSize) {
         let proposedWidth = proposal.width.flatMap { $0.isFinite ? max(0, $0) : nil }
@@ -90,21 +89,32 @@ struct IntelligentUILengthFrame: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let sizing = sizing(for: proposal, subviews: subviews)
         let content = subviews.first?.sizeThatFits(sizing.content) ?? .zero
+        LayoutTrace.record("length-measure", "proposalW=\(LayoutTrace.number(proposal.width)) proposalH=\(LayoutTrace.number(proposal.height))"
+            + " resolvedW=\(LayoutTrace.number(sizing.width)) resolvedH=\(LayoutTrace.number(sizing.height))"
+            + " contentW=\(LayoutTrace.number(sizing.content.width)) contentH=\(LayoutTrace.number(sizing.content.height))"
+            + " measuredW=\(LayoutTrace.number(content.width)) measuredH=\(LayoutTrace.number(content.height))"
+            + " widthPolicy=\(itemSizing.width) heightPolicy=\(itemSizing.height) definiteH=\(itemSizing.hasDefiniteHeight) children=\(subviews.count)")
         return CGSize(width: sizing.width ?? (content.width.isFinite ? max(0, content.width) : 0),
                       height: sizing.height ?? (content.height.isFinite ? max(0, content.height) : 0))
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard let child = subviews.first else { return }
         // Resolve lengths against the same parent proposal used to measure.
         // The resulting bounds are not another percentage reference size.
         let sizing = sizing(for: proposal, subviews: subviews)
+        LayoutTrace.record("length-place", "proposalW=\(LayoutTrace.number(proposal.width)) proposalH=\(LayoutTrace.number(proposal.height))"
+            + " resolvedW=\(LayoutTrace.number(sizing.width)) resolvedH=\(LayoutTrace.number(sizing.height))"
+            + " contentW=\(LayoutTrace.number(sizing.content.width)) contentH=\(LayoutTrace.number(sizing.content.height))"
+            + " boundsX=\(LayoutTrace.number(bounds.minX)) boundsY=\(LayoutTrace.number(bounds.minY))"
+            + " boundsW=\(LayoutTrace.number(bounds.width)) boundsH=\(LayoutTrace.number(bounds.height))"
+            + " widthPolicy=\(itemSizing.width) heightPolicy=\(itemSizing.height) definiteH=\(itemSizing.hasDefiniteHeight) children=\(subviews.count)")
+        guard let child = subviews.first else { return }
         let measured = child.sizeThatFits(sizing.content)
         let width = measured.width.isFinite ? max(0, measured.width) : 0
         let height = measured.height.isFinite ? max(0, measured.height) : 0
         let horizontal: CGFloat = alignment.horizontal == .trailing ? 1 : alignment.horizontal == .center ? 0.5 : 0
         let vertical: CGFloat = alignment.vertical == .bottom ? 1 : alignment.vertical == .center ? 0.5 : 0
-        child.place(at: CGPoint(x: bounds.minX + (bounds.width - width) * (rightToLeft ? 1 - horizontal : horizontal),
+        child.place(at: CGPoint(x: bounds.minX + (bounds.width - width) * horizontal,
                                 y: bounds.minY + (bounds.height - height) * vertical),
                     anchor: .topLeading, proposal: sizing.content)
     }
@@ -117,12 +127,11 @@ struct IntelligentUILengthModifier: ViewModifier {
     var itemSizing = IntelligentUIItemSizing()
     var minimumSize: CGFloat = 0
     var alignment: Alignment = .topLeading
-    var rightToLeft = false
     @Environment(\.openIntelligentUIViewportSize) private var viewport
 
     func body(content: Content) -> some View {
         IntelligentUILengthFrame(width: width, height: height, fontUnit: fontUnit,
             itemSizing: itemSizing, minimumSize: minimumSize, viewport: viewport,
-            alignment: alignment, rightToLeft: rightToLeft) { content }
+            alignment: alignment) { content }
     }
 }

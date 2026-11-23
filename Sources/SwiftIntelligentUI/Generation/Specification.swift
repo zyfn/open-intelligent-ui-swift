@@ -28,9 +28,7 @@ extension OpenIntelligentUIComponents {
 
     var selectedGenerationExamples: [String] {
         let available = Set(components.library.components.map(\.name))
-        return zip(Self.generationExamples, Self.exampleRequirements).compactMap { example, requirements in
-            requirements.isSubset(of: available) ? example : nil
-        }
+        return Self.generationExampleDefinitions.filter { $0.requires.isSubset(of: available) }.map(\.source)
     }
 
     private struct GenerationRule {
@@ -81,36 +79,34 @@ extension OpenIntelligentUIComponents {
         .init("Use HtmlView only when the task needs its content. It has no native bridge and is not a substitute for registered native controls.", requires: ["HtmlView"])
     ]
 
-    private static let exampleRequirements: [Set<String>] = [
-        ["Col", "Title", "Text", "Button"],
-        ["Col", "SegmentedControl", "List", "ListItem", "Checkbox", "Disclosure", "Text"],
-        ["Col", "ProductCard", "Checkbox", "Button", "Text"],
-        ["Col", "Title", "Image", "Text", "Citation"],
-        ["Col", "Row", "Image", "Title", "Text"],
-        ["Col", "Grid", "Card", "Title", "Text"],
-        ["Col", "Carousel", "Image", "Title", "Caption"],
-        ["Col", "JourneyLine"],
-        ["Col", "JourneyLine"],
-        ["Col", "Map", "MapMarker"],
-        ["Col", "Title", "Form", "Card", "Input", "RadioGroup", "SegmentedControl", "Slider", "Checkbox", "Disclosure", "TextArea", "Button", "Caption", "Text"]
-    ]
+    private struct GenerationExample {
+        let source: String
+        let requires: Set<String>
 
-    static let generationExamples: [String] = [
-        """
+        init(_ source: String, requires: Set<String>) {
+            self.source = source
+            self.requires = requires
+        }
+    }
+
+    static var generationExamples: [String] { generationExampleDefinitions.map(\.source) }
+
+    private static let generationExampleDefinitions: [GenerationExample] = [
+        .init("""
         Earliest record from same-date, same-timezone zero-padded clock strings; preserve source key casing and exact action data:
         root = Col([Title("同日抵达方案", "lg"), Text("最早抵达：" + earliest.arr), Button("查看方案", @OpenUrl(earliest.bookingUrl), "outline")])
         rails = [{id:"a", date:"2026-11-07", zone:"同一输入时区", arr:"10:30", bookingUrl:"https://example.com/journey?itemParams=AA%3D%3D&flag=1"}, {id:"b", date:"2026-11-07", zone:"同一输入时区", arr:"07:49", bookingUrl:"https://example.com/journey?itemParams=BB%3D%3D&flag=1"}]
         earliest = @First(@Sort(rails, "arr", "asc"))
-        """,
-        """
+        """, requires: ["Col", "Title", "Text", "Button"]),
+        .init("""
         Stable logical task keys in a switched list; local disclosure state and explicit business state are separate:
         root = Col([SegmentedControl($stage, ["输入", "输出"]), List($stage == "输入" ? inputItems : outputItems)])
         $stage = "输入"
         $done = false
         inputItems = [ListItem("", "", "", [Checkbox($done, "输入步骤", true), Disclosure("说明", [Text("准备输入资料。")])])]
         outputItems = [ListItem("输出步骤", "", "", [Disclosure("说明", [Text("查看输出资料。")])])]
-        """,
-        """
+        """, requires: ["Col", "SegmentedControl", "List", "ListItem", "Checkbox", "Disclosure", "Text"]),
+        .init("""
         Consumer confirmation keeps the same ProductCard, price and destination; a checklist supplements it:
         root = Col([$confirmed ? ProductCard(product,"compact") : ProductCard(product), $confirmed ? Checkbox($checked,"已核对购买条件") : Button("确认首选",@Set($confirmed,true)), Text("补充规格：" + record.noiseControl)])
         $confirmed = false
@@ -118,47 +114,52 @@ extension OpenIntelligentUIComponents {
         originalURL = "https://example.com/item?sku=a%2Fb&exParams=keep%3D1&flag=0"
         record = {id:"headphones", title:"耳机", images:[{url:"https://example.com/headphones.jpg",alt:"耳机"}], price:300, currency:"CNY", purchaseURL:originalURL, noiseControl:"输入资料中的规格描述"}
         product = {id:record.id, title:record.title, images:record.images, price:record.price, currency:record.currency, purchaseURL:originalURL}
-        """,
-        """
-        Editorial cover with compact supplied attribution and adjacent reading content:
-        root = Col([Title("建筑观察", "xl"), figure, Text("从输入资料中的建筑细节展开说明。")])
-        figure = Col([Image("https://example.com/cover.jpg", "建筑封面", 1.5),Text(["图片：示例摄影者 · 示例许可 ",Citation([{title:"封面图片来源与许可",url:"https://example.com/cover-source"}])],"xs","muted")],2)
-        """,
-        """
+        """, requires: ["Col", "ProductCard", "Checkbox", "Button", "Text"]),
+        .init("""
+        Editorial cover and open sections for supplied observations. This is one reading composition, not a required page template:
+        root = Col([opening, figure, silhouette, structure])
+        opening = Col([Caption("建筑观察"), Title("看见屋檐的层次", "2xl"), Text("先看整体轮廓，再看支撑关系。", "lg")])
+        figure = Col([Image(coverURL, "建筑封面", 1.5), Caption("资料图：屋檐与支撑构件。"), Text(["图片：示例摄影者 · 示例许可 ", Citation([{title:"封面图片来源与许可",url:sourceURL}])], "xs", "muted")], 2)
+        silhouette = Col([Title("先看整体轮廓", "lg"), Text("屋檐的连续线条形成整体轮廓。先观察线条的方向，再留意层次变化。")])
+        structure = Col([Title("再看支撑关系", "lg"), Text("从屋檐下方的可见构件，观察彼此之间的连接与支撑关系。"), Caption("对照资料观察，不以外观推断未提供的年代或材料。")])
+        coverURL = "https://example.com/cover.jpg"
+        sourceURL = "https://example.com/cover-source"
+        """, requires: ["Col", "Title", "Image", "Text", "Caption", "Citation"]),
+        .init("""
         Photo beside reading content; Row supplies its default media layout:
         root = Col([Row([photo, copy])])
         photo = Image("https://example.com/detail.jpg", "建筑细节")
         copy = Col([Title("观察建筑形制"), Text("从来源提供的屋檐与门窗细节理解这座建筑。")])
-        """,
-        """
+        """, requires: ["Col", "Row", "Image", "Title", "Text"]),
+        .init("""
         Equal columns without card surfaces, followed by one deliberately grouped card:
         root = Col([Title("比较两种安排", "lg"), Grid([shortPlan, slowPlan], 2, 160), Card([Title("共同条件"), Text("两种安排都以来源确认的开放时间为准。")], "soft")])
         shortPlan = Col([Title("紧凑安排"), Text("集中观察一个主题。")])
         slowPlan = Col([Title("从容安排"), Text("在同一地点留出更多阅读时间。")])
-        """,
-        """
+        """, requires: ["Col", "Grid", "Card", "Title", "Text"]),
+        .init("""
         Horizontal browsing of ordinary figure groups; each direct child is one carousel item:
         root = Col([Title("建筑细节", "lg"), Carousel([roof, window], 240)])
         roof = Col([Image("https://example.com/roof.jpg", "屋檐细节", 1.5), Caption("观察屋檐的层次。")], 2)
         window = Col([Image("https://example.com/window.jpg", "窗格细节", 1.5), Caption("观察窗格的结构。")], 2)
-        """,
-        """
+        """, requires: ["Col", "Carousel", "Image", "Title", "Caption"]),
+        .init("""
         Compose a mixed train/flight itinerary from ordinary components. JourneyLine supplies only the horizontal transport connector; each endpoint, transfer note and booking action remains independently arranged:
         root = Col([Card([Title("去程", "md"), Row([Col([Title("21:00"), Text("A站")]), JourneyLine("train"), Col([Title("22:00"), Text("B站")])]), Caption("次日 · 需换站 · 衔接 10 小时"), Row([Col([Title("08:00"), Text("B机场")]), JourneyLine("flight"), Col([Title("11:00"), Text("C机场")])]), Text("两段分开预订；没有提供总价或总时长。"), Row([Link("预订列车", "/transport/train"), Link("预订航班", "/transport/flight")])])])
-        """,
-        """
+        """, requires: ["Col", "Card", "Title", "Row", "JourneyLine", "Caption", "Text", "Link"]),
+        .init("""
         Keep outbound and return as separate compositions. JourneyLine expresses only each transport connection; the source quote remains attached to its known scope:
         root = Col([Card([Title("去程", "md"), Row([Col([Title("06:02"), Text("A站")]), JourneyLine("train"), Col([Title("06:52"), Text("B站")])]), Text("来源成人销售价：¥106；具体计价范围按来源定义。"), Link("查看来源行程", sourceURL)]), Card([Title("返程", "md"), Row([Col([Title("19:55"), Text("B站")]), JourneyLine("train"), Col([Title("20:49"), Text("A站")])])])])
         sourceURL = "https://example.com/source?journeyType=round&opaque=keep%3D%3D"
-        """,
-        """
+        """, requires: ["Col", "Card", "Title", "Row", "JourneyLine", "Text", "Link"]),
+        .init("""
         Supplied coordinates in a street map with category filtering and expansion. Keep selection in the optional label binding:
         root = Col([Map(markers, false, $selected)])
         $selected = ""
         markers = @Each(places, "p", MapMarker(p.title, p.latitude, p.longitude, p.category, "🏛️"))
         places = [{title:"南宋德寿宫遗址博物馆",latitude:30.238678,longitude:120.173273,category:"博物馆"},{title:"胡雪岩旧居（胡雪岩故居）",latitude:30.237273,longitude:120.172906,category:"历史建筑"}]
-        """,
-        """
+        """, requires: ["Col", "Map", "MapMarker"]),
+        .init("""
         Composed native form: each edit changes the preview, optional details are conditional, and reset is local:
         root = Col([Title("阅读偏好", "lg"), Form([Card([Input($name,"清单名称"), RadioGroup($intent,[{value:"explore",label:"发现新知",description:"保持内容多样"},{value:"focus",label:"聚焦主题",description:"围绕一个问题阅读"}],"阅读方式","list"), SegmentedControl($depth,["简要","均衡","深入"],true), Slider($minutes,5,60,5,"每天阅读","分钟"), Checkbox($pictures,"保留相关配图"), Disclosure("补充偏好",[TextArea($notes,"备注","可选",3)])]), Button("重置时长",@Set($minutes,20),"ghost")]), Card([Caption("实时预览"),Title($name),Text(($intent == "focus" ? "聚焦主题" : "发现新知") + " · " + $depth + " · " + $minutes + "分钟"),Text($pictures ? "配图开启" : "纯文字偏好","sm","muted"),$notes == "" ? null : Text($notes,"sm")],"soft")])
         $name = "我的阅读清单"
@@ -167,6 +168,6 @@ extension OpenIntelligentUIComponents {
         $minutes = 20
         $pictures = true
         $notes = ""
-        """
+        """, requires: ["Col", "Title", "Form", "Card", "Input", "RadioGroup", "SegmentedControl", "Slider", "Checkbox", "Disclosure", "TextArea", "Button", "Caption", "Text"])
     ]
 }
