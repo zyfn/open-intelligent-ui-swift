@@ -1,0 +1,88 @@
+name: Export existing iOS failure attachments
+
+on:
+  push:
+    branches: [diagnostic/ios-failure-attachments-20261123]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  export-failure-attachments:
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      EXPECTED_SOURCE: b7a5695fcc3de6030b5881a1e10df68442550dd5
+      SOURCE_RUN: '45181136738'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: b7a5695fcc3de6030b5881a1e10df68442550dd5
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios-ui-diagnostic-45181136738
+          path: outputs/ios-failure-source
+          run-id: 45181136738
+          github-token: ${{ github.token }}
+      - name: Verify source and export official failure attachments
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys
+          source = pathlib.Path("outputs/ios-failure-source")
+          output = pathlib.Path("outputs/ios-failure-attachments")
+          output.mkdir(parents=True, exist_ok=True)
+          record = {
+              "expected_source": os.environ["EXPECTED_SOURCE"],
+              "source_run": os.environ["SOURCE_RUN"],
+              "source_artifact": "ios-ui-diagnostic-45181136738",
+              "source_artifact_sha256": "34f87cd733779ba2514ed5dad9ade4bd2ab234011486c585e3dcb6c7a6fcd9f3",
+              "workflow_commit": os.environ["GITHUB_SHA"],
+              "workflow_ref": os.environ["GITHUB_REF"],
+              "export_run": os.environ["GITHUB_RUN_ID"],
+          }
+          try:
+              record["source"] = (source / "source-sha.txt").read_text().strip()
+              if record["source"] != record["expected_source"]:
+                  raise RuntimeError("Downloaded result is not from the authorized source")
+              record["checkout_source"] = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+              if record["checkout_source"] != record["expected_source"]:
+                  raise RuntimeError("Diagnostic checkout source differs")
+              record["xcode"] = subprocess.check_output(["xcodebuild", "-version"], text=True).strip()
+              if not record["xcode"].startswith("Xcode 26.3\n"):
+                  raise RuntimeError("Unexpected Xcode toolchain")
+              record["architecture"] = subprocess.check_output(["uname", "-m"], text=True).strip()
+              help_command = ["xcrun", "xcresulttool", "export", "attachments", "--help"]
+              help_result = subprocess.run(help_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+              (output / "xcresulttool-attachments-help.txt").write_text(help_result.stdout)
+              record["help_command"] = help_command
+              record["help_exit_code"] = help_result.returncode
+              if help_result.returncode != 0:
+                  raise RuntimeError("Cannot inspect the official export command")
+              if not all(flag in help_result.stdout for flag in ("--path", "--output-path", "--only-failures")):
+                  raise RuntimeError("Official export command lacks a required option")
+              command = ["xcrun", "xcresulttool", "export", "attachments", "--path",
+                  str(source / "tests.xcresult"), "--output-path", str(output / "attachments"), "--only-failures"]
+              record["export_command"] = command
+              with (output / "export.log").open("w") as log:
+                  result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=300)
+              record["export_exit_code"] = result.returncode
+              if result.returncode != 0:
+                  raise RuntimeError("Official attachment export failed")
+              record["passed"] = True
+          except Exception as error:
+              record.update(passed=False, error=str(error))
+          finally:
+              (output / "source-toolchain.json").write_text(json.dumps(record, indent=2) + "\n")
+              print(json.dumps(record, indent=2))
+          sys.exit(0 if record.get("passed") else 1)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-failure-attachments-45181136738
+          path: outputs/ios-failure-attachments/
+          retention-days: 7
+          if-no-files-found: error
