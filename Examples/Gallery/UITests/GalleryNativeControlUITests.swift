@@ -129,16 +129,15 @@ final class GalleryNativeControlUITests: GalleryNativeUITestCase {
     }
 
     @MainActor private func replaceText(in input: XCUIElement, with text: String, app: XCUIApplication) {
-        let current = input.value as? String ?? ""
         input.tap()
         expectLabel(app.staticTexts["validation.controls.native"],
             containing: "input=true;same=true;focused=true;")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
 
-        // The accessibility frame includes padding. Use real navigation keys to
-        // reach the end without treating its trailing edge as a caret position.
-        for _ in 0..<current.count { input.typeKey(.rightArrow, modifierFlags: []) }
-        input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        // Delete the whole selection so intermediate numeric prefixes cannot
+        // become valid edits while the real keyboard events are delivered.
+        input.typeKey("a", modifierFlags: .command)
+        input.typeText(XCUIKeyboardKey.delete.rawValue)
         XCTAssertEqual(input.value as? String, "", "The native editor must be empty before replacement")
         input.typeText(text)
         XCTAssertEqual(input.value as? String, text)
